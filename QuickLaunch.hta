@@ -2,1518 +2,903 @@
 <html>
 <head>
 <meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
 <title>QuickLaunch</title>
-<link rel="shortcut icon" href="QuickLaunch.ico">
-<hta:application
-  id="QuickLaunch"
-  applicationname="QuickLaunch"
-  icon="QuickLaunch.ico"
-  border="thin"
-  caption="yes"
-  showintaskbar="yes"
-  singleinstance="yes"
-  scroll="no"
-  contextmenu="no"
-  innerborder="no"
-  maximizebutton="yes"
-  minimizebutton="yes" />
+<hta:application id="qlApp" applicationname="QuickLaunch" icon="QuickLaunch.ico" border="thick" caption="yes"
+  showintaskbar="yes" singleinstance="yes" scroll="no" contextmenu="no" innerborder="no" selection="no"
+  maximizebutton="yes" minimizebutton="yes" />
+<!--
+  QuickLaunch - one-click launcher for apps, files, folders and websites.
+  Plug and play: put this file in any normal folder and double-click it.
+  Your list is saved next to it in "QuickLaunch-data".
+-->
 <style>
-*{box-sizing:border-box;-ms-user-select:none;margin:0;padding:0}
-html,body{height:100%}
-/* FLUID: body is a flex column so the grid fills whatever space is left */
-body{
-  font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden;
-  color:#f8f2e8;background:#0c0d0b;
-  height:100%;display:flex;flex-direction:column;position:relative;
-}
-body.theme-light{color:#202521;background:#eef1ed}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{-ms-user-select:none;user-select:none;cursor:default}
+input{-ms-user-select:text;user-select:text}
+#app{height:100%;display:flex;flex-direction:column}
+#top,#groups,#status,#warn{flex:none}
+#view{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;min-height:0;position:relative}
 
-/* layered backgrounds (fixed, behind everything) */
-#wall{position:fixed;top:0;left:0;right:0;bottom:0;z-index:0;background-position:center;background-size:cover;display:none}
-#walltint{position:fixed;top:0;left:0;right:0;bottom:0;z-index:0;display:none;background:rgba(8,9,7,.55)}
-body.theme-light #walltint{background:rgba(238,241,237,.45)}
-#bgfx{position:fixed;top:0;left:0;right:0;bottom:0;z-index:0;overflow:hidden}
-#bgfx .aurora{position:absolute;top:-30%;left:-30%;width:160%;height:160%;
-  background:linear-gradient(120deg,rgba(216,183,109,.16) 0%,rgba(255,150,85,.10) 28%,rgba(109,160,216,.12) 55%,rgba(216,183,109,.14) 100%);
-  background-size:280% 280%;animation:sheen 26s ease-in-out infinite}
-#bgfx .grain{position:absolute;top:0;left:0;right:0;bottom:0;opacity:.5;
-  background:radial-gradient(circle at 22% 28%,rgba(255,255,255,.05),transparent 38%),radial-gradient(circle at 78% 72%,rgba(255,255,255,.04),transparent 40%)}
-body.theme-light #bgfx .aurora{opacity:.7}
-@keyframes sheen{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+/* header */
+#top{display:flex;align-items:center;flex-wrap:wrap;padding:8px 12px}
+#logo{width:24px;height:24px;margin-right:8px;image-rendering:pixelated;-ms-interpolation-mode:nearest-neighbor}
+#brand{font-weight:bold;font-size:15px;margin-right:14px;white-space:nowrap}
+#cur{display:none;font-style:normal}
+#q{flex:1 1 160px;min-width:120px;max-width:420px;height:30px;padding:0 10px;font:inherit;outline:none;margin-right:8px}
+.sp{flex:1 1 0px}
+.btn{height:30px;padding:0 12px;margin-left:6px;font:inherit;font-weight:bold;cursor:pointer;white-space:nowrap;outline:none;overflow:visible}
+.btn.ic{padding:0 9px;min-width:32px}
+.seg{display:inline-block;white-space:nowrap;margin-left:6px}
+.seg .btn{margin-left:0}
+.seg .btn+.btn{margin-left:-1px}
 
-/* all UI sits above backgrounds */
-#banner,#bar,#tabs,#quick,#grid{position:relative;z-index:1;flex:none}
+/* group chips */
+#groups{padding:8px 12px 2px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;-ms-overflow-style:none}
+.chip{display:inline-block;padding:4px 11px;margin:0 6px 6px 0;font-weight:bold;cursor:pointer;font-size:.92em}
+.chip .n{opacity:.6;font-weight:normal;margin-left:5px}
 
-/* banner with big clock */
-#banner{padding:14px 18px 4px;position:relative;min-height:54px}
-#bigclock{position:absolute;top:12px;right:18px;text-align:right;line-height:1}
-#bigclock .t{font-size:28px;font-weight:200;letter-spacing:1px;white-space:nowrap}
-#bigclock .t .col{animation:blink 2s step-start infinite;opacity:.85}
-#bigclock .t .ap{font-size:12px;font-weight:600;margin-left:4px;opacity:.7;letter-spacing:1px}
-#bigclock .d{font-size:11px;opacity:.55;margin-top:3px;letter-spacing:.5px;text-transform:uppercase;white-space:nowrap}
-@keyframes blink{0%,49%{opacity:.85}50%,100%{opacity:.18}}
-#banner .hi{font-size:18px;font-weight:bold;letter-spacing:-.3px;margin-right:130px}
-#banner .sub{font-size:12px;opacity:.6;margin-top:2px;margin-right:130px}
-
-/* top bar (glass) */
-#bar{padding:10px 16px 14px;border-bottom:1px solid rgba(255,255,255,.12);background:rgba(20,22,17,.55)}
-body.glass #bar{background:rgba(20,22,17,.38)}
-body.theme-light #bar{border-bottom:1px solid rgba(40,56,60,.13);background:rgba(251,250,244,.55)}
-#bar .logo{font-size:15px;font-weight:bold;letter-spacing:-.3px;vertical-align:middle}
-#bar .logo .count{opacity:.55;font-weight:normal;font-size:12px}
-.search{width:200px;padding:7px 12px;margin:3px 0 3px 10px;border-radius:20px;border:1px solid rgba(255,255,255,.13);
-  background:rgba(255,255,255,.06);color:inherit;outline:none;font-size:13px;vertical-align:middle;transition:width .25s,border-color .2s}
-.search:focus{width:240px}
-body.theme-light .search{border:1px solid rgba(40,56,60,.15);background:rgba(40,56,60,.05)}
-.btn{padding:7px 13px;margin:3px 0 3px 8px;border-radius:20px;cursor:pointer;border:1px solid rgba(255,255,255,.13);
-  background:rgba(255,255,255,.08);color:inherit;font-size:12px;font-weight:bold;vertical-align:middle;transition:transform .12s,background .2s,border-color .2s}
-body.theme-light .btn{border:1px solid rgba(40,56,60,.15);background:rgba(40,56,60,.06)}
-.btn:hover{background:rgba(255,255,255,.16);transform:translateY(-1px)}
-body.theme-light .btn:hover{background:rgba(40,56,60,.12)}
-.btn:active{transform:scale(.94)}
-.btn.icn{padding:7px 11px}
-
-/* tabs */
-#tabs{padding:8px 16px 0;white-space:nowrap;overflow-x:auto;overflow-y:hidden}
-.tab{display:inline-block;padding:5px 13px;margin-right:7px;border-radius:16px;cursor:pointer;border:1px solid rgba(255,255,255,.13);
-  background:rgba(255,255,255,.06);font-size:12px;font-weight:bold;color:#aaa297;transition:color .2s,border-color .2s,transform .12s}
-body.theme-light .tab{border:1px solid rgba(40,56,60,.15);background:rgba(40,56,60,.05);color:#5a6360}
-.tab:hover{transform:translateY(-1px)}
-
-/* GRID: flex:1 makes it take all remaining height, scrolls inside.
-   Tiles are inline-block and WRAP automatically to fill the width -> fluid. */
-#grid{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:16px;min-height:0}
-.tile{display:inline-block;vertical-align:top;margin:0 12px 12px 0;border-radius:16px;cursor:pointer;text-align:center;position:relative;
-  border:1px solid rgba(255,255,255,.13);background:rgba(18,20,16,.5);transition:transform .15s,border-color .2s,box-shadow .2s;
-  animation:pop .28s ease both;overflow:hidden}
-body.glass .tile{background:rgba(28,31,24,.34)}
-@keyframes pop{0%{opacity:0;transform:scale(.85) translateY(8px)}100%{opacity:1;transform:scale(1) translateY(0)}}
-body.theme-light .tile{border:1px solid rgba(40,56,60,.15);background:rgba(251,250,244,.6)}
-.tile:hover{transform:translateY(-4px) scale(1.03);box-shadow:0 10px 26px rgba(0,0,0,.35)}
-body.theme-light .tile:hover{box-shadow:0 10px 26px rgba(65,75,70,.18)}
-.tile:active{transform:scale(.97)}
-.tile.dragover{border-style:dashed;transform:scale(1.05)}
-.tile .ic{margin:0 auto 10px;border-radius:12px;background:rgba(255,255,255,.1);overflow:hidden;transition:transform .2s}
-body.theme-light .tile .ic{background:rgba(40,56,60,.1)}
-.tile:hover .ic{transform:scale(1.08)}
-.tile .ic img{width:100%;height:100%}
-.tile .nm{font-size:12px;font-weight:bold;line-height:1.25;overflow:hidden;word-break:break-word}
-.tile .kind{display:block;margin-top:4px;font:9px/1 'Consolas',monospace;letter-spacing:1px;text-transform:uppercase;opacity:.5}
-.tile .edit{position:absolute;top:5px;right:5px;width:22px;height:22px;line-height:20px;border-radius:50%;font-size:12px;display:none;
-  border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.45);color:#fff;transition:transform .12s;z-index:3}
-.tile .edit:hover{transform:rotate(90deg)}
-.tile:hover .edit{display:block}
-.tile .badge{position:absolute;top:5px;left:5px;min-width:16px;height:16px;line-height:16px;padding:0 4px;border-radius:8px;font-size:10px;font-weight:bold;color:#0a0908;display:none;z-index:3}
-.tile:hover .badge{display:block}
-.tile .star{position:absolute;bottom:5px;right:7px;font-size:12px;z-index:3}
-.tile .strip{position:absolute;top:0;left:0;bottom:0;width:4px;z-index:2}
-
-.ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.45);transform:scale(0);animation:rip .5s linear;pointer-events:none;z-index:4}
-@keyframes rip{to{transform:scale(2.6);opacity:0}}
+#warn{display:none;padding:8px 12px;font-weight:bold;background:#b13e53;color:#fff}
 
 /* list view */
-/* v3 LIST VIEW: one row per link - icon | name + description | shared by | group | last used */
-body.listview .tile{display:block;width:auto;height:auto;text-align:left;margin:0 0 6px 0;padding:0;border-radius:12px}
-body.listview .tile:hover{transform:translateX(3px)}
-body.listview .tile:hover .ic{transform:none}
-body.listview .tile.lrow,.lrow{display:flex;align-items:center;padding:9px 40px 9px 16px;min-height:56px}
-.lrow .ic{flex:none;width:34px;height:34px;line-height:34px;font-size:17px;margin:0 12px 0 0;text-align:center}
-.lrow .main{flex:1 1 auto;min-width:0}
-.lrow .nm{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lrow .nm .kind{display:inline;margin:0 0 0 8px;vertical-align:1px}
-.lrow .desc{font-size:12px;opacity:.68;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lrow .desc .mfrom{display:none}
-.lrow .cl{flex:none;font-size:11px;margin-left:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lrow .from{width:200px}
-.lrow .from span{display:inline-block;max-width:100%;padding:3px 9px;border-radius:10px;background:rgba(128,128,128,.16);cursor:pointer;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
-.lrow .from span:hover{background:rgba(128,128,128,.30)}
-.lrow .grp{width:96px;opacity:.75}
-.lrow .grp i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
-.lrow .when{width:74px;text-align:right;opacity:.55}
-.lrow .rstar{flex:none;width:16px;margin-left:10px;text-align:center;font-size:12px}
-body.listview .tile .edit{top:50%;margin-top:-11px;right:10px}
-body.listview .tile .miss{position:static;display:inline-block;margin:0 6px 0 0;vertical-align:1px}
-body.theme-retro .lrow .from span{border-radius:0}
-.lhead{display:flex;padding:0 40px 6px 16px;font-size:10px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;opacity:.5}
-.lhead .main{flex:1 1 auto;padding-left:46px}
-.lhead .cl{flex:none;margin-left:12px}
-.lhead .from{width:200px} .lhead .grp{width:96px} .lhead .when{width:74px;text-align:right} .lhead .rstar{width:16px;margin-left:10px}
-@media (max-width:700px){ .lrow .grp,.lhead .grp,.lrow .when,.lhead .when{display:none} }
-@media (max-width:480px){ .lrow .from,.lhead .from{display:none} .lrow .desc .mfrom{display:inline;font-weight:bold} .lrow{padding-right:34px} }
+.lhead,.row{display:flex;align-items:center;padding:0 12px}
+.lhead{height:28px;font-size:.78em;font-weight:bold;text-transform:uppercase;letter-spacing:.5px}
+.lhead div{cursor:pointer}
+.lhead .c-ic,.lhead .c-more{cursor:default}
+.row{cursor:pointer;position:relative}
+.c-ic{flex:none;width:34px}
+.c-name{flex:2 1 0px;min-width:0;padding-right:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:bold}
+.c-desc{flex:3 1 0px;min-width:0;padding-right:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-from{flex:none;width:150px;padding-right:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-date{flex:none;width:96px;padding-right:12px;white-space:nowrap}
+.c-grp{flex:none;width:110px;padding-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-more{flex:none;width:30px;text-align:center}
+.gtag{display:inline-block;max-width:100%;padding:2px 8px;font-size:.85em;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.warnTxt{font-weight:normal;font-size:.8em;margin-left:8px;color:#e05545}
+.row.miss .ico{opacity:.4}
+.more{display:inline-block;width:24px;height:24px;line-height:22px;text-align:center;cursor:pointer;font-weight:bold;letter-spacing:-1px;visibility:hidden}
+.row:hover .more,.tile:hover .more{visibility:visible}
+@media (max-width:980px){ .c-grp{display:none} }
+@media (max-width:780px){ .c-desc{display:none} }
+@media (max-width:600px){ .c-from{display:none} }
+@media (max-width:430px){ .c-date{display:none} }
 
-/* v3 QUICK ADD bar */
-#quick{padding:8px 16px 0;display:flex;align-items:center}
-#quick .search{width:auto;margin:0 8px 0 0;min-width:0}
-#quick .search:focus{width:auto}
-#quick #qTarget{flex:3 1 0}
-#quick #qDesc{flex:3 1 0}
-#quick #qFrom{flex:2 1 0}
-#quick .btn{margin:0;flex:none}
-@media (max-width:620px){ #quick{flex-wrap:wrap} #quick #qTarget{flex:1 1 100%;margin-bottom:6px !important} }
-@media (max-width:460px){ #quick .search{display:block;width:auto} }
+/* icon view - tile width is recalculated on resize so tiles always fill the window */
+.grid{padding:12px 0 12px 12px}
+.tile{float:left;margin:0 10px 10px 0;padding:12px 8px 10px;text-align:center;cursor:pointer;position:relative;overflow:hidden}
+.tile .t-nm{font-weight:bold;line-height:1.3em;max-height:2.6em;overflow:hidden;word-wrap:break-word;margin-top:8px}
+.tile .t-ds{font-size:.82em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.tile .more{position:absolute;top:3px;right:3px}
+.tile.miss .ico{opacity:.4}
+.tile .mdot{position:absolute;top:8px;left:8px;width:9px;height:9px;border-radius:50%;background:#e05545}
+.clear{clear:both}
 
-.empty{padding:50px 20px;color:#aaa297;font-size:14px;line-height:1.6;text-align:center}
-.empty .ring{width:64px;height:64px;margin:0 auto 12px;border:2px dashed rgba(216,183,109,.5);border-radius:16px;line-height:60px;font-size:26px;color:#d8b76d}
+/* icons: a coloured file-type badge, with the real icon on top when we have one */
+.ico{position:relative;display:inline-block;vertical-align:middle;overflow:hidden}
+.ico .bdg{display:block;width:100%;height:100%;text-align:center;color:#fff;font-weight:bold;font-family:'Segoe UI',Arial,sans-serif;letter-spacing:0}
+.ico img{position:absolute;left:0;top:0;width:100%;height:100%}
 
-/* group separator heading (shown only on the All tab) */
-.grphd{display:block;width:100%;clear:both;margin:2px 0 12px;padding:0 0 6px;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;
-  color:#aaa297;border-bottom:1px solid rgba(255,255,255,.12)}
-.grphd:first-child{margin-top:0}
-.grphd .gc{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:7px;vertical-align:middle}
-.grphd .cnt{font-weight:normal;opacity:.5;margin-left:6px;font-size:11px}
-body.theme-light .grphd{color:#5a6360;border-bottom:1px solid rgba(40,56,60,.13)}
-body.theme-retro .grphd{color:#8b6f55;border-bottom:2px solid #8b1e24;border-radius:0}
-body.theme-retro.retro-sega .grphd{color:#5a6a90;border-bottom:2px solid #1b2a6b}
-body.theme-retro.retro-gb .grphd{color:#5f7050;border-bottom:2px solid #2f4f2f}
+/* empty + welcome */
+.empty{padding:40px 20px;text-align:center;line-height:1.6}
+.welcome{max-width:560px;margin:24px auto;padding:22px 24px;line-height:1.5}
+.welcome h2{font-size:1.35em;margin-bottom:4px}
+.welcome .step{margin-top:16px}
+.welcome .step b.num{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;margin-right:8px}
+.welcome .btn{margin:8px 6px 0 0}
 
-/* modals */
-.overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:5;background:rgba(0,0,0,.55);animation:fade .2s ease}
-@keyframes fade{0%{opacity:0}100%{opacity:1}}
-.card{width:380px;margin:34px auto;border-radius:18px;padding:20px;background:#16180f;border:1px solid rgba(255,255,255,.13);
-  max-height:88%;overflow:auto;animation:rise .26s cubic-bezier(.2,.8,.2,1) both;box-shadow:0 24px 60px rgba(0,0,0,.5)}
-@keyframes rise{0%{opacity:0;transform:translateY(24px) scale(.96)}100%{opacity:1;transform:translateY(0) scale(1)}}
-body.theme-light .card{background:#fbfaf4;border:1px solid rgba(40,56,60,.15)}
-.card h3{margin:0 0 14px;font-size:17px}
-.fld{margin-bottom:11px}
-.fld label{display:block;font-size:11px;font-weight:bold;margin-bottom:4px;color:#aaa297;text-transform:uppercase}
-body.theme-light .fld label{color:#5a6360}
-.fld input,.fld select{width:100%;padding:9px;border-radius:10px;font-size:13px;outline:none;border:1px solid rgba(255,255,255,.20);background:#1c1f17;color:#f8f2e8;transition:border-color .2s}
-.fld input:focus,.fld select:focus{border-color:#d8b76d}
-.fld select option{background:#1c1f17;color:#f8f2e8}
-body.theme-light .fld input,body.theme-light .fld select{border:1px solid rgba(40,56,60,.20);background:#fff;color:#202521}
-body.theme-light .fld select option{background:#fff;color:#202521}
-.row{white-space:nowrap}
-.row input{width:240px}
-.acts{margin-top:16px;text-align:right;white-space:nowrap}
-.acts .btn.danger{float:left;color:#ff7474;border-color:rgba(255,116,116,.4)}
-.icprev{display:inline-block;width:40px;height:40px;border-radius:10px;vertical-align:middle;background:rgba(255,255,255,.1);line-height:40px;text-align:center;font-size:20px;overflow:hidden}
-.icprev img{width:40px;height:40px}
-.swatch{display:inline-block;width:26px;height:26px;border-radius:50%;margin:0 6px 0 0;cursor:pointer;border:2px solid transparent;vertical-align:middle}
-.swatch.sel{border-color:#fff}
-body.theme-light .swatch.sel{border-color:#202521}
+/* status bar */
+#status{display:flex;padding:5px 12px;font-size:.8em;white-space:nowrap}
+#status .l{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
+#status .r{flex:none;margin-left:12px}
+@media (max-width:640px){ #status .r{display:none} #brand{display:none} }
+@media (max-width:470px){ #q{order:9;flex:1 1 100%;max-width:none;margin:8px 0 0} }
 
-#toast{position:fixed;left:50%;bottom:22px;z-index:20;transform:translateX(-50%) translateY(40px);font-size:12px;font-weight:bold;padding:9px 16px;border-radius:20px;color:#0a0908;opacity:0;transition:opacity .25s,transform .25s;box-shadow:0 8px 24px rgba(0,0,0,.35);white-space:nowrap}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-::-webkit-scrollbar{width:10px;height:10px}
-::-webkit-scrollbar-thumb{background:rgba(216,183,109,.4);border-radius:6px}
+/* dialogs */
+.ov{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:20;background:rgba(0,0,0,.45)}
+.card{width:440px;max-width:94%;margin:7vh auto 0;padding:18px 20px;max-height:86vh;overflow-y:auto}
+.card h3{font-size:1.15em;margin-bottom:12px}
+.fld{margin-bottom:10px}
+.fld label{display:block;font-size:.78em;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.fld input,.fld select{width:100%;height:32px;padding:0 9px;font:inherit;outline:none}
+.fld .inrow{display:flex}
+.fld .inrow input{flex:1 1 auto;width:auto;min-width:0}
+.fld .hint{font-size:.8em;margin-top:4px}
+.two{display:flex}
+.two .fld{flex:1 1 0px;min-width:0}
+.two .fld+.fld{margin-left:10px}
+.acts{display:flex;margin-top:14px}
+.acts .btn:first-child{margin-left:0}
+.themes .btn,.sizes .btn{margin:0 6px 6px 0}
+.sw{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.35)}
 
-/* ================= RETRO THEME (Famicom console) ================= */
-body.theme-retro{color:#3b2b20;background:#f2e8d5}
-body.theme-retro #bgfx .aurora{opacity:.25}
-body.theme-retro #walltint{background:rgba(242,232,213,.5)}
-body.theme-retro #bar{border-bottom:3px solid #8b1e24;background:#ead9bd}
-body.theme-retro .search{border:2px solid #8b1e24;background:#fbf3e4;border-radius:0;color:#3b2b20}
-body.theme-retro .btn{border:2px solid #8b1e24;background:#ead9bd;color:#8b1e24;border-radius:0;box-shadow:2px 2px 0 #8b1e24}
-body.theme-retro .btn:hover{background:#8b1e24;color:#f2e8d5;transform:none}
-body.theme-retro .btn:active{box-shadow:none;transform:translate(2px,2px)}
-body.theme-retro .tab{border:2px solid #8b1e24;background:#ead9bd;color:#8b6f55;border-radius:0}
-body.theme-retro .tab:hover{transform:none;background:#fbf3e4}
-body.theme-retro .tile{border:2px solid #3b2b20;background:#fbf3e4;border-radius:0;box-shadow:3px 3px 0 #3b2b20}
-body.theme-retro .tile:hover{transform:none;background:#ffe9d6;box-shadow:4px 4px 0 #8b1e24;border-color:#8b1e24}
-body.theme-retro .tile:active{box-shadow:none;transform:translate(3px,3px)}
-body.theme-retro .tile .ic{background:#ead9bd;border-radius:0}
-body.theme-retro .tile .kind{opacity:.7;color:#8b6f55}
-body.theme-retro .card{background:#f2e8d5;border:3px solid #8b1e24;border-radius:0;box-shadow:6px 6px 0 #8b1e24}
-body.theme-retro .fld label{color:#8b6f55}
-body.theme-retro .fld input,body.theme-retro .fld select{border:2px solid #8b1e24;background:#fbf3e4;color:#3b2b20;border-radius:0}
-body.theme-retro .fld select option{background:#fbf3e4;color:#3b2b20}
-body.theme-retro .empty{color:#8b6f55}
-body.theme-retro .empty .ring{border-color:#c8322b;color:#c8322b;border-radius:0}
-body.theme-retro .icprev{background:#ead9bd;border-radius:0}
-body.theme-retro #bigclock .t,body.theme-retro #bigclock .d{color:#8b1e24}
-
-/* ================= FLUID SMALL-WINDOW RULES ================= */
-/* Clock drops below the greeting instead of overlapping it */
-@media (max-width:560px){
-  #bigclock{position:static;text-align:left;margin-top:6px}
-  #bigclock .t{font-size:22px}
-  #banner .hi,#banner .sub{margin-right:0}
-  .search{width:130px}
-  .search:focus{width:150px}
-}
-@media (max-width:400px){
-  #bar .logo .count{display:none}
-}
-/* Ultra-narrow: stack the top bar into clean rows - nothing overlaps */
-@media (max-width:460px){
-  #bar{padding:8px 12px 12px}
-  #bar .logo{display:block;margin-bottom:7px}
-  .search{display:block;width:100%;margin:0 0 8px 0}
-  .search:focus{width:100%}
-  .btn{margin:0 6px 6px 0;padding:7px 11px}
-  #banner{padding:10px 12px 2px}
-  #banner .hi{font-size:16px}
-  #bigclock .t{font-size:19px}
-  /* tabs WRAP into rows - no side scrollbar, no cut-off tabs */
-  #tabs{padding:6px 12px 0;white-space:normal;overflow:visible}
-  .tab{margin:0 6px 6px 0}
-  #grid{padding:12px}
-  .tile{margin:0 8px 8px 0}
-  .card{width:auto;margin:20px 12px}
-  .row input{width:100%;margin-bottom:6px}
-}
-/* kill the chunky scrollbar under tabs at any width */
-#tabs{-ms-overflow-style:none;scrollbar-width:none}
-#tabs::-webkit-scrollbar{display:none}
-
-/* VERY narrow: one item per row - buttons, tabs, and tiles all stack */
-@media (max-width:330px){
-  .btn{display:block;width:100%;margin:0 0 6px 0;text-align:center}
-  .tab{display:block;margin:0 0 6px 0;text-align:center}
-  /* tiles become full-width rows (like list view) */
-  .tile{display:block;width:auto !important;height:auto !important;text-align:left;margin:0 0 8px 0;padding:10px 12px !important}
-  .tile .ic{display:inline-block;vertical-align:middle;margin:0 10px 0 0 !important;width:30px !important;height:30px !important;line-height:30px !important;font-size:15px !important}
-  .tile .nm{display:inline-block;vertical-align:middle;height:auto !important;font-size:12px !important}
-  .tile .kind{display:inline-block;margin:0 0 0 8px}
-  .tile .badge{left:auto;right:10px;top:12px}
-  .tile .star{bottom:auto;top:12px;right:30px}
-  #bigclock .t{font-size:16px}
-  #banner .hi{font-size:14px}
-}
-
-/* TINY: buttons and tabs turn into plain text links - zero clutter */
-@media (max-width:240px){
-  .btn{display:block;width:auto;border:none !important;background:transparent !important;box-shadow:none !important;
-    padding:3px 0 !important;margin:0 0 4px 0;text-align:left;text-decoration:underline;color:inherit !important;transform:none !important}
-  .btn:hover{background:transparent !important;transform:none !important}
-  .tab{display:block;border:none !important;background:transparent !important;box-shadow:none !important;
-    padding:3px 0;margin:0 0 4px 0;text-align:left;text-decoration:underline}
-  .search{padding:6px 8px;font-size:12px}
-  #bigclock{display:none}
-  #banner .sub{display:none}
-}
-
-/* ================= IDLE PONG ================= */
-#pongBall{display:none;position:fixed;width:16px;height:16px;border-radius:50%;z-index:30;pointer-events:none;box-shadow:0 0 12px rgba(0,0,0,.4)}
-#pongPad{display:none;position:fixed;width:70px;height:9px;border-radius:5px;z-index:30;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-#pongScore{display:none;position:fixed;top:8px;left:50%;margin-left:-40px;width:80px;text-align:center;z-index:30;pointer-events:none;font:bold 13px Consolas,monospace;opacity:.75}
-body.theme-retro #pongBall{border-radius:0}
-body.theme-retro #pongPad{border-radius:0}
-
-/* ---- STICKMAN FIGHT (martial arts, jointed limbs) ---- */
-.fgt{display:none;position:fixed;width:44px;height:92px;z-index:30;pointer-events:none;-ms-transform-origin:22px 90px;transform-origin:22px 90px}
-.fgt div{position:absolute;background:currentColor}
-.fgt .fh{width:15px;height:15px;border-radius:50%;left:14px;top:0;
-  -ms-transform-origin:7px 14px;transform-origin:7px 14px}
-.fgt .fb{width:5px;height:30px;left:19px;top:14px;
-  -ms-transform-origin:2px 2px;transform-origin:2px 2px}
-/* upper limbs pivot at shoulder/hip; lower segment nested, pivots at elbow/knee */
-.fgt .uaL,.fgt .uaR{width:4px;height:16px;left:19px;top:17px;
-  -ms-transform-origin:2px 2px;transform-origin:2px 2px}
-.fgt .uaL .lo,.fgt .uaR .lo{width:4px;height:15px;left:0;top:14px;
-  -ms-transform-origin:2px 1px;transform-origin:2px 1px}
-.fgt .ulL,.fgt .ulR{width:5px;height:20px;left:19px;top:42px;
-  -ms-transform-origin:2px 2px;transform-origin:2px 2px}
-.fgt .ulL .lo,.fgt .ulR .lo{width:5px;height:20px;left:0;top:18px;
-  -ms-transform-origin:2px 1px;transform-origin:2px 1px}
-.fhp{display:none;position:fixed;top:10px;height:8px;width:120px;z-index:30;pointer-events:none;border:1px solid currentColor}
-.fhp i{display:block;height:100%;background:currentColor}
-#fhp1{left:14px} #fhp2{right:14px}
-body.theme-retro .fhp{border-width:2px}
-#pongPad2{display:none;position:fixed;width:70px;height:9px;border-radius:5px;z-index:30;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-#gameStop{display:none;position:fixed;top:8px;right:14px;z-index:31;cursor:pointer;
-  font:bold 11px Consolas,monospace;letter-spacing:1px;padding:6px 12px;
-  border:2px solid currentColor;background:transparent;opacity:.85}
-#gameStop:hover{opacity:1}
-.fsh{display:none;position:fixed;height:6px;border-radius:50%;z-index:29;pointer-events:none;
-  background:rgba(0,0,0,.28)}
-#fspark{display:none;position:fixed;width:22px;height:22px;z-index:31;pointer-events:none;
-  border-radius:50%;border:3px solid currentColor}
-body.theme-retro #pongPad2{border-radius:0}
-
-/* ---- RETRO COLOR: SEGA (blue console) ---- */
-body.theme-retro.retro-sega{color:#141b33;background:#dfe7f2}
-body.theme-retro.retro-sega #bar{border-bottom:3px solid #1b2a6b;background:#c9d6ea}
-body.theme-retro.retro-sega .search,body.theme-retro.retro-sega .fld input,body.theme-retro.retro-sega .fld select{border:2px solid #1b2a6b;background:#f0f5fc;color:#141b33}
-body.theme-retro.retro-sega .fld select option{background:#f0f5fc;color:#141b33}
-body.theme-retro.retro-sega .btn{border:2px solid #1b2a6b;background:#c9d6ea;color:#1b2a6b;box-shadow:2px 2px 0 #1b2a6b}
-body.theme-retro.retro-sega .btn:hover{background:#1b2a6b;color:#dfe7f2}
-body.theme-retro.retro-sega .tab{border:2px solid #1b2a6b;background:#c9d6ea;color:#5a6a90}
-body.theme-retro.retro-sega .tab:hover{background:#f0f5fc}
-body.theme-retro.retro-sega .tile{border:2px solid #141b33;background:#f0f5fc;box-shadow:3px 3px 0 #141b33}
-body.theme-retro.retro-sega .tile:hover{background:#e2ecfa;box-shadow:4px 4px 0 #1b2a6b;border-color:#1b2a6b}
-body.theme-retro.retro-sega .tile .ic{background:#c9d6ea}
-body.theme-retro.retro-sega .card{background:#dfe7f2;border:3px solid #1b2a6b;box-shadow:6px 6px 0 #1b2a6b}
-body.theme-retro.retro-sega .fld label,body.theme-retro.retro-sega .empty,body.theme-retro.retro-sega .tile .kind{color:#5a6a90}
-body.theme-retro.retro-sega #bigclock .t,body.theme-retro.retro-sega #bigclock .d{color:#1b2a6b}
-body.theme-retro.retro-sega #walltint{background:rgba(223,231,242,.5)}
-
-/* ---- RETRO COLOR: GAME BOY (green handheld) ---- */
-body.theme-retro.retro-gb{color:#243324;background:#dfe6c8}
-body.theme-retro.retro-gb #bar{border-bottom:3px solid #2f4f2f;background:#cdd8ab}
-body.theme-retro.retro-gb .search,body.theme-retro.retro-gb .fld input,body.theme-retro.retro-gb .fld select{border:2px solid #2f4f2f;background:#eef2da;color:#243324}
-body.theme-retro.retro-gb .fld select option{background:#eef2da;color:#243324}
-body.theme-retro.retro-gb .btn{border:2px solid #2f4f2f;background:#cdd8ab;color:#2f4f2f;box-shadow:2px 2px 0 #2f4f2f}
-body.theme-retro.retro-gb .btn:hover{background:#2f4f2f;color:#dfe6c8}
-body.theme-retro.retro-gb .tab{border:2px solid #2f4f2f;background:#cdd8ab;color:#5f7050}
-body.theme-retro.retro-gb .tab:hover{background:#eef2da}
-body.theme-retro.retro-gb .tile{border:2px solid #243324;background:#eef2da;box-shadow:3px 3px 0 #243324}
-body.theme-retro.retro-gb .tile:hover{background:#e2ecc8;box-shadow:4px 4px 0 #2f4f2f;border-color:#2f4f2f}
-body.theme-retro.retro-gb .tile .ic{background:#cdd8ab}
-body.theme-retro.retro-gb .card{background:#dfe6c8;border:3px solid #2f4f2f;box-shadow:6px 6px 0 #2f4f2f}
-body.theme-retro.retro-gb .fld label,body.theme-retro.retro-gb .empty,body.theme-retro.retro-gb .tile .kind{color:#5f7050}
-body.theme-retro.retro-gb #bigclock .t,body.theme-retro.retro-gb #bigclock .d{color:#2f4f2f}
-body.theme-retro.retro-gb #walltint{background:rgba(223,230,200,.5)}
-
-/* ================= v2: REAL PALETTES FOR MIDNIGHT / FOREST / MONO ================= */
-body.theme-midnight{background:#080d1a;color:#e8eefc}
-body.theme-midnight #bar{background:rgba(14,22,44,.6)}
-body.theme-midnight .tile{background:rgba(18,28,56,.55)}
-body.theme-midnight .card{background:#0f1730}
-body.theme-midnight .fld input,body.theme-midnight .fld select,body.theme-midnight .fld textarea{background:#16203d}
-body.theme-forest{background:#0a120b;color:#eef5e9}
-body.theme-forest #bar{background:rgba(16,30,18,.6)}
-body.theme-forest .tile{background:rgba(20,38,22,.55)}
-body.theme-forest .card{background:#0f1c11}
-body.theme-forest .fld input,body.theme-forest .fld select,body.theme-forest .fld textarea{background:#16281a}
-body.theme-mono{background:#000;color:#fff}
-body.theme-mono #bgfx{display:none}
-body.theme-mono #bar{background:#000;border-bottom:1px solid #fff}
-body.theme-mono .tile,body.theme-mono .btn,body.theme-mono .tab,body.theme-mono .search{background:#000;border:1px solid rgba(255,255,255,.7)}
-body.theme-mono .tile:hover{border-color:#fff;box-shadow:0 0 0 2px #fff}
-body.theme-mono .card{background:#000;border:1px solid #fff}
-
-/* ================= v2: NOTES BOX ================= */
-.fld textarea{width:100%;padding:9px;border-radius:10px;font:13px 'Segoe UI',sans-serif;outline:none;resize:vertical;height:54px;
-  border:1px solid rgba(255,255,255,.20);background:#1c1f17;color:#f8f2e8}
-.fld textarea:focus{border-color:#d8b76d}
-body.theme-light .fld textarea{border:1px solid rgba(40,56,60,.20);background:#fff;color:#202521}
-body.theme-retro .fld textarea{border:2px solid #8b1e24;background:#fbf3e4;color:#3b2b20;border-radius:0}
-body.theme-retro.retro-sega .fld textarea{border-color:#1b2a6b;background:#f0f5fc;color:#141b33}
-body.theme-retro.retro-gb .fld textarea{border-color:#2f4f2f;background:#eef2da;color:#243324}
-.hint{font-size:11px;opacity:.6;margin-top:4px}
-
-/* ================= v2: RIGHT-CLICK MENU ================= */
-#ctx{display:none;position:fixed;z-index:40;min-width:190px;padding:6px;border-radius:12px;
-  background:#16180f;border:1px solid rgba(255,255,255,.15);box-shadow:0 14px 36px rgba(0,0,0,.5);animation:fade .12s ease}
-#ctx .ci{padding:7px 12px;border-radius:8px;font-size:12px;cursor:pointer;white-space:nowrap}
-#ctx .ci:hover{background:rgba(255,255,255,.10)}
-#ctx .ci .k{display:inline-block;width:20px;opacity:.75}
-#ctx .sep{height:1px;margin:5px 4px;background:rgba(255,255,255,.12)}
-#ctx .ci.danger{color:#ff7474}
-body.theme-light #ctx{background:#fbfaf4;border:1px solid rgba(40,56,60,.15)}
-body.theme-light #ctx .ci:hover{background:rgba(40,56,60,.08)}
-body.theme-light #ctx .sep{background:rgba(40,56,60,.13)}
-body.theme-retro #ctx{background:#f2e8d5;border:3px solid #8b1e24;border-radius:0;box-shadow:5px 5px 0 #8b1e24}
-body.theme-retro #ctx .ci{border-radius:0}
-body.theme-retro #ctx .ci:hover{background:#8b1e24;color:#f2e8d5}
-body.theme-retro #ctx .sep{background:#8b1e24}
-body.theme-retro.retro-sega #ctx{background:#dfe7f2;border-color:#1b2a6b;box-shadow:5px 5px 0 #1b2a6b}
-body.theme-retro.retro-sega #ctx .ci:hover{background:#1b2a6b;color:#dfe7f2}
-body.theme-retro.retro-sega #ctx .sep{background:#1b2a6b}
-body.theme-retro.retro-gb #ctx{background:#dfe6c8;border-color:#2f4f2f;box-shadow:5px 5px 0 #2f4f2f}
-body.theme-retro.retro-gb #ctx .ci:hover{background:#2f4f2f;color:#dfe6c8}
-body.theme-retro.retro-gb #ctx .sep{background:#2f4f2f}
-body.theme-midnight #ctx{background:#0f1730}
-body.theme-forest #ctx{background:#0f1c11}
-body.theme-mono #ctx{background:#000;border:1px solid #fff}
-
-/* ================= v2: MISSING-TARGET MARKER ================= */
-.tile .miss{position:absolute;bottom:5px;left:7px;width:16px;height:16px;line-height:16px;border-radius:50%;
-  font-size:11px;font-weight:bold;background:#e05545;color:#fff;z-index:3}
-.tile.missing .ic{opacity:.45}
-body.theme-retro .tile .miss{border-radius:0}
-.swatch.none{background:transparent !important;border:2px dashed rgba(128,128,128,.7);line-height:22px;text-align:center;font-size:12px}
+/* menu + toast */
+#menu{display:none;position:fixed;z-index:30;min-width:200px;padding:4px}
+#menu .mi{padding:7px 12px;cursor:pointer;white-space:nowrap}
+#menu .mi.danger{color:#e05545}
+#menu .sep{height:1px;margin:4px 6px;opacity:.5}
+#toast{position:fixed;left:50%;bottom:34px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;
+  transform:translateX(-50%);-ms-transform:translateX(-50%);display:none;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+@keyframes blink{0%{opacity:1}50%{opacity:0}100%{opacity:1}}
 </style>
+<style id="themeCss"></style>
+<style id="fitCss"></style>
 </head>
-<body class="theme-retro retro-sega glass">
-<div id="wall"></div>
-<div id="walltint"></div>
-<div id="bgfx"><div class="aurora"></div><div class="grain"></div></div>
+<body>
+<div id="app">
+  <div id="top">
+    <img id="logo" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAv0lEQVR4nGNgGOmAEZcEv5DGf2pa9PHdDax2MVHTEnIAC7oAzOdSKu7UtekOw38GBsyQGPAQgLuGUp9fm86Gwt9UeI+BgYGBoeKHDIr4szs7GRgYECEx4CGAkQZIBcT6HBcYuiFAqc9hYOiFALV8DgNDJwTQfQ4Dfv1KEBpNnNiQGTohAPMROoCFALq64VcOoPtotByAgZFbDlDqcxgYOiEAA9TyOQwMeAhgtNVp1SpGbwvCwOALARgYMT2jUQAA0BZRnMcFQcsAAAAASUVORK5CYII=" alt="">
+    <span id="brand">QuickLaunch<i id="cur">_</i></span>
+    <input type="text" id="q" placeholder="Search... (or just start typing)">
+    <span class="sp"></span>
+    <button class="btn primary" id="bAdd" title="Add an app, file, folder or website (Ctrl+N)">+ Add</button>
+    <span class="seg"><button class="btn ic" id="bList" title="List view">&#9776;</button><button class="btn ic" id="bGrid" title="Icon view">&#9638;</button></span>
+    <button class="btn" id="bExport" title="Export this list as PDF or CSV">Export &#9662;</button>
+    <button class="btn ic" id="bSet" title="Look and settings">&#9881;</button>
+  </div>
+  <div id="warn"></div>
+  <div id="groups"></div>
+  <div id="view"></div>
+  <div id="status"><span class="l" id="stL"></span><span class="r">Click = open &middot; Right-click = more &middot; Ctrl+V = add a copied path</span></div>
+</div>
 
-<div id="banner">
-  <div id="bigclock"><div class="t" id="bigTime">--:--</div><div class="d" id="bigDate"></div></div>
-  <div class="hi" id="greet">Hello</div>
-  <div class="sub" id="greetSub"></div>
-</div>
-<div id="bar">
-  <span class="logo">Quick<b>Launch</b> <span class="count" id="ttCount"></span></span>
-  <input type="text" id="search" class="search" placeholder="Search tools...">
-  <span class="btn icn" id="pongBtn" title="Play pong">&#9679;</span>
-  <span class="btn icn" id="viewBtn" title="Toggle list / grid view">&#9636;</span>
-  <span class="btn icn" id="themeBtn" title="Switch theme">&#9681;</span>
-  <span class="btn icn" id="setBtn" title="Settings">&#9881;</span>
-  <span class="btn icn" id="expBtn" title="Export links to CSV">&#8681;</span>
-  <span class="btn icn" id="impBtn" title="Import links from CSV">&#8679;</span>
-  <span class="btn" id="addBtn" style="color:#0a0908;border:none">+ Add</span>
-</div>
-<div id="tabs"></div>
-<div id="quick">
-  <input type="text" id="qTarget" class="search" placeholder="&#9889; Quick add: paste a link or file path (Ctrl+V anywhere)">
-  <input type="text" id="qDesc" class="search" placeholder="Description (optional)">
-  <input type="text" id="qFrom" class="search" list="fromList" placeholder="Shared by (optional)">
-  <span class="btn" id="qAdd">Add</span>
-</div>
+<!-- Add / edit -->
+<div class="ov" id="dlgItem"><div class="card">
+  <h3 id="dTitle">Add item</h3>
+  <div class="fld"><label>Location - file, folder, program or web link</label>
+    <div class="inrow"><input type="text" id="fPath" placeholder="Paste a path or link, or use Browse">
+      <button class="btn" id="bBrowse">File...</button><button class="btn" id="bFolder">Folder...</button></div>
+    <div class="hint muted" id="fKind">Tip: in File Explorer, Shift + right-click a file &rarr; "Copy as path"</div>
+  </div>
+  <div class="fld"><label>Name</label><input type="text" id="fName" placeholder="Filled in for you"></div>
+  <div class="fld"><label>Description</label><input type="text" id="fDesc" placeholder="e.g. Stage 4 coordination model"></div>
+  <div class="two">
+    <div class="fld"><label>From (who or where)</label><input type="text" id="fFrom" list="fromList" placeholder="e.g. Sarah - Architect"></div>
+    <div class="fld"><label>Date</label><input type="text" id="fDate" placeholder="YYYY-MM-DD"></div>
+  </div>
+  <div class="fld"><label>Group</label><select id="fGroup"></select></div>
+  <div class="acts">
+    <button class="btn" id="bDel" style="color:#e05545">Delete</button>
+    <span class="sp"></span>
+    <button class="btn" id="bCancel">Cancel</button>
+    <button class="btn primary" id="bSave">Save</button>
+  </div>
+</div></div>
 <datalist id="fromList"></datalist>
-<div id="grid"></div>
 
-<!-- Add / Edit modal -->
-<div class="overlay" id="modal">
-  <div class="card">
-    <h3 id="mTitle">Add Shortcut</h3>
-    <div class="fld"><label>Name</label><input type="text" id="fName"></div>
-    <div class="fld"><label>Type</label>
-      <select id="fType"><option value="file">Program / File</option><option value="folder">Folder</option><option value="url">Web Link</option><option value="action">Action (multi-step)</option></select>
-      <div id="actionBuild" style="display:none">
-        <div id="stepList" style="margin:6px 0"></div>
-        <span class="btn" id="stAddApp">+ Program</span>
-        <span class="btn" id="stAddFol">+ Folder</span>
-        <span class="btn" id="stAddWeb">+ Web</span>
-        <span class="btn" id="stAddWait">+ Wait</span>
-        <span class="btn" id="stAddWith">+ App &#8594; File</span>
-      </div>
-    </div>
-    <div class="fld"><label>Target (path or web address)</label>
-      <div class="row"><input type="text" id="fTarget"><span class="btn" id="browseBtn">Browse</span></div>
-    </div>
-    <div id="fileOpts">
-      <div class="fld"><label>Extra options (optional)</label><input type="text" id="fArgs" placeholder="e.g. /nologo  or  &quot;C:\Projects\Model.rvt&quot;"></div>
-      <div class="fld"><label>Run as administrator</label>
-        <select id="fAdmin"><option value="no">No</option><option value="yes">Yes (asks for permission)</option></select>
-      </div>
-    </div>
-    <div class="fld"><label>Description (small text under the name)</label><textarea id="fNotes" placeholder="e.g. Stage 4 coordination model - latest issue"></textarea></div>
-    <div class="fld"><label>Shared by (who gave you this)</label><input type="text" id="fFrom" list="fromList" placeholder="e.g. Sarah - Architect"></div>
-    <div class="fld"><label>Group</label><select id="fGroup"></select></div>
-    <div class="fld"><label>Icon</label>
-      <div class="row"><span class="icprev" id="icPrev">&#128640;</span><span class="btn" id="iconBtn">Choose image</span><span class="btn" id="iconClear">Clear</span></div>
-    </div>
-    <div class="acts">
-      <span class="btn danger" id="delBtn" style="display:none">Delete</span>
-      <span class="btn" id="cancelBtn">Cancel</span>
-      <span class="btn" id="saveBtn" style="color:#0a0908;border:none">Save</span>
-    </div>
+<!-- Settings -->
+<div class="ov" id="dlgSet"><div class="card">
+  <h3>Look and settings</h3>
+  <div class="fld"><label>Theme</label><div class="themes" id="themeBtns"></div></div>
+  <div class="fld"><label>Size</label><div class="sizes" id="sizeBtns"></div></div>
+  <div class="fld"><label>Your data</label>
+    <button class="btn" id="bData" style="margin-left:0">Open data folder</button>
+    <button class="btn" id="bImpCsv">Import CSV...</button>
+    <button class="btn" id="bImpOld" style="display:none">Import old QuickLaunch</button>
+    <div class="hint muted" id="dataPath"></div>
   </div>
-</div>
+  <div class="acts"><span class="sp"></span><button class="btn primary" id="bSetClose">Done</button></div>
+</div></div>
 
-<!-- Settings modal -->
-<div class="overlay" id="setModal">
-  <div class="card">
-    <h3>Settings</h3>
-    <div class="fld"><label>Your name (for the greeting)</label><input type="text" id="sName"></div>
-    <div class="fld"><label>Theme preset</label>
-      <select id="sTheme"><option value="dark">Dark (default)</option><option value="light">Light</option><option value="midnight">Midnight Blue</option><option value="forest">Forest</option><option value="mono">Mono (high contrast)</option><option value="retro">Retro (Famicom)</option></select>
-    </div>
-    <div class="fld"><label>Accent color</label><div id="accentRow"></div></div>
-    <div class="fld"><label>Icon / tile size</label>
-      <select id="sIcon"><option value="auto">Auto (fit window)</option><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select>
-    </div>
-    <div class="fld"><label>Sort tiles by</label>
-      <select id="sSort"><option value="manual">Manual (drag order)</option><option value="name">Name (A to Z)</option><option value="most">Most used</option></select>
-    </div>
-    <div class="fld"><label>Show type label under tiles</label>
-      <select id="sKind"><option value="on">On</option><option value="off">Off</option></select>
-    </div>
-    <div class="fld"><label>Glass effect</label>
-      <select id="sGlass"><option value="on">On</option><option value="off">Off</option></select>
-    </div>
-    <div class="fld"><label>Background sheen</label>
-      <select id="sBg"><option value="on">On</option><option value="off">Off</option></select>
-    </div>
-    <div class="fld"><label>Wallpaper image</label>
-      <div class="row"><span class="btn" id="wallBtn">Choose image</span><span class="btn" id="wallClear">Clear</span></div>
-    </div>
-    <div class="fld"><label>Retro color</label>
-      <select id="sRetroC"><option value="sega">Sega (blue)</option><option value="famicom">Famicom (red)</option><option value="gameboy">Game Boy (green)</option></select>
-    </div>
-    <div class="fld"><label>Pong mode</label>
-      <select id="sPong"><option value="play">I play (mouse is paddle)</option><option value="watch">Watch (PC vs PC)</option></select>
-    </div>
-    <div class="fld"><label>Idle game</label>
-      <select id="sIdleGame"><option value="pong">Pong</option><option value="fight">Stickman Fight</option></select>
-    </div>
-    <div class="fld"><label>Auto-start idle game</label>
-      <select id="sIdleOff"><option value="no">On (starts when idle)</option><option value="yes">Off (disabled)</option></select>
-    </div>
-    <div class="fld"><label>Show recently-used tab</label>
-      <select id="sRecent"><option value="yes">Yes</option><option value="no">No</option></select>
-    </div>
-    <div class="acts">
-      <span class="btn" id="setCancel">Cancel</span>
-      <span class="btn" id="setSave" style="color:#0a0908;border:none">Apply</span>
-    </div>
-  </div>
-</div>
-
-<!-- Group manager modal (v2: replaces the old type-a-letter prompts) -->
-<div class="overlay" id="grpModal">
-  <div class="card">
-    <h3>Manage Group</h3>
-    <div class="fld"><label>Group name</label><input type="text" id="gName"></div>
-    <div class="fld"><label>Colour</label><div id="gColorRow"></div></div>
-    <div class="fld"><label>Position in tab bar</label>
-      <span class="btn" id="gLeft">&#9664; Move left</span><span class="btn" id="gRight">Move right &#9654;</span>
-    </div>
-    <div class="acts">
-      <span class="btn danger" id="gDel">Delete group</span>
-      <span class="btn" id="gCancel">Cancel</span>
-      <span class="btn" id="gSave" style="color:#0a0908;border:none">Save</span>
-    </div>
-  </div>
-</div>
-
-<!-- Right-click menu (v2) -->
-<div id="ctx"></div>
-
+<div id="menu"></div>
 <div id="toast"></div>
-<div id="pongBall"></div>
-<div id="pongPad"></div>
-<div id="pongPad2"></div>
-<div id="pongScore"></div>
-<div class="fgt" id="fgt1"><div class="fh"></div><div class="fb"></div><div class="uaL"><div class="lo"></div></div><div class="uaR"><div class="lo"></div></div><div class="ulL"><div class="lo"></div></div><div class="ulR"><div class="lo"></div></div></div>
-<div class="fgt" id="fgt2"><div class="fh"></div><div class="fb"></div><div class="uaL"><div class="lo"></div></div><div class="uaR"><div class="lo"></div></div><div class="ulL"><div class="lo"></div></div><div class="ulR"><div class="lo"></div></div></div>
-<div class="fhp" id="fhp1"><i></i></div>
-<div class="fhp" id="fhp2"><i></i></div>
-<div id="gameStop">&#9632; STOP</div>
-<div class="fsh" id="fsh1"></div><div class="fsh" id="fsh2"></div>
-<div id="fspark"></div>
 
-<script language="JScript">
+<script>
+/* ================================================================
+   QuickLaunch  -  plain JavaScript (ES5) so it runs in Windows' built-in HTA engine
+   ================================================================ */
+var ICO_B64="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AGECAGECAGECAGECAGECAGECAGECAGECAGECAGECAGHuAQxt7/NP/fz9Y/b9gd7xWe4ZzJgAIEwAIEwAIEwAIEwAIEwAIEwAIEwAIEwAIEwAIEwAIEwAIEwAIEwAIEwAIMw9gKHpPvq26T2AKfv8u0wAECYAECYAECYAECYAECYAECYAECYAECYAECYAECYAECYAECYAECYAECYAEOYewND2Pvrj/fnq37fPf9xMABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABDmHsAy+/xsMgFAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmHsAQ/b5OWYmAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAhzD2CZfX42mQAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAg7HT7AReXN++T76+ubw/1FPiwl+eH0fdvr0+rv0ETAIQJAIQJAIQJAIQJAIQJAIQJAIQJAIQJAIQJAIQJAIQJAIQJAIQJAIQJAISt3wOYmt4TgIntff4pEwCECQCECQCECQCECQCECQCECQCECQCECQCECQCECQCECQCECQCECQCECQAAAAAAAAAAAAAAAAAAAAAAfCH/AVijUyRXr7FLAAAAAElFTkSuQmCC";
+
+/* ---------- Windows helpers ---------- */
 var fso=new ActiveXObject("Scripting.FileSystemObject");
-var shell=new ActiveXObject("WScript.Shell");
-function scriptDir(){ var p=unescape(location.pathname); if(p.charAt(0)=='/') p=p.substring(1); return fso.GetParentFolderName(p.replace(/\//g,"\\")); }
-var DIR=scriptDir(), DATADIR=DIR+"\\quicklaunch-data", DATAFILE=DATADIR+"\\shortcuts.json";
-function ensureDir(){ if(!fso.FolderExists(DATADIR)) fso.CreateFolder(DATADIR); }
+var wsh=new ActiveXObject("WScript.Shell");
+function shApp(){ return new ActiveXObject("Shell.Application"); }
 
-var ACCENTS=["#d8b76d","#ff7a59","#5ec1c4","#7c9cf0","#c98bdb","#7ed47e","#f06595"];
-var PRESETS={ dark:{body:"theme-dark",accent:"#d8b76d"},light:{body:"theme-light",accent:"#a07830"},midnight:{body:"theme-dark theme-midnight",accent:"#7c9cf0"},forest:{body:"theme-dark theme-forest",accent:"#7ed47e"},mono:{body:"theme-dark theme-mono",accent:"#ffffff"},retro:{body:"theme-retro",accent:"#1b2a6b"} };
+function scriptDir(){
+  var h=location.href.replace(/[?#].*$/,"").replace(/^file:/i,"");
+  h=decodeURIComponent(h);
+  if(/^\/\/\//.test(h)) h=h.substring(3); else if(/^\/\//.test(h)) h="\\\\"+h.substring(2);
+  h=h.replace(/\//g,"\\");
+  return h.substring(0,h.lastIndexOf("\\"));
+}
+var DIR=window.QL_DIR||scriptDir();
+var DATA=DIR+"\\QuickLaunch-data", FILE=DATA+"\\library.json", BAK=DATA+"\\library.backup.json";
+var ICONS=DATA+"\\icons", EXPORTS=DATA+"\\exports", OLDFILE=DATA+"\\shortcuts.json";
 
-var store={ userName:"Lew", theme:"retro", themeName:"retro", accent:"#1b2a6b", iconSize:"auto", showRecent:"yes", sort:"manual", glass:"on", bg:"on", view:"grid", kind:"on", wall:"", groups:["All"], groupColors:{}, retroColor:"sega", idleGame:"pong", idleGameOff:"no", shortcuts:[] };
-var activeGroup="All", editId=null, pendingIcon="", pendingAccent="";
-var missing={}; // v2: id -> true when the file/folder can't be found (not saved)
+function readUtf8(p){ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.LoadFromFile(p); var t=s.ReadText(); s.Close(); return t; }
+function writeUtf8(p,t){ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.WriteText(t); s.SaveToFile(p,2); s.Close(); }
+function writeB64(p,b64){ var x=new ActiveXObject("MSXML2.DOMDocument"); var el=x.createElement("b"); el.dataType="bin.base64"; el.text=b64;
+  var s=new ActiveXObject("ADODB.Stream"); s.Type=1; s.Open(); s.Write(el.nodeTypedValue); s.SaveToFile(p,2); s.Close(); }
+function mkdir(p){ if(!fso.FolderExists(p)) fso.CreateFolder(p); }
+function exists(p){ try{ return fso.FileExists(p)||fso.FolderExists(p); }catch(e){ return false; } }
+function fileUrl(p){
+  var u=p.replace(/\\/g,"/");
+  u=(/^\/\//.test(u))?("file:"+u):("file:///"+u);
+  return encodeURI(u).replace(/#/g,"%23");
+}
 
-function parseJSON(t){ if(window.JSON&&JSON.parse){ try{ return JSON.parse(t); }catch(e){} } return eval('('+t+')'); }
-function loadStore(){
-  try{ ensureDir(); if(fso.FileExists(DATAFILE)){ var f=fso.OpenTextFile(DATAFILE,1,false,-1); var t=f.AtEndOfStream?"":f.ReadAll(); f.Close(); if(t){ var o=parseJSON(t); if(o){ store=o; dailyBackup(t); } } } }catch(e){ alert("Your shortcuts file could not be read.\nA backup copy is in:\n"+DATADIR+"\\backups"); }
-  backfill();
-}
-/* v2: keep one backup copy per day, last 7 days, in quicklaunch-data\backups */
-function pad2(n){ return n<10?"0"+n:""+n; }
-function dailyBackup(txt){
-  try{
-    var bdir=DATADIR+"\\backups"; if(!fso.FolderExists(bdir)) fso.CreateFolder(bdir);
-    var d=new Date(), name="shortcuts-"+d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate())+".json", p=bdir+"\\"+name;
-    if(!fso.FileExists(p)){ var f=fso.CreateTextFile(p,true,true); f.Write(txt); f.Close(); }
-    var names=[], en=new Enumerator(fso.GetFolder(bdir).Files);
-    for(;!en.atEnd();en.moveNext()){ var n=en.item().Name; if(/^shortcuts-\d{4}-\d\d-\d\d\.json$/.test(n)) names.push(n); }
-    names.sort(); while(names.length>7){ fso.DeleteFile(bdir+"\\"+names.shift()); }
-  }catch(e){}
-}
-function backfill(){
-  if(typeof store.userName!="string") store.userName="Lew";
-  if(!store.groups) store.groups=["All"];
-  if(!store.shortcuts) store.shortcuts=[];
-  if(!store.theme) store.theme="dark";
-  if(!store.themeName) store.themeName=store.theme;
-  if(!store.accent) store.accent="#d8b76d";
-  if(!store.iconSize) store.iconSize="auto";
-  if(!store.showRecent) store.showRecent="yes";
-  if(!store.sort) store.sort="manual";
-  if(!store.glass) store.glass="on";
-  if(!store.bg) store.bg="on";
-  if(!store.view) store.view="grid";
-  if(!store.kind) store.kind="on";
-  if(typeof store.wall!="string") store.wall="";
-  if(!store.groupColors) store.groupColors={};
-  if(!store.retroColor) store.retroColor="sega";
-  if(!store.pongMode) store.pongMode="play";
-  if(!store.idleGame) store.idleGame="pong";
-  if(!store.idleGameOff) store.idleGameOff="no";
-  for(var i=0;i<store.shortcuts.length;i++){ var s=store.shortcuts[i]; if(typeof s.uses!="number") s.uses=0; if(typeof s.last!="number") s.last=0; if(typeof s.fav!="boolean") s.fav=false; if(typeof s.args!="string") s.args=""; if(typeof s.admin!="boolean") s.admin=false; if(typeof s.notes!="string") s.notes=""; if(typeof s.from!="string") s.from=""; if(typeof s.added!="number") s.added=0; }
-  if(!store.v3){ store.v3=true; store.view="list"; } // v3: open in the new row list the first time
-}
-function saveStore(){ try{ ensureDir(); var f=fso.CreateTextFile(DATAFILE,true,true); f.Write(toJSON(store)); f.Close(); }catch(e){ alert("Could not save: "+e.message); } }
-function toJSON(o){ if(o===null) return "null"; var t=typeof o; if(t=="number"||t=="boolean") return ""+o;
-  if(t=="string") return '"'+o.replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\r/g,"").replace(/\n/g,"\\n")+'"';
-  if(o instanceof Array){ var a=[]; for(var i=0;i<o.length;i++) a.push(toJSON(o[i])); return "["+a.join(",")+"]"; }
-  var p=[]; for(var k in o){ if(o.hasOwnProperty(k)) p.push('"'+k+'":'+toJSON(o[k])); } return "{"+p.join(",")+"}"; }
+/* ---------- small helpers ---------- */
 function $(id){ return document.getElementById(id); }
-function esc(s){ s=""+s; return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-function trim(s){ return (""+s).replace(/^\s+|\s+$/g,""); }
-function findById(id){ for(var i=0;i<store.shortcuts.length;i++) if(store.shortcuts[i].id==id) return store.shortcuts[i]; return null; }
-
-var toastTimer=null;
-function toast(msg){ var t=$("toast"); t.innerHTML=esc(msg); t.style.background=store.accent; t.className="show"; if(toastTimer) window.clearTimeout(toastTimer); toastTimer=window.setTimeout(function(){ t.className=""; },1900); }
-
-function applyTheme(){ var pr=PRESETS[store.themeName]||PRESETS[store.theme]||PRESETS.dark; var base=pr.body; if(base=="theme-retro"){ if(store.retroColor=="sega") base+=" retro-sega"; else if(store.retroColor=="gameboy") base+=" retro-gb"; } document.body.className=base+(store.glass=="on"?" glass":"")+(store.view=="list"?" listview":""); }
-function applyAccent(){ $("addBtn").style.background=store.accent; $("saveBtn").style.background=store.accent; $("setSave").style.background=store.accent; $("gSave").style.background=store.accent; }
-function applyBg(){ $("bgfx").style.display=store.bg=="off"?"none":"block"; }
-function applyWall(){ if(store.wall){ $("wall").style.backgroundImage="url('"+store.wall+"')"; $("wall").style.display="block"; $("walltint").style.display="block"; } else { $("wall").style.display="none"; $("walltint").style.display="none"; } }
-function applyAll(){ applyTheme(); applyAccent(); applyBg(); applyWall(); }
-
-function tileDims(){
-  if(store.iconSize=="small") return {w:96,h:104,ic:36,fs:11};
-  if(store.iconSize=="medium") return {w:120,h:126,ic:48,fs:12};
-  if(store.iconSize=="large") return {w:148,h:150,ic:64,fs:13};
-  return {w:122,h:128,ic:50,fs:12}; // auto = comfortable fixed size; tiles WRAP to fill width
-}
-function render(){ renderGreeting(); renderTabs(); renderGrid(); updateCount(); }
-function updateCount(){ var n=store.shortcuts.length; $("ttCount").innerHTML=n>0?("&middot; "+n+(n==1?" tool":" tools")):""; }
-function renderGreeting(){ var d=new Date(), hh=d.getHours(), w="Hello"; if(hh<12) w="Good morning"; else if(hh<18) w="Good afternoon"; else w="Good evening"; var nm=trim(store.userName||""); $("greet").innerHTML=esc(nm?(w+", "+nm):w);
-  var sub=""; if(store.shortcuts.length){ var top=null; for(var i=0;i<store.shortcuts.length;i++){ var s=store.shortcuts[i]; if(s.uses>0&&(!top||s.uses>top.uses)) top=s; } if(top) sub="Most used: "+top.name+" ("+top.uses+"x)"; } $("greetSub").innerHTML=esc(sub); }
-
-function groupColor(g){ return (store.groupColors&&store.groupColors[g])?store.groupColors[g]:""; }
-function renderTabs(){
-  var h="";
-  if(store.showRecent=="yes") h+=tabHtml("Recent","&#9201; Recent","");
-  h+=tabHtml("Favorites","&#9733; Favorites","");
-  for(var i=0;i<store.groups.length;i++){ var g=store.groups[i]; h+=tabHtml(g,esc(g),groupColor(g)); }
-  h+='<span class="tab" id="addGroup">+ Group</span>';
-  if(activeGroup!="All"&&activeGroup!="Recent"&&activeGroup!="Favorites") h+='<span class="tab" id="mgGroup">&#9881; '+esc(activeGroup)+'</span>';
-  $("tabs").innerHTML=h;
-}
-function tabHtml(g,label,color){ var on=(g==activeGroup),style=""; if(on){ var c=color||store.accent; style=' style="color:'+c+';border-color:'+c+'"'; } else if(color){ style=' style="border-color:'+color+'"'; } return '<span class="tab" data-g="'+esc(g)+'"'+style+'>'+label+'</span>'; }
-
-function sortList(arr){ if(store.sort=="name") arr.sort(function(a,b){var x=a.name.toLowerCase(),y=b.name.toLowerCase();return x<y?-1:(x>y?1:0);}); else if(store.sort=="most") arr.sort(function(a,b){return (b.uses||0)-(a.uses||0);}); return arr; }
-function recentList(){ var a=[]; for(var i=0;i<store.shortcuts.length;i++) if(store.shortcuts[i].uses>0) a.push(store.shortcuts[i]); a.sort(function(x,y){return y.last-x.last;}); return a.slice(0,12); }
-function favListF(){ var a=[]; for(var i=0;i<store.shortcuts.length;i++) if(store.shortcuts[i].fav) a.push(store.shortcuts[i]); return sortList(a); }
-function kindLabel(t){ return t=="url"?"WEB":(t=="folder"?"FOLDER":(t=="action"?"ACTION":"APP")); }
-
-/* Action tiles: run each step in order. "wait N" pauses N seconds. */
-function runAction(s){
-  var steps=s.target.split(";"), i=0;
-  function next(){
-    if(i>=steps.length){ toast("Action done: "+s.name); return; }
-    var st=trim(steps[i]); i++;
-    if(st==""){ next(); return; }
-    var m=st.match(/^wait\s+(\d+)/i);
-    if(m){ window.setTimeout(next, parseInt(m[1],10)*1000); return; }
-    if(st.indexOf("|>")>-1){
-      var ab=st.split("|>");
-      try{ shell.Run('"'+trim(ab[0])+'" "'+trim(ab[1])+'"',1,false); }catch(ew){}
-      window.setTimeout(next,400); return;
-    }
-    try{
-      if(/^https?:/i.test(st)) shell.Run('"'+st+'"',1,false);
-      else { var sh=new ActiveXObject("Shell.Application"); sh.ShellExecute(st,"","","open",1); }
-    }catch(e){ try{ shell.Run('explorer.exe "'+st+'"',1,false); }catch(e2){} }
-    window.setTimeout(next,400); // small gap so windows open in order
-  }
-  next();
-}
-
-function tileHtml(s,d,listMode,idx){
-  if(listMode) return rowHtml(s,idx);
-  var icHtml=s.icon?'<img src="'+esc(s.icon)+'">':"&#128640;";
-  var gc=groupColor(s.group);
-  var badge=s.uses>0?'<span class="badge" style="background:'+(gc||store.accent)+'">'+s.uses+'</span>':'';
-  var star=s.fav?'<span class="star" style="color:'+(gc||store.accent)+'">&#9733;</span>':'';
-  var strip=gc?'<span class="strip" style="background:'+gc+'"></span>':'';
-  var kindHtml=(store.kind=="on")?'<span class="kind">'+kindLabel(s.type)+'</span>':'';
-  var canDrag=(activeGroup!="Recent"&&activeGroup!="Favorites"&&store.sort=="manual");
-  var drag=canDrag?' data-drag="1"':'';
-  var sizeStyle=listMode?'':('width:'+d.w+'px;height:'+d.h+'px;');
-  var icStyle=listMode?'':('width:'+d.ic+'px;height:'+d.ic+'px;line-height:'+d.ic+'px;font-size:'+(d.ic/2)+'px');
-  var nmStyle=listMode?'':('font-size:'+d.fs+'px');
-  var isMiss=!!missing[s.id];
-  var miss=isMiss?'<span class="miss">!</span>':'';
-  var tip=(isMiss?"NOT FOUND - check the path\n":"")+(s.notes?s.notes+"\n":"")+(s.type=="action"?(s.target.split(";").length+" steps"):s.target)+(s.admin?"\n(runs as administrator)":"");
-  return '<div class="tile'+(s.fav?' fav':'')+(isMiss?' missing':'')+'" data-id="'+esc(s.id)+'"'+drag+' title="'+esc(tip)+'" style="'+sizeStyle+'padding:14px 8px;animation-delay:'+(idx*0.03)+'s">'
-    +strip+badge+star+miss+'<span class="edit" data-edit="'+esc(s.id)+'">&#9998;</span>'
-    +'<div class="ic" style="'+icStyle+'">'+icHtml+'</div>'
-    +'<div class="nm" style="'+nmStyle+'">'+esc(s.name)+'</div>'+kindHtml+'</div>';
-}
-/* v3: list row - icon | name + description | shared by | group | last used */
-var MONS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-function shortDate(ms){ var d=new Date(ms); return d.getDate()+" "+MONS[d.getMonth()]; }
-function timeAgo(ms){ if(!ms) return "never"; var m=Math.floor(((new Date()).getTime()-ms)/60000);
-  if(m<1) return "just now"; if(m<60) return m+"m ago"; var h=Math.floor(m/60); if(h<24) return h+"h ago"; var dd=Math.floor(h/24); if(dd<7) return dd+"d ago"; return shortDate(ms); }
-function rowHtml(s,idx){
-  var icHtml=s.icon?'<img src="'+esc(s.icon)+'">':"&#128640;";
-  var gc=groupColor(s.group), isMiss=!!missing[s.id];
-  var canDrag=(activeGroup!="Recent"&&activeGroup!="Favorites"&&store.sort=="manual");
-  var tip=(isMiss?"NOT FOUND - check the path\n":"")+(s.type=="action"?(s.target.split(";").length+" steps"):s.target)+(s.admin?"\n(runs as administrator)":"");
-  var fromTxt=s.from?(s.from+(s.added?" \u00b7 "+shortDate(s.added):"")):"";
-  var desc=s.notes?esc(s.notes):'<span style="opacity:.55">'+esc(s.type=="action"?(s.target.split(";").length+" steps"):s.target)+'</span>';
-  return '<div class="tile lrow'+(s.fav?' fav':'')+(isMiss?' missing':'')+'" data-id="'+esc(s.id)+'"'+(canDrag?' data-drag="1"':'')+' title="'+esc(tip)+'" style="animation-delay:'+(idx*0.02)+'s">'
-    +(gc?'<span class="strip" style="background:'+gc+'"></span>':'')
-    +'<span class="edit" data-edit="'+esc(s.id)+'">&#9998;</span>'
-    +'<div class="ic">'+icHtml+'</div>'
-    +'<div class="main"><div class="nm">'+(isMiss?'<span class="miss">!</span>':'')+esc(s.name)+(store.kind=="on"?'<span class="kind">'+kindLabel(s.type)+'</span>':'')+'</div>'
-    +'<div class="desc">'+(s.from?'<span class="mfrom">'+esc(s.from)+' &middot; </span>':'')+desc+'</div></div>'
-    +'<div class="cl from">'+(s.from?'<span data-from="'+esc(s.from)+'" title="Show everything from '+esc(s.from)+'">&#128100; '+esc(fromTxt)+'</span>':'')+'</div>'
-    +'<div class="cl grp">'+(s.group&&s.group!="All"?(gc?'<i style="background:'+gc+'"></i>':'')+esc(s.group):'')+'</div>'
-    +'<div class="cl when">'+timeAgo(s.last)+'</div>'
-    +'<div class="rstar" style="color:'+(gc||store.accent)+'">'+(s.fav?'&#9733;':'')+'</div>'
-    +'</div>';
-}
-function listHead(){ return '<div class="lhead"><div class="main">Name &amp; description</div><div class="cl from">Shared by</div><div class="cl grp">Group</div><div class="cl when">Last used</div><div class="rstar"></div></div>'; }
-function fillFromList(){ var seen={}, h=""; for(var i=0;i<store.shortcuts.length;i++){ var f=store.shortcuts[i].from; if(f&&!seen[f.toLowerCase()]){ seen[f.toLowerCase()]=1; h+='<option value="'+esc(f)+'">'; } } try{ $("fromList").innerHTML=h; }catch(e){} }
-
-/* v3: QUICK ADD - paste, (optional) description + who, Enter. Done. */
-var KNOWN_HOSTS=[[/sharepoint\.com/i,"SharePoint"],[/teams\.microsoft/i,"Teams"],[/onedrive|1drv\.ms/i,"OneDrive"],[/acc\.autodesk|docs\.b360|autodesk360|bim360/i,"Autodesk Docs"],[/docs\.google|drive\.google/i,"Google Drive"],[/dropbox/i,"Dropbox"]];
-function cleanPasted(t){ t=trim(t); if(t.charAt(0)=='"'&&t.charAt(t.length-1)=='"') t=t.substring(1,t.length-1); return trim(t); }
-function guessType(t){ if(/^(https?:\/\/|www\.)/i.test(t)) return "url"; try{ if(fso.FolderExists(t)) return "folder"; }catch(e){} return "file"; }
-function guessName(t,type){
-  if(type=="url"){
-    var m=t.match(/^(?:https?:\/\/)?([^\/?#]+)([^?#]*)/i), host=m?m[1].replace(/^www\./i,""):t, path=m?m[2]:"";
-    var segs=path.split("/"), last=""; for(var i=segs.length-1;i>=0;i--){ if(segs[i]){ last=segs[i]; break; } }
-    try{ last=decodeURIComponent(last); }catch(e){}
-    if(/\.[a-z0-9]{2,5}$/i.test(last)) return last.replace(/\.[^.]+$/,"");
-    for(var k=0;k<KNOWN_HOSTS.length;k++) if(KNOWN_HOSTS[k][0].test(host)) return KNOWN_HOSTS[k][1]+" link";
-    return host;
-  }
-  var n=t.replace(/[\\\/]+$/,"").replace(/^.*[\\\/]/,""); if(type=="file") n=n.replace(/\.[^.]+$/,""); return n||t;
-}
-function quickAdd(){
-  var raw=$("qTarget").value; if(!trim(raw)){ $("qTarget").focus(); return; }
-  var lines=raw.split(/[\r\n]+/), desc=trim($("qDesc").value), from=trim($("qFrom").value), added=0, last=null, now=(new Date()).getTime();
-  var grp=(activeGroup=="All"||activeGroup=="Recent"||activeGroup=="Favorites")?"All":activeGroup;
-  for(var i=0;i<lines.length;i++){
-    var t=cleanPasted(lines[i]); if(!t) continue;
-    var type=guessType(t); if(type=="url"&&!/^https?:/i.test(t)) t="https://"+t;
-    var ns={id:"sc_"+now+"_"+i,name:guessName(t,type),target:t,type:type,group:grp,icon:"",uses:0,last:0,fav:false,args:"",admin:false,notes:desc,from:from,added:now};
-    autoIcon(ns); checkOne(ns); store.shortcuts.push(ns); last=ns; added++;
-  }
-  if(!added) return;
-  $("qTarget").value=""; $("qDesc").value=""; $("qFrom").value="";
-  saveStore(); render(); $("qTarget").focus();
-  toast(added==1?("Added "+last.name+" - right-click to edit"):("Added "+added+" links"));
-}
-/* v2: search looks at name, group, notes and path - every word must match */
-function matches(s,q){
-  var hay=(s.name+" "+(s.group||"")+" "+(s.notes||"")+" "+(s.from||"")+" "+s.target+" "+kindLabel(s.type)).toLowerCase();
-  var words=q.split(/\s+/);
-  for(var i=0;i<words.length;i++){ if(words[i] && hay.indexOf(words[i])<0) return false; }
-  return true;
-}
-function firstVisibleTile(){
-  var t=$("grid").getElementsByTagName("div");
-  for(var i=0;i<t.length;i++) if(t[i].getAttribute("data-id") && t[i].className.indexOf("tile")>=0) return findById(t[i].getAttribute("data-id"));
+function esc(s){ return (""+(s==null?"":s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function trim(s){ return (""+(s==null?"":s)).replace(/^\s+|\s+$/g,""); }
+function now(){ return (new Date()).getTime(); }
+function pad(n){ return n<10?"0"+n:""+n; }
+function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+var MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtDate(iso){ var m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(iso||""); if(!m) return iso||""; return parseInt(m[3],10)+" "+MON[parseInt(m[2],10)-1]+" "+m[1]; }
+function fmtTime(ms){ if(!ms) return "never"; var d=new Date(ms); return d.getDate()+" "+MON[d.getMonth()]+" "+d.getFullYear()+" "+pad(d.getHours())+":"+pad(d.getMinutes()); }
+/* accepts 2026-11-06, 6/11/2026, 6.11.26, 6 Nov 2026 */
+function parseDate(s){
+  s=trim(s); if(!s) return "";
+  var m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(s); if(m) return m[1]+"-"+pad(+m[2])+"-"+pad(+m[3]);
+  m=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/.exec(s); if(m){ var y=+m[3]; if(y<100) y+=2000; return y+"-"+pad(+m[2])+"-"+pad(+m[1]); }
+  m=/^(\d{1,2})\s+([a-z]{3})[a-z]*\.?\s+(\d{4})$/i.exec(s);
+  if(m){ for(var i=0;i<12;i++) if(MON[i].toLowerCase()==m[2].toLowerCase()) return m[3]+"-"+pad(i+1)+"-"+pad(+m[1]); }
   return null;
 }
-function grpHead(name,count){
-  var gc=groupColor(name);
-  var dot=gc?'<span class="gc" style="background:'+gc+'"></span>':'';
-  return '<div class="grphd">'+dot+esc(name)+'<span class="cnt">'+count+'</span></div>';
+function cleanPath(t){
+  t=trim((""+(t||"")).split(/[\r\n]+/)[0]);
+  if(t.length>1&&t.charAt(0)=='"'&&t.charAt(t.length-1)=='"') t=trim(t.substring(1,t.length-1));
+  if(/^file:\/\//i.test(t)){ try{ t=decodeURIComponent(t); }catch(e){} t=t.replace(/^file:\/\/\//i,"").replace(/^file:\/\//i,"\\\\").replace(/\//g,"\\"); }
+  return t;
 }
-function renderGrid(){
-  var q=$("search").value; q=q?q.toLowerCase():"";
-  var d=tileDims(), list, listMode=(store.view=="list");
-  if(activeGroup=="Recent") list=recentList();
-  else if(activeGroup=="Favorites") list=favListF();
-  else{ list=[]; for(var i=0;i<store.shortcuts.length;i++){ var s=store.shortcuts[i]; if(activeGroup!="All"&&s.group!=activeGroup) continue; list.push(s); } list=sortList(list); }
 
-  var h="", n=0, idx=0;
-  // On the All tab (no search) show simple group separators
-  var grouped=(activeGroup=="All" && !q && store.groups.length>1);
-  if(grouped){
-    for(var gi=0;gi<store.groups.length;gi++){
-      var g=store.groups[gi]; if(g=="All") continue;
-      var items=[]; for(var k=0;k<list.length;k++) if((list[k].group||"All")==g) items.push(list[k]);
-      // catch shortcuts whose group no longer exists - bucket them under first pass only
-      if(!items.length) continue;
-      h+=grpHead(g,items.length);
-      for(var m=0;m<items.length;m++){ h+=tileHtml(items[m],d,listMode,idx++); n++; }
-    }
-    // ungrouped / orphaned shortcuts (group missing from list)
-    var orphans=[]; for(var o=0;o<list.length;o++){ var og=list[o].group||"All"; var known=false; for(var gg=0;gg<store.groups.length;gg++) if(store.groups[gg]==og) known=true; if(!known||og=="All") orphans.push(list[o]); }
-    if(orphans.length){ h+=grpHead("Other",orphans.length); for(var p=0;p<orphans.length;p++){ h+=tileHtml(orphans[p],d,listMode,idx++); n++; } }
-  } else {
-    for(var j=0;j<list.length;j++){ var it=list[j]; if(q && !matches(it,q)) continue; h+=tileHtml(it,d,listMode,idx++); n++; }
+/* ---------- what kind of thing is it? ---------- */
+var KINDS=[
+  [/^(xls|xlsx|xlsm|xlsb|csv)$/,"XLS","#1f7a47","Excel file"],
+  [/^(doc|docx|rtf)$/,"DOC","#2b579a","Word file"],
+  [/^(ppt|pptx)$/,"PPT","#c43e1c","PowerPoint file"],
+  [/^pdf$/,"PDF","#c4302b","PDF"],
+  [/^(dwg|dxf|dwf|dwfx)$/,"DWG","#b8562a","CAD drawing"],
+  [/^(rvt|rfa|rte|rft)$/,"RVT","#1b5fa8","Revit file"],
+  [/^(nwd|nwf|nwc)$/,"NWD","#2e7d6b","Navisworks file"],
+  [/^ifc$/,"IFC","#6a4fb3","IFC model"],
+  [/^(png|jpg|jpeg|gif|bmp|tif|tiff|webp)$/,"IMG","#2a8f9b","Image"],
+  [/^(zip|7z|rar)$/,"ZIP","#7a6a3a","Archive"],
+  [/^(txt|md|log|ini|json|xml)$/,"TXT","#5b6577","Text file"],
+  [/^(msg|eml)$/,"MSG","#0f6cbd","Email"],
+  [/^(mp4|mov|avi|wmv)$/,"VID","#8a3ea8","Video"]
+];
+function extOf(p){ var m=/\.([a-z0-9\-]{1,10})$/i.exec(p||""); return m?m[1].toLowerCase():""; }
+function detect(p){
+  if(/^(https?:\/\/|www\.|mailto:)/i.test(p)) return "web";
+  if(/^[a-z][a-z0-9+.\-]{2,}:/i.test(p)) return "web"; // teams:, ms-excel:, etc.
+  if(exists(p)&&fso.FolderExists(p)) return "folder";
+  if(/\.(exe|lnk|bat|cmd|appref-ms|msc|url|vbs|ps1|hta)$/i.test(p)) return "app";
+  if(/[\\\/]$/.test(p)||!extOf(p)) return exists(p)?"file":"folder";
+  return "file";
+}
+function kindOf(it){
+  if(it.type=="web") return {t:"WEB",c:"#2f6fed",n:"Website"};
+  if(it.type=="folder") return {t:"DIR",c:"#c99a2e",n:"Folder"};
+  if(it.type=="app") return {t:"APP",c:"#4a5568",n:"Program"};
+  var e=extOf(it.path);
+  for(var i=0;i<KINDS.length;i++) if(KINDS[i][0].test(e)) return {t:KINDS[i][1],c:KINDS[i][2],n:KINDS[i][3]};
+  return {t:(e?e.substring(0,3).toUpperCase():"FILE"),c:"#5b6577",n:(e?e.toUpperCase()+" file":"File")};
+}
+var HOSTS=[[/sharepoint\.com/i,"SharePoint"],[/teams\.microsoft|^teams:/i,"Teams"],[/onedrive|1drv\.ms/i,"OneDrive"],
+  [/acc\.autodesk|autodesk360|bim360|b360/i,"Autodesk Docs"],[/drive\.google|docs\.google/i,"Google Drive"],[/dropbox/i,"Dropbox"]];
+function guessName(p,type){
+  if(type=="web"){
+    var m=/^(?:[a-z]+:\/\/)?([^\/?#]+)([^?#]*)/i.exec(p), host=m?m[1].replace(/^www\./i,""):p, segs=(m?m[2]:"").split("/"), last="";
+    for(var i=segs.length-1;i>=0;i--) if(segs[i]){ last=segs[i]; break; }
+    try{ last=decodeURIComponent(last); }catch(e){}
+    if(/\.[a-z0-9]{2,5}$/i.test(last)) return last.replace(/\.[^.]+$/,"");
+    for(var k=0;k<HOSTS.length;k++) if(HOSTS[k][0].test(p)) return HOSTS[k][1];
+    return host;
   }
-  if(n==0 && q){ $("grid").innerHTML='<div class="empty"><div class="ring">&#128269;</div>Nothing matches "'+esc(q)+'".<br>Press Esc to clear the search.</div>'; return; }
-
-  if(n==0){ var msg;
-    if(activeGroup=="Recent") msg='<div class="ring">&#9201;</div>Nothing used yet.<br>Launch a few tools and they\'ll show here.';
-    else if(activeGroup=="Favorites") msg='<div class="ring">&#9733;</div>No favorites yet.<br>Right-click a tile to star it.';
-    else msg='<div class="ring">&#128640;</div>No tools yet.<br>Click <b>+ Add</b> to create one.';
-    h='<div class="empty">'+msg+'</div>';
-  }
-  else if(listMode) h=listHead()+h;
-  $("grid").innerHTML=h; wireDrag(); fillFromList();
+  var n=p.replace(/[\\\/]+$/,"").replace(/^.*[\\\/]/,"");
+  if(type!="folder") n=n.replace(/\.[^.]+$/,"");
+  return n||p;
 }
 
-function ripple(tile){ try{ var r=document.createElement("span"); r.className="ripple"; var sz=Math.max(tile.offsetWidth,tile.offsetHeight); r.style.width=sz+"px"; r.style.height=sz+"px"; r.style.left=(window.event.offsetX-sz/2)+"px"; r.style.top=(window.event.offsetY-sz/2)+"px"; tile.appendChild(r); window.setTimeout(function(){ try{ tile.removeChild(r); }catch(e){} },500); }catch(e){} }
+/* ---------- data ---------- */
+var store={v:1,theme:"retro",size:"normal",view:"list",sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
+var group="All", missing={}, editId=null, canSave=true;
 
-function launch(s,forceAdmin){
-  s.uses=(s.uses||0)+1; s.last=(new Date()).getTime(); saveStore();
-  var admin=(forceAdmin||s.admin)&&s.type=="file";
-  try{ if(s.type=="action"){ runAction(s); } else if(s.type=="url"){ var u=s.target; if(!/^https?:/i.test(u)) u="https://"+u; shell.Run('"'+u+'"',1,false); } else { var sh=new ActiveXObject("Shell.Application"); sh.ShellExecute(s.target,(s.type=="file"?(s.args||""):""),"",admin?"runas":"open",1); } toast((admin?"Launched (admin) ":"Launched ")+s.name); }
-  catch(e){ try{ shell.Run('explorer.exe "'+s.target+'"',1,false); }catch(e2){ alert("Could not open:\n"+s.target+"\n\n"+e.message); } }
-  if(activeGroup=="Recent") renderGrid();
-}
-function toggleFav(id){ var s=findById(id); if(!s) return; s.fav=!s.fav; saveStore(); render(); toast(s.fav?("Starred "+s.name):("Unstarred "+s.name)); }
-
-var dragId=null;
-function wireDrag(){
-  var t=$("grid").getElementsByTagName("div");
-  for(var i=0;i<t.length;i++){
-    if(t[i].className.indexOf("tile")<0) continue; if(!t[i].getAttribute("data-drag")) continue;
-    t[i].setAttribute("draggable","true");
-    t[i].ondragstart=function(){ dragId=this.getAttribute("data-id"); window.event.dataTransfer.effectAllowed="move"; window.event.dataTransfer.setData("Text",dragId); };
-    t[i].ondragover=function(){ window.event.preventDefault(); if(this.className.indexOf("dragover")<0) this.className+=" dragover"; };
-    t[i].ondragleave=function(){ this.className=this.className.replace(" dragover",""); };
-    t[i].ondrop=function(){ window.event.preventDefault(); this.className=this.className.replace(" dragover",""); var x=this.getAttribute("data-id"); if(dragId&&x&&dragId!=x) reorder(dragId,x); };
-  }
-}
-function indexOfId(id){ for(var i=0;i<store.shortcuts.length;i++) if(store.shortcuts[i].id==id) return i; return -1; }
-function reorder(f,tt){ var a=indexOfId(f); if(a<0) return; var it=store.shortcuts[a]; store.shortcuts.splice(a,1); var b=indexOfId(tt); if(b<0) b=store.shortcuts.length; store.shortcuts.splice(b,0,it); saveStore(); renderGrid(); }
-
-function browseFile(){ if($("fType").value=="folder"){ try{ var sh=new ActiveXObject("Shell.Application"); var fo=sh.BrowseForFolder(0,"Pick a folder",0); if(fo){ var it=fo.Self; $("fTarget").value=it.Path; if(!$("fName").value) $("fName").value=it.Name; } }catch(e){ alert("Folder browse not available, please paste the path."); } } else if($("fType").value=="action"){ pickFileAppend(); } else pickFileInto("fTarget"); }
-function pickFileAppend(){ var inp=document.createElement("input"); inp.type="file"; inp.style.display="none"; document.body.appendChild(inp); inp.onchange=function(){ var v=inp.value; if(v){ var cur=trim($("fTarget").value); $("fTarget").value=cur?(cur+" ; "+v):v; } document.body.removeChild(inp); }; inp.click(); }
-function syncTypeUI(){
-  var isAct=($("fType").value=="action");
-  $("actionBuild").style.display=isAct?"block":"none";
-  $("fTarget").parentNode.style.display=isAct?"none":"block";
-  $("fileOpts").style.display=($("fType").value=="file")?"block":"none";
-  if(isAct) renderSteps();
-}
-
-/* ---- Step builder: no typing, no semicolons ---- */
-var actionSteps=[];
-function renderSteps(){
-  var h="";
-  for(var i=0;i<actionSteps.length;i++){
-    var st=actionSteps[i], lbl=st;
-    var m=st.match(/^wait\s+(\d+)/i);
-    if(m) lbl="&#9201; Wait "+m[1]+" sec";
-    else if(st.indexOf("|>")>-1){ var ab=st.split("|>"); lbl=ab[0].replace(/^.*[\\\/]/,"")+" &#8594; "+ab[1].replace(/^.*[\\\/]/,""); }
-    else lbl=st.replace(/^.*[\\\/]/,"")||st; // show just the file/folder name
-    h+='<div style="padding:6px 8px;margin-bottom:4px;border:1px dashed rgba(128,128,128,.5);font-size:12px">'
-      +'<span style="opacity:.6">'+(i+1)+'.</span> '+esc(lbl)
-      +' <span class="btn" style="float:right;padding:1px 7px;margin:0" data-stepdel="'+i+'">&#10005;</span></div>';
-  }
-  if(h=="") h='<div style="font-size:11px;opacity:.7;padding:4px 0">No steps yet - use the buttons below.</div>';
-  $("stepList").innerHTML=h;
-}
-function stepDel(i){ actionSteps.splice(i,1); renderSteps(); }
-function stepAddApp(){ var inp=document.createElement("input"); inp.type="file"; inp.style.display="none"; document.body.appendChild(inp); inp.onchange=function(){ if(inp.value){ actionSteps.push(inp.value); renderSteps(); } document.body.removeChild(inp); }; inp.click(); }
-function stepAddFol(){ try{ var sh=new ActiveXObject("Shell.Application"); var fo=sh.BrowseForFolder(0,"Pick a folder",0); if(fo){ actionSteps.push(fo.Self.Path); renderSteps(); } }catch(e){ var p=prompt("Folder path:","C:\\"); if(p){ actionSteps.push(p); renderSteps(); } } }
-function stepAddWeb(){ var u=prompt("Web address:","https://"); if(u&&u!="https://"){ actionSteps.push(u); renderSteps(); } }
-function stepAddWith(){
-  var inp=document.createElement("input"); inp.type="file"; inp.style.display="none"; document.body.appendChild(inp);
-  inp.onchange=function(){
-    var app=inp.value; document.body.removeChild(inp);
-    if(!app) return;
-    var inp2=document.createElement("input"); inp2.type="file"; inp2.style.display="none"; document.body.appendChild(inp2);
-    inp2.onchange=function(){ if(inp2.value){ actionSteps.push(app+"|>"+inp2.value); renderSteps(); } document.body.removeChild(inp2); };
-    alert("Now pick the FILE that "+app.replace(/^.*[\\\/]/,"")+" should open.");
-    inp2.click();
-  };
-  alert("First pick the PROGRAM (.exe).");
-  inp.click();
-}
-function stepAddWait(){ var n=prompt("Wait how many seconds?","5"); n=parseInt(n,10); if(n>0){ actionSteps.push("wait "+n); renderSteps(); } }
-function pickFileInto(tid){ var inp=document.createElement("input"); inp.type="file"; inp.style.display="none"; document.body.appendChild(inp); inp.onchange=function(){ var v=inp.value; if(v){ $(tid).value=v; if(tid=="fTarget"&&!$("fName").value) $("fName").value=v.replace(/^.*[\\\/]/,"").replace(/\.[^.]+$/,""); } document.body.removeChild(inp); }; inp.click(); }
-function pickIcon(){ var inp=document.createElement("input"); inp.type="file"; inp.style.display="none"; document.body.appendChild(inp); inp.onchange=function(){ var v=inp.value; if(v){ pendingIcon="file:///"+v.replace(/\\/g,"/"); setIconPrev(); } document.body.removeChild(inp); }; inp.click(); }
-function setIconPrev(){ $("icPrev").innerHTML=pendingIcon?'<img src="'+esc(pendingIcon)+'">':"&#128640;"; }
-function pickWall(){ var inp=document.createElement("input"); inp.type="file"; inp.style.display="none"; document.body.appendChild(inp); inp.onchange=function(){ var v=inp.value; if(v){ store.wall="file:///"+v.replace(/\\/g,"/"); applyWall(); saveStore(); toast("Wallpaper set"); } document.body.removeChild(inp); }; inp.click(); }
-
-function addGroup(){ var n=prompt("New group name:"); if(!n) return; n=trim(n); if(!n) return; if(n=="All"||n=="Recent"||n=="Favorites"){ alert("That name is reserved."); return; } var ex=false; for(var i=0;i<store.groups.length;i++) if(store.groups[i]==n) ex=true; if(!ex) store.groups.push(n); activeGroup=n; saveStore(); render(); toast("Group added"); }
-/* v2: proper group manager window */
-var pendingGColor="";
-function manageGroup(){
-  if(activeGroup=="All"||activeGroup=="Recent"||activeGroup=="Favorites") return;
-  $("gName").value=activeGroup; pendingGColor=groupColor(activeGroup); renderGColorRow();
-  $("grpModal").style.display="block"; try{ $("gName").focus(); $("gName").select(); }catch(e){}
-}
-function renderGColorRow(){
-  var h='<span class="swatch none'+(pendingGColor?'':' sel')+'" data-gcol="none" title="No colour">&#10005;</span>';
-  for(var i=0;i<ACCENTS.length;i++){ h+='<span class="swatch'+(ACCENTS[i]==pendingGColor?' sel':'')+'" data-gcol="'+ACCENTS[i]+'" style="background:'+ACCENTS[i]+'"></span>'; }
-  $("gColorRow").innerHTML=h;
-}
-function closeGroupModal(){ $("grpModal").style.display="none"; }
-function saveGroupModal(){
-  var old=activeGroup, nn=trim($("gName").value);
-  if(!nn||nn=="All"||nn=="Recent"||nn=="Favorites"){ alert("Please use a different name."); return; }
-  if(nn!=old){ for(var x=0;x<store.groups.length;x++) if(store.groups[x]==nn){ alert("A group called \""+nn+"\" already exists."); return; } }
-  for(var i=0;i<store.groups.length;i++) if(store.groups[i]==old) store.groups[i]=nn;
-  for(var j=0;j<store.shortcuts.length;j++) if(store.shortcuts[j].group==old) store.shortcuts[j].group=nn;
-  if(store.groupColors[old]) delete store.groupColors[old];
-  if(pendingGColor) store.groupColors[nn]=pendingGColor;
-  activeGroup=nn; saveStore(); closeGroupModal(); render(); toast("Group saved");
-}
-function moveGroup(dir){
-  var i=-1; for(var k=0;k<store.groups.length;k++) if(store.groups[k]==activeGroup) i=k;
-  var j=i+dir; if(i<0||j<1||j>=store.groups.length) return; // "All" always stays first
-  var t=store.groups[i]; store.groups[i]=store.groups[j]; store.groups[j]=t; saveStore(); render(); toast(dir<0?"Moved left":"Moved right");
-}
-function deleteGroupModal(){
-  var o2=activeGroup, cnt=0; for(var c=0;c<store.shortcuts.length;c++) if(store.shortcuts[c].group==o2) cnt++;
-  if(!confirm("Delete group \""+o2+"\"?\n"+(cnt?(cnt+" tile(s) will move to All - nothing is deleted."):"It has no tiles."))) return;
-  var ng=[]; for(var k=0;k<store.groups.length;k++) if(store.groups[k]!=o2) ng.push(store.groups[k]); store.groups=ng;
-  for(var m=0;m<store.shortcuts.length;m++) if(store.shortcuts[m].group==o2) store.shortcuts[m].group="All";
-  if(store.groupColors[o2]) delete store.groupColors[o2];
-  activeGroup="All"; saveStore(); closeGroupModal(); render(); toast("Group deleted");
-}
-function fillGroupSelect(sel){ var h=""; for(var i=0;i<store.groups.length;i++){ var g=store.groups[i]; if(g=="All"){ h+='<option value="All">All</option>'; continue; } h+='<option value="'+esc(g)+'">'+esc(g)+'</option>'; } if(h=="") h='<option value="All">All</option>'; $("fGroup").innerHTML=h; if(sel&&sel!="Recent"&&sel!="Favorites") $("fGroup").value=sel; }
-
-function openAdd(){ editId=null; pendingIcon=""; actionSteps=[]; $("mTitle").innerHTML="Add Shortcut"; $("fName").value=""; $("fType").value="file"; $("fTarget").value=""; $("fArgs").value=""; $("fAdmin").value="no"; $("fNotes").value=""; $("fFrom").value=""; fillGroupSelect((activeGroup=="Recent"||activeGroup=="Favorites")?"All":activeGroup); $("delBtn").style.display="none"; setIconPrev(); syncTypeUI(); $("modal").style.display="block"; $("fName").focus(); }
-function openEdit(id){ var s=findById(id); if(!s) return; editId=id; pendingIcon=s.icon||""; actionSteps=[]; if(s.type=="action"){ var pp=s.target.split(";"); for(var pi=0;pi<pp.length;pi++){ var pv=trim(pp[pi]); if(pv) actionSteps.push(pv); } } $("mTitle").innerHTML="Edit Shortcut"; $("fName").value=s.name; $("fType").value=s.type; $("fTarget").value=s.target; $("fArgs").value=s.args||""; $("fAdmin").value=s.admin?"yes":"no"; $("fNotes").value=s.notes||""; $("fFrom").value=s.from||""; fillGroupSelect(s.group); $("delBtn").style.display="block"; setIconPrev(); syncTypeUI(); $("modal").style.display="block"; }
-function closeModal(){ $("modal").style.display="none"; }
-function saveShortcut(){ var name=trim($("fName").value),type=$("fType").value,group=$("fGroup").value||"All"; var target=(type=="action")?actionSteps.join(" ; "):trim($("fTarget").value); if(!name||!target){ alert(type=="action"?"Name and at least one step are required.":"Name and target are required."); return; }
-  var args=(type=="file")?trim($("fArgs").value):"", admin=(type=="file"&&$("fAdmin").value=="yes"), notes=trim($("fNotes").value), from=trim($("fFrom").value);
-  var saved;
-  if(editId){ var s=findById(editId); if(s.target!=target&&s.icon&&s.icon==pendingIcon){ /* target changed: refresh the auto icon */ if(s.icon.indexOf("\\icons\\")>-1){ try{ fso.DeleteFile(s.icon); }catch(eI){} pendingIcon=""; } else if(s.icon.indexOf("google.com/s2/favicons")>-1) pendingIcon=""; } s.name=name; s.target=target; s.type=type; s.group=group; s.icon=pendingIcon; s.args=args; s.admin=admin; s.notes=notes; if(from&&from!=s.from) s.added=s.added||(new Date()).getTime(); s.from=from; autoIcon(s); saved=s; toast("Saved"); } else { var ns={id:"sc_"+(new Date().getTime()),name:name,target:target,type:type,group:group,icon:pendingIcon,uses:0,last:0,fav:false,args:args,admin:admin,notes:notes,from:from,added:(new Date()).getTime()}; autoIcon(ns); store.shortcuts.push(ns); saved=ns; toast("Added "+name); }
-  checkOne(saved); saveStore(); closeModal(); render(); }
-function delShortcut(){ if(!editId) return; if(!confirm("Delete this shortcut?")) return; var a=[]; for(var i=0;i<store.shortcuts.length;i++) if(store.shortcuts[i].id!=editId) a.push(store.shortcuts[i]); store.shortcuts=a; saveStore(); closeModal(); render(); toast("Deleted"); }
-
-/* ===== AUTO ICON: grab the program's real icon =====
-   Works for .exe / .lnk / documents. Extracted once into an
-   "icons" folder next to this HTA, then reused. */
-function resolveLnk(path){
-  // .lnk / .url shortcuts point elsewhere - dig out the real target so we grab the app's real logo
+function load(){
+  try{ mkdir(DATA); }catch(e){ canSave=false; }
   try{
-    if(/\.lnk$/i.test(path)){ var sc=shell.CreateShortcut(path); if(sc && sc.TargetPath) return sc.TargetPath; }
-    if(/\.url$/i.test(path) && fso.FileExists(path)){
-      var f=fso.OpenTextFile(path,1,false,-2), t=f.ReadAll(); f.Close();
-      var m=t.match(/URL=(.+)/i); if(m) return trim(m[1]);
-    }
-  }catch(e){}
-  return path;
+    if(fso.FileExists(FILE)){ store=JSON.parse(readUtf8(FILE)); }
+  }catch(e){
+    try{ if(fso.FileExists(BAK)){ store=JSON.parse(readUtf8(BAK)); alert("Your list file was damaged, so the backup copy was loaded."); } }catch(e2){}
+  }
+  var d={v:1,theme:"retro",size:"normal",view:"list",sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
+  for(var k in d) if(d.hasOwnProperty(k)&&store[k]===undefined) store[k]=d[k];
+  for(var i=0;i<store.items.length;i++){ var it=store.items[i];
+    it.desc=it.desc||""; it.from=it.from||""; it.date=it.date||""; it.group=it.group||""; it.opened=it.opened||0; it.last=it.last||0; it.icon=it.icon||""; }
 }
-function faviconUrl(u){
-  // pull the domain and use Google's favicon service for a clean logo
+function save(){
+  if(!canSave) return;
   try{
-    var m=(""+u).match(/^https?:\/\/([^\/]+)/i);
-    if(m) return "https://www.google.com/s2/favicons?sz=64&domain="+m[1];
-  }catch(e){}
+    mkdir(DATA);
+    if(fso.FileExists(FILE)) fso.CopyFile(FILE,BAK,true);
+    writeUtf8(FILE,JSON.stringify(store));
+  }catch(e){ canSave=false; showWarn("Can't save here. Move QuickLaunch.hta into a normal folder (e.g. Documents) and open it from there."); }
+}
+function byId(id){ for(var i=0;i<store.items.length;i++) if(store.items[i].id==id) return store.items[i]; return null; }
+function newId(){ return "i"+now().toString(36)+Math.floor(Math.random()*1e4).toString(36); }
+
+/* ---------- look (themes + sizes) ---------- */
+var THEMES={
+  light:{name:"Light",bg:"#f4f5f8",panel:"#ffffff",hover:"#eaf0fb",text:"#1d2330",muted:"#6b7385",line:"#dde2ea",accent:"#2f6fed",accText:"#ffffff",chip:"#e9ecf2",
+    font:"'Segoe UI',Tahoma,sans-serif",r:8,bw:1,shadow:"0 1px 2px rgba(20,30,50,.07)",big:"0 16px 40px rgba(20,30,50,.25)"},
+  dark:{name:"Dark",bg:"#16181d",panel:"#1f2229",hover:"#2a2f3a",text:"#e8eaef",muted:"#9097a6",line:"#30343e",accent:"#5b9dff",accText:"#0b1220",chip:"#282c35",
+    font:"'Segoe UI',Tahoma,sans-serif",r:8,bw:1,shadow:"none",big:"0 16px 40px rgba(0,0,0,.5)"},
+  blueprint:{name:"Blueprint",bg:"#0d2a4c",panel:"#12365f",hover:"#1a4679",text:"#e6f0ff",muted:"#9fb9dd",line:"#2b5a8f",accent:"#ffd166",accText:"#0d2a4c",chip:"#173f6d",
+    font:"'Segoe UI',Tahoma,sans-serif",r:4,bw:1,shadow:"none",big:"0 16px 40px rgba(0,0,0,.45)",grid:1},
+  retro:{name:"Retro 8-bit",bg:"#1a1c2c",panel:"#29366f",hover:"#3b5dc9",text:"#f4f4f4",muted:"#94b0c2",line:"#0b0c16",accent:"#ffcd75",accText:"#1a1c2c",chip:"#333c57",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #0b0c16",big:"6px 6px 0 #0b0c16",retro:1},
+  gameboy:{name:"Game Boy",bg:"#9bbc0f",panel:"#8bac0f",hover:"#c4dc4c",text:"#0f380f",muted:"#306230",line:"#0f380f",accent:"#306230",accText:"#e0f0a0",chip:"#a9c832",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #0f380f",big:"6px 6px 0 #0f380f",retro:1,badge:"#306230"}
+};
+var SIZES={
+  compact:{name:"Compact",fs:12,row:30,ic:18,tile:92,tic:32},
+  normal:{name:"Normal",fs:13,row:36,ic:22,tile:110,tic:40},
+  large:{name:"Large",fs:15,row:44,ic:28,tile:134,tic:52}
+};
+var CSS=[
+ "body{background:{bg};color:{text};font-family:{font};font-size:{fs}px}",
+ "#top{background:{panel};border-bottom:{bw}px solid {line}}",
+ "#q,.fld input,.fld select{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}",
+ "#q:focus,.fld input:focus,.fld select:focus{border-color:{accent}}",
+ ".fld select option{background:{panel};color:{text}}",
+ ".btn{background:{panel};color:{text};border:{bw}px solid {line};border-radius:{r}px}",
+ ".btn:hover{background:{hover}}",
+ ".btn.primary{background:{accent};color:{accText};border-color:{accent}}",
+ ".btn.on{background:{hover};border-color:{accent}}",
+ ".chip{background:{chip};color:{muted};border-radius:{rc}px}",
+ ".chip:hover{color:{text}}",
+ ".chip.on{background:{accent};color:{accText}}",
+ ".lhead{color:{muted};border-bottom:{bw}px solid {line}}",
+ ".row{height:{row}px;border-bottom:1px solid {lineSoft}}",
+ ".row:hover{background:{hover}}",
+ ".c-from,.c-date,.c-desc,.muted,.tile .t-ds,.empty{color:{muted}}",
+ ".row:hover .c-desc,.row:hover .c-from,.row:hover .c-date{color:{text}}",
+ ".gtag{background:{chip};color:{muted};border-radius:{rc}px}",
+ ".more{border-radius:{r}px;color:{muted}}",
+ ".more:hover{background:{accent};color:{accText}}",
+ ".tile{background:{panel};border:{bw}px solid {line};border-radius:{r2}px;box-shadow:{shadow}}",
+ ".tile:hover{background:{hover};border-color:{accent}}",
+ ".row .ico{width:{ic}px;height:{ic}px;border-radius:{ri}px}",
+ ".row .ico .bdg{font-size:{icf}px;line-height:{ic}px}",
+ ".tile .ico{width:{tic}px;height:{tic}px;border-radius:{rti}px}",
+ ".tile .ico .bdg{font-size:{ticf}px;line-height:{tic}px}",
+ "#status{background:{panel};color:{muted};border-top:{bw}px solid {line}}",
+ ".card,.welcome{background:{panel};border:{bw}px solid {line};border-radius:{r2}px;box-shadow:{big}}",
+ ".welcome b.num{background:{accent};color:{accText};border-radius:{rc}px}",
+ ".fld label{color:{muted}}",
+ "#menu{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}",
+ "#menu .mi{border-radius:{r}px}",
+ "#menu .mi:hover{background:{accent};color:{accText}}",
+ "#menu .sep{background:{line}}",
+ "#toast{background:{accent};color:{accText};border-radius:{r}px}",
+ "::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:{line}}"
+];
+var CSS_RETRO=[
+ "#cur{display:inline;animation:blink 1s steps(1) infinite}",
+ "#brand,.chip,.btn,.lhead,.fld label,.card h3,.welcome h2{text-transform:uppercase;letter-spacing:1px}",
+ ".btn,.tile,.chip.on{box-shadow:{shadow}}",
+ ".btn:active,.tile:active{box-shadow:none;transform:translate(3px,3px);-ms-transform:translate(3px,3px)}",
+ ".tile:hover{border-color:{line}}",
+ ".row:hover{background:{hover};color:{text}}",
+ ".ico img{image-rendering:pixelated;-ms-interpolation-mode:nearest-neighbor}",
+ "#view{background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.07) 0px,rgba(0,0,0,.07) 1px,transparent 1px,transparent 3px)}",
+ "#toast{box-shadow:{shadow}}",
+ ".warnTxt{color:#b13e53}"
+];
+var CSS_GRID=[
+ "#view{background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:22px 22px}"
+];
+function setCss(el,css){ if(el.styleSheet&&typeof el.styleSheet.cssText=="string") el.styleSheet.cssText=css; else el.textContent=css; }
+function applyLook(){
+  var t=THEMES[store.theme]||THEMES.retro, z=SIZES[store.size]||SIZES.normal, v={};
+  for(var a in t) v[a]=t[a]; for(var b in z) v[b]=z[b];
+  v.rc=t.r?99:0; v.r2=t.r?t.r+2:0; v.ri=t.r?4:0; v.rti=t.r?8:0;
+  v.icf=Math.round(z.ic*0.36); v.ticf=Math.round(z.tic*0.3);
+  v.lineSoft=t.retro?"rgba(0,0,0,.25)":t.line;
+  var rules=CSS.slice(0); if(t.retro) rules=rules.concat(CSS_RETRO); if(t.grid) rules=rules.concat(CSS_GRID);
+  if(t.badge) rules.push(".ico .bdg{background:{badge} !important;color:{bg} !important}");
+  setCss($("themeCss"),rules.join("\n").replace(/\{(\w+)\}/g,function(m,k){ return v[k]!==undefined?v[k]:m; }));
+  fitTiles();
+}
+/* icon view: work out how many tiles fit, then stretch them to fill the row exactly */
+function fitTiles(){
+  var z=SIZES[store.size]||SIZES.normal, gap=10, avail=$("view").clientWidth-12-1; // 12 = left padding
+  var cols=Math.max(1,Math.floor(avail/(z.tile+gap)));
+  var w=Math.floor(avail/cols)-gap;
+  setCss($("fitCss"),".tile{width:"+w+"px}");
+}
+
+/* ---------- rendering ---------- */
+var visible=[];
+function matches(it,q){
+  if(!q) return true;
+  var hay=(it.name+" "+it.desc+" "+it.from+" "+it.group+" "+it.path+" "+kindOf(it).n+" "+fmtDate(it.date)).toLowerCase(), w=q.split(/\s+/);
+  for(var i=0;i<w.length;i++) if(w[i]&&hay.indexOf(w[i])<0) return false;
+  return true;
+}
+function currentList(){
+  var q=trim($("q").value).toLowerCase(), out=[];
+  for(var i=0;i<store.items.length;i++){ var it=store.items[i];
+    if(group!="All"&&it.group!=group) continue; if(!matches(it,q)) continue; out.push(it); }
+  var k=store.sort.k, d=store.sort.d;
+  out.sort(function(a,b){
+    var x,y;
+    if(k=="date"){ x=a.date||""; y=b.date||""; } else if(k=="opened"){ x=a.last; y=b.last; }
+    else { x=(""+(a[k]||"")).toLowerCase(); y=(""+(b[k]||"")).toLowerCase(); }
+    if(x==y){ x=a.name.toLowerCase(); y=b.name.toLowerCase(); return x<y?-1:(x>y?1:0); }
+    if(x==="") return 1; if(y==="") return -1;   // blanks always last
+    return (x<y?-1:1)*d;
+  });
+  return out;
+}
+function iconSrc(it){
+  if(it.type=="web"){ var m=/^(?:[a-z]+:\/\/)?([^\/?#:]+)/i.exec(it.path); if(m&&/^(https?:|www\.)/i.test(it.path)) return "https://www.google.com/s2/favicons?sz=64&domain="+m[1]; return ""; }
+  if(it.icon){ try{ if(fso.FileExists(DATA+"\\"+it.icon)) return fileUrl(DATA+"\\"+it.icon); }catch(e){} }
   return "";
 }
-/* v3: is this tile's saved logo file gone? (happens when QuickLaunch is moved to another folder) */
-function iconBroken(ic){
-  if(!ic||/^https?:/i.test(ic)) return false;
-  var p=ic; if(/^file:\/\/\//i.test(p)){ try{ p=decodeURI(p.substring(8)); }catch(e){ p=p.substring(8); } p=p.replace(/\//g,"\\"); }
-  try{ return !fso.FileExists(p); }catch(e){ return false; }
+function iconHtml(it){
+  var k=kindOf(it), s=iconSrc(it);
+  return '<span class="ico"><span class="bdg" style="background:'+k.c+'">'+k.t+'</span>'+(s?'<img src="'+esc(s)+'" alt="" onerror="this.style.display=\'none\'">':'')+'</span>';
 }
-function autoIcon(s){
-  try{
-    if(s.icon) return;                      // user picked one - respect it
-    if(s.type=="url"){ var fav=faviconUrl(s.target); if(fav) s.icon=fav; return; }  // web links get their site logo
-    var tgt=resolveLnk(s.target);           // follow .lnk / .url to the real target
-    if(/^https?:\/\//i.test(tgt)){ var fv=faviconUrl(tgt); if(fv) s.icon=fv; return; }
-    if(!fso.FileExists(tgt)) return;        // folders / missing paths skip
-    var dir=scriptDir()+"\\icons";
-    if(!fso.FolderExists(dir)) fso.CreateFolder(dir);
-    var png=dir+"\\"+s.id+".png";
-    if(!fso.FileExists(png)){
-      var ps="Add-Type -AssemblyName System.Drawing;"
-        +"[System.Drawing.Icon]::ExtractAssociatedIcon('"+tgt.replace(/'/g,"''")+"')"
-        +".ToBitmap().Save('"+png.replace(/'/g,"''")+"',[System.Drawing.Imaging.ImageFormat]::Png)";
-      shell.Run('powershell -NoProfile -WindowStyle Hidden -Command "'+ps+'"',0,true); // true = wait
-    }
-    if(fso.FileExists(png)) s.icon=png;
-  }catch(e){} // fail quietly - tile keeps the rocket glyph
+function tipOf(it){
+  return it.name+(it.desc?"\n"+it.desc:"")+"\n\nFrom: "+(it.from||"-")+"\nDate: "+(fmtDate(it.date)||"-")+
+    "\nOpened: "+it.opened+" time"+(it.opened==1?"":"s")+(it.last?" (last "+fmtTime(it.last)+")":"")+"\n"+it.path+(missing[it.id]?"\n\n!! NOT FOUND - right-click > Edit to fix the location":"");
 }
-
-function renderAccentRow(){ var h=""; for(var i=0;i<ACCENTS.length;i++){ var sel=(ACCENTS[i]==pendingAccent)?" sel":""; h+='<span class="swatch'+sel+'" data-acc="'+ACCENTS[i]+'" style="background:'+ACCENTS[i]+'"></span>'; } $("accentRow").innerHTML=h; }
-
-/* ============ CSV EXPORT / IMPORT ============ */
-function csvCell(v){ v=(v==null)?"":(""+v); if(/[",\r\n]/.test(v)) v='"'+v.replace(/"/g,'""')+'"'; return v; }
-function exportCSV(){
-  try{
-    ensureDir();
-    var rows=["name,type,target,group,favorite,options,admin,description,shared_by"];
-    for(var i=0;i<store.shortcuts.length;i++){ var s=store.shortcuts[i];
-      rows.push([csvCell(s.name),csvCell(s.type),csvCell(s.target),csvCell(s.group||"All"),csvCell(s.fav?"yes":"no"),csvCell(s.args||""),csvCell(s.admin?"yes":"no"),csvCell(s.notes||""),csvCell(s.from||"")].join(","));
+function sortMark(k){ return store.sort.k==k?(store.sort.d>0?" &#9650;":" &#9660;"):""; }
+function render(){
+  renderGroups();
+  visible=currentList();
+  var h="", q=trim($("q").value);
+  if(!store.items.length){ h=welcomeHtml(); }
+  else if(!visible.length){ h='<div class="empty">'+(q?'Nothing matches "<b>'+esc(q)+'</b>".<br>Press Esc to clear the search.':'This group is empty.<br>Click <b>+ Add</b> to put something in it.')+'</div>'; }
+  else if(store.view=="grid"){
+    h='<div class="grid">';
+    for(var i=0;i<visible.length;i++){ var it=visible[i], ms=!!missing[it.id];
+      h+='<div class="tile'+(ms?' miss':'')+'" data-id="'+it.id+'" title="'+esc(tipOf(it))+'">'+(ms?'<span class="mdot"></span>':'')
+        +'<span class="more" data-more="1">&middot;&middot;&middot;</span>'+iconHtml(it)
+        +'<div class="t-nm">'+esc(it.name)+'</div><div class="t-ds">'+esc(it.desc||it.from||kindOf(it).n)+'</div></div>';
     }
-    var out=DATADIR+"\\quicklaunch-links.csv";
-    var f=fso.CreateTextFile(out,true,false); f.Write(rows.join("\r\n")); f.Close();
-    toast("Exported "+store.shortcuts.length+" links");
-    shell.Run('explorer /select,"'+out+'"',1,false);
-  }catch(e){ alert("Export failed: "+e.message); }
-}
-// simple CSV parser that handles quoted fields, commas, and newlines inside quotes
-function parseCSV(text){
-  var rows=[], row=[], cur="", i=0, inQ=false, c;
-  text=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
-  while(i<text.length){ c=text.charAt(i);
-    if(inQ){
-      if(c=='"'){ if(text.charAt(i+1)=='"'){ cur+='"'; i++; } else inQ=false; }
-      else cur+=c;
-    } else {
-      if(c=='"') inQ=true;
-      else if(c==','){ row.push(cur); cur=""; }
-      else if(c=='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; }
-      else cur+=c;
+    h+='<div class="clear"></div></div>';
+  } else {
+    h='<div class="lhead"><div class="c-ic"></div><div class="c-name" data-sort="name">Name'+sortMark("name")+'</div><div class="c-desc" data-sort="desc">Description'+sortMark("desc")+'</div>'
+     +'<div class="c-from" data-sort="from">From'+sortMark("from")+'</div><div class="c-date" data-sort="date">Date'+sortMark("date")+'</div>'
+     +'<div class="c-grp" data-sort="group">Group'+sortMark("group")+'</div><div class="c-more"></div></div>';
+    for(var j=0;j<visible.length;j++){ var r=visible[j], m2=!!missing[r.id];
+      h+='<div class="row'+(m2?' miss':'')+'" data-id="'+r.id+'" title="'+esc(tipOf(r))+'"><div class="c-ic">'+iconHtml(r)+'</div>'
+        +'<div class="c-name">'+esc(r.name)+(m2?'<span class="warnTxt">not found</span>':'')+'</div>'
+        +'<div class="c-desc">'+esc(r.desc)+'</div><div class="c-from">'+esc(r.from)+'</div><div class="c-date">'+esc(fmtDate(r.date))+'</div>'
+        +'<div class="c-grp">'+(r.group?'<span class="gtag">'+esc(r.group)+'</span>':'')+'</div>'
+        +'<div class="c-more"><span class="more" data-more="1">&middot;&middot;&middot;</span></div></div>';
     }
-    i++;
   }
+  $("view").innerHTML=h; if(store.view=="grid") fitTiles();
+  $("bList").className="btn ic"+(store.view=="list"?" on":""); $("bGrid").className="btn ic"+(store.view=="grid"?" on":"");
+  var n=store.items.length, mc=0; for(var x in missing) if(missing.hasOwnProperty(x)) mc++;
+  $("stL").innerHTML=esc(n+" item"+(n==1?"":"s")+(visible.length!=n?" ("+visible.length+" shown)":"")+(mc?" \u00b7 "+mc+" not found":"")+" \u00b7 saved in "+DATA);
+  fillFromList();
+}
+function renderGroups(){
+  var counts={}, h="";
+  for(var i=0;i<store.items.length;i++){ var g=store.items[i].group; counts[g]=(counts[g]||0)+1; }
+  h+='<span class="chip'+(group=="All"?" on":"")+'" data-g="All">All<span class="n">'+store.items.length+'</span></span>';
+  for(var j=0;j<store.groups.length;j++){ var gg=store.groups[j];
+    h+='<span class="chip'+(group==gg?" on":"")+'" data-g="'+esc(gg)+'" title="Right-click to rename or delete">'+esc(gg)+'<span class="n">'+(counts[gg]||0)+'</span></span>'; }
+  h+='<span class="chip" id="addGroup" title="Make a new group">+ Group</span>';
+  $("groups").innerHTML=h;
+}
+function welcomeHtml(){
+  var tb=""; for(var k in THEMES) tb+='<button class="btn'+(store.theme==k?" on":"")+'" data-theme="'+k+'"><span class="sw" style="background:'+THEMES[k].bg+'"></span>'+THEMES[k].name+'</button>';
+  var old=oldCount();
+  return '<div class="welcome"><h2>Welcome to QuickLaunch</h2><div class="muted">Open your apps, files, folders and websites in one click.</div>'
+   +'<div class="step"><b class="num">1</b><b>Pick a look</b> (change it any time with &#9881;)<br>'+tb+'</div>'
+   +'<div class="step"><b class="num">2</b><b>Add your first item</b><br><span class="muted">Copy a file path or web link, then press <b>Ctrl+V</b> here - or click:</span><br>'
+   +'<button class="btn primary" data-do="add">+ Add item</button></div>'
+   +(old?'<div class="step"><b class="num">3</b><b>Bring your old list across</b><br><span class="muted">Found '+old+' shortcut'+(old==1?'':'s')+' from your previous QuickLaunch in this folder.</span><br><button class="btn" data-do="importOld">Import them</button></div>':'')
+   +'</div>';
+}
+function fillFromList(){ var seen={}, h=""; for(var i=0;i<store.items.length;i++){ var f=store.items[i].from, l=f.toLowerCase(); if(f&&!seen[l]){ seen[l]=1; h+='<option value="'+esc(f)+'">'; } } $("fromList").innerHTML=h; }
+
+/* ---------- opening things ---------- */
+function openItem(it){
+  try{
+    if(it.type=="web"){ var u=it.path; if(/^www\./i.test(u)) u="https://"+u; shApp().ShellExecute(u,"","","open",1); }
+    else{
+      if(!exists(it.path)){ missing[it.id]=1; render(); toast("Can't find "+it.name+" - it may have moved. Right-click > Edit to fix."); return; }
+      delete missing[it.id];
+      shApp().ShellExecute(it.path,"",fso.GetParentFolderName(it.path)||"","open",1);
+    }
+    it.opened++; it.last=now(); save(); toast("Opening "+it.name);
+  }catch(e){
+    try{ wsh.Run('explorer.exe "'+it.path+'"',1,false); it.opened++; it.last=now(); save(); }
+    catch(e2){ toast("Couldn't open "+it.name); }
+  }
+}
+function openLocation(it){ try{ wsh.Run('explorer.exe /select,"'+it.path+'"',1,false); }catch(e){ toast("Couldn't open the folder"); } }
+function copyText(t,msg){ try{ window.clipboardData.setData("Text",t); toast(msg); }catch(e){ prompt("Copy this:",t); } }
+
+/* ---------- missing-file check (one at a time so slow network drives don't freeze the window) ---------- */
+function checkAll(){
+  var list=store.items.slice(0), i=0, changed=false;
+  function step(){
+    if(i>=list.length){ if(changed) render(); return; }
+    var it=list[i++];
+    if(it.type!="web"){ var was=!!missing[it.id], ok=exists(it.path); if(ok) delete missing[it.id]; else missing[it.id]=1; if(was==ok) changed=true; }
+    window.setTimeout(step,10);
+  }
+  step();
+}
+
+/* ---------- real program/file icons (fetched in the background with PowerShell, saved in QuickLaunch-data\icons) ---------- */
+var iconTimer=null, iconTried={}, iconAgain=false;
+function fetchIcons(){
+  if(!canSave) return;
+  if(iconTimer){ iconAgain=true; return; } // one at a time - run again when this batch finishes
+  var jobs=[];
+  for(var i=0;i<store.items.length;i++){ var it=store.items[i];
+    if(it.type=="web"||it.type=="folder"||iconTried[it.id+"|"+it.path]) continue;
+    if(it.icon&&fso.FileExists(DATA+"\\"+it.icon)) continue;
+    if(!fso.FileExists(it.path)) continue;
+    var src=it.path;
+    if(/\.lnk$/i.test(src)){ try{ var tp=wsh.CreateShortcut(src).TargetPath; if(tp&&fso.FileExists(tp)) src=tp; }catch(e){} }
+    iconTried[it.id+"|"+it.path]=1; jobs.push({it:it,src:src,rel:"icons\\"+it.id+".png"});
+  }
+  if(!jobs.length) return;
+  try{
+    mkdir(ICONS);
+    var q=function(s){ return "'"+s.replace(/'/g,"''")+"'"; };
+    var ps="Add-Type -AssemblyName System.Drawing\r\n$j=@()\r\n";
+    for(var k=0;k<jobs.length;k++) ps+="$j+=,@("+q(jobs[k].src)+","+q(DATA+"\\"+jobs[k].rel)+")\r\n";
+    ps+="foreach($x in $j){ try{ $i=[System.Drawing.Icon]::ExtractAssociatedIcon($x[0]); if($i){ $t=$x[1]+'.tmp'; $i.ToBitmap().Save($t,[System.Drawing.Imaging.ImageFormat]::Png); Move-Item -Force $t $x[1] } }catch{} }\r\n";
+    var script=ICONS+"\\get-icons.ps1"; writeUtf8(script,ps);
+    wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "'+script+'"',0,false);
+  }catch(e){ return; }
+  var tries=0; if(iconTimer) window.clearInterval(iconTimer);
+  iconTimer=window.setInterval(function(){
+    var changed=false, left=0;
+    for(var n=0;n<jobs.length;n++){ var jb=jobs[n]; if(jb.done) continue;
+      if(fso.FileExists(DATA+"\\"+jb.rel)){ jb.it.icon=jb.rel; jb.done=true; changed=true; } else left++; }
+    if(changed){ save(); render(); }
+    if(!left||++tries>30){ window.clearInterval(iconTimer); iconTimer=null; if(iconAgain){ iconAgain=false; fetchIcons(); } }
+  },1000);
+}
+
+/* ---------- add / edit ---------- */
+var nameTouched=false;
+function fillGroupSelect(sel){
+  var h='<option value="">(no group)</option>';
+  for(var i=0;i<store.groups.length;i++) h+='<option value="'+esc(store.groups[i])+'">'+esc(store.groups[i])+'</option>';
+  h+='<option value="__new">+ New group...</option>';
+  $("fGroup").innerHTML=h; $("fGroup").value=sel||"";
+}
+function openAdd(pre){
+  editId=null; nameTouched=false;
+  $("dTitle").innerHTML="Add item"; $("bDel").style.display="none";
+  $("fPath").value=cleanPath(pre||""); $("fName").value=""; $("fDesc").value=""; $("fFrom").value=""; $("fDate").value=todayISO();
+  fillGroupSelect(group!="All"?group:"");
+  showDlg("dlgItem"); pathChanged();
+  window.setTimeout(function(){ try{ (pre?$("fDesc"):$("fPath")).focus(); }catch(e){} },30);
+}
+function openEdit(it){
+  editId=it.id; nameTouched=true;
+  $("dTitle").innerHTML="Edit item"; $("bDel").style.display="";
+  $("fPath").value=it.path; $("fName").value=it.name; $("fDesc").value=it.desc; $("fFrom").value=it.from; $("fDate").value=it.date;
+  fillGroupSelect(it.group); showDlg("dlgItem"); pathChanged();
+  window.setTimeout(function(){ try{ $("fName").focus(); }catch(e){} },30);
+}
+function pathChanged(){
+  var p=cleanPath($("fPath").value), el=$("fKind");
+  if(!p){ el.innerHTML='Tip: in File Explorer, Shift + right-click a file &rarr; "Copy as path"'; return; }
+  var type=detect(p), k=kindOf({type:type,path:p}), ok=(type=="web")||exists(p);
+  el.innerHTML='<span class="ico" style="width:16px;height:16px;margin-right:6px"><span class="bdg" style="background:'+k.c+';font-size:6px;line-height:16px">'+k.t+'</span></span>'
+    +esc(k.n)+(ok?'':' &middot; <b style="color:#e05545">can\'t find this right now</b>');
+  if(!nameTouched) $("fName").value=guessName(p,type);
+}
+function saveItem(){
+  var p=cleanPath($("fPath").value);
+  if(!p){ alert("Please paste or browse to a location first."); $("fPath").focus(); return; }
+  var type=detect(p), name=trim($("fName").value)||guessName(p,type), date=parseDate($("fDate").value);
+  if(date===null){ alert("Please type the date like 2026-11-06 (or leave it empty)."); $("fDate").focus(); return; }
+  var g=$("fGroup").value; if(g=="__new") g="";
+  var it;
+  if(editId){
+    it=byId(editId); if(!it) return;
+    if(it.path!=p){ if(it.icon){ try{ fso.DeleteFile(DATA+"\\"+it.icon); }catch(e){} } it.icon=""; delete missing[it.id]; }
+  } else { it={id:newId(),opened:0,last:0,icon:"",created:now()}; store.items.push(it); }
+  it.path=p; it.type=type; it.name=name; it.desc=trim($("fDesc").value); it.from=trim($("fFrom").value); it.date=date; it.group=g;
+  if(type!="web"&&!exists(p)) missing[it.id]=1;
+  save(); hideDlgs(); render(); fetchIcons();
+  toast(editId?"Saved":"Added "+name);
+}
+function deleteItem(it){
+  if(!confirm('Remove "'+it.name+'" from QuickLaunch?\n(The real file is not touched.)')) return;
+  var a=[]; for(var i=0;i<store.items.length;i++) if(store.items[i].id!=it.id) a.push(store.items[i]); store.items=a;
+  if(it.icon){ try{ fso.DeleteFile(DATA+"\\"+it.icon); }catch(e){} }
+  save(); hideDlgs(); render(); toast("Removed "+it.name);
+}
+function duplicateItem(it){
+  var c={}; for(var k in it) if(it.hasOwnProperty(k)) c[k]=it[k];
+  c.id=newId(); c.name=it.name+" (copy)"; c.opened=0; c.last=0; c.icon=""; c.created=now();
+  store.items.push(c); save(); render(); fetchIcons(); openEdit(c);
+}
+function pickFile(cb){
+  var inp=document.createElement("input"); inp.type="file"; inp.style.display="none"; document.body.appendChild(inp);
+  inp.onchange=function(){ var v=inp.value; try{ document.body.removeChild(inp); }catch(e){} if(v) cb(v); };
+  inp.click();
+}
+function pickFolder(cb){ try{ var f=shApp().BrowseForFolder(0,"Pick a folder",0x51); if(f) cb(f.Self.Path); }catch(e){ toast("Please paste the folder path instead"); } }
+
+/* ---------- groups ---------- */
+function addGroup(n){
+  n=trim(n||""); if(!n) return "";
+  if(n.toLowerCase()=="all"){ alert('"All" is already used.'); return ""; }
+  for(var i=0;i<store.groups.length;i++) if(store.groups[i].toLowerCase()==n.toLowerCase()) return store.groups[i];
+  store.groups.push(n); save(); return n;
+}
+function renameGroup(g){
+  var n=trim(prompt("Rename group:",g)||""); if(!n||n==g) return;
+  for(var i=0;i<store.groups.length;i++){ if(store.groups[i].toLowerCase()==n.toLowerCase()&&store.groups[i]!=g){ alert("That group already exists."); return; } }
+  for(var j=0;j<store.groups.length;j++) if(store.groups[j]==g) store.groups[j]=n;
+  for(var k=0;k<store.items.length;k++) if(store.items[k].group==g) store.items[k].group=n;
+  if(group==g) group=n; save(); render();
+}
+function deleteGroup(g){
+  if(!confirm('Delete the group "'+g+'"?\nIts items stay in QuickLaunch (under All).')) return;
+  var a=[]; for(var i=0;i<store.groups.length;i++) if(store.groups[i]!=g) a.push(store.groups[i]); store.groups=a;
+  for(var k=0;k<store.items.length;k++) if(store.items[k].group==g) store.items[k].group="";
+  if(group==g) group="All"; save(); render();
+}
+function moveGroup(g,dir){
+  var i=-1; for(var k=0;k<store.groups.length;k++) if(store.groups[k]==g) i=k;
+  var j=i+dir; if(i<0||j<0||j>=store.groups.length) return;
+  var t=store.groups[i]; store.groups[i]=store.groups[j]; store.groups[j]=t; save(); render();
+}
+
+/* ---------- export ---------- */
+function csvCell(v){ v=(v==null)?"":(""+v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function exportName(ext){
+  var n="QuickLaunch list"+(group!="All"?" - "+group:"")+" - "+todayISO();
+  n=n.replace(/[\\\/:*?"<>|]/g,"-");
+  var p=EXPORTS+"\\"+n+"."+ext, i=2;
+  while(fso.FileExists(p)){ try{ fso.DeleteFile(p); break; }catch(e){ p=EXPORTS+"\\"+n+" ("+(i++)+")."+ext; } } // file open in Excel? use a new name
+  return p;
+}
+function exportCSV(){
+  var list=currentList(); if(!list.length){ toast("Nothing to export"); return; }
+  try{
+    mkdir(DATA); mkdir(EXPORTS);
+    var rows=[["Name","Type","Description","From","Date","Group","Location","Times opened","Last opened"]];
+    for(var i=0;i<list.length;i++){ var it=list[i]; rows.push([it.name,kindOf(it).n,it.desc,it.from,it.date,it.group,it.path,it.opened,it.last?fmtTime(it.last):""]); }
+    var out=[]; for(var r=0;r<rows.length;r++){ var c=[]; for(var k=0;k<rows[r].length;k++) c.push(csvCell(rows[r][k])); out.push(c.join(",")); }
+    var p=exportName("csv"); writeUtf8(p,out.join("\r\n"));
+    toast("Saved CSV with "+list.length+" item"+(list.length==1?"":"s")); openLocation({path:p});
+  }catch(e){ alert("Couldn't save the CSV:\n"+e.message); }
+}
+function reportHtml(list){
+  var q=trim($("q").value), sub=[list.length+" item"+(list.length==1?"":"s"), "Group: "+(group=="All"?"All":group)];
+  if(q) sub.push('Search: "'+q+'"');
+  var h='<!DOCTYPE html><html><head><meta charset="utf-8"><title>QuickLaunch list</title><style>'
+   +'@page{size:A4 landscape;margin:12mm}body{font-family:Segoe UI,Arial,sans-serif;color:#1d2330;font-size:9.5pt;margin:0}'
+   +'h1{font-size:17pt;margin:0 0 2px}.sub{color:#6b7385;margin-bottom:12px}table{width:100%;border-collapse:collapse}'
+   +'th{text-align:left;font-size:8pt;text-transform:uppercase;letter-spacing:.5px;color:#fff;background:#29366f;padding:6px 7px}'
+   +'td{padding:6px 7px;border-bottom:1px solid #dde2ea;vertical-align:top}tr:nth-child(even) td{background:#f4f6fa}'
+   +'td.n{color:#6b7385;width:22px}td.nm{font-weight:bold}td.loc{color:#4a5568;font-size:8pt;word-break:break-all;width:30%}'
+   +'.k{display:inline-block;padding:1px 5px;color:#fff;font-size:7pt;font-weight:bold;margin-right:5px;border-radius:2px}'
+   +'.foot{margin-top:10px;color:#9097a6;font-size:7.5pt}</style></head><body>'
+   +'<h1>QuickLaunch list</h1><div class="sub">Exported '+esc(fmtDate(todayISO()))+' &middot; '+esc(sub.join(" \u00b7 "))+'</div>'
+   +'<table><tr><th>#</th><th>Name</th><th>Description</th><th>From</th><th>Date</th><th>Location</th></tr>';
+  for(var i=0;i<list.length;i++){ var it=list[i], k=kindOf(it);
+    h+='<tr><td class="n">'+(i+1)+'</td><td class="nm"><span class="k" style="background:'+k.c+'">'+k.t+'</span>'+esc(it.name)+'</td><td>'+esc(it.desc)
+      +'</td><td>'+esc(it.from)+'</td><td style="white-space:nowrap">'+esc(fmtDate(it.date))+'</td><td class="loc">'+esc(it.path)+'</td></tr>'; }
+  return h+'</table><div class="foot">Made with QuickLaunch</div></body></html>';
+}
+function findBrowser(){
+  var c=["%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe","%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe",
+         "%LocalAppData%\\Microsoft\\Edge\\Application\\msedge.exe","%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe",
+         "%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe","%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe"];
+  for(var i=0;i<c.length;i++){ try{ var p=wsh.ExpandEnvironmentStrings(c[i]); if(fso.FileExists(p)) return p; }catch(e){} }
+  return "";
+}
+function exportPDF(){
+  var list=currentList(); if(!list.length){ toast("Nothing to export"); return; }
+  toast("Making the PDF...");
+  window.setTimeout(function(){
+    try{
+      mkdir(DATA); mkdir(EXPORTS);
+      var pdf=exportName("pdf"), html=pdf.replace(/\.pdf$/,".html"); writeUtf8(html,reportHtml(list));
+      var br=findBrowser();
+      if(br){
+        var prof=wsh.ExpandEnvironmentStrings("%TEMP%")+"\\QuickLaunch-pdf";
+        wsh.Run('"'+br+'" --headless --disable-gpu --no-first-run --no-pdf-header-footer --print-to-pdf-no-header --user-data-dir="'+prof+'" --print-to-pdf="'+pdf+'" "'+fileUrl(html)+'"',0,true);
+      }
+      if(fso.FileExists(pdf)){ try{ fso.DeleteFile(html); }catch(e){} shApp().ShellExecute(pdf,"","","open",1); toast("PDF saved with "+list.length+" item"+(list.length==1?"":"s")); }
+      else { shApp().ShellExecute(html,"","","open",1); alert("Your list has opened in the browser.\nPress Ctrl+P and choose \"Save as PDF\"."); }
+    }catch(e){ alert("Couldn't make the PDF:\n"+e.message); }
+  },60);
+}
+
+/* ---------- import ---------- */
+function parseCSV(t){
+  var rows=[], row=[], cur="", q=false, c, i;
+  t=t.replace(/\r\n?/g,"\n");
+  for(i=0;i<t.length;i++){ c=t.charAt(i);
+    if(q){ if(c=='"'){ if(t.charAt(i+1)=='"'){ cur+='"'; i++; } else q=false; } else cur+=c; }
+    else if(c=='"') q=true; else if(c==','){ row.push(cur); cur=""; } else if(c=='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; } else cur+=c; }
   if(cur!==""||row.length){ row.push(cur); rows.push(row); }
   return rows;
 }
-/* v2: the old XP-only picker is gone - use the normal Windows file picker */
+function addImported(o){
+  var path=cleanPath(o.path); if(!path) return false;
+  for(var i=0;i<store.items.length;i++) if(store.items[i].path.toLowerCase()==path.toLowerCase()&&store.items[i].name==o.name) return false; // already have it
+  var type=o.type||detect(path), g=o.group&&o.group.toLowerCase()!="all"?addGroup(o.group):"";
+  store.items.push({id:newId(),path:path,type:type,name:trim(o.name)||guessName(path,type),desc:trim(o.desc||""),from:trim(o.from||""),
+    date:parseDate(o.date||"")||"",group:g,opened:0,last:0,icon:"",created:now()});
+  return true;
+}
 function importCSV(){
-  var inp=document.createElement("input"); inp.type="file"; inp.accept=".csv"; inp.style.display="none"; document.body.appendChild(inp);
-  inp.onchange=function(){ var v=inp.value; try{ document.body.removeChild(inp); }catch(e){} if(v) importFromPath(v); };
-  try{ inp.click(); }catch(e){ var p=prompt("Full path to the CSV file:",DATADIR+"\\quicklaunch-links.csv"); if(p) importFromPath(p); }
+  pickFile(function(p){
+    try{
+      var rows=parseCSV(readUtf8(p)); if(rows.length<2){ toast("That CSV looks empty"); return; }
+      var hd=rows[0], col={};
+      for(var i=0;i<hd.length;i++){ var h=trim(hd[i]).toLowerCase();
+        if(h=="name") col.name=i; else if(/^(location|path|target|link|url)$/.test(h)) col.path=i;
+        else if(/^(description|notes|desc)$/.test(h)) col.desc=i; else if(/^(from|shared by|shared_by|source)$/.test(h)) col.from=i;
+        else if(/^(date|date added|added)$/.test(h)) col.date=i; else if(h=="group") col.group=i; }
+      if(col.path===undefined){ alert("Couldn't find a Location (or Path) column in that CSV."); return; }
+      var n=0;
+      for(var r=1;r<rows.length;r++){ var x=rows[r]; if(!x||!trim(x[col.path]||"")) continue;
+        if(addImported({path:x[col.path],name:col.name!==undefined?x[col.name]:"",desc:col.desc!==undefined?x[col.desc]:"",
+          from:col.from!==undefined?x[col.from]:"",date:col.date!==undefined?x[col.date]:"",group:col.group!==undefined?x[col.group]:""})) n++; }
+      save(); render(); checkAll(); fetchIcons(); toast("Imported "+n+" item"+(n==1?"":"s"));
+    }catch(e){ alert("Couldn't read that CSV:\n"+e.message); }
+  });
 }
-function importFromPath(path){
+function readOld(){
   try{
-    if(!path) return;
-    if(!fso.FileExists(path)){ alert("File not found:\n"+path); return; }
-    var f=fso.OpenTextFile(path,1,false,-2), txt=f.ReadAll(); f.Close();
-    var rows=parseCSV(txt); if(!rows.length){ toast("Empty CSV"); return; }
-    // detect header row
-    var start=0, hdr=rows[0]; var h0=(hdr[0]||"").toLowerCase();
-    if(h0=="name"||h0.indexOf("name")==0) start=1;
-    var added=0;
-    for(var r=start;r<rows.length;r++){ var col=rows[r]; if(!col||!trim(col[0]||"")) continue;
-      var name=trim(col[0]||""), type=trim((col[1]||"file")).toLowerCase(), target=trim(col[2]||""), group=trim(col[3]||"All"), fav=/^(yes|true|1|y)$/i.test(trim(col[4]||"")), args=trim(col[5]||""), admin=/^(yes|true|1|y)$/i.test(trim(col[6]||"")), notes=trim(col[7]||""), from=trim(col[8]||"");
-      if(type!="file"&&type!="folder"&&type!="url"&&type!="action") type="file";
-      if(group&&group!="All"){ var have=false; for(var gi=0;gi<store.groups.length;gi++) if(store.groups[gi]==group) have=true; if(!have) store.groups.push(group); }
-      var ns={id:"sc_"+(new Date().getTime())+"_"+r,name:name,target:target,type:type,group:group||"All",icon:"",uses:0,last:0,fav:fav,args:args,admin:admin,notes:notes,from:from,added:from?(new Date()).getTime():0};
-      autoIcon(ns); store.shortcuts.push(ns); added++;
-    }
-    saveStore(); render(); toast("Imported "+added+" link"+(added==1?"":"s"));
-  }catch(e){ alert("Import failed: "+e.message); }
+    if(!fso.FileExists(OLDFILE)) return null;
+    var f=fso.OpenTextFile(OLDFILE,1,false,-1), t=f.AtEndOfStream?"":f.ReadAll(); f.Close();
+    var o; try{ o=JSON.parse(t); }catch(e){ o=eval("("+t+")"); }
+    return (o&&o.shortcuts)?o.shortcuts:null;
+  }catch(e){ return null; }
 }
-function openSettings(){ $("sName").value=store.userName||""; $("sTheme").value=store.themeName||store.theme; $("sIcon").value=store.iconSize; $("sSort").value=store.sort; $("sKind").value=store.kind; $("sGlass").value=store.glass; $("sBg").value=store.bg; $("sRecent").value=store.showRecent; $("sRetroC").value=store.retroColor||"sega"; $("sPong").value=store.pongMode||"play"; $("sIdleGame").value=store.idleGame||"pong"; $("sIdleOff").value=store.idleGameOff||"no"; pendingAccent=store.accent; renderAccentRow(); $("setModal").style.display="block"; }
-function closeSettings(){ $("setModal").style.display="none"; }
-function saveSettings(){
-  var preset=$("sTheme").value; store.themeName=preset; var pr=PRESETS[preset]||PRESETS.dark; store.theme=(pr.body=="theme-light")?"light":((pr.body=="theme-retro")?"retro":"dark");
-  store.userName=trim($("sName").value);
-  store.accent=pendingAccent||pr.accent; store.iconSize=$("sIcon").value; store.sort=$("sSort").value; store.kind=$("sKind").value;
-  store.glass=$("sGlass").value; store.bg=$("sBg").value; store.showRecent=$("sRecent").value;
-  store.retroColor=$("sRetroC").value; store.pongMode=$("sPong").value; store.idleGame=$("sIdleGame").value; store.idleGameOff=$("sIdleOff").value;
-  if(store.idleGameOff=="yes") gameStop();
-  saveStore(); closeSettings(); applyAll(); if(activeGroup=="Recent"&&store.showRecent=="no") activeGroup="All"; render(); toast("Settings applied");
+function oldCount(){ var o=readOld(); if(!o) return 0; var n=0; for(var i=0;i<o.length;i++) if(o[i].type!="action") n++; return n; }
+function importOld(){
+  var o=readOld(); if(!o){ toast("No old QuickLaunch list found here"); return; }
+  var n=0, skipped=0;
+  for(var i=0;i<o.length;i++){ var s=o[i];
+    if(s.type=="action"){ skipped++; continue; }
+    var d=s.added?new Date(s.added):null;
+    if(addImported({path:s.target,name:s.name,desc:s.notes||"",from:s.from||"",group:s.group||"",type:s.type=="url"?"web":(s.type=="folder"?"folder":""),
+      date:d?(d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())):""})) n++; }
+  save(); hideDlgs(); render(); checkAll(); fetchIcons();
+  toast("Imported "+n+" item"+(n==1?"":"s")+(skipped?" ("+skipped+" multi-step actions skipped)":""));
 }
 
-function toggleView(){ store.view=(store.view=="list")?"grid":"list"; saveStore(); applyTheme(); renderGrid(); toast(store.view=="list"?"List view":"Grid view"); }
+/* ---------- menus, dialogs, toast ---------- */
+var menuActs=[];
+function showMenu(x,y,items){
+  menuActs=[]; var h="";
+  for(var i=0;i<items.length;i++){ var m=items[i];
+    if(m=="-"){ h+='<div class="sep"></div>'; continue; }
+    menuActs.push(m.fn); h+='<div class="mi'+(m.danger?' danger':'')+'" data-mi="'+(menuActs.length-1)+'">'+m.label+'</div>'; }
+  var el=$("menu"); el.innerHTML=h; el.style.display="block";
+  var W=document.documentElement.clientWidth, H=document.documentElement.clientHeight;
+  el.style.left=Math.max(4,Math.min(x,W-el.offsetWidth-6))+"px"; el.style.top=Math.max(4,Math.min(y,H-el.offsetHeight-6))+"px";
+}
+function hideMenu(){ $("menu").style.display="none"; }
+function itemMenu(it,x,y){
+  var m=[{label:"&#9654;&nbsp; Open",fn:function(){ openItem(it); }}];
+  if(it.type!="web") m.push({label:"&#128193;&nbsp; Open file location",fn:function(){ openLocation(it); }});
+  m.push({label:"&#128203;&nbsp; Copy "+(it.type=="web"?"link":"path"),fn:function(){ copyText(it.path,"Copied"); }});
+  m.push("-");
+  m.push({label:"&#9998;&nbsp; Edit...",fn:function(){ openEdit(it); }});
+  m.push({label:"&#10697;&nbsp; Duplicate",fn:function(){ duplicateItem(it); }});
+  m.push("-");
+  m.push({label:"&#10005;&nbsp; Remove",danger:1,fn:function(){ deleteItem(it); }});
+  showMenu(x,y,m);
+}
+function showDlg(id){ hideMenu(); $(id).style.display="block"; }
+function hideDlgs(){ $("dlgItem").style.display="none"; $("dlgSet").style.display="none"; }
+function dlgOpen(){ return $("dlgItem").style.display=="block"||$("dlgSet").style.display=="block"; }
+var toastT=null;
+function toast(msg){ var t=$("toast"); t.innerHTML=esc(msg); t.style.display="block"; if(toastT) window.clearTimeout(toastT); toastT=window.setTimeout(function(){ t.style.display="none"; },2200); }
+function showWarn(msg){ var w=$("warn"); w.innerHTML=esc(msg); w.style.display="block"; }
+function openSettings(){
+  var tb=""; for(var k in THEMES) tb+='<button class="btn'+(store.theme==k?" on":"")+'" data-theme="'+k+'"><span class="sw" style="background:'+THEMES[k].bg+'"></span>'+THEMES[k].name+'</button>';
+  $("themeBtns").innerHTML=tb;
+  var sb=""; for(var s in SIZES) sb+='<button class="btn'+(store.size==s?" on":"")+'" data-size="'+s+'">'+SIZES[s].name+'</button>';
+  $("sizeBtns").innerHTML=sb;
+  var oc=oldCount(); $("bImpOld").style.display=oc?"":"none"; $("bImpOld").innerHTML="Import old QuickLaunch ("+oc+")";
+  $("dataPath").innerHTML="Saved in: "+esc(DATA)+"<br>A backup copy is kept automatically.";
+  showDlg("dlgSet");
+}
+function setTheme(k){ store.theme=k; save(); applyLook(); if(dlgOpen()) openSettings(); else render(); }
+function setSize(k){ store.size=k; save(); applyLook(); openSettings(); render(); }
+function setView(v){ store.view=v; save(); render(); }
 
-function tickClock(){ try{ var d=new Date(),hh=d.getHours(),mm=d.getMinutes(); var ap=hh<12?"AM":"PM"; var h=hh%12; if(h==0) h=12; if(mm<10) mm="0"+mm;
-  var el=$("bigTime"); if(el) el.innerHTML=h+'<span class="col">:</span>'+mm+'<span class="ap">'+ap+'</span>';
-  var dd=$("bigDate"); if(dd){ var days=["SUN","MON","TUE","WED","THU","FRI","SAT"],mons=["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"]; dd.innerHTML=days[d.getDay()]+" "+d.getDate()+" "+mons[d.getMonth()]; } }catch(e){} }
+/* ---------- events ---------- */
+function up(el,attr){ while(el&&el.getAttribute){ if(el.getAttribute(attr)!=null) return el; el=el.parentNode; } return null; }
+function wire(){
+  $("bAdd").onclick=function(){ openAdd(""); };
+  $("bList").onclick=function(){ setView("list"); };
+  $("bGrid").onclick=function(){ setView("grid"); };
+  $("bSet").onclick=openSettings;
+  $("bExport").onclick=function(e){ var r=this.getBoundingClientRect(), n=currentList().length;
+    showMenu(r.left,r.bottom+4,[{label:"&#128196;&nbsp; Export as PDF ("+n+")",fn:exportPDF},{label:"&#128202;&nbsp; Export as CSV / Excel ("+n+")",fn:exportCSV},"-",{label:"&#8679;&nbsp; Import CSV...",fn:importCSV}]);
+    e.stopPropagation(); };
+  $("bCancel").onclick=hideDlgs; $("bSave").onclick=saveItem; $("bSetClose").onclick=hideDlgs;
+  $("bDel").onclick=function(){ var it=byId(editId); if(it) deleteItem(it); };
+  $("bBrowse").onclick=function(){ pickFile(function(p){ $("fPath").value=p; pathChanged(); }); };
+  $("bFolder").onclick=function(){ pickFolder(function(p){ $("fPath").value=p; pathChanged(); }); };
+  $("bData").onclick=function(){ try{ mkdir(DATA); wsh.Run('explorer.exe "'+DATA+'"',1,false); }catch(e){} };
+  $("bImpCsv").onclick=function(){ hideDlgs(); importCSV(); };
+  $("bImpOld").onclick=importOld;
+  $("fPath").oninput=pathChanged; $("fPath").onchange=pathChanged; $("fPath").onpaste=function(){ window.setTimeout(pathChanged,10); };
+  $("fName").oninput=function(){ nameTouched=!!trim($("fName").value); };
+  $("fGroup").onchange=function(){ if(this.value=="__new"){ var n=addGroup(prompt("Name for the new group:")||""); fillGroupSelect(n); } };
+  $("q").oninput=render;
 
-function onClick(){
-  var el=window.event.srcElement;
-  while(el && el!=document.body){
-    if(el.getAttribute){
-      if(el.getAttribute("data-from")){ $("search").value=el.getAttribute("data-from"); renderGrid(); toast("Showing links from "+el.getAttribute("data-from")+" - Esc to clear"); return; }
-      if(el.getAttribute("data-ctx")){ ctxRun(el.getAttribute("data-ctx")); return; }
-      if(el.getAttribute("data-gcol")){ var gc=el.getAttribute("data-gcol"); pendingGColor=(gc=="none")?"":gc; renderGColorRow(); return; }
-      if(el.getAttribute("data-acc")){ pendingAccent=el.getAttribute("data-acc"); renderAccentRow(); return; }
-      if(el.getAttribute("data-edit")){ openEdit(el.getAttribute("data-edit")); return; }
-      if(el.id=="addGroup"){ addGroup(); return; }
-      if(el.id=="mgGroup"){ manageGroup(); return; }
-      if(el.getAttribute("data-g")!=null && el.className.indexOf("tab")>=0){ activeGroup=el.getAttribute("data-g"); render(); return; }
-      if(el.getAttribute("data-id") && el.className.indexOf("tile")>=0){ ripple(el); var s=findById(el.getAttribute("data-id")); if(s) launch(s); return; }
-    }
-    el=el.parentNode;
-  }
-}
-/* v2: right-click a tile = proper menu (was: star only) */
-var ctxId=null;
-function onRight(){
-  var ev=window.event, el=ev.srcElement; hideCtx();
-  while(el && el!=document.body){ if(el.getAttribute && el.getAttribute("data-id") && el.className.indexOf("tile")>=0){ showCtx(el.getAttribute("data-id"),ev.clientX,ev.clientY); break; } el=el.parentNode; }
-  ev.returnValue=false; return false;
-}
-function ctxItem(act,icon,label,cls){ return '<div class="ci'+(cls?' '+cls:'')+'" data-ctx="'+act+'"><span class="k">'+icon+'</span>'+label+'</div>'; }
-function showCtx(id,x,y){
-  var s=findById(id); if(!s) return; ctxId=id;
-  var h=ctxItem("open","&#9654;","Open");
-  if(s.type=="file") h+=ctxItem("admin","&#128737;","Run as administrator");
-  if(s.type=="file"||s.type=="folder") h+=ctxItem("loc","&#128193;","Open file location");
-  if(s.type!="action") h+=ctxItem("copy","&#128203;","Copy path");
-  h+='<div class="sep"></div>';
-  h+=ctxItem("fav","&#9733;",s.fav?"Remove from Favourites":"Add to Favourites");
-  h+=ctxItem("edit","&#9998;","Edit...");
-  h+=ctxItem("dup","&#10697;","Duplicate");
-  h+='<div class="sep"></div>';
-  h+=ctxItem("del","&#10005;","Delete","danger");
-  var c=$("ctx"); c.innerHTML=h; c.style.display="block";
-  var W=document.body.clientWidth, H=document.body.clientHeight, w=c.offsetWidth, hh=c.offsetHeight;
-  c.style.left=Math.max(4,Math.min(x,W-w-6))+"px"; c.style.top=Math.max(4,Math.min(y,H-hh-6))+"px";
-}
-function hideCtx(){ $("ctx").style.display="none"; }
-function ctxRun(act){
-  var s=findById(ctxId); hideCtx(); if(!s) return;
-  if(act=="open") launch(s);
-  else if(act=="admin") launch(s,true);
-  else if(act=="loc"){ try{ shell.Run('explorer.exe /select,"'+s.target+'"',1,false); }catch(e){ toast("Could not open location"); } }
-  else if(act=="copy"){ try{ window.clipboardData.setData("Text",s.target); toast("Path copied"); }catch(e){ prompt("Copy this path:",s.target); } }
-  else if(act=="fav") toggleFav(s.id);
-  else if(act=="edit") openEdit(s.id);
-  else if(act=="dup"){ var n={}; for(var k in s) if(s.hasOwnProperty(k)) n[k]=s[k]; n.id="sc_"+(new Date().getTime()); n.name=s.name+" (copy)"; n.uses=0; n.last=0; n.fav=false;
-    if(n.icon&&n.icon.indexOf("\\icons\\")>-1) n.icon=""; autoIcon(n);
-    store.shortcuts.splice(indexOfId(s.id)+1,0,n); saveStore(); render(); toast("Duplicated "+s.name); }
-  else if(act=="del"){ if(!confirm("Delete \""+s.name+"\"?")) return; var a=[]; for(var i=0;i<store.shortcuts.length;i++) if(store.shortcuts[i].id!=s.id) a.push(store.shortcuts[i]); store.shortcuts=a; saveStore(); render(); toast("Deleted"); }
+  $("view").onclick=function(e){
+    var t=e.target||e.srcElement, sortEl=up(t,"data-sort"), th=up(t,"data-theme"), act=up(t,"data-do");
+    if(sortEl){ var k=sortEl.getAttribute("data-sort"); if(store.sort.k==k) store.sort.d=-store.sort.d; else store.sort={k:k,d:(k=="date"?-1:1)}; save(); render(); return; }
+    if(th){ setTheme(th.getAttribute("data-theme")); return; }
+    if(act){ var a=act.getAttribute("data-do"); if(a=="add") openAdd(""); else if(a=="importOld") importOld(); return; }
+    var row=up(t,"data-id"); if(!row) return; var it=byId(row.getAttribute("data-id")); if(!it) return;
+    if(up(t,"data-more")){ var r=up(t,"data-more").getBoundingClientRect(); itemMenu(it,r.left-150,r.bottom+2); e.stopPropagation(); return; }
+    openItem(it);
+  };
+  $("view").oncontextmenu=function(e){ var row=up(e.target||e.srcElement,"data-id"); if(row){ var it=byId(row.getAttribute("data-id")); if(it) itemMenu(it,e.clientX,e.clientY); } e.preventDefault(); return false; };
+  $("view").onscroll=hideMenu;
+  $("groups").onclick=function(e){ var t=e.target||e.srcElement;
+    var ag=t; while(ag&&ag.id!="addGroup") ag=ag.parentNode;
+    if(ag){ var n=addGroup(prompt("Name for the new group:")||""); if(n){ group=n; render(); } return; }
+    var c=up(t,"data-g"); if(c){ group=c.getAttribute("data-g"); render(); } };
+  $("groups").oncontextmenu=function(e){ var c=up(e.target||e.srcElement,"data-g"); e.preventDefault();
+    if(c&&c.getAttribute("data-g")!="All"){ var g=c.getAttribute("data-g");
+      showMenu(e.clientX,e.clientY,[{label:"&#9998;&nbsp; Rename group",fn:function(){ renameGroup(g); }},{label:"&#9664;&nbsp; Move left",fn:function(){ moveGroup(g,-1); }},
+        {label:"&#9654;&nbsp; Move right",fn:function(){ moveGroup(g,1); }},"-",{label:"&#10005;&nbsp; Delete group",danger:1,fn:function(){ deleteGroup(g); }}]); }
+    return false; };
+  $("dlgSet").onclick=function(e){ var t=e.target||e.srcElement, th=up(t,"data-theme"), sz=up(t,"data-size");
+    if(th) setTheme(th.getAttribute("data-theme")); else if(sz) setSize(sz.getAttribute("data-size")); else if(t==this) hideDlgs(); };
+  $("dlgItem").onclick=function(e){ if((e.target||e.srcElement)==this) hideDlgs(); };
+  $("menu").onclick=function(e){ var m=up(e.target||e.srcElement,"data-mi"); if(!m) return; var fn=menuActs[+m.getAttribute("data-mi")]; hideMenu(); if(fn) fn(); e.stopPropagation(); };
+  document.onmousedown=function(e){ var m=$("menu"), t=e.target||e.srcElement; while(t&&t!=m) t=t.parentNode; if(!t) hideMenu(); };
+  document.oncontextmenu=function(e){ var tag=((e.target||{}).tagName||"").toUpperCase(); if(tag!="INPUT"){ e.preventDefault(); return false; } };
+
+  document.onkeydown=function(e){
+    var k=e.keyCode, ae=document.activeElement, tag=(ae&&ae.tagName||"").toUpperCase(), inF=(tag=="INPUT"||tag=="SELECT");
+    if(k==27){ if($("menu").style.display=="block") hideMenu(); else if(dlgOpen()) hideDlgs(); else if($("q").value){ $("q").value=""; render(); } try{ $("q").blur(); }catch(x){} return; }
+    if(dlgOpen()){ if(k==13&&$("dlgItem").style.display=="block"&&tag!="SELECT"){ e.preventDefault(); saveItem(); } return; }
+    if(e.ctrlKey&&k==86&&!inF){ var c=""; try{ c=window.clipboardData.getData("Text")||""; }catch(x){}
+      if(c){ e.preventDefault(); openAdd(c); } else { openAdd(""); } return; }
+    if(e.ctrlKey&&k==78){ e.preventDefault(); openAdd(""); return; }
+    if(e.ctrlKey&&k==70){ e.preventDefault(); $("q").focus(); return; }
+    if(k==13&&ae==$("q")){ if(visible[0]) openItem(visible[0]); return; }
+    if(!inF&&!e.ctrlKey&&!e.altKey&&((k>=65&&k<=90)||(k>=48&&k<=57))) $("q").focus();
+  };
+  var rt=null;
+  window.onresize=function(){ hideMenu(); fitTiles(); if(rt) window.clearTimeout(rt);
+    rt=window.setTimeout(function(){ store.win={w:document.documentElement.clientWidth,h:document.documentElement.clientHeight}; save(); },600); };
 }
 
-/* v2: flag tiles whose file/folder has gone missing (moved/renamed/drive offline).
-   Checks one at a time with a small pause so slow network drives don't freeze the window. */
-function checkOne(s){
+/* ---------- start ---------- */
+function sizeWindow(){
   try{
-    if(s.type=="url"||s.type=="action"||/^https?:/i.test(s.target)){ delete missing[s.id]; return; }
-    var ok=fso.FileExists(s.target)||fso.FolderExists(s.target);
-    if(ok) delete missing[s.id]; else missing[s.id]=true;
+    var w=store.win?store.win.w:980, h=store.win?store.win.h:640;
+    w=Math.min(Math.max(w,320),screen.availWidth); h=Math.min(Math.max(h,260),screen.availHeight);
+    window.resizeTo(w,h);
+    var dw=w-document.documentElement.clientWidth, dh=h-document.documentElement.clientHeight;
+    if(dw>0||dh>0) window.resizeTo(w+dw,h+dh);
+    if(!store.win) window.moveTo(Math.max(0,(screen.availWidth-w-dw)/2),Math.max(0,(screen.availHeight-h-dh)/2));
   }catch(e){}
 }
-function checkTargets(){
-  var list=store.shortcuts.slice(0), i=0, before=countMissing();
-  function step(){ if(i>=list.length){ if(countMissing()!=before) renderGrid(); if(countMissing()) toast(countMissing()+" shortcut(s) can't find their file - look for the red !"); return; }
-    checkOne(list[i++]); window.setTimeout(step,15); }
-  step();
-}
-function countMissing(){ var n=0; for(var k in missing) if(missing.hasOwnProperty(k)) n++; return n; }
-
-/* v2: keyboard - Ctrl+F or / to search, Enter opens the top result, Esc clears, start typing to search */
-function anyModalOpen(){ return $("modal").style.display=="block"||$("setModal").style.display=="block"||$("grpModal").style.display=="block"; }
-function onKey(){
-  var ev=window.event, k=ev.keyCode, ae=document.activeElement, tag=ae&&ae.tagName?ae.tagName.toUpperCase():"";
-  var inField=(tag=="INPUT"||tag=="TEXTAREA"||tag=="SELECT");
-  pongDismiss(); hideCtx();
-  if(k==27){ if(anyModalOpen()){ closeModal(); closeSettings(); closeGroupModal(); } else if($("search").value){ $("search").value=""; renderGrid(); } try{ $("search").blur(); }catch(e){} return; }
-  if(k==13){
-    if(tag=="TEXTAREA") return; // new line in notes
-    if($("modal").style.display=="block") saveShortcut();
-    else if($("setModal").style.display=="block") saveSettings();
-    else if($("grpModal").style.display=="block") saveGroupModal();
-    else if(ae==$("search")){ var t=firstVisibleTile(); if(t) launch(t); }
-    else if(ae==$("qTarget")||ae==$("qDesc")||ae==$("qFrom")) quickAdd();
-    return;
-  }
-  if(anyModalOpen()) return;
-  if(ev.ctrlKey&&k==86&&!inField){ // Ctrl+V anywhere = quick add
-    var clip=""; try{ clip=window.clipboardData.getData("Text")||""; }catch(e){}
-    if(clip){ $("qTarget").value=trim(clip); $("qDesc").focus(); ev.returnValue=false; return false; }
-    $("qTarget").focus(); return;
-  }
-  if((ev.ctrlKey&&k==70)||(!inField&&k==191)){ $("search").focus(); try{ $("search").select(); }catch(e){} ev.returnValue=false; return false; }
-  if(!inField&&!ev.ctrlKey&&!ev.altKey&&((k>=65&&k<=90)||(k>=48&&k<=57))){ $("search").focus(); }
-}
-
-/* ============ STICKMAN FIGHT - martial arts edition ============ */
-var fightOn=false, fightTimer=null, fScore1=0, fScore2=0, fTick=0;
-var F1={}, F2={};
-
-/* MOVES: keyframed joint angles = real martial-arts poses.
-   Joints: head, body lean, arm L/R (shoulder+elbow), leg L/R (hip+knee), y = crouch/jump */
-/* smoothstep easing = no robotic linear motion */
-function ez(p){ if(p<0)p=0; if(p>1)p=1; return p*p*(3-2*p); }
-/* wind-up -> strike -> recover curve (real attacks aren't symmetric) */
-function atk(f,windup,apexf,len){
-  if(f<=windup) return -0.35*ez(f/windup);            // pull back first
-  if(f<=apexf)  return ez((f-windup)/(apexf-windup)); // explode forward
-  return ez(1-(f-apexf)/(len-apexf));                 // follow-through back
-}
-var MOVES={
-  /* guard: knees soft, fists up, natural breathing sway */
-  stance:{len:0,dmg:0,pose:function(f,t){
-    var b=Math.sin(t/5)*2.4, sway=Math.sin(t/9)*3;
-    return {bd:8+sway*0.4,hd:-4,saL:70+b,eaL:-95-b,saR:55-b,eaR:-110+b,
-            hlL:-14,klL:22+b*0.5,hlR:16,klR:14-b*0.5,y:6+b}; }},
-  jab:{len:8,dmg:1,apex:4,reach:58,pose:function(f){ var p=atk(f,2,4,8);
-    return {bd:10+8*p,hd:-4,saL:70,eaL:-95,saR:55+65*p,eaR:-110+104*p,
-            hlL:-16,klL:24,hlR:18,klR:12,y:6}; }},
-  cross:{len:12,dmg:2,apex:6,reach:64,pose:function(f){ var p=atk(f,3,6,12);
-    return {bd:8+16*p,hd:-6,saL:70+24*p,eaL:-95+92*p,saR:50,eaR:-115,
-            hlL:-20-6*p,klL:28,hlR:22+8*p,klR:10,y:6+2*p}; }},
-  fkick:{len:14,dmg:2,apex:6,reach:74,pose:function(f){ var p=atk(f,3,6,14);
-    /* chamber the knee, then snap the shin out - real front kick */
-    var knee=(f<=3)? -60*ez(f/3) : 0;
-    return {bd:8-14*p,hd:0,saL:60,eaL:-90,saR:45,eaR:-100,
-            hlL:-12-76*p,klL:30+knee-36*p,hlR:14,klR:16,y:6-3*p}; }},
-  rkick:{len:16,dmg:3,apex:8,reach:80,pose:function(f){ var p=atk(f,4,8,16);
-    return {bd:8-30*p,hd:6*p,saL:80-30*p,eaL:-70,saR:50-88*p,eaR:-60+30*p,
-            hlL:-10-98*p,klL:26-40*p,hlR:20+6*p,klR:12,y:6-4*p}; }},
-  sweep:{len:13,dmg:1,apex:6,reach:62,pose:function(f){ var p=atk(f,3,6,13);
-    return {bd:8+20*p,hd:-8,saL:70,eaL:-80,saR:60,eaR:-90,
-            hlL:-12-60*p,klL:4,hlR:16+20*p,klR:14+40*p,y:6+18*p}; }},
-  block:{len:10,dmg:0,pose:function(f){ var p=ez(f<3?f/3:1);
-    return {bd:2,hd:-10*p,saL:70+30*p,eaL:-95-35*p,saR:55+40*p,eaR:-110-25*p,
-            hlL:-12,klL:20,hlR:14,klR:16,y:8}; }},
-  hurt:{len:9,dmg:0,pose:function(f){ var p=f<3?ez(f/3):ez((9-f)/6);
-    return {bd:8-26*p,hd:-18*p,saL:40,eaL:-60,saR:30,eaR:-50,
-            hlL:-8,klL:18,hlR:12,klR:20,y:6+2*p}; }},
-  duck:{len:9,dmg:0,pose:function(f){ var p=f<3?ez(f/3):ez((9-f)/6);
-    /* drop low under a high attack */
-    return {bd:22*p+8,hd:-14*p,saL:80,eaL:-110,saR:70,eaR:-120,
-            hlL:-30-30*p,klL:40+40*p,hlR:26+26*p,klR:30+40*p,y:6+20*p}; }},
-  kofall:{len:18,dmg:0,pose:function(f){ var p=ez(f/18);
-    /* crumple: knees give first, then torso, arms trail behind */
-    var knees=ez(Math.min(1,f/8)), torso=ez(Math.max(0,(f-4)/14));
-    return {bd:85*torso+8,hd:12*torso,saL:60-45*torso,eaL:-70+55*torso,
-            saR:40-25*torso,eaR:-50+42*torso,
-            hlL:-10+22*knees,klL:20+30*knees-40*torso,hlR:12+14*knees,klR:16+20*knees,
-            y:6+34*p}; }},
-  ko:{len:0,dmg:0,pose:function(){
-    return {bd:85,hd:12,saL:15,eaL:-15,saR:15,eaR:-8,hlL:12,klL:8,hlR:26,klR:10,y:40}; }}
-};
-function fReset(W){
-  F1={x:W*0.25,hp:10,act:"stance",fr:0,cool:0,ko:0,dir:1,blockLuck:0.25+Math.random()*0.3};
-  F2={x:W*0.75,hp:10,act:"stance",fr:0,cool:0,ko:0,dir:-1,blockLuck:0.25+Math.random()*0.3};
-}
-function fightStart(){
-  if(fightOn||pongOn) return; fightOn=true; fScore1=0; fScore2=0;
-  fReset(document.body.clientWidth);
-  var s=$("pongScore");
-  s.style.color=store.accent; s.innerHTML="0 : 0"; s.style.display="block";
-  $("fgt1").style.color=store.accent; $("fgt2").style.color="#e05545";
-  $("fhp1").style.color=store.accent; $("fhp2").style.color="#e05545";
-  $("fgt1").style.display="block"; $("fgt2").style.display="block";
-  $("fhp1").style.display="block"; $("fhp2").style.display="block";
-  $("fsh1").style.display="block"; $("fsh2").style.display="block";
-  fightTimer=window.setInterval(fightStep,30);
-}
-function fightStop(){
-  if(!fightOn) return; fightOn=false;
-  if(fightTimer){ window.clearInterval(fightTimer); fightTimer=null; }
-  $("fgt1").style.display="none"; $("fgt2").style.display="none";
-  $("fhp1").style.display="none"; $("fhp2").style.display="none";
-  $("fsh1").style.display="none"; $("fsh2").style.display="none"; $("fspark").style.display="none";
-  $("pongScore").style.display="none";
-}
-function rot(el,deg){ try{ el.style.msTransform="rotate("+deg+"deg)"; el.style.transform="rotate("+deg+"deg)"; }catch(e){} }
-function fPose(id,F,t,shId){
-  var mv=MOVES[F.act]||MOVES.stance;
-  var j=mv.pose(F.fr,t);
-  // walking: legs actually stride + body bobs with each step
-  if(F.act=="stance" && F.moving){
-    var st=Math.sin(t/2.2)*26;
-    j.hlL=-st; j.klL=18+Math.max(0,st); j.hlR=st; j.klR=18+Math.max(0,-st);
-    j.y=(j.y||6)+Math.abs(Math.sin(t/2.2))*2.5;
-    j.bd=(j.bd||8)+3; // lean into the walk
-  }
-  var g=$(id), gy=document.body.clientHeight-116;
-  g.style.left=(F.x-22)+"px"; g.style.top=(gy+(j.y||0))+"px";
-  var d=F.dir;
-  rot(g, j.bd*d);
-  rot(g.children[0], j.hd*d);
-  var aL=g.children[2], aR=g.children[3], lL=g.children[4], lR=g.children[5];
-  rot(aL, j.saL*d);  rot(aL.children[0], j.eaL*d);
-  rot(aR, j.saR*d);  rot(aR.children[0], j.eaR*d);
-  rot(lL, j.hlL*d);  rot(lL.children[0], j.klL*d);
-  rot(lR, j.hlR*d);  rot(lR.children[0], j.klR*d);
-  // ground shadow: shrinks when the fighter rises, grows when low
-  var sh=$(shId), spread=34-(j.y||6)*0.5; if(spread<14)spread=14;
-  sh.style.width=spread+"px"; sh.style.left=(F.x-spread/2)+"px";
-  sh.style.top=(document.body.clientHeight-24)+"px";
-}
-var hitStop=0;
-function fightStep(){
-  if(hitStop>0){ hitStop--; 
-    // tiny shake on the frozen frame = impact weight
-    var sk=(hitStop%2==0)?1.5:-1.5;
-    $("fgt1").style.marginLeft=sk+"px"; $("fgt2").style.marginLeft=(-sk)+"px";
-    return;
-  }
-  $("fgt1").style.marginLeft="0px"; $("fgt2").style.marginLeft="0px";
-  fTick++;
-  var W=document.body.clientWidth, gap=F2.x-F1.x;
-  fAI(F1,F2,gap,1); fAI(F2,F1,gap,-1);
-  if(F1.x<34)F1.x=34; if(F2.x>W-34)F2.x=W-34;
-  if(F2.x-F1.x<46){ var mid=(F1.x+F2.x)/2; F1.x=mid-23; F2.x=mid+23; }
-  fPose("fgt1",F1,fTick,"fsh1"); fPose("fgt2",F2,fTick+6,"fsh2");
-  if(sparkT>0){ sparkT--; if(sparkT==0) $("fspark").style.display="none"; }
-  $("fhp1").children[0].style.width=(F1.hp*10)+"%";
-  $("fhp2").children[0].style.width=(F2.hp*10)+"%";
-}
-function pickAttack(dist){
-  // choose a move that can actually reach
-  var pool=[];
-  if(dist<60) pool=["jab","jab","cross","sweep"];
-  else if(dist<70) pool=["jab","cross","fkick"];
-  else pool=["fkick","rkick","rkick"];
-  return pool[Math.floor(Math.random()*pool.length)];
-}
-function fAI(me,foe,gap,side){
-  var dist=Math.abs(gap);
-  // KO handling: fall, lie, get up
-  if(me.act=="kofall"){ me.fr++; if(me.fr>=MOVES.kofall.len){ me.act="ko"; me.ko=40; } return; }
-  if(me.act=="ko"){ me.ko--; if(me.ko<=0){ me.hp=10; me.act="stance"; me.cool=15; } return; }
-  if(me.cool>0) me.cool--;
-  // mid-move: advance frames, land hit at apex
-  if(me.act!="stance"){
-    var mv=MOVES[me.act]; me.fr++;
-    if(mv.apex && me.fr==mv.apex && dist<mv.reach && foe.act!="ko" && foe.act!="kofall"){
-      fStrike(foe,mv.dmg,me);
-    }
-    if(me.fr>=mv.len){
-      // COMBO: after a quick hit, chance to chain straight into the next strike
-      if((me.act=="jab"||me.act=="cross") && me.landed && Math.random()<0.5){
-        me.act=(me.act=="jab")?"cross":"fkick"; me.fr=0; me.landed=false; return;
-      }
-      me.landed=false; me.act="stance"; me.cool=6+Math.floor(Math.random()*16);
-    }
-    return;
-  }
-  // stance: footwork + decide
-  // react to an incoming attack: duck the high ones, block the rest
-  if((foe.act=="jab"||foe.act=="cross"||foe.act=="fkick"||foe.act=="rkick") && Math.random()<me.blockLuck){
-    me.act=((foe.act=="jab"||foe.act=="cross"||foe.act=="rkick")&&Math.random()<0.45)?"duck":"block";
-    me.fr=0; return;
-  }
-  me.moving=false;
-  if(dist>78){ me.x+=side*(1.8+Math.random()*1.6); me.moving=true; }   // close in
-  else if(Math.random()<0.06){ me.x-=side*(6+Math.random()*8); } // feint back
-  else if(Math.random()<0.05){ me.x+=side*4; }               // pressure step
-  else if(me.cool==0 && Math.random()<0.14){ me.act=pickAttack(dist); me.fr=0; }
-}
-var sparkT=0;
-function spark(x,ok){
-  var s=$("fspark");
-  s.style.color=ok?"#ffd24a":"#9ab"; // gold flash on hit, gray on block
-  s.style.left=(x-11)+"px"; s.style.top=(document.body.clientHeight-160)+"px";
-  s.style.display="block"; sparkT=3;
-}
-function fStrike(victim,dmg,attacker){
-  if(victim.act=="duck") return;                                    // slipped it - clean miss
-  if(victim.act=="block"){ victim.x+=(victim.dir*-1)*8; spark(victim.x,false); hitStop=1; return; }
-  spark(victim.x,true);
-  if(attacker) attacker.landed=true;                                // fuels combos
-  hitStop=1+dmg;                                                    // heavier hit = longer freeze
-  victim.hp-=dmg;
-  victim.x+=(victim.dir*-1)*(10+dmg*10);                            // knockback scales
-  if(victim.hp<=0){
-    victim.act="kofall"; victim.fr=0;
-    if(victim==F2) fScore1++; else fScore2++;
-    $("pongScore").innerHTML=fScore1+" : "+fScore2;
-  } else {
-    victim.act="hurt"; victim.fr=0;
-  }
-}
-
-/* ================= IDLE PONG ================= */
-/* After 45s of no activity, a ball pops out of your cursor and starts
-   bouncing. Your mouse becomes the paddle. Click or press any key to stop. */
-var IDLE_MS=45000, pongOn=false, pongTimer=null, lastAct=(new Date()).getTime();
-var pb={x:0,y:0,vx:0,vy:0}, mx=200, my=200, bounces=0;
-var aiBot=200, aiTop=200; // AI paddle x-positions (watch mode)
-var scoreBot=0, scoreTop=0; // watch mode: real head-to-head score
-// each AI gets its own "skill" per match - reaction speed + aim error
-var aiSkill={bot:{spd:6,err:14},top:{spd:6,err:14}};
-
-function newMatchSkills(){
-  aiSkill.bot={spd:5+Math.random()*3, err:8+Math.random()*20};
-  aiSkill.top={spd:5+Math.random()*3, err:8+Math.random()*20};
-}
-// predict where the ball will land on a paddle's line (with wall bounces)
-function predictX(targetY,W){
-  if(pb.vy==0) return pb.x;
-  var t=(targetY-pb.y)/pb.vy; if(t<0) return pb.x;
-  var x=pb.x+pb.vx*t, span=W-16;
-  x=x%(span*2); if(x<0) x+=span*2; if(x>span) x=span*2-x;
-  return x;
-}
-function serve(W,H,toTop){
-  pb.x=W/2; pb.y=H/2;
-  pb.vx=(Math.random()>0.5?1:-1)*(3.5+Math.random()*2.5);
-  pb.vy=(toTop?-1:1)*(4+Math.random()*2);
-  newMatchSkills();
-}
-
-function pongStart(){
-  if(pongOn) return; pongOn=true; bounces=0;
-  var watch=(store.pongMode=="watch");
-  var W=document.body.clientWidth, H=document.body.clientHeight;
-  pb.x=watch?W/2:mx; pb.y=watch?H/2:my;
-  aiBot=pb.x; aiTop=pb.x;
-  scoreBot=0; scoreTop=0; newMatchSkills();
-  pb.vx=(Math.random()>0.5?1:-1)*(4+Math.random()*3);
-  pb.vy=(Math.random()>0.5?1:-1)*(4+Math.random()*3);
-  var b=$("pongBall"),p=$("pongPad"),p2=$("pongPad2"),s=$("pongScore");
-  b.style.background=store.accent; p.style.background=store.accent; p2.style.background=store.accent;
-  s.style.color=store.accent; s.innerHTML=watch?"0 : 0":"0";
-  b.style.display="block"; p.style.display="block"; s.style.display="block";
-  p2.style.display=watch?"block":"none";
-  pongTimer=window.setInterval(pongStep,25);
-}
-function pongStop(){
-  if(!pongOn) return; pongOn=false;
-  if(pongTimer){ window.clearInterval(pongTimer); pongTimer=null; }
-  $("pongBall").style.display="none"; $("pongPad").style.display="none"; $("pongPad2").style.display="none"; $("pongScore").style.display="none";
-}
-function chase(pad,target,speed){ var d=target-pad; if(d>speed) d=speed; if(d<-speed) d=-speed; return pad+d; }
-function pongStep(){
-  var W=document.body.clientWidth, H=document.body.clientHeight;
-  var watch=(store.pongMode=="watch");
-  pb.x+=pb.vx; pb.y+=pb.vy;
-  // side walls always bounce
-  if(pb.x<0){ pb.x=0; pb.vx=-pb.vx; }
-  if(pb.x>W-16){ pb.x=W-16; pb.vx=-pb.vx; }
-  var px,py,p2x,p2y;
-  if(watch){
-    // SMART AI: each paddle predicts the landing spot when the ball
-    // comes its way, but with its own aim error - so they miss sometimes.
-    var tBot, tTop;
-    if(pb.vy>0){ // heading to bottom paddle
-      tBot=predictX(H-24-16,W)+8+(Math.random()*aiSkill.bot.err-aiSkill.bot.err/2);
-      tTop=W/2+8; // loser of the exchange drifts back to center
-    } else {     // heading to top paddle
-      tTop=predictX(15+9,W)+8+(Math.random()*aiSkill.top.err-aiSkill.top.err/2);
-      tBot=W/2+8;
-    }
-    aiBot=chase(aiBot,tBot,aiSkill.bot.spd);
-    aiTop=chase(aiTop,tTop,aiSkill.top.spd);
-    px=aiBot-35; py=H-24;
-    p2x=aiTop-35; p2y=15;
-    // bottom paddle hit
-    if(pb.vy>0 && pb.y+16>=py && pb.y+16<=py+14 && pb.x+16>px && pb.x<px+70){
-      pb.vy=-Math.abs(pb.vy)*1.03; pb.vx+=((pb.x+8)-(px+35))/14;
-    }
-    // top paddle hit
-    if(pb.vy<0 && pb.y<=p2y+9 && pb.y>=p2y-5 && pb.x+16>p2x && pb.x<p2x+70){
-      pb.vy=Math.abs(pb.vy)*1.03; pb.vx+=((pb.x+8)-(p2x+35))/14;
-    }
-    // MISS = the other side SCORES, then a fresh serve toward the loser
-    if(pb.y<0){ scoreBot++; $("pongScore").innerHTML=scoreBot+" : "+scoreTop; serve(W,H,true); }
-    if(pb.y>H-16){ scoreTop++; $("pongScore").innerHTML=scoreBot+" : "+scoreTop; serve(W,H,false); }
-    $("pongPad2").style.left=p2x+"px"; $("pongPad2").style.top=p2y+"px";
-  } else {
-    // play mode: your mouse is the paddle
-    if(pb.y<0){ pb.y=0; pb.vy=-pb.vy; }
-    if(pb.y>H-16){ pb.y=H-16; pb.vy=-pb.vy; }
-    px=mx-35; py=my+16;
-    if(pb.vy>0 && pb.y+16>=py && pb.y+16<=py+14 && pb.x+16>px && pb.x<px+70){
-      pb.vy=-Math.abs(pb.vy)*1.04; pb.vx+=((pb.x+8)-(px+35))/12; bounces++; $("pongScore").innerHTML=bounces;
-    }
-  }
-  if(pb.vx>9) pb.vx=9; if(pb.vx<-9) pb.vx=-9;
-  if(pb.vy>9) pb.vy=9; if(pb.vy<-9) pb.vy=-9;
-  $("pongBall").style.left=pb.x+"px"; $("pongBall").style.top=pb.y+"px";
-  $("pongPad").style.left=px+"px"; $("pongPad").style.top=py+"px";
-}
-function bump(){ lastAct=(new Date()).getTime(); }
-function gameStart(){ if(store.idleGame=="fight") fightStart(); else pongStart();
-  var gs=$("gameStop"); gs.style.color=store.accent; gs.style.display="block"; }
-function gameStop(){ pongStop(); fightStop(); $("gameStop").style.display="none"; }
-function gameOn(){ return pongOn||fightOn; }
-function idleCheck(){ if(store.idleGameOff=="yes") return; if(!gameOn() && (new Date()).getTime()-lastAct>IDLE_MS) gameStart(); }
-document.onmousemove=function(){ mx=window.event.clientX; my=window.event.clientY; if(!gameOn()) bump(); };
-// clicks and keys always end the game and reset the idle clock
-function pongDismiss(){ if(gameOn()) gameStop(); bump(); }
-
 window.onload=function(){
-  loadStore(); applyAll(); render(); tickClock(); window.setInterval(tickClock,1000);
-  window.setInterval(idleCheck,2000);
-  // grab real icons for any existing tiles that don't have one yet
-  window.setTimeout(function(){
-    var changed=false;
-    for(var i=0;i<store.shortcuts.length;i++){
-      var before=store.shortcuts[i].icon;
-      if(iconBroken(before)) store.shortcuts[i].icon=""; // v3: logo file moved/lost -> grab it again
-      autoIcon(store.shortcuts[i]);
-      if(store.shortcuts[i].icon!=before) changed=true;
-    }
-    if(changed){ saveStore(); render(); }
-  },800);
-  $("addBtn").onclick=openAdd; $("setBtn").onclick=openSettings; $("viewBtn").onclick=toggleView;
-  $("expBtn").onclick=function(){ window.event.cancelBubble=true; exportCSV(); };
-  $("impBtn").onclick=function(){ window.event.cancelBubble=true; importCSV(); };
-  $("fType").onchange=syncTypeUI;
-  $("stAddApp").onclick=stepAddApp; $("stAddFol").onclick=stepAddFol; $("stAddWeb").onclick=stepAddWeb; $("stAddWait").onclick=stepAddWait; $("stAddWith").onclick=stepAddWith;
-  $("stepList").onclick=function(){ var e=window.event.srcElement; var d=e.getAttribute?e.getAttribute("data-stepdel"):null; if(d!==null&&d!==undefined&&d!=="") stepDel(parseInt(d,10)); };
-  $("pongBtn").onclick=function(){ window.event.cancelBubble=true; if(gameOn()){ gameStop(); bump(); toast("Game off"); } else { gameStart(); toast((store.idleGame=="fight"?"Fight!":"Pong!")+" Press STOP or click anywhere"); } };
-  $("gameStop").onclick=function(){ window.event.cancelBubble=true; gameStop(); bump(); toast("Game off"); };
-  $("themeBtn").onclick=function(){ var cyc={dark:"light",light:"retro",retro:"dark"}; var cur=(store.themeName=="light"||store.themeName=="retro")?store.themeName:(store.theme=="light"||store.theme=="retro"?store.theme:"dark"); var nx=cyc[cur]||"light"; store.themeName=nx; store.theme=nx; store.accent=PRESETS[nx].accent; applyTheme(); applyAccent(); saveStore(); render(); toast(nx=="light"?"Light":(nx=="retro"?"Retro":"Dark")); };
-  $("cancelBtn").onclick=closeModal; $("saveBtn").onclick=saveShortcut; $("delBtn").onclick=delShortcut;
-  $("browseBtn").onclick=browseFile; $("iconBtn").onclick=pickIcon; $("iconClear").onclick=function(){ pendingIcon=""; setIconPrev(); };
-  $("search").onkeyup=renderGrid;
-  $("setCancel").onclick=closeSettings; $("setSave").onclick=saveSettings;
-  $("sTheme").onchange=function(){ var pr=PRESETS[$("sTheme").value]||PRESETS.dark; pendingAccent=pr.accent; renderAccentRow(); };
-  $("wallBtn").onclick=pickWall; $("wallClear").onclick=function(){ store.wall=""; applyWall(); saveStore(); toast("Wallpaper cleared"); };
-  document.onkeydown=onKey;
-  $("qAdd").onclick=quickAdd;
-  document.body.onclick=function(){ pongDismiss(); var el=window.event.srcElement; var inCtx=false; while(el&&el!=document.body){ if(el.id=="ctx"){ inCtx=true; break; } el=el.parentNode; } if(!inCtx) hideCtx(); onClick(); };
-  document.body.oncontextmenu=onRight;
-  $("gCancel").onclick=closeGroupModal; $("gSave").onclick=saveGroupModal; $("gDel").onclick=deleteGroupModal;
-  $("gLeft").onclick=function(){ moveGroup(-1); }; $("gRight").onclick=function(){ moveGroup(1); };
-  $("grid").onscroll=hideCtx;
-  window.setTimeout(checkTargets,1500);
+  load();
+  if(/\\Temp\\|\.zip\\/i.test(DIR)) showWarn("You're running QuickLaunch from inside a zip or temporary folder. Copy QuickLaunch.hta to a normal folder first, or your list won't be saved.");
+  try{ if(canSave&&!fso.FileExists(DIR+"\\QuickLaunch.ico")) writeB64(DIR+"\\QuickLaunch.ico",ICO_B64); }catch(e){}
+  sizeWindow(); wire(); applyLook(); render();
+  window.setTimeout(checkAll,400); window.setTimeout(fetchIcons,1200);
 };
 </script>
 </body>

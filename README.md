@@ -1,83 +1,64 @@
-# QuickLaunch (v2)
+# QuickLaunch
 
-A one-file Windows launcher for your everyday tools, folders, web links and multi-step "actions".
+One-click launcher for your apps, Excel files, folders and websites. One file, no install.
 
-## Files
+## Set up (1 minute)
 
-- `QuickLaunch.hta` – the new, improved version (use this one)
-- `QuickLaunch-original.hta` – your original file, kept for reference
+1. Put `QuickLaunch.hta` in a normal folder (e.g. `Documents\QuickLaunch`)
+   - Not inside a zip, not in Downloads if you clear it
+2. Double-click it
+3. Pick a look, then add your first item
+4. Optional: right-click it in the taskbar → **Pin to taskbar**
 
-## How to use
+- It makes a `QuickLaunch-data` folder next to itself – that's your saved list
+- To move it to another PC: copy `QuickLaunch.hta` **and** `QuickLaunch-data` together
 
-- Put `QuickLaunch.hta` in any folder and double-click it
-- Your shortcuts are saved in `quicklaunch-data\shortcuts.json` next to it
-- Already using the old version? Drop the new file in the **same folder** – all your tiles, groups and settings carry over
+## Add an item (about 3 seconds)
 
-## What's new in v3
+- **Fastest:** copy a path or link → click QuickLaunch → **Ctrl+V** → type a description → **Enter**
+  - Copy a file's path: Shift + right-click the file → **Copy as path**
+- **Or:** click **+ Add** → **File...** / **Folder...** / paste a web link
+- The name and file type are filled in for you
+- Each item keeps a simple log:
+  - Name
+  - Description
+  - From (who gave it, or where it came from)
+  - Date (today by default)
+  - Times opened and last opened (automatic)
 
-**New list view (opens in this view the first time)**
-- One row per link: icon · name · description · shared by · group · last used
-- Click someone's name chip (e.g. "👤 Sarah · 4 Nov") to see everything they shared
-- Switch back to tiles any time with the ▤ button
+## Use it
 
-**Quick add, in about 3 seconds**
-- Copy a link or file path (in File Explorer: Shift + right-click → **Copy as path**)
-- Press **Ctrl+V** anywhere in QuickLaunch
-- Type a description → Tab → who shared it → **Enter**. Done
-- Names are filled in for you (file name, or e.g. "SharePoint link")
-- Copy several paths at once and they're all added in one go
-- "Shared by" remembers names you've used before
+- **Click** an item → it opens
+- **Right-click** (or `···`) → Open file location, Copy path, Edit, Duplicate, Remove
+- **Search:** just start typing. **Enter** opens the top result. **Esc** clears it
+- **List view** (☰) or **Icon view** (▦) – icons re-flow when you resize the window
+- **List view:** click a column title (Name, From, Date...) to sort
+- **Groups:** click **+ Group** to make one. Right-click a group to rename, move or delete it
+- Items that can't be found (moved / drive offline) show **not found** in red
 
-**Icons fixed**
-- If program logos show as 🚀 after moving QuickLaunch to another folder, they're now re-fetched automatically
-- Keep `QuickLaunch.ico` in the same folder as `QuickLaunch.hta` for the window/taskbar icon
+## Export a list for someone
 
-## What was new in v2
+- Click **Export ▾**
+  - **PDF** – a tidy A4 table, opens when ready
+  - **CSV / Excel** – opens the folder with the file selected
+- It exports **what you're looking at** – pick a group or search first to narrow it down
+- Files are saved in `QuickLaunch-data\exports`
+- **Import CSV...** adds a list someone sent you
 
-**Right-click menu on every tile**
-- Open
-- Run as administrator
-- Open file location
-- Copy path
-- Add / remove from Favourites
-- Edit, Duplicate, Delete
+## Looks (⚙)
 
-**Better shortcuts**
-- "Extra options" box – e.g. open Revit straight into a model file
-- "Run as administrator" setting per program
-- Notes box – shows when you hover over a tile
+- Themes: Light, Dark, Blueprint, Retro 8-bit, Game Boy
+- Sizes: Compact, Normal, Large
 
-**Missing-file warning**
-- Tiles show a red **!** if the file or folder can't be found (moved, renamed, or network drive offline)
-- Checked quietly in the background so the window doesn't freeze
+## If something goes wrong
 
-**Faster searching**
-- Just start typing – search box takes over
-- `Ctrl+F` or `/` – jump to search
-- `Enter` – opens the top result
-- `Esc` – clears the search
-- Searches names, groups, notes and paths (e.g. "revit p:" finds Revit tiles on P:)
+- **Windows blocks the file:** right-click → Properties → tick **Unblock** → OK
+- **Downloaded as `.txt`:** rename it to `QuickLaunch.hta`
+- **"Can't save here" message:** move it out of the zip / temp folder
+- **Lost your list?** `QuickLaunch-data\library.backup.json` is an automatic backup
+  - Rename it to `library.json` to restore
+- **Had the old QuickLaunch in the same folder?** It offers to import your old shortcuts (⚙ → Import old QuickLaunch)
 
-**Groups made easy**
-- Click the ⚙ group tab for a proper window: rename, pick a colour, move left/right, delete
-- (Replaces the old "type R, D or C" pop-ups)
+## For whoever maintains this
 
-**Safety and fixes**
-- Automatic daily backup of your shortcuts (last 7 days) in `quicklaunch-data\backups`
-- Wallpaper now saves straight away (before, it was lost unless you pressed Apply)
-- CSV import now uses the normal Windows file picker (old one only worked on Windows XP)
-- CSV export/import now includes options, admin and notes
-- Changing a tile's path now refreshes its icon
-
-**Look and feel**
-- Your name in the greeting is now a setting (Settings → Your name)
-- Greeting line shows your most-used tool
-- Midnight, Forest and Mono themes now have their own real colours
-
-## Everything else still works as before
-
-- Grid / list view, themes, accent colours, wallpaper
-- Drag tiles to reorder
-- Recent and Favourites tabs
-- Multi-step actions (open several apps/folders/sites in one click)
-- Idle Pong and Stickman Fight
+- Edit `src/QuickLaunch.template.hta`, then run `python3 src/build.py` to rebuild `QuickLaunch.hta` (adds the built-in icon)

@@ -22,11 +22,11 @@ input{-ms-user-select:text;user-select:text}
 #view{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;min-height:0;position:relative}
 
 /* header */
-#top{display:flex;align-items:center;flex-wrap:wrap;padding:8px 12px}
+#top{display:flex;align-items:center;flex-wrap:nowrap;padding:8px 12px}
 #logo{width:24px;height:24px;margin-right:8px;image-rendering:pixelated;-ms-interpolation-mode:nearest-neighbor}
 #brand{font-weight:bold;font-size:15px;margin-right:14px;white-space:nowrap}
 #cur{display:none;font-style:normal}
-#q{flex:1 1 160px;min-width:120px;max-width:420px;height:30px;padding:0 10px;font:inherit;outline:none;margin-right:8px}
+#q{flex:1 1 160px;min-width:70px;max-width:420px;height:30px;padding:0 10px;font:inherit;outline:none;margin-right:8px}
 .sp{flex:1 1 0px}
 .btn{height:30px;padding:0 12px;margin-left:6px;font:inherit;font-weight:bold;cursor:pointer;white-space:nowrap;outline:none;overflow:visible}
 .btn.ic{padding:0 9px;min-width:32px}
@@ -99,7 +99,8 @@ input{-ms-user-select:text;user-select:text}
 #status .l{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
 #status .r{flex:none;margin-left:12px}
 @media (max-width:640px){ #status .r{display:none} #brand{display:none} }
-@media (max-width:470px){ #q{order:9;flex:1 1 100%;max-width:none;margin:8px 0 0} }
+@media (max-width:470px){ #top{flex-wrap:wrap} #q{order:9;flex:1 1 100%;max-width:none;margin:8px 0 0} }
+@media (max-width:900px){ .lbl{display:none} }
 
 /* dialogs */
 .ov{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:20;background:rgba(0,0,0,.45)}
@@ -127,7 +128,8 @@ input{-ms-user-select:text;user-select:text}
 #toast{position:fixed;left:50%;bottom:34px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;
   transform:translateX(-50%);-ms-transform:translateX(-50%);display:none;box-shadow:0 6px 20px rgba(0,0,0,.3)}
 /* clock + timer */
-#clock{height:30px;line-height:26px;padding:0 10px;margin-left:6px;cursor:pointer;white-space:nowrap}
+#top .btn,#top .seg,#logo,#brand{flex:none}
+#clock{flex:none;height:30px;line-height:26px;padding:0 10px;margin-left:6px;cursor:pointer;white-space:nowrap}
 #clkT{font-size:1.1em}
 #clkD{margin-left:8px;font-size:.82em}
 #clock.done{animation:blink .8s steps(1) infinite}
@@ -158,7 +160,7 @@ input{-ms-user-select:text;user-select:text}
     <button class="btn primary" id="bAdd" title="Add an app, file, folder or website (Ctrl+N)">+ Add</button>
     <span class="seg"><button class="btn ic" id="bList" title="List view">&#9776;</button><button class="btn ic" id="bGrid" title="Icon view">&#9638;</button></span>
     <button class="btn" id="bSecs" title="Show everything in one list, or in sections per group">Groups</button>
-    <button class="btn" id="bExport" title="Export to PDF / CSV, or bulk edit in Excel">Import/Export &#9662;</button>
+    <button class="btn" id="bExport" title="Import / export: PDF, CSV, bulk edit in Excel">&#8645;<span class="lbl"> Import/Export</span> &#9662;</button>
     <button class="btn ic" id="bSet" title="Look and settings">&#9881;</button>
   </div>
   <div id="warn"></div>
@@ -196,6 +198,8 @@ input{-ms-user-select:text;user-select:text}
   <h3>Look and settings</h3>
   <div class="fld"><label>Theme</label><div class="themes" id="themeBtns"></div></div>
   <div class="fld"><label>Size</label><div class="sizes" id="sizeBtns"></div></div>
+  <div class="fld"><label>Buttons</label><div class="sizes" id="bstBtns"></div>
+    <div class="hint muted">Clean = no borders until you point at them. Auto = clean, but boxed on retro themes.</div></div>
   <div class="fld"><label>Your data</label>
     <button class="btn" id="bData" style="margin-left:0">Open data folder</button>
     <button class="btn" id="bImpCsv">Import CSV / Excel...</button>
@@ -447,8 +451,10 @@ var THEMES={
     font:"'Segoe UI',Tahoma,sans-serif",r:4,bw:1,shadow:"none",big:"0 16px 40px rgba(0,0,0,.45)",grid:1},
   retro:{name:"Retro 8-bit",bg:"#1a1c2c",panel:"#29366f",hover:"#3b5dc9",text:"#f4f4f4",muted:"#94b0c2",line:"#0b0c16",accent:"#ffcd75",accText:"#1a1c2c",chip:"#333c57",
     font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #0b0c16",big:"6px 6px 0 #0b0c16",retro:1},
-  gameboy:{name:"Game Boy",bg:"#d6d2c8",panel:"#e8e5de",hover:"#f6f4ef",text:"#23233a",muted:"#6b6b7d",line:"#4a4a5e",accent:"#8b1c62",accText:"#ffffff",chip:"#cbc6ba",
-    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #4a4a5e",big:"6px 6px 0 #4a4a5e",retro:1,badge:"#3c3c55",badgeText:"#e8e5de"}
+  gameboy:{name:"Retro Grey",bg:"#d6d2c8",panel:"#e8e5de",hover:"#f6f4ef",text:"#23233a",muted:"#6b6b7d",line:"#4a4a5e",accent:"#8b1c62",accText:"#ffffff",chip:"#cbc6ba",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #4a4a5e",big:"6px 6px 0 #4a4a5e",retro:1,badge:"#3c3c55",badgeText:"#e8e5de"},
+  console:{name:"Retro Console",bg:"#dfe7f2",panel:"#c9d6ea",hover:"#f0f5fc",text:"#141b33",muted:"#5a6a90",line:"#1b2a6b",accent:"#1b2a6b",accText:"#f0f5fc",chip:"#d3deef",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #1b2a6b",big:"6px 6px 0 #1b2a6b",retro:1}
 };
 var SIZES={
   compact:{name:"Compact",fs:12,row:30,ic:18,tile:78,tic:28},
@@ -502,6 +508,7 @@ var CSS=[
 var CSS_RETRO=[
  "#cur{display:inline;animation:blink 1s steps(1) infinite}",
  "#brand,.chip,.btn,.lhead,.fld label,.card h3,.welcome h2{text-transform:uppercase;letter-spacing:1px}",
+ "#top .btn{letter-spacing:.3px;padding:0 9px}",
  ".btn,.chip.on{box-shadow:{shadow}}",
  ".btn:active,.tile:active{box-shadow:none;transform:translate(2px,2px);-ms-transform:translate(2px,2px)}",
  ".row:hover{background:{hover};color:{text}}",
@@ -509,6 +516,17 @@ var CSS_RETRO=[
  "#view{background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.07) 0px,rgba(0,0,0,.07) 1px,transparent 1px,transparent 3px)}",
  "#toast{box-shadow:{shadow}}",
  ".warnTxt{color:#b13e53}"
+];
+/* "Clean" buttons: plain text, the box only shows on hover - like the clock */
+var CSS_CLEAN=[
+ ".btn,.chip,.chip.on,.btn.on,.btn.primary{border-color:transparent;box-shadow:none}",
+ ".btn,.chip{background:transparent}",
+ ".btn:hover,.chip:hover{background:{hover};border-color:{line};color:{text}}",
+ ".btn.on{background:{chip}}",
+ ".btn.primary{background:transparent;color:{accent}}",
+ ".btn.primary:hover{background:{accent};border-color:{accent};color:{accText}}",
+ ".chip.on{background:{chip};color:{accent}}",
+ ".seg .btn+.btn{margin-left:2px}"
 ];
 var CSS_GRID=[
  "#view{background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:22px 22px}"
@@ -522,6 +540,7 @@ function applyLook(){
   v.lineSoft=t.retro?"rgba(0,0,0,.25)":t.line;
   var rules=CSS.slice(0); if(t.retro) rules=rules.concat(CSS_RETRO); if(t.grid) rules=rules.concat(CSS_GRID);
   if(t.badge) rules.push(".ico .bdg{background:{badge} !important;color:{badgeText} !important}");
+  var bs=store.btnStyle||"auto"; if(bs=="clean"||(bs=="auto"&&!t.retro)) rules=rules.concat(CSS_CLEAN);
   setCss($("themeCss"),rules.join("\n").replace(/\{(\w+)\}/g,function(m,k){ return v[k]!==undefined?v[k]:m; }));
   fitTiles();
 }
@@ -592,7 +611,8 @@ function render(){
   }
   $("view").innerHTML=h; if(store.view=="grid") fitTiles();
   $("bList").className="btn ic"+(store.view=="list"?" on":""); $("bGrid").className="btn ic"+(store.view=="grid"?" on":"");
-  $("bSecs").className="btn"+(store.sections?" on":""); $("bSecs").innerHTML=store.sections?"&#9636; Grouped":"&#9776; All in one";
+  $("bSecs").className="btn"+(store.sections?" on":""); $("bSecs").innerHTML=store.sections?"&#9636;<span class=\"lbl\"> Grouped</span>":"&#9776;<span class=\"lbl\"> All in one</span>";
+  $("bSecs").title=store.sections?"Showing sections per group - click for one list":"Showing one list - click for sections per group";
   var n=store.items.length, mc=0; for(var x in missing) if(missing.hasOwnProperty(x)) mc++;
   $("stL").innerHTML=esc(n+" item"+(n==1?"":"s")+(visible.length!=n?" ("+visible.length+" shown)":"")+(mc?" \u00b7 "+mc+" not found":"")+" \u00b7 saved in "+DATA);
   fillFromList();
@@ -1055,6 +1075,9 @@ function openSettings(){
   $("themeBtns").innerHTML=tb;
   var sb=""; for(var s in SIZES) sb+='<button class="btn'+(store.size==s?" on":"")+'" data-size="'+s+'">'+SIZES[s].name+'</button>';
   $("sizeBtns").innerHTML=sb;
+  var BST={auto:"Auto",clean:"Clean (borderless)",boxed:"Boxed"}, bb="", cur=store.btnStyle||"auto";
+  for(var bk in BST) bb+='<button class="btn'+(cur==bk?" on":"")+'" data-bst="'+bk+'">'+BST[bk]+'</button>';
+  $("bstBtns").innerHTML=bb;
   var oc=oldCount(); $("bImpOld").style.display=oc?"":"none"; $("bImpOld").innerHTML="Import old QuickLaunch ("+oc+")";
   $("dataPath").innerHTML="Saved in: "+esc(DATA)+"<br>A backup copy is kept automatically.";
   showDlg("dlgSet");
@@ -1191,8 +1214,9 @@ function wire(){
       showMenu(e.clientX,e.clientY,[{label:"&#9998;&nbsp; Rename group",fn:function(){ renameGroup(g); }},{label:"&#9664;&nbsp; Move left",fn:function(){ moveGroup(g,-1); }},
         {label:"&#9654;&nbsp; Move right",fn:function(){ moveGroup(g,1); }},"-",{label:"&#10005;&nbsp; Delete group",danger:1,fn:function(){ deleteGroup(g); }}]); }
     return false; };
-  $("dlgSet").onclick=function(e){ var t=e.target||e.srcElement, th=up(t,"data-theme"), sz=up(t,"data-size");
-    if(th) setTheme(th.getAttribute("data-theme")); else if(sz) setSize(sz.getAttribute("data-size")); else if(t==this) hideDlgs(); };
+  $("dlgSet").onclick=function(e){ var t=e.target||e.srcElement, th=up(t,"data-theme"), sz=up(t,"data-size"), bst=up(t,"data-bst");
+    if(th) setTheme(th.getAttribute("data-theme")); else if(sz) setSize(sz.getAttribute("data-size"));
+    else if(bst){ store.btnStyle=bst.getAttribute("data-bst"); save(); applyLook(); openSettings(); } else if(t==this) hideDlgs(); };
   $("dlgItem").onclick=function(e){ if((e.target||e.srcElement)==this) hideDlgs(); };
   $("menu").onclick=function(e){ var m=up(e.target||e.srcElement,"data-mi"); if(!m) return; var fn=menuActs[+m.getAttribute("data-mi")]; hideMenu(); if(fn) fn(); e.stopPropagation(); };
   document.onmousedown=function(e){ var m=$("menu"), tp=$("tpanel"), ck=$("clock"), t=e.target||e.srcElement, inM=false, inP=false;

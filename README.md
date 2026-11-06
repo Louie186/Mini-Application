@@ -38,7 +38,7 @@ One-click launcher for your apps, Excel files, folders and websites. One file, n
 
 ## Groups and views
 
-- **All in one / Grouped** button (top bar) switches between:
+- **All in one / Grouped** button (top bar, ☰ / ▤) switches between:
   - **All in one** – every item in one clean list or grid
   - **Grouped** – a heading per group (click a heading to fold it)
 - Works in both list view (☰) and icon view (▦)
@@ -80,8 +80,12 @@ One-click launcher for your apps, Excel files, folders and websites. One file, n
 
 ## Looks (⚙)
 
-- Themes: Light, Dark, Blueprint, Retro 8-bit, Game Boy (light grey console with maroon buttons)
+- Themes: Light, Dark, Blueprint, Retro 8-bit, Retro Grey, Retro Console (16-bit blue)
 - Sizes: Compact, Normal, Large
+- Buttons:
+  - **Auto** – borderless on Light / Dark / Blueprint, boxed on retro themes
+  - **Clean (borderless)** – buttons only show a box when you point at them
+  - **Boxed** – always show the box
 
 ## If something goes wrong
 

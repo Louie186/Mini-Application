@@ -195,6 +195,10 @@ input{-ms-user-select:text;user-select:text}
     <button class="btn" id="bImpOld" style="display:none">Import old QuickLaunch</button>
     <div class="hint muted" id="dataPath"></div>
   </div>
+  <div class="fld"><label>Taskbar</label>
+    <button class="btn" id="bPin" style="margin-left:0">Make taskbar shortcut (fixes the icon)</button>
+    <div class="hint muted">Puts a QuickLaunch shortcut with the right icon on your Desktop, ready to pin.</div>
+  </div>
   <div class="acts"><span class="sp"></span><button class="btn primary" id="bSetClose">Done</button></div>
 </div></div>
 
@@ -281,6 +285,26 @@ function fixHtaIcon(){
     var w=fso.CreateTextFile(tmp,true,false); w.Write(nt); w.Close();
     fso.CopyFile(tmp,SELF,true); fso.DeleteFile(tmp);
   }catch(e){}
+}
+/* A proper Windows shortcut (with our icon) - this is what should be pinned to the taskbar.
+   Pinning the .hta itself makes Windows show the plain mshta icon. */
+function makeShortcut(where){
+  var ico=DIR+"\\QuickLaunch.ico", lnk=where+"\\QuickLaunch.lnk";
+  var sc=wsh.CreateShortcut(lnk);
+  sc.TargetPath=wsh.ExpandEnvironmentStrings("%WINDIR%")+"\\System32\\mshta.exe";
+  sc.Arguments='"'+SELF+'"'; sc.WorkingDirectory=DIR; sc.Description="QuickLaunch - one-click launcher";
+  if(fso.FileExists(ico)) sc.IconLocation=ico+",0";
+  sc.Save(); return lnk;
+}
+function shortcutForTaskbar(){
+  try{
+    var desk=wsh.SpecialFolders("Desktop"), lnk=makeShortcut(desk); makeShortcut(DIR);
+    wsh.Run('explorer.exe /select,"'+lnk+'"',1,false);
+    alert("A QuickLaunch shortcut with the right icon is now on your Desktop (it's selected).\n\n"
+      +"1. Unpin the old QuickLaunch from the taskbar (right-click it > Unpin).\n"
+      +"2. Right-click the new shortcut > Pin to taskbar\n    (Windows 11: right-click > Show more options > Pin to taskbar).\n"
+      +"3. Close QuickLaunch and open it from the new pin.");
+  }catch(e){ alert("Couldn't make the shortcut:\n"+(e.message||e)); }
 }
 /* JSON is built in; this is a safety net in case Windows runs the page in an old mode */
 var J=window.JSON||{parse:function(t){ return eval("("+t+")"); },stringify:function(o){
@@ -1020,6 +1044,7 @@ function wire(){
   $("bData").onclick=function(){ try{ mkdir(DATA); wsh.Run('explorer.exe "'+DATA+'"',1,false); }catch(e){} };
   $("bImpCsv").onclick=function(){ hideDlgs(); importCSV(); };
   $("bImpOld").onclick=importOld;
+  $("bPin").onclick=function(){ hideDlgs(); shortcutForTaskbar(); };
   $("fPath").oninput=pathChanged; $("fPath").onchange=pathChanged; $("fPath").onpaste=function(){ window.setTimeout(pathChanged,10); };
   $("fName").oninput=function(){ nameTouched=!!trim($("fName").value); };
   $("fGroup").onchange=function(){ if(this.value=="__new"){ var n=addGroup(prompt("Name for the new group:")||""); fillGroupSelect(n); } };
@@ -1087,7 +1112,9 @@ function sizeWindow(){
   load(); sizeWindow();
   if(/\\Temp\\|\.zip\\/i.test(DIR)) showWarn("You're running QuickLaunch from inside a zip or temporary folder. Copy QuickLaunch.hta to a normal folder first, or your list won't be saved.");
   try{ if(canSave&&!fso.FileExists(DIR+"\\QuickLaunch.ico")) writeB64(DIR+"\\QuickLaunch.ico",ICO_B64); }catch(e){}
-  window.setTimeout(fixHtaIcon,4000); // after the icon file has surely been written
+  window.setTimeout(function(){ fixHtaIcon(); try{ var l=DIR+"\\QuickLaunch.lnk", ok=false;
+    if(fso.FileExists(l)){ var c=wsh.CreateShortcut(l); ok=(c.Arguments.indexOf(SELF)>=0); }
+    if(!ok) makeShortcut(DIR); }catch(e){} },4000); // after the icon file has surely been written
   $("warn").onclick=function(e){ if(up(e.target||e.srcElement,"title")) hideWarn(); };
   wire(); applyLook(); render(); updateClock();
   window.setInterval(function(){ if(!tickT) updateClock(); },1000);

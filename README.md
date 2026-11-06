@@ -56,7 +56,7 @@ One-click launcher for your apps, Excel files, folders and websites. One file, n
 
 ## Looks (⚙)
 
-- Themes: Light, Dark, Blueprint, Retro 8-bit, Game Boy (dark green screen)
+- Themes: Light, Dark, Blueprint, Retro 8-bit, Game Boy (light grey console with maroon buttons)
 - Sizes: Compact, Normal, Large
 
 ## If something goes wrong
@@ -65,6 +65,10 @@ One-click launcher for your apps, Excel files, folders and websites. One file, n
 - **Downloaded as `.txt`:** rename it to `QuickLaunch.hta`
 - **Red bar at the top:** your list couldn't be saved – the bar says why. Click ✕ to hide it
 - **App icon missing:** it's made the first time you open QuickLaunch – close and reopen once
+- **Taskbar pin still shows the old icon:** the pin keeps its own icon
+  - Right-click the pin → right-click **QuickLaunch** → **Properties** → **Change Icon...**
+  - Browse to `QuickLaunch.ico` next to `QuickLaunch.hta` → OK → OK
+  - Or unpin, open QuickLaunch, then right-click it in the taskbar → **Pin to taskbar**
 - **Lost your list?** `QuickLaunch-data\library.backup.json` is an automatic backup
   - Rename it to `library.json` to restore
 - **Had the old QuickLaunch in the same folder?** It offers to import your old shortcuts (⚙ → Import old QuickLaunch)

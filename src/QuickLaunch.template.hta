@@ -231,7 +231,12 @@ function scriptDir(){
   h=h.replace(/\//g,"\\");
   return h.substring(0,h.lastIndexOf("\\"));
 }
-var DIR=window.QL_DIR||scriptDir();
+function scriptPath(){
+  var h=decodeURIComponent(location.href.replace(/[?#].*$/,"").replace(/^file:/i,""));
+  if(/^\/\/\//.test(h)) h=h.substring(3); else if(/^\/\//.test(h)) h="\\\\"+h.substring(2);
+  return h.replace(/\//g,"\\");
+}
+var DIR=window.QL_DIR||scriptDir(), SELF=window.QL_SELF||scriptPath();
 var DATA=DIR+"\\QuickLaunch-data", FILE=DATA+"\\library.json", BAK=DATA+"\\library.backup.json";
 var ICONS=DATA+"\\icons", EXPORTS=DATA+"\\exports", OLDFILE=DATA+"\\shortcuts.json";
 
@@ -257,7 +262,25 @@ function writeB64(p,b64){
     var s=new ActiveXObject("ADODB.Stream"); s.Type=1; s.Open(); s.Write(el.nodeTypedValue); s.SaveToFile(p,2); s.Close(); return; }catch(e){}
   var ps=DATA+"\\make-icon.ps1";
   writeText(ps,"[IO.File]::WriteAllBytes('"+p.replace(/'/g,"''")+"',[Convert]::FromBase64String('"+b64+"'))\r\n");
-  wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "'+ps+'"',0,false);
+  runPS(ps);
+}
+/* Run a PowerShell script hidden. Reads the script text and runs it, which works on PCs where
+   running .ps1 files is blocked by policy. */
+function runPS(path){
+  wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "iex ([IO.File]::ReadAllText(\''+path.replace(/'/g,"''")+'\'))"',0,false);
+}
+/* Windows only finds the window/taskbar icon if the HTA points to it with a FULL path,
+   so QuickLaunch writes that path into itself (once, or again if the folder moves). */
+function fixHtaIcon(){
+  try{
+    var ico=DIR+"\\QuickLaunch.ico"; if(!fso.FileExists(ico)||!fso.FileExists(SELF)||!/\.hta$/i.test(SELF)) return;
+    var f=fso.OpenTextFile(SELF,1,false,0), t=f.ReadAll(); f.Close();
+    var re=/(<hta:application[^>]*?\sicon=")([^"]*)(")/i, m=re.exec(t);
+    if(!m||m[2]==ico||t.indexOf("QuickLaunch")<0) return;
+    var nt=t.replace(re,"$1"+ico.replace(/\$/g,"$$$$")+"$3"), tmp=SELF+".new";
+    var w=fso.CreateTextFile(tmp,true,false); w.Write(nt); w.Close();
+    fso.CopyFile(tmp,SELF,true); fso.DeleteFile(tmp);
+  }catch(e){}
 }
 /* JSON is built in; this is a safety net in case Windows runs the page in an old mode */
 var J=window.JSON||{parse:function(t){ return eval("("+t+")"); },stringify:function(o){
@@ -386,8 +409,8 @@ var THEMES={
     font:"'Segoe UI',Tahoma,sans-serif",r:4,bw:1,shadow:"none",big:"0 16px 40px rgba(0,0,0,.45)",grid:1},
   retro:{name:"Retro 8-bit",bg:"#1a1c2c",panel:"#29366f",hover:"#3b5dc9",text:"#f4f4f4",muted:"#94b0c2",line:"#0b0c16",accent:"#ffcd75",accText:"#1a1c2c",chip:"#333c57",
     font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #0b0c16",big:"6px 6px 0 #0b0c16",retro:1},
-  gameboy:{name:"Game Boy",bg:"#0f380f",panel:"#1b4a1b",hover:"#306230",text:"#9bbc0f",muted:"#7a9a2a",line:"#061f06",accent:"#8bac0f",accText:"#0f380f",chip:"#245a24",
-    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #061f06",big:"6px 6px 0 #061f06",retro:1,badge:"#306230",badgeText:"#9bbc0f"}
+  gameboy:{name:"Game Boy",bg:"#d6d2c8",panel:"#e8e5de",hover:"#f6f4ef",text:"#23233a",muted:"#6b6b7d",line:"#4a4a5e",accent:"#8b1c62",accText:"#ffffff",chip:"#cbc6ba",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #4a4a5e",big:"6px 6px 0 #4a4a5e",retro:1,badge:"#3c3c55",badgeText:"#e8e5de"}
 };
 var SIZES={
   compact:{name:"Compact",fs:12,row:30,ic:18,tile:92,tic:32},
@@ -566,12 +589,12 @@ function fillFromList(){ var seen={}, h=""; for(var i=0;i<store.items.length;i++
 function openItem(it){
   try{
     if(it.type=="web"){ var u=it.path; if(/^www\./i.test(u)) u="https://"+u; shApp().ShellExecute(u,"","","open",1); }
-    else{
-      if(!exists(it.path)){ missing[it.id]=1; render(); toast("Can't find "+it.name+" - it may have moved. Right-click > Edit to fix."); return; }
-      delete missing[it.id];
-      shApp().ShellExecute(it.path,"",fso.GetParentFolderName(it.path)||"","open",1);
-    }
-    it.opened++; it.last=now(); save(); toast("Opening "+it.name);
+    else shApp().ShellExecute(it.path,"",it.path.replace(/[\\\/][^\\\/]*$/,""),"open",1);
+    toast("Opening "+it.name);
+    window.setTimeout(function(){ // after it has started: update the log, and flag it if Windows couldn't find it
+      it.opened++; it.last=now(); save();
+      if(it.type!="web"){ var ok=exists(it.path); if(ok!=!missing[it.id]){ if(ok) delete missing[it.id]; else missing[it.id]=1; render(); } }
+    },300);
   }catch(e){
     try{ wsh.Run('explorer.exe "'+it.path+'"',1,false); it.opened++; it.last=now(); save(); }
     catch(e2){ toast("Couldn't open "+it.name); }
@@ -592,39 +615,60 @@ function checkAll(){
   step();
 }
 
-/* ---------- real program/file icons (fetched in the background with PowerShell, saved in QuickLaunch-data\icons) ---------- */
-var iconTimer=null, iconTried={}, iconAgain=false;
-function fetchIcons(){
-  if(!canSave) return;
-  if(iconTimer){ iconAgain=true; return; } // one at a time - run again when this batch finishes
-  var jobs=[];
+/* ---------- background helper ----------
+   Checking files (slow on network drives) and grabbing real icons both happen in ONE hidden
+   PowerShell run, so the window opens straight away. If PowerShell is blocked we fall back to checkAll(). */
+var bgTimer=null, bgAgain=false;
+function background(withChecks){
+  if(!canSave) { if(withChecks) window.setTimeout(checkAll,3000); return; }
+  if(bgTimer){ bgAgain=true; return; }
+  var q=function(x){ return "'"+(""+x).replace(/'/g,"''")+"'"; }, jobs=[], ps="", st=DATA+"\\status.txt", dn=DATA+"\\helper.done";
   for(var i=0;i<store.items.length;i++){ var it=store.items[i];
-    if(it.type=="web"||it.type=="folder"||iconTried[it.id+"|"+it.path]) continue;
+    if(it.type=="web"||it.type=="folder"||it.iconFail==it.path) continue;
     if(it.icon&&fso.FileExists(DATA+"\\"+it.icon)) continue;
-    if(!fso.FileExists(it.path)) continue;
-    var src=it.path;
-    if(/\.lnk$/i.test(src)){ try{ var tp=wsh.CreateShortcut(src).TargetPath; if(tp&&fso.FileExists(tp)) src=tp; }catch(e){} }
-    iconTried[it.id+"|"+it.path]=1; jobs.push({it:it,src:src,rel:"icons\\"+it.id+".png"});
-  }
-  if(!jobs.length) return;
+    jobs.push({it:it,rel:"icons\\"+it.id+".png"}); }
+  if(!withChecks&&!jobs.length) return;
   try{
-    mkdir(ICONS);
-    var q=function(s){ return "'"+s.replace(/'/g,"''")+"'"; };
-    var ps="Add-Type -AssemblyName System.Drawing\r\n$j=@()\r\n";
-    for(var k=0;k<jobs.length;k++) ps+="$j+=,@("+q(jobs[k].src)+","+q(DATA+"\\"+jobs[k].rel)+")\r\n";
-    ps+="foreach($x in $j){ try{ $i=[System.Drawing.Icon]::ExtractAssociatedIcon($x[0]); if($i){ $t=$x[1]+'.tmp'; $i.ToBitmap().Save($t,[System.Drawing.Imaging.ImageFormat]::Png); Move-Item -Force $t $x[1] } }catch{} }\r\n";
-    var script=ICONS+"\\get-icons.ps1"; writeText(script,ps);
-    wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "'+script+'"',0,false);
-  }catch(e){ return; }
-  var tries=0; if(iconTimer) window.clearInterval(iconTimer);
-  iconTimer=window.setInterval(function(){
-    var changed=false, left=0;
-    for(var n=0;n<jobs.length;n++){ var jb=jobs[n]; if(jb.done) continue;
-      if(fso.FileExists(DATA+"\\"+jb.rel)){ jb.it.icon=jb.rel; jb.done=true; changed=true; } else left++; }
-    if(changed){ save(); render(); }
-    if(!left||++tries>30){ window.clearInterval(iconTimer); iconTimer=null; if(iconAgain){ iconAgain=false; fetchIcons(); } }
-  },1000);
+    mkdir(ICONS); try{ fso.DeleteFile(st); }catch(e){} try{ fso.DeleteFile(dn); }catch(e){}
+    if(withChecks){
+      ps+="$c=@()\r\n";
+      for(var c=0;c<store.items.length;c++){ var ci=store.items[c]; if(ci.type!="web") ps+="$c+=,@("+q(ci.id)+","+q(ci.path)+")\r\n"; }
+      ps+="$o=@(); foreach($x in $c){ $o+=($x[0]+'|'+[int](Test-Path -LiteralPath $x[1])) }\r\n"
+        +"[IO.File]::WriteAllLines("+q(st+".tmp")+",[string[]]$o,[Text.Encoding]::Unicode); Move-Item -Force "+q(st+".tmp")+" "+q(st)+"\r\n";
+    }
+    if(jobs.length){
+      ps+="Add-Type -AssemblyName System.Drawing\r\n$j=@()\r\n";
+      for(var k=0;k<jobs.length;k++) ps+="$j+=,@("+q(jobs[k].it.path)+","+q(DATA+"\\"+jobs[k].rel)+")\r\n";
+      ps+="foreach($x in $j){ try{ $p=$x[0]; if($p -like '*.lnk'){ try{ $t=(New-Object -ComObject WScript.Shell).CreateShortcut($p).TargetPath; if($t -and (Test-Path -LiteralPath $t)){ $p=$t } }catch{} }\r\n"
+        +"  if(Test-Path -LiteralPath $p){ $i=[System.Drawing.Icon]::ExtractAssociatedIcon($p); if($i){ $tmp=$x[1]+'.tmp'; $i.ToBitmap().Save($tmp,[System.Drawing.Imaging.ImageFormat]::Png); Move-Item -Force $tmp $x[1] } } }catch{} }\r\n";
+    }
+    ps+="[IO.File]::WriteAllText("+q(dn)+",'1')\r\n";
+    var script=DATA+"\\helper.ps1"; writeText(script,ps);
+    runPS(script);
+  }catch(e){ if(withChecks) window.setTimeout(checkAll,3000); return; }
+  var tries=0, gotStatus=!withChecks;
+  bgTimer=window.setInterval(function(){
+    var changed=false, finished=false;
+    try{
+      if(!gotStatus&&fso.FileExists(st)){ gotStatus=true;
+        var lines=readText(st).split(/\r?\n/);
+        for(var l=0;l<lines.length;l++){ var m=/^(.+)\|([01])$/.exec(trim(lines[l])); if(!m) continue;
+          var was=!!missing[m[1]]; if(m[2]=="1") delete missing[m[1]]; else missing[m[1]]=1; if(was!=(m[2]=="0")) changed=true; }
+        try{ fso.DeleteFile(st); }catch(e){} }
+      for(var n=0;n<jobs.length;n++){ var jb=jobs[n]; if(!jb.done&&fso.FileExists(DATA+"\\"+jb.rel)){ jb.it.icon=jb.rel; jb.done=true; changed=true; } }
+      finished=fso.FileExists(dn);
+    }catch(e){}
+    if(changed) render();
+    if(finished||++tries>40){
+      window.clearInterval(bgTimer); bgTimer=null;
+      for(var f=0;f<jobs.length;f++) if(!jobs[f].done&&!missing[jobs[f].it.id]) jobs[f].it.iconFail=jobs[f].it.path; // don't retry every start
+      save(); try{ fso.DeleteFile(dn); }catch(e){}
+      if(!gotStatus) checkAll(); // PowerShell didn't run - check the slow way
+      if(bgAgain){ bgAgain=false; background(false); }
+    }
+  },600);
 }
+function fetchIcons(){ background(false); }
 
 /* ---------- add / edit ---------- */
 var nameTouched=false;
@@ -666,10 +710,10 @@ function saveItem(){
   var it;
   if(editId){
     it=byId(editId); if(!it) return;
-    if(it.path!=p){ if(it.icon){ try{ fso.DeleteFile(DATA+"\\"+it.icon); }catch(e){} } it.icon=""; delete missing[it.id]; }
+    if(it.path!=p){ if(it.icon){ try{ fso.DeleteFile(DATA+"\\"+it.icon); }catch(e){} } it.icon=""; it.iconFail=""; delete missing[it.id]; }
   } else { it={id:newId(),opened:0,last:0,icon:"",created:now()}; store.items.push(it); }
   it.path=p; it.type=type; it.name=name; it.desc=trim($("fDesc").value); it.from=trim($("fFrom").value); it.date=date; it.group=g;
-  if(type!="web"&&!exists(p)) missing[it.id]=1;
+  if(type!="web"){ if(exists(p)) delete missing[it.id]; else missing[it.id]=1; }
   save(); hideDlgs(); render(); fetchIcons();
   toast(editId?"Saved":"Added "+name);
 }
@@ -1039,15 +1083,16 @@ function sizeWindow(){
     if(!store.win) window.moveTo(Math.max(0,(screen.availWidth-w-dw)/2),Math.max(0,(screen.availHeight-h-dh)/2));
   }catch(e){}
 }
-window.onload=function(){
-  load();
+(function start(){
+  load(); sizeWindow();
   if(/\\Temp\\|\.zip\\/i.test(DIR)) showWarn("You're running QuickLaunch from inside a zip or temporary folder. Copy QuickLaunch.hta to a normal folder first, or your list won't be saved.");
   try{ if(canSave&&!fso.FileExists(DIR+"\\QuickLaunch.ico")) writeB64(DIR+"\\QuickLaunch.ico",ICO_B64); }catch(e){}
+  window.setTimeout(fixHtaIcon,4000); // after the icon file has surely been written
   $("warn").onclick=function(e){ if(up(e.target||e.srcElement,"title")) hideWarn(); };
-  sizeWindow(); wire(); applyLook(); render(); updateClock();
+  wire(); applyLook(); render(); updateClock();
   window.setInterval(function(){ if(!tickT) updateClock(); },1000);
-  window.setTimeout(checkAll,400); window.setTimeout(fetchIcons,1200);
-};
+  window.setTimeout(function(){ background(true); },1500);
+})();
 </script>
 </body>
 </html>

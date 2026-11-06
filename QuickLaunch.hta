@@ -67,9 +67,10 @@ input{-ms-user-select:text;user-select:text}
 
 /* icon view - tile width is recalculated on resize so tiles always fill the window */
 .grid{padding:12px 0 12px 12px}
-.tile{float:left;margin:0 10px 10px 0;padding:12px 8px 10px;text-align:center;cursor:pointer;position:relative;overflow:hidden}
-.tile .t-nm{font-weight:bold;line-height:1.3em;max-height:2.6em;overflow:hidden;word-wrap:break-word;margin-top:8px}
-.tile .t-ds{font-size:.82em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+/* every tile is the same size: name gets exactly 2 lines, description exactly 1 */
+.tile{float:left;margin:0 6px 6px 0;padding:8px 4px 6px;text-align:center;cursor:pointer;position:relative;overflow:hidden}
+.tile .t-nm{font-weight:bold;line-height:1.25em;height:2.5em;overflow:hidden;word-wrap:break-word;margin-top:5px}
+.tile .t-ds{font-size:.8em;line-height:1.3em;height:1.3em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tile .more{position:absolute;top:3px;right:3px}
 .tile.miss .ico{opacity:.4}
 .tile .mdot{position:absolute;top:8px;left:8px;width:9px;height:9px;border-radius:50%;background:#e05545}
@@ -437,9 +438,9 @@ var THEMES={
     font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #4a4a5e",big:"6px 6px 0 #4a4a5e",retro:1,badge:"#3c3c55",badgeText:"#e8e5de"}
 };
 var SIZES={
-  compact:{name:"Compact",fs:12,row:30,ic:18,tile:92,tic:32},
-  normal:{name:"Normal",fs:13,row:36,ic:22,tile:110,tic:40},
-  large:{name:"Large",fs:15,row:44,ic:28,tile:134,tic:52}
+  compact:{name:"Compact",fs:12,row:30,ic:18,tile:78,tic:28},
+  normal:{name:"Normal",fs:13,row:36,ic:22,tile:90,tic:34},
+  large:{name:"Large",fs:15,row:44,ic:28,tile:112,tic:44}
 };
 var CSS=[
  "body{background:{bg};color:{text};font-family:{font};font-size:{fs}px}",
@@ -462,8 +463,8 @@ var CSS=[
  ".gtag{background:{chip};color:{muted};border-radius:{rc}px}",
  ".more{border-radius:{r}px;color:{muted}}",
  ".more:hover{background:{accent};color:{accText}}",
- ".tile{background:{panel};border:{bw}px solid {line};border-radius:{r2}px;box-shadow:{shadow}}",
- ".tile:hover{background:{hover};border-color:{accent}}",
+ ".tile{background:transparent;border:0;border-radius:{r2}px;box-shadow:none}",
+ ".tile:hover{background:{hover}}",
  ".row .ico{width:{ic}px;height:{ic}px;border-radius:{ri}px}",
  ".row .ico .bdg{font-size:{icf}px;line-height:{ic}px}",
  ".tile .ico{width:{tic}px;height:{tic}px;border-radius:{rti}px}",
@@ -487,9 +488,8 @@ var CSS=[
 var CSS_RETRO=[
  "#cur{display:inline;animation:blink 1s steps(1) infinite}",
  "#brand,.chip,.btn,.lhead,.fld label,.card h3,.welcome h2{text-transform:uppercase;letter-spacing:1px}",
- ".btn,.tile,.chip.on{box-shadow:{shadow}}",
- ".btn:active,.tile:active{box-shadow:none;transform:translate(3px,3px);-ms-transform:translate(3px,3px)}",
- ".tile:hover{border-color:{line}}",
+ ".btn,.chip.on{box-shadow:{shadow}}",
+ ".btn:active,.tile:active{box-shadow:none;transform:translate(2px,2px);-ms-transform:translate(2px,2px)}",
  ".row:hover{background:{hover};color:{text}}",
  ".ico img{image-rendering:pixelated;-ms-interpolation-mode:nearest-neighbor}",
  "#view{background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.07) 0px,rgba(0,0,0,.07) 1px,transparent 1px,transparent 3px)}",
@@ -513,7 +513,7 @@ function applyLook(){
 }
 /* icon view: work out how many tiles fit, then stretch them to fill the row exactly */
 function fitTiles(){
-  var z=SIZES[store.size]||SIZES.normal, gap=10, avail=$("view").clientWidth-12-1; // 12 = left padding
+  var z=SIZES[store.size]||SIZES.normal, gap=6, avail=$("view").clientWidth-12-1; // 12 = left padding
   var cols=Math.max(1,Math.floor(avail/(z.tile+gap)));
   var w=Math.floor(avail/cols)-gap;
   setCss($("fitCss"),".tile{width:"+w+"px}");

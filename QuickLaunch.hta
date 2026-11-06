@@ -42,7 +42,7 @@ body.theme-light #bgfx .aurora{opacity:.7}
 @keyframes sheen{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
 /* all UI sits above backgrounds */
-#banner,#bar,#tabs,#grid{position:relative;z-index:1;flex:none}
+#banner,#bar,#tabs,#quick,#grid{position:relative;z-index:1;flex:none}
 
 /* banner with big clock */
 #banner{padding:14px 18px 4px;position:relative;min-height:54px}
@@ -112,12 +112,45 @@ body.theme-light .tile .ic{background:rgba(40,56,60,.1)}
 @keyframes rip{to{transform:scale(2.6);opacity:0}}
 
 /* list view */
-body.listview .tile{display:block;width:auto !important;height:auto !important;text-align:left;margin:0 0 8px 0;padding:10px 14px !important}
-body.listview .tile .ic{display:inline-block;vertical-align:middle;margin:0 12px 0 0 !important;width:34px !important;height:34px !important;line-height:34px !important;font-size:17px !important}
-body.listview .tile .nm{display:inline-block;vertical-align:middle;height:auto !important;font-size:13px !important}
-body.listview .tile .kind{display:inline-block;margin:0 0 0 10px}
-body.listview .tile .badge{left:auto;right:12px;top:14px}
-body.listview .tile .star{bottom:auto;top:14px;right:34px}
+/* v3 LIST VIEW: one row per link - icon | name + description | shared by | group | last used */
+body.listview .tile{display:block;width:auto;height:auto;text-align:left;margin:0 0 6px 0;padding:0;border-radius:12px}
+body.listview .tile:hover{transform:translateX(3px)}
+body.listview .tile:hover .ic{transform:none}
+body.listview .tile.lrow,.lrow{display:flex;align-items:center;padding:9px 40px 9px 16px;min-height:56px}
+.lrow .ic{flex:none;width:34px;height:34px;line-height:34px;font-size:17px;margin:0 12px 0 0;text-align:center}
+.lrow .main{flex:1 1 auto;min-width:0}
+.lrow .nm{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .nm .kind{display:inline;margin:0 0 0 8px;vertical-align:1px}
+.lrow .desc{font-size:12px;opacity:.68;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .desc .mfrom{display:none}
+.lrow .cl{flex:none;font-size:11px;margin-left:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .from{width:200px}
+.lrow .from span{display:inline-block;max-width:100%;padding:3px 9px;border-radius:10px;background:rgba(128,128,128,.16);cursor:pointer;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.lrow .from span:hover{background:rgba(128,128,128,.30)}
+.lrow .grp{width:96px;opacity:.75}
+.lrow .grp i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+.lrow .when{width:74px;text-align:right;opacity:.55}
+.lrow .rstar{flex:none;width:16px;margin-left:10px;text-align:center;font-size:12px}
+body.listview .tile .edit{top:50%;margin-top:-11px;right:10px}
+body.listview .tile .miss{position:static;display:inline-block;margin:0 6px 0 0;vertical-align:1px}
+body.theme-retro .lrow .from span{border-radius:0}
+.lhead{display:flex;padding:0 40px 6px 16px;font-size:10px;font-weight:bold;letter-spacing:1px;text-transform:uppercase;opacity:.5}
+.lhead .main{flex:1 1 auto;padding-left:46px}
+.lhead .cl{flex:none;margin-left:12px}
+.lhead .from{width:200px} .lhead .grp{width:96px} .lhead .when{width:74px;text-align:right} .lhead .rstar{width:16px;margin-left:10px}
+@media (max-width:700px){ .lrow .grp,.lhead .grp,.lrow .when,.lhead .when{display:none} }
+@media (max-width:480px){ .lrow .from,.lhead .from{display:none} .lrow .desc .mfrom{display:inline;font-weight:bold} .lrow{padding-right:34px} }
+
+/* v3 QUICK ADD bar */
+#quick{padding:8px 16px 0;display:flex;align-items:center}
+#quick .search{width:auto;margin:0 8px 0 0;min-width:0}
+#quick .search:focus{width:auto}
+#quick #qTarget{flex:3 1 0}
+#quick #qDesc{flex:3 1 0}
+#quick #qFrom{flex:2 1 0}
+#quick .btn{margin:0;flex:none}
+@media (max-width:620px){ #quick{flex-wrap:wrap} #quick #qTarget{flex:1 1 100%;margin-bottom:6px !important} }
+@media (max-width:460px){ #quick .search{display:block;width:auto} }
 
 .empty{padding:50px 20px;color:#aaa297;font-size:14px;line-height:1.6;text-align:center}
 .empty .ring{width:64px;height:64px;margin:0 auto 12px;border:2px dashed rgba(216,183,109,.5);border-radius:16px;line-height:60px;font-size:26px;color:#d8b76d}
@@ -380,7 +413,6 @@ body.theme-mono #ctx{background:#000;border:1px solid #fff}
   font-size:11px;font-weight:bold;background:#e05545;color:#fff;z-index:3}
 .tile.missing .ic{opacity:.45}
 body.theme-retro .tile .miss{border-radius:0}
-body.listview .tile .miss{bottom:auto;top:14px;left:auto;right:56px}
 .swatch.none{background:transparent !important;border:2px dashed rgba(128,128,128,.7);line-height:22px;text-align:center;font-size:12px}
 </style>
 </head>
@@ -406,6 +438,13 @@ body.listview .tile .miss{bottom:auto;top:14px;left:auto;right:56px}
   <span class="btn" id="addBtn" style="color:#0a0908;border:none">+ Add</span>
 </div>
 <div id="tabs"></div>
+<div id="quick">
+  <input type="text" id="qTarget" class="search" placeholder="&#9889; Quick add: paste a link or file path (Ctrl+V anywhere)">
+  <input type="text" id="qDesc" class="search" placeholder="Description (optional)">
+  <input type="text" id="qFrom" class="search" list="fromList" placeholder="Shared by (optional)">
+  <span class="btn" id="qAdd">Add</span>
+</div>
+<datalist id="fromList"></datalist>
 <div id="grid"></div>
 
 <!-- Add / Edit modal -->
@@ -433,7 +472,8 @@ body.listview .tile .miss{bottom:auto;top:14px;left:auto;right:56px}
         <select id="fAdmin"><option value="no">No</option><option value="yes">Yes (asks for permission)</option></select>
       </div>
     </div>
-    <div class="fld"><label>Notes (shows when you hover)</label><textarea id="fNotes" placeholder="e.g. Use for Stage 4 coordination models"></textarea></div>
+    <div class="fld"><label>Description (small text under the name)</label><textarea id="fNotes" placeholder="e.g. Stage 4 coordination model - latest issue"></textarea></div>
+    <div class="fld"><label>Shared by (who gave you this)</label><input type="text" id="fFrom" list="fromList" placeholder="e.g. Sarah - Architect"></div>
     <div class="fld"><label>Group</label><select id="fGroup"></select></div>
     <div class="fld"><label>Icon</label>
       <div class="row"><span class="icprev" id="icPrev">&#128640;</span><span class="btn" id="iconBtn">Choose image</span><span class="btn" id="iconClear">Clear</span></div>
@@ -579,7 +619,8 @@ function backfill(){
   if(!store.pongMode) store.pongMode="play";
   if(!store.idleGame) store.idleGame="pong";
   if(!store.idleGameOff) store.idleGameOff="no";
-  for(var i=0;i<store.shortcuts.length;i++){ var s=store.shortcuts[i]; if(typeof s.uses!="number") s.uses=0; if(typeof s.last!="number") s.last=0; if(typeof s.fav!="boolean") s.fav=false; if(typeof s.args!="string") s.args=""; if(typeof s.admin!="boolean") s.admin=false; if(typeof s.notes!="string") s.notes=""; }
+  for(var i=0;i<store.shortcuts.length;i++){ var s=store.shortcuts[i]; if(typeof s.uses!="number") s.uses=0; if(typeof s.last!="number") s.last=0; if(typeof s.fav!="boolean") s.fav=false; if(typeof s.args!="string") s.args=""; if(typeof s.admin!="boolean") s.admin=false; if(typeof s.notes!="string") s.notes=""; if(typeof s.from!="string") s.from=""; if(typeof s.added!="number") s.added=0; }
+  if(!store.v3){ store.v3=true; store.view="list"; } // v3: open in the new row list the first time
 }
 function saveStore(){ try{ ensureDir(); var f=fso.CreateTextFile(DATAFILE,true,true); f.Write(toJSON(store)); f.Close(); }catch(e){ alert("Could not save: "+e.message); } }
 function toJSON(o){ if(o===null) return "null"; var t=typeof o; if(t=="number"||t=="boolean") return ""+o;
@@ -652,6 +693,7 @@ function runAction(s){
 }
 
 function tileHtml(s,d,listMode,idx){
+  if(listMode) return rowHtml(s,idx);
   var icHtml=s.icon?'<img src="'+esc(s.icon)+'">':"&#128640;";
   var gc=groupColor(s.group);
   var badge=s.uses>0?'<span class="badge" style="background:'+(gc||store.accent)+'">'+s.uses+'</span>':'';
@@ -671,9 +713,66 @@ function tileHtml(s,d,listMode,idx){
     +'<div class="ic" style="'+icStyle+'">'+icHtml+'</div>'
     +'<div class="nm" style="'+nmStyle+'">'+esc(s.name)+'</div>'+kindHtml+'</div>';
 }
+/* v3: list row - icon | name + description | shared by | group | last used */
+var MONS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function shortDate(ms){ var d=new Date(ms); return d.getDate()+" "+MONS[d.getMonth()]; }
+function timeAgo(ms){ if(!ms) return "never"; var m=Math.floor(((new Date()).getTime()-ms)/60000);
+  if(m<1) return "just now"; if(m<60) return m+"m ago"; var h=Math.floor(m/60); if(h<24) return h+"h ago"; var dd=Math.floor(h/24); if(dd<7) return dd+"d ago"; return shortDate(ms); }
+function rowHtml(s,idx){
+  var icHtml=s.icon?'<img src="'+esc(s.icon)+'">':"&#128640;";
+  var gc=groupColor(s.group), isMiss=!!missing[s.id];
+  var canDrag=(activeGroup!="Recent"&&activeGroup!="Favorites"&&store.sort=="manual");
+  var tip=(isMiss?"NOT FOUND - check the path\n":"")+(s.type=="action"?(s.target.split(";").length+" steps"):s.target)+(s.admin?"\n(runs as administrator)":"");
+  var fromTxt=s.from?(s.from+(s.added?" \u00b7 "+shortDate(s.added):"")):"";
+  var desc=s.notes?esc(s.notes):'<span style="opacity:.55">'+esc(s.type=="action"?(s.target.split(";").length+" steps"):s.target)+'</span>';
+  return '<div class="tile lrow'+(s.fav?' fav':'')+(isMiss?' missing':'')+'" data-id="'+esc(s.id)+'"'+(canDrag?' data-drag="1"':'')+' title="'+esc(tip)+'" style="animation-delay:'+(idx*0.02)+'s">'
+    +(gc?'<span class="strip" style="background:'+gc+'"></span>':'')
+    +'<span class="edit" data-edit="'+esc(s.id)+'">&#9998;</span>'
+    +'<div class="ic">'+icHtml+'</div>'
+    +'<div class="main"><div class="nm">'+(isMiss?'<span class="miss">!</span>':'')+esc(s.name)+(store.kind=="on"?'<span class="kind">'+kindLabel(s.type)+'</span>':'')+'</div>'
+    +'<div class="desc">'+(s.from?'<span class="mfrom">'+esc(s.from)+' &middot; </span>':'')+desc+'</div></div>'
+    +'<div class="cl from">'+(s.from?'<span data-from="'+esc(s.from)+'" title="Show everything from '+esc(s.from)+'">&#128100; '+esc(fromTxt)+'</span>':'')+'</div>'
+    +'<div class="cl grp">'+(s.group&&s.group!="All"?(gc?'<i style="background:'+gc+'"></i>':'')+esc(s.group):'')+'</div>'
+    +'<div class="cl when">'+timeAgo(s.last)+'</div>'
+    +'<div class="rstar" style="color:'+(gc||store.accent)+'">'+(s.fav?'&#9733;':'')+'</div>'
+    +'</div>';
+}
+function listHead(){ return '<div class="lhead"><div class="main">Name &amp; description</div><div class="cl from">Shared by</div><div class="cl grp">Group</div><div class="cl when">Last used</div><div class="rstar"></div></div>'; }
+function fillFromList(){ var seen={}, h=""; for(var i=0;i<store.shortcuts.length;i++){ var f=store.shortcuts[i].from; if(f&&!seen[f.toLowerCase()]){ seen[f.toLowerCase()]=1; h+='<option value="'+esc(f)+'">'; } } try{ $("fromList").innerHTML=h; }catch(e){} }
+
+/* v3: QUICK ADD - paste, (optional) description + who, Enter. Done. */
+var KNOWN_HOSTS=[[/sharepoint\.com/i,"SharePoint"],[/teams\.microsoft/i,"Teams"],[/onedrive|1drv\.ms/i,"OneDrive"],[/acc\.autodesk|docs\.b360|autodesk360|bim360/i,"Autodesk Docs"],[/docs\.google|drive\.google/i,"Google Drive"],[/dropbox/i,"Dropbox"]];
+function cleanPasted(t){ t=trim(t); if(t.charAt(0)=='"'&&t.charAt(t.length-1)=='"') t=t.substring(1,t.length-1); return trim(t); }
+function guessType(t){ if(/^(https?:\/\/|www\.)/i.test(t)) return "url"; try{ if(fso.FolderExists(t)) return "folder"; }catch(e){} return "file"; }
+function guessName(t,type){
+  if(type=="url"){
+    var m=t.match(/^(?:https?:\/\/)?([^\/?#]+)([^?#]*)/i), host=m?m[1].replace(/^www\./i,""):t, path=m?m[2]:"";
+    var segs=path.split("/"), last=""; for(var i=segs.length-1;i>=0;i--){ if(segs[i]){ last=segs[i]; break; } }
+    try{ last=decodeURIComponent(last); }catch(e){}
+    if(/\.[a-z0-9]{2,5}$/i.test(last)) return last.replace(/\.[^.]+$/,"");
+    for(var k=0;k<KNOWN_HOSTS.length;k++) if(KNOWN_HOSTS[k][0].test(host)) return KNOWN_HOSTS[k][1]+" link";
+    return host;
+  }
+  var n=t.replace(/[\\\/]+$/,"").replace(/^.*[\\\/]/,""); if(type=="file") n=n.replace(/\.[^.]+$/,""); return n||t;
+}
+function quickAdd(){
+  var raw=$("qTarget").value; if(!trim(raw)){ $("qTarget").focus(); return; }
+  var lines=raw.split(/[\r\n]+/), desc=trim($("qDesc").value), from=trim($("qFrom").value), added=0, last=null, now=(new Date()).getTime();
+  var grp=(activeGroup=="All"||activeGroup=="Recent"||activeGroup=="Favorites")?"All":activeGroup;
+  for(var i=0;i<lines.length;i++){
+    var t=cleanPasted(lines[i]); if(!t) continue;
+    var type=guessType(t); if(type=="url"&&!/^https?:/i.test(t)) t="https://"+t;
+    var ns={id:"sc_"+now+"_"+i,name:guessName(t,type),target:t,type:type,group:grp,icon:"",uses:0,last:0,fav:false,args:"",admin:false,notes:desc,from:from,added:now};
+    autoIcon(ns); checkOne(ns); store.shortcuts.push(ns); last=ns; added++;
+  }
+  if(!added) return;
+  $("qTarget").value=""; $("qDesc").value=""; $("qFrom").value="";
+  saveStore(); render(); $("qTarget").focus();
+  toast(added==1?("Added "+last.name+" - right-click to edit"):("Added "+added+" links"));
+}
 /* v2: search looks at name, group, notes and path - every word must match */
 function matches(s,q){
-  var hay=(s.name+" "+(s.group||"")+" "+(s.notes||"")+" "+s.target+" "+kindLabel(s.type)).toLowerCase();
+  var hay=(s.name+" "+(s.group||"")+" "+(s.notes||"")+" "+(s.from||"")+" "+s.target+" "+kindLabel(s.type)).toLowerCase();
   var words=q.split(/\s+/);
   for(var i=0;i<words.length;i++){ if(words[i] && hay.indexOf(words[i])<0) return false; }
   return true;
@@ -721,7 +820,8 @@ function renderGrid(){
     else msg='<div class="ring">&#128640;</div>No tools yet.<br>Click <b>+ Add</b> to create one.';
     h='<div class="empty">'+msg+'</div>';
   }
-  $("grid").innerHTML=h; wireDrag();
+  else if(listMode) h=listHead()+h;
+  $("grid").innerHTML=h; wireDrag(); fillFromList();
 }
 
 function ripple(tile){ try{ var r=document.createElement("span"); r.className="ripple"; var sz=Math.max(tile.offsetWidth,tile.offsetHeight); r.style.width=sz+"px"; r.style.height=sz+"px"; r.style.left=(window.event.offsetX-sz/2)+"px"; r.style.top=(window.event.offsetY-sz/2)+"px"; tile.appendChild(r); window.setTimeout(function(){ try{ tile.removeChild(r); }catch(e){} },500); }catch(e){} }
@@ -839,13 +939,13 @@ function deleteGroupModal(){
 }
 function fillGroupSelect(sel){ var h=""; for(var i=0;i<store.groups.length;i++){ var g=store.groups[i]; if(g=="All"){ h+='<option value="All">All</option>'; continue; } h+='<option value="'+esc(g)+'">'+esc(g)+'</option>'; } if(h=="") h='<option value="All">All</option>'; $("fGroup").innerHTML=h; if(sel&&sel!="Recent"&&sel!="Favorites") $("fGroup").value=sel; }
 
-function openAdd(){ editId=null; pendingIcon=""; actionSteps=[]; $("mTitle").innerHTML="Add Shortcut"; $("fName").value=""; $("fType").value="file"; $("fTarget").value=""; $("fArgs").value=""; $("fAdmin").value="no"; $("fNotes").value=""; fillGroupSelect((activeGroup=="Recent"||activeGroup=="Favorites")?"All":activeGroup); $("delBtn").style.display="none"; setIconPrev(); syncTypeUI(); $("modal").style.display="block"; $("fName").focus(); }
-function openEdit(id){ var s=findById(id); if(!s) return; editId=id; pendingIcon=s.icon||""; actionSteps=[]; if(s.type=="action"){ var pp=s.target.split(";"); for(var pi=0;pi<pp.length;pi++){ var pv=trim(pp[pi]); if(pv) actionSteps.push(pv); } } $("mTitle").innerHTML="Edit Shortcut"; $("fName").value=s.name; $("fType").value=s.type; $("fTarget").value=s.target; $("fArgs").value=s.args||""; $("fAdmin").value=s.admin?"yes":"no"; $("fNotes").value=s.notes||""; fillGroupSelect(s.group); $("delBtn").style.display="block"; setIconPrev(); syncTypeUI(); $("modal").style.display="block"; }
+function openAdd(){ editId=null; pendingIcon=""; actionSteps=[]; $("mTitle").innerHTML="Add Shortcut"; $("fName").value=""; $("fType").value="file"; $("fTarget").value=""; $("fArgs").value=""; $("fAdmin").value="no"; $("fNotes").value=""; $("fFrom").value=""; fillGroupSelect((activeGroup=="Recent"||activeGroup=="Favorites")?"All":activeGroup); $("delBtn").style.display="none"; setIconPrev(); syncTypeUI(); $("modal").style.display="block"; $("fName").focus(); }
+function openEdit(id){ var s=findById(id); if(!s) return; editId=id; pendingIcon=s.icon||""; actionSteps=[]; if(s.type=="action"){ var pp=s.target.split(";"); for(var pi=0;pi<pp.length;pi++){ var pv=trim(pp[pi]); if(pv) actionSteps.push(pv); } } $("mTitle").innerHTML="Edit Shortcut"; $("fName").value=s.name; $("fType").value=s.type; $("fTarget").value=s.target; $("fArgs").value=s.args||""; $("fAdmin").value=s.admin?"yes":"no"; $("fNotes").value=s.notes||""; $("fFrom").value=s.from||""; fillGroupSelect(s.group); $("delBtn").style.display="block"; setIconPrev(); syncTypeUI(); $("modal").style.display="block"; }
 function closeModal(){ $("modal").style.display="none"; }
 function saveShortcut(){ var name=trim($("fName").value),type=$("fType").value,group=$("fGroup").value||"All"; var target=(type=="action")?actionSteps.join(" ; "):trim($("fTarget").value); if(!name||!target){ alert(type=="action"?"Name and at least one step are required.":"Name and target are required."); return; }
-  var args=(type=="file")?trim($("fArgs").value):"", admin=(type=="file"&&$("fAdmin").value=="yes"), notes=trim($("fNotes").value);
+  var args=(type=="file")?trim($("fArgs").value):"", admin=(type=="file"&&$("fAdmin").value=="yes"), notes=trim($("fNotes").value), from=trim($("fFrom").value);
   var saved;
-  if(editId){ var s=findById(editId); if(s.target!=target&&s.icon&&s.icon==pendingIcon){ /* target changed: refresh the auto icon */ if(s.icon.indexOf("\\icons\\")>-1){ try{ fso.DeleteFile(s.icon); }catch(eI){} pendingIcon=""; } else if(s.icon.indexOf("google.com/s2/favicons")>-1) pendingIcon=""; } s.name=name; s.target=target; s.type=type; s.group=group; s.icon=pendingIcon; s.args=args; s.admin=admin; s.notes=notes; autoIcon(s); saved=s; toast("Saved"); } else { var ns={id:"sc_"+(new Date().getTime()),name:name,target:target,type:type,group:group,icon:pendingIcon,uses:0,last:0,fav:false,args:args,admin:admin,notes:notes}; autoIcon(ns); store.shortcuts.push(ns); saved=ns; toast("Added "+name); }
+  if(editId){ var s=findById(editId); if(s.target!=target&&s.icon&&s.icon==pendingIcon){ /* target changed: refresh the auto icon */ if(s.icon.indexOf("\\icons\\")>-1){ try{ fso.DeleteFile(s.icon); }catch(eI){} pendingIcon=""; } else if(s.icon.indexOf("google.com/s2/favicons")>-1) pendingIcon=""; } s.name=name; s.target=target; s.type=type; s.group=group; s.icon=pendingIcon; s.args=args; s.admin=admin; s.notes=notes; if(from&&from!=s.from) s.added=s.added||(new Date()).getTime(); s.from=from; autoIcon(s); saved=s; toast("Saved"); } else { var ns={id:"sc_"+(new Date().getTime()),name:name,target:target,type:type,group:group,icon:pendingIcon,uses:0,last:0,fav:false,args:args,admin:admin,notes:notes,from:from,added:(new Date()).getTime()}; autoIcon(ns); store.shortcuts.push(ns); saved=ns; toast("Added "+name); }
   checkOne(saved); saveStore(); closeModal(); render(); }
 function delShortcut(){ if(!editId) return; if(!confirm("Delete this shortcut?")) return; var a=[]; for(var i=0;i<store.shortcuts.length;i++) if(store.shortcuts[i].id!=editId) a.push(store.shortcuts[i]); store.shortcuts=a; saveStore(); closeModal(); render(); toast("Deleted"); }
 
@@ -870,6 +970,12 @@ function faviconUrl(u){
     if(m) return "https://www.google.com/s2/favicons?sz=64&domain="+m[1];
   }catch(e){}
   return "";
+}
+/* v3: is this tile's saved logo file gone? (happens when QuickLaunch is moved to another folder) */
+function iconBroken(ic){
+  if(!ic||/^https?:/i.test(ic)) return false;
+  var p=ic; if(/^file:\/\/\//i.test(p)){ try{ p=decodeURI(p.substring(8)); }catch(e){ p=p.substring(8); } p=p.replace(/\//g,"\\"); }
+  try{ return !fso.FileExists(p); }catch(e){ return false; }
 }
 function autoIcon(s){
   try{
@@ -898,9 +1004,9 @@ function csvCell(v){ v=(v==null)?"":(""+v); if(/[",\r\n]/.test(v)) v='"'+v.repla
 function exportCSV(){
   try{
     ensureDir();
-    var rows=["name,type,target,group,favorite,options,admin,notes"];
+    var rows=["name,type,target,group,favorite,options,admin,description,shared_by"];
     for(var i=0;i<store.shortcuts.length;i++){ var s=store.shortcuts[i];
-      rows.push([csvCell(s.name),csvCell(s.type),csvCell(s.target),csvCell(s.group||"All"),csvCell(s.fav?"yes":"no"),csvCell(s.args||""),csvCell(s.admin?"yes":"no"),csvCell(s.notes||"")].join(","));
+      rows.push([csvCell(s.name),csvCell(s.type),csvCell(s.target),csvCell(s.group||"All"),csvCell(s.fav?"yes":"no"),csvCell(s.args||""),csvCell(s.admin?"yes":"no"),csvCell(s.notes||""),csvCell(s.from||"")].join(","));
     }
     var out=DATADIR+"\\quicklaunch-links.csv";
     var f=fso.CreateTextFile(out,true,false); f.Write(rows.join("\r\n")); f.Close();
@@ -944,10 +1050,10 @@ function importFromPath(path){
     if(h0=="name"||h0.indexOf("name")==0) start=1;
     var added=0;
     for(var r=start;r<rows.length;r++){ var col=rows[r]; if(!col||!trim(col[0]||"")) continue;
-      var name=trim(col[0]||""), type=trim((col[1]||"file")).toLowerCase(), target=trim(col[2]||""), group=trim(col[3]||"All"), fav=/^(yes|true|1|y)$/i.test(trim(col[4]||"")), args=trim(col[5]||""), admin=/^(yes|true|1|y)$/i.test(trim(col[6]||"")), notes=trim(col[7]||"");
+      var name=trim(col[0]||""), type=trim((col[1]||"file")).toLowerCase(), target=trim(col[2]||""), group=trim(col[3]||"All"), fav=/^(yes|true|1|y)$/i.test(trim(col[4]||"")), args=trim(col[5]||""), admin=/^(yes|true|1|y)$/i.test(trim(col[6]||"")), notes=trim(col[7]||""), from=trim(col[8]||"");
       if(type!="file"&&type!="folder"&&type!="url"&&type!="action") type="file";
       if(group&&group!="All"){ var have=false; for(var gi=0;gi<store.groups.length;gi++) if(store.groups[gi]==group) have=true; if(!have) store.groups.push(group); }
-      var ns={id:"sc_"+(new Date().getTime())+"_"+r,name:name,target:target,type:type,group:group||"All",icon:"",uses:0,last:0,fav:fav,args:args,admin:admin,notes:notes};
+      var ns={id:"sc_"+(new Date().getTime())+"_"+r,name:name,target:target,type:type,group:group||"All",icon:"",uses:0,last:0,fav:fav,args:args,admin:admin,notes:notes,from:from,added:from?(new Date()).getTime():0};
       autoIcon(ns); store.shortcuts.push(ns); added++;
     }
     saveStore(); render(); toast("Imported "+added+" link"+(added==1?"":"s"));
@@ -975,6 +1081,7 @@ function onClick(){
   var el=window.event.srcElement;
   while(el && el!=document.body){
     if(el.getAttribute){
+      if(el.getAttribute("data-from")){ $("search").value=el.getAttribute("data-from"); renderGrid(); toast("Showing links from "+el.getAttribute("data-from")+" - Esc to clear"); return; }
       if(el.getAttribute("data-ctx")){ ctxRun(el.getAttribute("data-ctx")); return; }
       if(el.getAttribute("data-gcol")){ var gc=el.getAttribute("data-gcol"); pendingGColor=(gc=="none")?"":gc; renderGColorRow(); return; }
       if(el.getAttribute("data-acc")){ pendingAccent=el.getAttribute("data-acc"); renderAccentRow(); return; }
@@ -1056,9 +1163,15 @@ function onKey(){
     else if($("setModal").style.display=="block") saveSettings();
     else if($("grpModal").style.display=="block") saveGroupModal();
     else if(ae==$("search")){ var t=firstVisibleTile(); if(t) launch(t); }
+    else if(ae==$("qTarget")||ae==$("qDesc")||ae==$("qFrom")) quickAdd();
     return;
   }
   if(anyModalOpen()) return;
+  if(ev.ctrlKey&&k==86&&!inField){ // Ctrl+V anywhere = quick add
+    var clip=""; try{ clip=window.clipboardData.getData("Text")||""; }catch(e){}
+    if(clip){ $("qTarget").value=trim(clip); $("qDesc").focus(); ev.returnValue=false; return false; }
+    $("qTarget").focus(); return;
+  }
   if((ev.ctrlKey&&k==70)||(!inField&&k==191)){ $("search").focus(); try{ $("search").select(); }catch(e){} ev.returnValue=false; return false; }
   if(!inField&&!ev.ctrlKey&&!ev.altKey&&((k>=65&&k<=90)||(k>=48&&k<=57))){ $("search").focus(); }
 }
@@ -1372,6 +1485,7 @@ window.onload=function(){
     var changed=false;
     for(var i=0;i<store.shortcuts.length;i++){
       var before=store.shortcuts[i].icon;
+      if(iconBroken(before)) store.shortcuts[i].icon=""; // v3: logo file moved/lost -> grab it again
       autoIcon(store.shortcuts[i]);
       if(store.shortcuts[i].icon!=before) changed=true;
     }
@@ -1393,6 +1507,7 @@ window.onload=function(){
   $("sTheme").onchange=function(){ var pr=PRESETS[$("sTheme").value]||PRESETS.dark; pendingAccent=pr.accent; renderAccentRow(); };
   $("wallBtn").onclick=pickWall; $("wallClear").onclick=function(){ store.wall=""; applyWall(); saveStore(); toast("Wallpaper cleared"); };
   document.onkeydown=onKey;
+  $("qAdd").onclick=quickAdd;
   document.body.onclick=function(){ pongDismiss(); var el=window.event.srcElement; var inCtx=false; while(el&&el!=document.body){ if(el.id=="ctx"){ inCtx=true; break; } el=el.parentNode; } if(!inCtx) hideCtx(); onClick(); };
   document.body.oncontextmenu=onRight;
   $("gCancel").onclick=closeGroupModal; $("gSave").onclick=saveGroupModal; $("gDel").onclick=deleteGroupModal;

@@ -13,7 +13,26 @@ A one-file Windows launcher for your everyday tools, folders, web links and mult
 - Your shortcuts are saved in `quicklaunch-data\shortcuts.json` next to it
 - Already using the old version? Drop the new file in the **same folder** – all your tiles, groups and settings carry over
 
-## What's new in v2
+## What's new in v3
+
+**New list view (opens in this view the first time)**
+- One row per link: icon · name · description · shared by · group · last used
+- Click someone's name chip (e.g. "👤 Sarah · 4 Nov") to see everything they shared
+- Switch back to tiles any time with the ▤ button
+
+**Quick add, in about 3 seconds**
+- Copy a link or file path (in File Explorer: Shift + right-click → **Copy as path**)
+- Press **Ctrl+V** anywhere in QuickLaunch
+- Type a description → Tab → who shared it → **Enter**. Done
+- Names are filled in for you (file name, or e.g. "SharePoint link")
+- Copy several paths at once and they're all added in one go
+- "Shared by" remembers names you've used before
+
+**Icons fixed**
+- If program logos show as 🚀 after moving QuickLaunch to another folder, they're now re-fetched automatically
+- Keep `QuickLaunch.ico` in the same folder as `QuickLaunch.hta` for the window/taskbar icon
+
+## What was new in v2
 
 **Right-click menu on every tile**
 - Open

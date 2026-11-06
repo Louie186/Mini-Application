@@ -36,14 +36,38 @@ One-click launcher for your apps, Excel files, folders and websites. One file, n
 - **Groups:** click **+ Group** to make one. Right-click a group to rename, move or delete it
 - Items that can't be found (moved / drive offline) show **not found** in red
 
+## Groups and views
+
+- **All in one / Grouped** button (top bar) switches between:
+  - **All in one** – every item in one clean list or grid
+  - **Grouped** – a heading per group (click a heading to fold it)
+- Works in both list view (☰) and icon view (▦)
+- Give an item a group: right-click → **Move to group...**, or Edit → Group, or the Group column in Excel
+- Group tabs: click to show one group. Right-click a tab to rename, move or delete it
+
+## Bulk edit in Excel (add / change lots at once)
+
+1. **Import/Export ▾ → Bulk edit in Excel** – your whole list opens in Excel
+2. Edit anything: Name, Location, Group, Description, From, Date
+   - **Add** items: fill in a new row (Name + Location is enough)
+   - **Remove** items: delete the row
+   - New group names are created for you
+   - Don't change the **ID** column (leave it empty for new rows)
+3. **Save** (Ctrl+S → keep CSV format) and close Excel
+4. **Import/Export ▾ → Apply bulk edit changes** – done
+   - It tells you how many were added / updated / removed, and asks before removing
+
+- You can also import any CSV or Excel (.xlsx) list: **Import/Export ▾ → Import from CSV / Excel file...**
+  - It needs a **Location** column; Name, Group, Description, From, Date are optional
+  - Items already in QuickLaunch (same location) are updated, not doubled
+
 ## Export a list for someone
 
-- Click **Export ▾**
+- Click **Import/Export ▾**
   - **PDF** – a tidy A4 table, opens when ready
   - **CSV / Excel** – opens the folder with the file selected
 - It exports **what you're looking at** – pick a group or search first to narrow it down
 - Files are saved in `QuickLaunch-data\exports`
-- **Import CSV...** adds a list someone sent you
 
 ## Clock, stopwatch and timer
 

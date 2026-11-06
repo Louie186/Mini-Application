@@ -75,6 +75,11 @@ input{-ms-user-select:text;user-select:text}
 .tile.miss .ico{opacity:.4}
 .tile .mdot{position:absolute;top:8px;left:8px;width:9px;height:9px;border-radius:50%;background:#e05545}
 .clear{clear:both}
+/* grouped view: a heading per group */
+.sec{display:flex;align-items:center;margin:0 12px;padding:12px 0 5px;font-weight:bold;font-size:.8em;text-transform:uppercase;letter-spacing:.6px;cursor:pointer}
+.sec .arw{display:inline-block;width:14px}
+.sec .n{font-weight:normal;opacity:.65;margin-left:7px}
+.secbody .grid{padding-top:8px;padding-bottom:4px}
 
 /* icons: a coloured file-type badge, with the real icon on top when we have one */
 .ico{position:relative;display:inline-block;vertical-align:middle;overflow:hidden}
@@ -152,7 +157,8 @@ input{-ms-user-select:text;user-select:text}
     <span id="clock" title="Click for stopwatch and timer"><b id="clkT">--:--</b><span id="clkD"></span></span>
     <button class="btn primary" id="bAdd" title="Add an app, file, folder or website (Ctrl+N)">+ Add</button>
     <span class="seg"><button class="btn ic" id="bList" title="List view">&#9776;</button><button class="btn ic" id="bGrid" title="Icon view">&#9638;</button></span>
-    <button class="btn" id="bExport" title="Export this list as PDF or CSV">Export &#9662;</button>
+    <button class="btn" id="bSecs" title="Show everything in one list, or in sections per group">Groups</button>
+    <button class="btn" id="bExport" title="Export to PDF / CSV, or bulk edit in Excel">Import/Export &#9662;</button>
     <button class="btn ic" id="bSet" title="Look and settings">&#9881;</button>
   </div>
   <div id="warn"></div>
@@ -192,7 +198,7 @@ input{-ms-user-select:text;user-select:text}
   <div class="fld"><label>Size</label><div class="sizes" id="sizeBtns"></div></div>
   <div class="fld"><label>Your data</label>
     <button class="btn" id="bData" style="margin-left:0">Open data folder</button>
-    <button class="btn" id="bImpCsv">Import CSV...</button>
+    <button class="btn" id="bImpCsv">Import CSV / Excel...</button>
     <button class="btn" id="bImpOld" style="display:none">Import old QuickLaunch</button>
     <div class="hint muted" id="dataPath"></div>
   </div>
@@ -336,11 +342,18 @@ function fmtTime(ms){ if(!ms) return "never"; var d=new Date(ms); return d.getDa
 function parseDate(s){
   s=trim(s); if(!s) return "";
   var m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(s); if(m) return m[1]+"-"+pad(+m[2])+"-"+pad(+m[3]);
-  m=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/.exec(s); if(m){ var y=+m[3]; if(y<100) y+=2000; return y+"-"+pad(+m[2])+"-"+pad(+m[1]); }
+  s=s.replace(/\s+\d{1,2}:\d\d(:\d\d)?(\s*[AP]M)?$/i,""); // Excel may add a time
+  m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(s); if(m) return m[1]+"-"+pad(+m[2])+"-"+pad(+m[3]);
+  m=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/.exec(s);
+  if(m){ var y=+m[3], a1=+m[1], a2=+m[2], dd, mm; if(y<100) y+=2000;
+    if(a1>12){ dd=a1; mm=a2; } else if(a2>12){ mm=a1; dd=a2; } else if(monthFirst()){ mm=a1; dd=a2; } else { dd=a1; mm=a2; }
+    return y+"-"+pad(mm)+"-"+pad(dd); }
   m=/^(\d{1,2})\s+([a-z]{3})[a-z]*\.?\s+(\d{4})$/i.exec(s);
   if(m){ for(var i=0;i<12;i++) if(MON[i].toLowerCase()==m[2].toLowerCase()) return m[3]+"-"+pad(i+1)+"-"+pad(+m[1]); }
   return null;
 }
+var _mf=null;
+function monthFirst(){ if(_mf===null){ _mf=false; try{ _mf=/^\s*M/i.test(wsh.RegRead("HKCU\\Control Panel\\International\\sShortDate")); }catch(e){} } return _mf; }
 function cleanPath(t){
   t=trim((""+(t||"")).split(/[\r\n]+/)[0]);
   if(t.length>1&&t.charAt(0)=='"'&&t.charAt(t.length-1)=='"') t=trim(t.substring(1,t.length-1));
@@ -398,7 +411,7 @@ function guessName(p,type){
 }
 
 /* ---------- data ---------- */
-var store={v:1,theme:"retro",size:"normal",view:"list",sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
+var store={v:1,theme:"retro",size:"normal",view:"list",sections:false,closed:{},sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
 var group="All", missing={}, editId=null, canSave=true, saveFailed=false;
 
 function load(){
@@ -408,7 +421,7 @@ function load(){
   }catch(e){
     try{ if(fso.FileExists(BAK)){ store=J.parse(readText(BAK)); alert("Your list file was damaged, so the backup copy was loaded."); } }catch(e2){}
   }
-  var d={v:1,theme:"retro",size:"normal",view:"list",sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
+  var d={v:1,theme:"retro",size:"normal",view:"list",sections:false,closed:{},sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
   for(var k in d) if(d.hasOwnProperty(k)&&store[k]===undefined) store[k]=d[k];
   for(var i=0;i<store.items.length;i++){ var it=store.items[i];
     it.desc=it.desc||""; it.from=it.from||""; it.date=it.date||""; it.group=it.group||""; it.opened=it.opened||0; it.last=it.last||0; it.icon=it.icon||""; }
@@ -461,6 +474,7 @@ var CSS=[
  ".c-from,.c-date,.c-desc,.muted,.tile .t-ds,.empty{color:{muted}}",
  ".row:hover .c-desc,.row:hover .c-from,.row:hover .c-date{color:{text}}",
  ".gtag{background:{chip};color:{muted};border-radius:{rc}px}",
+ ".sec{color:{muted};border-bottom:{bw}px solid {line}}.sec:hover{color:{text}}",
  ".more{border-radius:{r}px;color:{muted}}",
  ".more:hover{background:{accent};color:{accText}}",
  ".tile{background:transparent;border:0;border-radius:{r2}px;box-shadow:none}",
@@ -562,32 +576,46 @@ function render(){
   var h="", q=trim($("q").value);
   if(!store.items.length){ h=welcomeHtml(); }
   else if(!visible.length){ h='<div class="empty">'+(q?'Nothing matches "<b>'+esc(q)+'</b>".<br>Press Esc to clear the search.':'This group is empty.<br>Click <b>+ Add</b> to put something in it.')+'</div>'; }
-  else if(store.view=="grid"){
-    h='<div class="grid">';
-    for(var i=0;i<visible.length;i++){ var it=visible[i], ms=!!missing[it.id];
-      h+='<div class="tile'+(ms?' miss':'')+'" data-id="'+it.id+'" title="'+esc(tipOf(it))+'">'+(ms?'<span class="mdot"></span>':'')
-        +'<span class="more" data-more="1">&middot;&middot;&middot;</span>'+iconHtml(it)
-        +'<div class="t-nm">'+esc(it.name)+'</div><div class="t-ds">'+esc(it.desc||it.from||kindOf(it).n)+'</div></div>';
-    }
-    h+='<div class="clear"></div></div>';
-  } else {
-    h='<div class="lhead"><div class="c-ic"></div><div class="c-name" data-sort="name">Name'+sortMark("name")+'</div><div class="c-desc" data-sort="desc">Description'+sortMark("desc")+'</div>'
-     +'<div class="c-from" data-sort="from">From'+sortMark("from")+'</div><div class="c-date" data-sort="date">Date'+sortMark("date")+'</div>'
-     +'<div class="c-grp" data-sort="group">Group'+sortMark("group")+'</div><div class="c-more"></div></div>';
-    for(var j=0;j<visible.length;j++){ var r=visible[j], m2=!!missing[r.id];
-      h+='<div class="row'+(m2?' miss':'')+'" data-id="'+r.id+'" title="'+esc(tipOf(r))+'"><div class="c-ic">'+iconHtml(r)+'</div>'
-        +'<div class="c-name">'+esc(r.name)+(m2?'<span class="warnTxt">not found</span>':'')+'</div>'
-        +'<div class="c-desc">'+esc(r.desc)+'</div><div class="c-from">'+esc(r.from)+'</div><div class="c-date">'+esc(fmtDate(r.date))+'</div>'
-        +'<div class="c-grp">'+(r.group?'<span class="gtag">'+esc(r.group)+'</span>':'')+'</div>'
-        +'<div class="c-more"><span class="more" data-more="1">&middot;&middot;&middot;</span></div></div>';
-    }
+  else {
+    if(store.view=="list") h=listHeadHtml();
+    if(store.sections&&group=="All"){
+      // one section per group, in tab order, then the ungrouped ones
+      var names=store.groups.slice(0); names.push("");
+      for(var gi=0;gi<names.length;gi++){ var gn=names[gi], part=[];
+        for(var v=0;v<visible.length;v++) if(visible[v].group==gn) part.push(visible[v]);
+        if(!part.length) continue;
+        var shut=!!store.closed[gn||"(none)"];
+        h+='<div class="sec" data-sec="'+esc(gn||"(none)")+'"><span class="arw">'+(shut?'&#9656;':'&#9662;')+'</span>'+esc(gn||"No group")+'<span class="n">'+part.length+'</span></div>';
+        if(!shut) h+='<div class="secbody">'+itemsHtml(part)+'</div>';
+      }
+    } else h+=itemsHtml(visible);
   }
   $("view").innerHTML=h; if(store.view=="grid") fitTiles();
   $("bList").className="btn ic"+(store.view=="list"?" on":""); $("bGrid").className="btn ic"+(store.view=="grid"?" on":"");
+  $("bSecs").className="btn"+(store.sections?" on":""); $("bSecs").innerHTML=store.sections?"&#9636; Grouped":"&#9776; All in one";
   var n=store.items.length, mc=0; for(var x in missing) if(missing.hasOwnProperty(x)) mc++;
   $("stL").innerHTML=esc(n+" item"+(n==1?"":"s")+(visible.length!=n?" ("+visible.length+" shown)":"")+(mc?" \u00b7 "+mc+" not found":"")+" \u00b7 saved in "+DATA);
   fillFromList();
 }
+function tileHtml(it){ var ms=!!missing[it.id];
+  return '<div class="tile'+(ms?' miss':'')+'" data-id="'+it.id+'" title="'+esc(tipOf(it))+'">'+(ms?'<span class="mdot"></span>':'')
+    +'<span class="more" data-more="1">&middot;&middot;&middot;</span>'+iconHtml(it)
+    +'<div class="t-nm">'+esc(it.name)+'</div><div class="t-ds">'+esc(it.desc||it.from||kindOf(it).n)+'</div></div>'; }
+function rowHtml(r){ var m2=!!missing[r.id];
+  return '<div class="row'+(m2?' miss':'')+'" data-id="'+r.id+'" title="'+esc(tipOf(r))+'"><div class="c-ic">'+iconHtml(r)+'</div>'
+    +'<div class="c-name">'+esc(r.name)+(m2?'<span class="warnTxt">not found</span>':'')+'</div>'
+    +'<div class="c-desc">'+esc(r.desc)+'</div><div class="c-from">'+esc(r.from)+'</div><div class="c-date">'+esc(fmtDate(r.date))+'</div>'
+    +'<div class="c-grp">'+(r.group?'<span class="gtag">'+esc(r.group)+'</span>':'')+'</div>'
+    +'<div class="c-more"><span class="more" data-more="1">&middot;&middot;&middot;</span></div></div>'; }
+function itemsHtml(list){
+  var h="", i;
+  if(store.view=="grid"){ h='<div class="grid">'; for(i=0;i<list.length;i++) h+=tileHtml(list[i]); return h+'<div class="clear"></div></div>'; }
+  for(i=0;i<list.length;i++) h+=rowHtml(list[i]); return h;
+}
+function listHeadHtml(){
+  return '<div class="lhead"><div class="c-ic"></div><div class="c-name" data-sort="name">Name'+sortMark("name")+'</div><div class="c-desc" data-sort="desc">Description'+sortMark("desc")+'</div>'
+   +'<div class="c-from" data-sort="from">From'+sortMark("from")+'</div><div class="c-date" data-sort="date">Date'+sortMark("date")+'</div>'
+   +'<div class="c-grp" data-sort="group">Group'+sortMark("group")+'</div><div class="c-more"></div></div>'; }
 function renderGroups(){
   var counts={}, h="";
   for(var i=0;i<store.items.length;i++){ var g=store.items[i].group; counts[g]=(counts[g]||0)+1; }
@@ -866,23 +894,101 @@ function addImported(o){
     date:parseDate(o.date||"")||"",group:g,opened:0,last:0,icon:"",created:now()});
   return true;
 }
-function importCSV(){
-  pickFile(function(p){
-    try{
-      var rows=parseCSV(readText(p)); if(rows.length<2){ toast("That CSV looks empty"); return; }
-      var hd=rows[0], col={};
-      for(var i=0;i<hd.length;i++){ var h=trim(hd[i]).toLowerCase();
-        if(h=="name") col.name=i; else if(/^(location|path|target|link|url)$/.test(h)) col.path=i;
-        else if(/^(description|notes|desc)$/.test(h)) col.desc=i; else if(/^(from|shared by|shared_by|source)$/.test(h)) col.from=i;
-        else if(/^(date|date added|added)$/.test(h)) col.date=i; else if(h=="group") col.group=i; }
-      if(col.path===undefined){ alert("Couldn't find a Location (or Path) column in that CSV."); return; }
-      var n=0;
-      for(var r=1;r<rows.length;r++){ var x=rows[r]; if(!x||!trim(x[col.path]||"")) continue;
-        if(addImported({path:x[col.path],name:col.name!==undefined?x[col.name]:"",desc:col.desc!==undefined?x[col.desc]:"",
-          from:col.from!==undefined?x[col.from]:"",date:col.date!==undefined?x[col.date]:"",group:col.group!==undefined?x[col.group]:""})) n++; }
-      save(); render(); checkAll(); fetchIcons(); toast("Imported "+n+" item"+(n==1?"":"s"));
-    }catch(e){ alert("Couldn't read that CSV:\n"+e.message); }
-  });
+/* ---- Bulk edit: your whole list as a spreadsheet, edited in Excel, then applied back ---- */
+var BULK=DATA+"\\QuickLaunch bulk edit.csv";
+function bulkEdit(){
+  if(!store.items.length){ toast("Add something first"); return; }
+  try{
+    mkdir(DATA);
+    var rows=[["Name","Location","Group","Description","From","Date","ID (do not change)"]];
+    var all=store.items.slice(0); all.sort(function(a,b){ var x=(a.group||"~")+"|"+a.name.toLowerCase(), y=(b.group||"~")+"|"+b.name.toLowerCase(); return x<y?-1:(x>y?1:0); });
+    for(var i=0;i<all.length;i++){ var it=all[i]; rows.push([it.name,it.path,it.group,it.desc,it.from,it.date,it.id]); }
+    for(var e=0;e<3;e++) rows.push(["","","","","","",""]); // room for new rows (optional)
+    var out=[]; for(var r=0;r<rows.length;r++){ var c=[]; for(var k=0;k<rows[r].length;k++) c.push(csvCell(rows[r][k])); out.push(c.join(",")); }
+    try{ writeCsv(BULK,out.join("\r\n")); }catch(e1){ alert("The bulk edit file is still open in Excel.\nClose it in Excel, then try again."); return; }
+    shApp().ShellExecute(BULK,"","","open",1);
+    alert("Your list is opening in Excel.\n\n1. Change names, groups, descriptions, From, dates - or add new rows (Name + Location).\n"
+      +"2. Delete a row to remove that item.\n3. Save (Ctrl+S, keep the CSV format) and close Excel.\n4. Back here: Import/Export > Apply bulk edit changes.");
+  }catch(e){ alert("Couldn't start the bulk edit:\n"+(e.message||e)); }
+}
+function applyBulk(){
+  if(!fso.FileExists(BULK)){ toast("No bulk edit file yet - use Bulk edit in Excel first"); return; }
+  importFrom(BULK);
+}
+function importFile(){ pickFile(function(p){ importFrom(p); }); }
+/* read an Excel workbook (first sheet) through Excel itself */
+function cellText(x){ if(x==null) return ""; if(typeof x=="date"){ var d=new Date(x); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); } return ""+x; }
+function readExcel(p){
+  var xl=null, wb=null, out=[];
+  try{
+    xl=new ActiveXObject("Excel.Application"); xl.Visible=false; xl.DisplayAlerts=false;
+    wb=xl.Workbooks.Open(p,0,true);
+    var ur=wb.Worksheets(1).UsedRange, nr=ur.Rows.Count, nc=ur.Columns.Count, v=ur.Value;
+    if(nr==1&&nc==1) out=[[cellText(v)]];
+    else { var a=new VBArray(v).toArray();
+      for(var r=0;r<nr;r++){ var row=[]; for(var c=0;c<nc;c++) row.push(cellText(a[c*nr+r])); out.push(row); } }
+  } finally { try{ if(wb) wb.Close(false); }catch(e){} try{ if(xl) xl.Quit(); }catch(e){} }
+  return out;
+}
+function importFrom(p){
+  var rows;
+  try{
+    if(/\.xls[xmb]?$/i.test(p)){ toast("Reading the Excel file..."); rows=readExcel(p); }
+    else rows=parseCSV(readText(p));
+  }catch(e){
+    alert(/\.xls/i.test(p)?"Couldn't read that Excel file ("+(e.message||e)+").\nTip: in Excel use File > Save As > CSV, then import the CSV."
+      :"Couldn't read that file ("+(e.message||e)+").\nIf it's open in Excel, close it and try again."); return;
+  }
+  // find the header row (first row that has a Location/Path column)
+  var hr=-1, col={};
+  for(var r=0;r<Math.min(rows.length,10)&&hr<0;r++){ var c2={};
+    for(var i=0;i<rows[r].length;i++){ var h=trim(rows[r][i]).toLowerCase();
+      if(/^id\b/.test(h)) c2.id=i; else if(/^(name|title)$/.test(h)) c2.name=i;
+      else if(/^(location|path|target|link|url|file|address)$/.test(h)) c2.path=i;
+      else if(/^(description|notes|desc|note)$/.test(h)) c2.desc=i; else if(/^(from|shared by|shared_by|source|sender|who)$/.test(h)) c2.from=i;
+      else if(/^(date|date added|added|received)$/.test(h)) c2.date=i; else if(/^(group|category)$/.test(h)) c2.group=i; }
+    if(c2.path!==undefined){ hr=r; col=c2; } }
+  if(hr<0){ alert("Couldn't find a Location column.\nThe first row needs headings like: Name, Location, Group, Description, From, Date."); return; }
+  var objs=[];
+  for(var r2=hr+1;r2<rows.length;r2++){ var x=rows[r2]; if(!x) continue;
+    var o={}; for(var k in col) if(col.hasOwnProperty(k)) o[k]=trim(x[col[k]]==null?"":x[col[k]]);
+    if(!o.path&&!o.name&&!o.id) continue; objs.push(o); }
+  applyRows(objs,col);
+}
+function findByPath(p){ p=p.toLowerCase(); for(var i=0;i<store.items.length;i++) if(store.items[i].path.toLowerCase()==p) return store.items[i]; return null; }
+function applyRows(objs,col){
+  var seen={}, upd=0, add=0, same=0, bad=0;
+  for(var i=0;i<objs.length;i++){ var o=objs[i], path=o.path?cleanPath(o.path):"";
+    var it=(o.id&&byId(o.id))||(path&&findByPath(path))||null;
+    if(it&&seen[it.id]) it=null; // same item twice in the file - treat the second as new
+    if(!it){
+      if(!path){ bad++; continue; }
+      var type=detect(path);
+      it={id:newId(),path:path,type:type,name:o.name||guessName(path,type),desc:"",from:"",date:todayISO(),group:"",opened:0,last:0,icon:"",created:now()};
+      store.items.push(it); add++; seen[it.id]=1;
+      if(o.desc!==undefined) it.desc=o.desc; if(o.from!==undefined) it.from=o.from;
+      if(o.date){ var d0=parseDate(o.date); if(d0) it.date=d0; }
+      if(o.group&&o.group.toLowerCase()!="all") it.group=addGroup(o.group);
+      continue;
+    }
+    seen[it.id]=1; var before=J.stringify(it);
+    if(o.name) it.name=o.name;
+    if(path&&path!=it.path){ it.path=path; it.type=detect(path); if(it.icon){ try{ fso.DeleteFile(DATA+"\\"+it.icon); }catch(e){} } it.icon=""; it.iconFail=""; }
+    if(col.group!==undefined) it.group=(o.group&&o.group.toLowerCase()!="all")?addGroup(o.group):"";
+    if(col.desc!==undefined) it.desc=o.desc; if(col.from!==undefined) it.from=o.from;
+    if(col.date!==undefined){ var d1=parseDate(o.date); if(d1!==null) it.date=d1; }
+    if(J.stringify(it)!=before) upd++; else same++;
+  }
+  var removed=0;
+  if(col.id!==undefined){ // file came from Bulk edit: rows that were deleted can be removed too
+    var gone=[]; for(var g=0;g<store.items.length;g++) if(!seen[store.items[g].id]) gone.push(store.items[g]);
+    if(gone.length){ var names=[]; for(var n=0;n<gone.length&&n<8;n++) names.push("  - "+gone[n].name);
+      if(confirm(gone.length+" item"+(gone.length==1?" is":"s are")+" no longer in the file:\n"+names.join("\n")+(gone.length>8?"\n  ...":"")+"\n\nRemove "+(gone.length==1?"it":"them")+" from QuickLaunch too?")){
+        var keep=[]; for(var q=0;q<store.items.length;q++) if(seen[store.items[q].id]) keep.push(store.items[q]); store.items=keep; removed=gone.length; } }
+  }
+  save(); render(); background(true);
+  var msg=[]; if(add) msg.push(add+" added"); if(upd) msg.push(upd+" updated"); if(removed) msg.push(removed+" removed"); if(!msg.length) msg.push("no changes");
+  toast("Import done: "+msg.join(", ")+(bad?" ("+bad+" rows without a Location skipped)":""));
 }
 function readOld(){
   try{
@@ -924,8 +1030,17 @@ function itemMenu(it,x,y){
   m.push("-");
   m.push({label:"&#9998;&nbsp; Edit...",fn:function(){ openEdit(it); }});
   m.push({label:"&#10697;&nbsp; Duplicate",fn:function(){ duplicateItem(it); }});
+  m.push({label:"&#128194;&nbsp; Move to group...",fn:function(){ moveMenu(it,x,y); }});
   m.push("-");
   m.push({label:"&#10005;&nbsp; Remove",danger:1,fn:function(){ deleteItem(it); }});
+  showMenu(x,y,m);
+}
+function moveMenu(it,x,y){
+  var m=[], mk=function(g){ return function(){ it.group=g; save(); render(); toast(g?"Moved to "+g:"Removed from its group"); }; };
+  for(var i=0;i<store.groups.length;i++){ var g=store.groups[i]; m.push({label:(it.group==g?"&#10004;":"&nbsp;&nbsp;&nbsp;")+"&nbsp; "+esc(g),fn:mk(g)}); }
+  if(store.groups.length) m.push("-");
+  m.push({label:"&#10133;&nbsp; New group...",fn:function(){ var n=addGroup(prompt("Name for the new group:")||""); if(n) mk(n)(); }});
+  if(it.group) m.push({label:"&#10005;&nbsp; No group",fn:mk("")});
   showMenu(x,y,m);
 }
 function showDlg(id){ hideMenu(); $(id).style.display="block"; }
@@ -1027,6 +1142,7 @@ function wire(){
   $("bAdd").onclick=function(){ openAdd(""); };
   $("bList").onclick=function(){ setView("list"); };
   $("bGrid").onclick=function(){ setView("grid"); };
+  $("bSecs").onclick=function(){ store.sections=!store.sections; if(store.sections&&group!="All") group="All"; save(); render(); };
   $("bSet").onclick=openSettings;
   $("clock").onclick=function(e){ if(panelOpen()) hidePanel(); else openPanel(); e.stopPropagation(); };
   $("tpanel").onclick=function(e){ var t=e.target||e.srcElement, tt=up(t,"data-tt"), pr=up(t,"data-pre");
@@ -1035,14 +1151,18 @@ function wire(){
   $("swGo").onclick=swToggle; $("swLap").onclick=swLap; $("swReset").onclick=swReset;
   $("tmGo").onclick=tmToggle; $("tmReset").onclick=tmReset;
   $("bExport").onclick=function(e){ var r=this.getBoundingClientRect(), n=currentList().length;
-    showMenu(r.left,r.bottom+4,[{label:"&#128196;&nbsp; Export as PDF ("+n+")",fn:exportPDF},{label:"&#128202;&nbsp; Export as CSV / Excel ("+n+")",fn:exportCSV},"-",{label:"&#8679;&nbsp; Import CSV...",fn:importCSV}]);
+    var m=[{label:"&#128196;&nbsp; Export as PDF ("+n+" shown)",fn:exportPDF},{label:"&#128202;&nbsp; Export as CSV ("+n+" shown)",fn:exportCSV},"-",
+      {label:"&#9998;&nbsp; Bulk edit in Excel (all "+store.items.length+")",fn:bulkEdit}];
+    if(fso.FileExists(BULK)) m.push({label:"&#10004;&nbsp; Apply bulk edit changes",fn:applyBulk});
+    m.push("-"); m.push({label:"&#8679;&nbsp; Import from CSV / Excel file...",fn:importFile});
+    showMenu(Math.max(4,r.right-260),r.bottom+4,m);
     e.stopPropagation(); };
   $("bCancel").onclick=hideDlgs; $("bSave").onclick=saveItem; $("bSetClose").onclick=hideDlgs;
   $("bDel").onclick=function(){ var it=byId(editId); if(it) deleteItem(it); };
   $("bBrowse").onclick=function(){ pickFile(function(p){ $("fPath").value=p; pathChanged(); }); };
   $("bFolder").onclick=function(){ pickFolder(function(p){ $("fPath").value=p; pathChanged(); }); };
   $("bData").onclick=function(){ try{ mkdir(DATA); wsh.Run('explorer.exe "'+DATA+'"',1,false); }catch(e){} };
-  $("bImpCsv").onclick=function(){ hideDlgs(); importCSV(); };
+  $("bImpCsv").onclick=function(){ hideDlgs(); importFile(); };
   $("bImpOld").onclick=importOld;
   $("bPin").onclick=function(){ hideDlgs(); shortcutForTaskbar(); };
   $("fPath").oninput=pathChanged; $("fPath").onchange=pathChanged; $("fPath").onpaste=function(){ window.setTimeout(pathChanged,10); };
@@ -1054,6 +1174,7 @@ function wire(){
     var t=e.target||e.srcElement, sortEl=up(t,"data-sort"), th=up(t,"data-theme"), act=up(t,"data-do");
     if(sortEl){ var k=sortEl.getAttribute("data-sort"); if(store.sort.k==k) store.sort.d=-store.sort.d; else store.sort={k:k,d:(k=="date"?-1:1)}; save(); render(); return; }
     if(th){ setTheme(th.getAttribute("data-theme")); return; }
+    var sec=up(t,"data-sec"); if(sec){ var sk=sec.getAttribute("data-sec"); if(store.closed[sk]) delete store.closed[sk]; else store.closed[sk]=1; save(); render(); return; }
     if(act){ var a=act.getAttribute("data-do"); if(a=="add") openAdd(""); else if(a=="importOld") importOld(); return; }
     var row=up(t,"data-id"); if(!row) return; var it=byId(row.getAttribute("data-id")); if(!it) return;
     if(up(t,"data-more")){ var r=up(t,"data-more").getBoundingClientRect(); itemMenu(it,r.left-150,r.bottom+2); e.stopPropagation(); return; }

@@ -45,16 +45,26 @@ One-click launcher for your apps, Excel files, folders and websites. One file, n
 - Files are saved in `QuickLaunch-data\exports`
 - **Import CSV...** adds a list someone sent you
 
+## Clock, stopwatch and timer
+
+- The clock is at the top right – **click it**
+- **Stopwatch:** Start / Pause / Lap / Reset
+- **Timer:** click a preset (1, 5, 10, 15, 25, 30, 45, 60 min) – it starts straight away
+  - Or type minutes (e.g. `20` or `1:30`) and press **Enter**
+- While running, the countdown shows in the top bar
+- When time's up: it plays the Windows alarm sound and the clock flashes – click it to stop
+
 ## Looks (⚙)
 
-- Themes: Light, Dark, Blueprint, Retro 8-bit, Game Boy
+- Themes: Light, Dark, Blueprint, Retro 8-bit, Game Boy (dark green screen)
 - Sizes: Compact, Normal, Large
 
 ## If something goes wrong
 
 - **Windows blocks the file:** right-click → Properties → tick **Unblock** → OK
 - **Downloaded as `.txt`:** rename it to `QuickLaunch.hta`
-- **"Can't save here" message:** move it out of the zip / temp folder
+- **Red bar at the top:** your list couldn't be saved – the bar says why. Click ✕ to hide it
+- **App icon missing:** it's made the first time you open QuickLaunch – close and reopen once
 - **Lost your list?** `QuickLaunch-data\library.backup.json` is an automatic backup
   - Rename it to `library.json` to restore
 - **Had the old QuickLaunch in the same folder?** It offers to import your old shortcuts (⚙ → Import old QuickLaunch)

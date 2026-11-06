@@ -40,6 +40,7 @@ input{-ms-user-select:text;user-select:text}
 .chip .n{opacity:.6;font-weight:normal;margin-left:5px}
 
 #warn{display:none;padding:8px 12px;font-weight:bold;background:#b13e53;color:#fff}
+#warn .x{float:right;cursor:pointer;padding:0 4px;margin-left:10px}
 
 /* list view */
 .lhead,.row{display:flex;align-items:center;padding:0 12px}
@@ -119,6 +120,22 @@ input{-ms-user-select:text;user-select:text}
 #menu .sep{height:1px;margin:4px 6px;opacity:.5}
 #toast{position:fixed;left:50%;bottom:34px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;
   transform:translateX(-50%);-ms-transform:translateX(-50%);display:none;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+/* clock + timer */
+#clock{height:30px;line-height:26px;padding:0 10px;margin-left:6px;cursor:pointer;white-space:nowrap}
+#clkT{font-size:1.1em}
+#clkD{margin-left:8px;font-size:.82em}
+#clock.done{animation:blink .8s steps(1) infinite}
+@media (max-width:820px){ #clkD{display:none} }
+#tpanel{display:none;position:fixed;z-index:30;width:290px;padding:12px}
+#tpanel .chip{margin-bottom:0}
+#tBig{font:bold 2.3em Consolas,'Lucida Console',monospace;text-align:center;margin:12px 0}
+#tpanel .btn{margin:0 6px 0 0}
+#tTM .inrow{display:flex;margin-top:8px}
+#tTM .inrow input{flex:1 1 auto;min-width:0;height:30px;padding:0 8px;font:inherit;outline:none;margin-right:6px}
+#tTM .inrow .btn:last-child{margin-right:0}
+#tmPre .chip{margin:0 5px 5px 0;padding:3px 9px}
+#swLaps{margin-top:8px;font:12px Consolas,monospace;max-height:110px;overflow-y:auto}
+#swLaps div{padding:2px 0}
 @keyframes blink{0%{opacity:1}50%{opacity:0}100%{opacity:1}}
 </style>
 <style id="themeCss"></style>
@@ -131,6 +148,7 @@ input{-ms-user-select:text;user-select:text}
     <span id="brand">QuickLaunch<i id="cur">_</i></span>
     <input type="text" id="q" placeholder="Search... (or just start typing)">
     <span class="sp"></span>
+    <span id="clock" title="Click for stopwatch and timer"><b id="clkT">--:--</b><span id="clkD"></span></span>
     <button class="btn primary" id="bAdd" title="Add an app, file, folder or website (Ctrl+N)">+ Add</button>
     <span class="seg"><button class="btn ic" id="bList" title="List view">&#9776;</button><button class="btn ic" id="bGrid" title="Icon view">&#9638;</button></span>
     <button class="btn" id="bExport" title="Export this list as PDF or CSV">Export &#9662;</button>
@@ -181,6 +199,18 @@ input{-ms-user-select:text;user-select:text}
 </div></div>
 
 <div id="menu"></div>
+<div id="tpanel">
+  <div><span class="chip" data-tt="sw">&#9201; Stopwatch</span><span class="chip" data-tt="tm">&#9203; Timer</span></div>
+  <div id="tBig">00:00.0</div>
+  <div id="tSW">
+    <button class="btn primary" id="swGo">Start</button><button class="btn" id="swLap">Lap</button><button class="btn" id="swReset">Reset</button>
+    <div id="swLaps"></div>
+  </div>
+  <div id="tTM">
+    <div id="tmPre"></div>
+    <div class="inrow"><input type="text" id="tmMin" placeholder="Minutes (e.g. 20 or 1:30)"><button class="btn primary" id="tmGo">Start</button><button class="btn" id="tmReset">Reset</button></div>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -205,10 +235,37 @@ var DIR=window.QL_DIR||scriptDir();
 var DATA=DIR+"\\QuickLaunch-data", FILE=DATA+"\\library.json", BAK=DATA+"\\library.backup.json";
 var ICONS=DATA+"\\icons", EXPORTS=DATA+"\\exports", OLDFILE=DATA+"\\shortcuts.json";
 
-function readUtf8(p){ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.LoadFromFile(p); var t=s.ReadText(); s.Close(); return t; }
-function writeUtf8(p,t){ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.WriteText(t); s.SaveToFile(p,2); s.Close(); }
-function writeB64(p,b64){ var x=new ActiveXObject("MSXML2.DOMDocument"); var el=x.createElement("b"); el.dataType="bin.base64"; el.text=b64;
-  var s=new ActiveXObject("ADODB.Stream"); s.Type=1; s.Open(); s.Write(el.nodeTypedValue); s.SaveToFile(p,2); s.Close(); }
+/* Files are written with the File System Object only - it works on every Windows PC.
+   (Some work PCs block "ADODB.Stream", which is why lists couldn't be saved in an earlier version.) */
+function writeText(p,t){ var f=fso.CreateTextFile(p,true,true); f.Write(t); f.Close(); }   // Unicode text
+function looksText(t){ var n=Math.min(t.length,400), ok=0; for(var i=0;i<n;i++){ var c=t.charCodeAt(i); if(c==9||c==10||c==13||(c>=32&&c<0x3000)) ok++; } return !n||ok>=n*0.9; }
+function readText(p){
+  var f=fso.OpenTextFile(p,1,false,-1), t=f.AtEndOfStream?"":f.ReadAll(); f.Close();      // try Unicode first
+  if(looksText(t)) return t.replace(/^\uFEFF/,"");
+  try{ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.LoadFromFile(p); var u=s.ReadText(); s.Close(); return u.replace(/^\uFEFF/,""); }catch(e){}
+  f=fso.OpenTextFile(p,1,false,0); t=f.AtEndOfStream?"":f.ReadAll(); f.Close();         // plain ANSI
+  return t.replace(/^\u00ef\u00bb\u00bf/,"");
+}
+/* CSV for Excel: UTF-8 if the PC allows it, otherwise plain ANSI */
+function writeCsv(p,t){
+  try{ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.WriteText(t); s.SaveToFile(p,2); s.Close(); return; }catch(e){}
+  var f=fso.CreateTextFile(p,true,false); f.Write(t.replace(/[^\u0000-\u00ff]/g,"?")); f.Close();
+}
+/* binary file from base64 (used for the app icon) - tries two ways */
+function writeB64(p,b64){
+  try{ var x=new ActiveXObject("MSXML2.DOMDocument"); var el=x.createElement("b"); el.dataType="bin.base64"; el.text=b64;
+    var s=new ActiveXObject("ADODB.Stream"); s.Type=1; s.Open(); s.Write(el.nodeTypedValue); s.SaveToFile(p,2); s.Close(); return; }catch(e){}
+  var ps=DATA+"\\make-icon.ps1";
+  writeText(ps,"[IO.File]::WriteAllBytes('"+p.replace(/'/g,"''")+"',[Convert]::FromBase64String('"+b64+"'))\r\n");
+  wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "'+ps+'"',0,false);
+}
+/* JSON is built in; this is a safety net in case Windows runs the page in an old mode */
+var J=window.JSON||{parse:function(t){ return eval("("+t+")"); },stringify:function(o){
+  if(o===null||o===undefined) return "null"; var t=typeof o;
+  if(t=="number"||t=="boolean") return ""+o;
+  if(t=="string") return '"'+o.replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\r/g,"\\r").replace(/\n/g,"\\n").replace(/\t/g,"\\t")+'"';
+  var a=[]; if(o instanceof Array){ for(var i=0;i<o.length;i++) a.push(J.stringify(o[i])); return "["+a.join(",")+"]"; }
+  for(var k in o) if(o.hasOwnProperty(k)) a.push(J.stringify(k)+":"+J.stringify(o[k])); return "{"+a.join(",")+"}"; }};
 function mkdir(p){ if(!fso.FolderExists(p)) fso.CreateFolder(p); }
 function exists(p){ try{ return fso.FileExists(p)||fso.FolderExists(p); }catch(e){ return false; } }
 function fileUrl(p){
@@ -294,14 +351,14 @@ function guessName(p,type){
 
 /* ---------- data ---------- */
 var store={v:1,theme:"retro",size:"normal",view:"list",sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
-var group="All", missing={}, editId=null, canSave=true;
+var group="All", missing={}, editId=null, canSave=true, saveFailed=false;
 
 function load(){
-  try{ mkdir(DATA); }catch(e){ canSave=false; }
+  try{ mkdir(DATA); }catch(e){ canSave=false; showWarn("QuickLaunch can't create its data folder here ("+(e.message||e)+"): "+DATA); }
   try{
-    if(fso.FileExists(FILE)){ store=JSON.parse(readUtf8(FILE)); }
+    if(fso.FileExists(FILE)){ store=J.parse(readText(FILE)); }
   }catch(e){
-    try{ if(fso.FileExists(BAK)){ store=JSON.parse(readUtf8(BAK)); alert("Your list file was damaged, so the backup copy was loaded."); } }catch(e2){}
+    try{ if(fso.FileExists(BAK)){ store=J.parse(readText(BAK)); alert("Your list file was damaged, so the backup copy was loaded."); } }catch(e2){}
   }
   var d={v:1,theme:"retro",size:"normal",view:"list",sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
   for(var k in d) if(d.hasOwnProperty(k)&&store[k]===undefined) store[k]=d[k];
@@ -309,12 +366,12 @@ function load(){
     it.desc=it.desc||""; it.from=it.from||""; it.date=it.date||""; it.group=it.group||""; it.opened=it.opened||0; it.last=it.last||0; it.icon=it.icon||""; }
 }
 function save(){
-  if(!canSave) return;
   try{
     mkdir(DATA);
     if(fso.FileExists(FILE)) fso.CopyFile(FILE,BAK,true);
-    writeUtf8(FILE,JSON.stringify(store));
-  }catch(e){ canSave=false; showWarn("Can't save here. Move QuickLaunch.hta into a normal folder (e.g. Documents) and open it from there."); }
+    writeText(FILE,J.stringify(store));
+    canSave=true; if(saveFailed){ saveFailed=false; hideWarn(); }
+  }catch(e){ saveFailed=true; showWarn("Your list couldn't be saved ("+(e.message||e)+"). File: "+FILE); }
 }
 function byId(id){ for(var i=0;i<store.items.length;i++) if(store.items[i].id==id) return store.items[i]; return null; }
 function newId(){ return "i"+now().toString(36)+Math.floor(Math.random()*1e4).toString(36); }
@@ -329,8 +386,8 @@ var THEMES={
     font:"'Segoe UI',Tahoma,sans-serif",r:4,bw:1,shadow:"none",big:"0 16px 40px rgba(0,0,0,.45)",grid:1},
   retro:{name:"Retro 8-bit",bg:"#1a1c2c",panel:"#29366f",hover:"#3b5dc9",text:"#f4f4f4",muted:"#94b0c2",line:"#0b0c16",accent:"#ffcd75",accText:"#1a1c2c",chip:"#333c57",
     font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #0b0c16",big:"6px 6px 0 #0b0c16",retro:1},
-  gameboy:{name:"Game Boy",bg:"#9bbc0f",panel:"#8bac0f",hover:"#c4dc4c",text:"#0f380f",muted:"#306230",line:"#0f380f",accent:"#306230",accText:"#e0f0a0",chip:"#a9c832",
-    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #0f380f",big:"6px 6px 0 #0f380f",retro:1,badge:"#306230"}
+  gameboy:{name:"Game Boy",bg:"#0f380f",panel:"#1b4a1b",hover:"#306230",text:"#9bbc0f",muted:"#7a9a2a",line:"#061f06",accent:"#8bac0f",accText:"#0f380f",chip:"#245a24",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #061f06",big:"6px 6px 0 #061f06",retro:1,badge:"#306230",badgeText:"#9bbc0f"}
 };
 var SIZES={
   compact:{name:"Compact",fs:12,row:30,ic:18,tile:92,tic:32},
@@ -373,6 +430,11 @@ var CSS=[
  "#menu .mi:hover{background:{accent};color:{accText}}",
  "#menu .sep{background:{line}}",
  "#toast{background:{accent};color:{accText};border-radius:{r}px}",
+ "#clock{border:{bw}px solid transparent;border-radius:{r}px}#clock:hover{background:{hover};border-color:{line}}#clkD{color:{muted}}",
+ "#clock.run,#clock.done{color:{accent};border-color:{accent}}",
+ "#tpanel{background:{panel};border:{bw}px solid {line};border-radius:{r2}px;box-shadow:{big}}",
+ "#tTM .inrow input{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}",
+ "#swLaps{color:{muted}}",
  "::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:{line}}"
 ];
 var CSS_RETRO=[
@@ -398,7 +460,7 @@ function applyLook(){
   v.icf=Math.round(z.ic*0.36); v.ticf=Math.round(z.tic*0.3);
   v.lineSoft=t.retro?"rgba(0,0,0,.25)":t.line;
   var rules=CSS.slice(0); if(t.retro) rules=rules.concat(CSS_RETRO); if(t.grid) rules=rules.concat(CSS_GRID);
-  if(t.badge) rules.push(".ico .bdg{background:{badge} !important;color:{bg} !important}");
+  if(t.badge) rules.push(".ico .bdg{background:{badge} !important;color:{badgeText} !important}");
   setCss($("themeCss"),rules.join("\n").replace(/\{(\w+)\}/g,function(m,k){ return v[k]!==undefined?v[k]:m; }));
   fitTiles();
 }
@@ -551,7 +613,7 @@ function fetchIcons(){
     var ps="Add-Type -AssemblyName System.Drawing\r\n$j=@()\r\n";
     for(var k=0;k<jobs.length;k++) ps+="$j+=,@("+q(jobs[k].src)+","+q(DATA+"\\"+jobs[k].rel)+")\r\n";
     ps+="foreach($x in $j){ try{ $i=[System.Drawing.Icon]::ExtractAssociatedIcon($x[0]); if($i){ $t=$x[1]+'.tmp'; $i.ToBitmap().Save($t,[System.Drawing.Imaging.ImageFormat]::Png); Move-Item -Force $t $x[1] } }catch{} }\r\n";
-    var script=ICONS+"\\get-icons.ps1"; writeUtf8(script,ps);
+    var script=ICONS+"\\get-icons.ps1"; writeText(script,ps);
     wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "'+script+'"',0,false);
   }catch(e){ return; }
   var tries=0; if(iconTimer) window.clearInterval(iconTimer);
@@ -671,7 +733,7 @@ function exportCSV(){
     var rows=[["Name","Type","Description","From","Date","Group","Location","Times opened","Last opened"]];
     for(var i=0;i<list.length;i++){ var it=list[i]; rows.push([it.name,kindOf(it).n,it.desc,it.from,it.date,it.group,it.path,it.opened,it.last?fmtTime(it.last):""]); }
     var out=[]; for(var r=0;r<rows.length;r++){ var c=[]; for(var k=0;k<rows[r].length;k++) c.push(csvCell(rows[r][k])); out.push(c.join(",")); }
-    var p=exportName("csv"); writeUtf8(p,out.join("\r\n"));
+    var p=exportName("csv"); writeCsv(p,out.join("\r\n"));
     toast("Saved CSV with "+list.length+" item"+(list.length==1?"":"s")); openLocation({path:p});
   }catch(e){ alert("Couldn't save the CSV:\n"+e.message); }
 }
@@ -706,7 +768,7 @@ function exportPDF(){
   window.setTimeout(function(){
     try{
       mkdir(DATA); mkdir(EXPORTS);
-      var pdf=exportName("pdf"), html=pdf.replace(/\.pdf$/,".html"); writeUtf8(html,reportHtml(list));
+      var pdf=exportName("pdf"), html=pdf.replace(/\.pdf$/,".html"); writeText(html,reportHtml(list));
       var br=findBrowser();
       if(br){
         var prof=wsh.ExpandEnvironmentStrings("%TEMP%")+"\\QuickLaunch-pdf";
@@ -739,7 +801,7 @@ function addImported(o){
 function importCSV(){
   pickFile(function(p){
     try{
-      var rows=parseCSV(readUtf8(p)); if(rows.length<2){ toast("That CSV looks empty"); return; }
+      var rows=parseCSV(readText(p)); if(rows.length<2){ toast("That CSV looks empty"); return; }
       var hd=rows[0], col={};
       for(var i=0;i<hd.length;i++){ var h=trim(hd[i]).toLowerCase();
         if(h=="name") col.name=i; else if(/^(location|path|target|link|url)$/.test(h)) col.path=i;
@@ -758,7 +820,7 @@ function readOld(){
   try{
     if(!fso.FileExists(OLDFILE)) return null;
     var f=fso.OpenTextFile(OLDFILE,1,false,-1), t=f.AtEndOfStream?"":f.ReadAll(); f.Close();
-    var o; try{ o=JSON.parse(t); }catch(e){ o=eval("("+t+")"); }
+    var o; try{ o=J.parse(t); }catch(e){ o=eval("("+t+")"); }
     return (o&&o.shortcuts)?o.shortcuts:null;
   }catch(e){ return null; }
 }
@@ -803,7 +865,8 @@ function hideDlgs(){ $("dlgItem").style.display="none"; $("dlgSet").style.displa
 function dlgOpen(){ return $("dlgItem").style.display=="block"||$("dlgSet").style.display=="block"; }
 var toastT=null;
 function toast(msg){ var t=$("toast"); t.innerHTML=esc(msg); t.style.display="block"; if(toastT) window.clearTimeout(toastT); toastT=window.setTimeout(function(){ t.style.display="none"; },2200); }
-function showWarn(msg){ var w=$("warn"); w.innerHTML=esc(msg); w.style.display="block"; }
+function showWarn(msg){ var w=$("warn"); w.innerHTML='<span class="x" title="Hide">&#10005;</span>'+esc(msg); w.style.display="block"; }
+function hideWarn(){ $("warn").style.display="none"; }
 function openSettings(){
   var tb=""; for(var k in THEMES) tb+='<button class="btn'+(store.theme==k?" on":"")+'" data-theme="'+k+'"><span class="sw" style="background:'+THEMES[k].bg+'"></span>'+THEMES[k].name+'</button>';
   $("themeBtns").innerHTML=tb;
@@ -817,6 +880,79 @@ function setTheme(k){ store.theme=k; save(); applyLook(); if(dlgOpen()) openSett
 function setSize(k){ store.size=k; save(); applyLook(); openSettings(); render(); }
 function setView(v){ store.view=v; save(); render(); }
 
+/* ---------- clock, stopwatch, timer ---------- */
+var DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var sw={on:false,t0:0,acc:0,laps:[]}, tm={on:false,end:0,left:0,done:false}, tTab="sw", tickT=null;
+function swTime(){ return sw.acc+(sw.on?now()-sw.t0:0); }
+function tmTime(){ return tm.on?Math.max(0,tm.end-now()):tm.left; }
+function fmtDur(ms,tenths){
+  if(!tenths) ms=Math.ceil(ms/1000)*1000;
+  var s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor(s/60)%60, x=s%60;
+  return (h?h+":"+pad(m):pad(m))+":"+pad(x)+(tenths?"."+Math.floor(ms%1000/100):"");
+}
+function clockNow(){ var d=new Date(), h=d.getHours(), ap=h<12?"AM":"PM"; h=h%12||12; return {t:h+":"+pad(d.getMinutes())+" "+ap, d:DAYS[d.getDay()]+" "+d.getDate()+" "+MON[d.getMonth()]}; }
+function updateClock(){
+  var c=$("clock"), n=clockNow(), t=n.t, d=n.d, cls="";
+  if(tm.done){ t="TIME UP"; cls="done"; d=n.t; }
+  else if(tm.on||tm.left>0){ t="\u23f3 "+fmtDur(tmTime()); cls=tm.on?"run":""; d=n.t; }
+  else if(sw.on||sw.acc>0){ t="\u23f1 "+fmtDur(swTime(),true); cls=sw.on?"run":""; d=n.t; }
+  $("clkT").innerHTML=esc(t); $("clkD").innerHTML=esc(d); c.className=cls;
+}
+function tick(){
+  if(tm.on&&tmTime()<=0){ tm.on=false; tm.left=0; tm.done=true; timeUp(); }
+  updateClock(); if(panelOpen()) updatePanel();
+  if(!sw.on&&!tm.on&&tickT){ window.clearInterval(tickT); tickT=null; }
+}
+function ensureTick(){ if(!tickT) tickT=window.setInterval(tick,100); tick(); }
+function timeUp(){
+  try{ var w=wsh.ExpandEnvironmentStrings("%WINDIR%")+"\\Media\\", snd=["Alarm01.wav","Windows Notify System Generic.wav","chimes.wav"], f="";
+    for(var i=0;i<snd.length;i++) if(fso.FileExists(w+snd[i])){ f=w+snd[i]; break; }
+    if(f) wsh.Run('powershell.exe -NoProfile -WindowStyle Hidden -Command "(New-Object Media.SoundPlayer \''+f+'\').PlaySync()"',0,false);
+  }catch(e){}
+  toast("Time's up!"); try{ window.focus(); }catch(e){}
+}
+function panelOpen(){ return $("tpanel").style.display=="block"; }
+function openPanel(){
+  if(tm.done){ tm.done=false; updateClock(); }
+  var p=$("tpanel"), r=$("clock").getBoundingClientRect();
+  if(tm.on||tm.left>0) tTab="tm"; else if(sw.on||sw.acc>0) tTab="sw";
+  p.style.display="block"; hideMenu();
+  p.style.left=Math.max(4,Math.min(r.right-p.offsetWidth,document.documentElement.clientWidth-p.offsetWidth-6))+"px"; p.style.top=(r.bottom+6)+"px";
+  updatePanel();
+}
+function hidePanel(){ $("tpanel").style.display="none"; }
+var PRESETS=[1,5,10,15,25,30,45,60];
+function updatePanel(){
+  var chips=$("tpanel").getElementsByTagName("span");
+  for(var i=0;i<chips.length;i++){ var tt=chips[i].getAttribute("data-tt"); if(tt) chips[i].className="chip"+(tt==tTab?" on":""); }
+  $("tSW").style.display=tTab=="sw"?"block":"none"; $("tTM").style.display=tTab=="tm"?"block":"none";
+  if(tTab=="sw"){
+    $("tBig").innerHTML=fmtDur(swTime(),true);
+    $("swGo").innerHTML=sw.on?"Pause":(sw.acc?"Resume":"Start");
+    var h=""; for(var j=sw.laps.length-1;j>=0&&j>=sw.laps.length-6;j--) h+="<div>Lap "+(j+1)+" &nbsp; "+fmtDur(sw.laps[j],true)+"</div>";
+    $("swLaps").innerHTML=h;
+  } else {
+    $("tBig").innerHTML=tm.done?"TIME UP":fmtDur(tmTime());
+    $("tmGo").innerHTML=tm.on?"Pause":(tm.left>0?"Resume":"Start");
+    if(!$("tmPre").innerHTML){ var c=""; for(var k=0;k<PRESETS.length;k++) c+='<span class="chip" data-pre="'+PRESETS[k]+'">'+PRESETS[k]+' min</span>'; $("tmPre").innerHTML=c; }
+  }
+}
+function swToggle(){ if(sw.on){ sw.acc+=now()-sw.t0; sw.on=false; } else { sw.t0=now(); sw.on=true; } ensureTick(); }
+function swLap(){ if(sw.on||sw.acc){ sw.laps.push(swTime()); updatePanel(); } }
+function swReset(){ sw={on:false,t0:0,acc:0,laps:[]}; ensureTick(); }
+function parseMinutes(v){
+  v=trim(v); var m=/^(\d+):(\d{1,2})$/.exec(v); if(m) return (+m[1]*60+ +m[2])*1000;
+  var n=parseFloat(v.replace(",",".")); return (n>0)?Math.round(n*60000):0;
+}
+function tmStart(ms){ tm={on:true,end:now()+ms,left:0,done:false}; tTab="tm"; ensureTick(); }
+function tmToggle(){
+  if(tm.on){ tm.left=tmTime(); tm.on=false; ensureTick(); return; }
+  if(tm.left>0){ tmStart(tm.left); return; }
+  var ms=parseMinutes($("tmMin").value); if(!ms){ $("tmMin").focus(); toast("Type how many minutes, or pick one"); return; }
+  tmStart(ms);
+}
+function tmReset(){ tm={on:false,end:0,left:0,done:false}; ensureTick(); }
+
 /* ---------- events ---------- */
 function up(el,attr){ while(el&&el.getAttribute){ if(el.getAttribute(attr)!=null) return el; el=el.parentNode; } return null; }
 function wire(){
@@ -824,6 +960,12 @@ function wire(){
   $("bList").onclick=function(){ setView("list"); };
   $("bGrid").onclick=function(){ setView("grid"); };
   $("bSet").onclick=openSettings;
+  $("clock").onclick=function(e){ if(panelOpen()) hidePanel(); else openPanel(); e.stopPropagation(); };
+  $("tpanel").onclick=function(e){ var t=e.target||e.srcElement, tt=up(t,"data-tt"), pr=up(t,"data-pre");
+    if(tt){ tTab=tt.getAttribute("data-tt"); updatePanel(); return; }
+    if(pr){ tmStart(+pr.getAttribute("data-pre")*60000); $("tmMin").value=""; return; } };
+  $("swGo").onclick=swToggle; $("swLap").onclick=swLap; $("swReset").onclick=swReset;
+  $("tmGo").onclick=tmToggle; $("tmReset").onclick=tmReset;
   $("bExport").onclick=function(e){ var r=this.getBoundingClientRect(), n=currentList().length;
     showMenu(r.left,r.bottom+4,[{label:"&#128196;&nbsp; Export as PDF ("+n+")",fn:exportPDF},{label:"&#128202;&nbsp; Export as CSV / Excel ("+n+")",fn:exportCSV},"-",{label:"&#8679;&nbsp; Import CSV...",fn:importCSV}]);
     e.stopPropagation(); };
@@ -863,11 +1005,15 @@ function wire(){
     if(th) setTheme(th.getAttribute("data-theme")); else if(sz) setSize(sz.getAttribute("data-size")); else if(t==this) hideDlgs(); };
   $("dlgItem").onclick=function(e){ if((e.target||e.srcElement)==this) hideDlgs(); };
   $("menu").onclick=function(e){ var m=up(e.target||e.srcElement,"data-mi"); if(!m) return; var fn=menuActs[+m.getAttribute("data-mi")]; hideMenu(); if(fn) fn(); e.stopPropagation(); };
-  document.onmousedown=function(e){ var m=$("menu"), t=e.target||e.srcElement; while(t&&t!=m) t=t.parentNode; if(!t) hideMenu(); };
+  document.onmousedown=function(e){ var m=$("menu"), tp=$("tpanel"), ck=$("clock"), t=e.target||e.srcElement, inM=false, inP=false;
+    while(t){ if(t==m) inM=true; if(t==tp||t==ck) inP=true; t=t.parentNode; }
+    if(!inM) hideMenu(); if(!inP) hidePanel(); };
   document.oncontextmenu=function(e){ var tag=((e.target||{}).tagName||"").toUpperCase(); if(tag!="INPUT"){ e.preventDefault(); return false; } };
 
   document.onkeydown=function(e){
     var k=e.keyCode, ae=document.activeElement, tag=(ae&&ae.tagName||"").toUpperCase(), inF=(tag=="INPUT"||tag=="SELECT");
+    if(k==13&&ae==$("tmMin")){ tmToggle(); return; }
+    if(k==27&&panelOpen()){ hidePanel(); return; }
     if(k==27){ if($("menu").style.display=="block") hideMenu(); else if(dlgOpen()) hideDlgs(); else if($("q").value){ $("q").value=""; render(); } try{ $("q").blur(); }catch(x){} return; }
     if(dlgOpen()){ if(k==13&&$("dlgItem").style.display=="block"&&tag!="SELECT"){ e.preventDefault(); saveItem(); } return; }
     if(e.ctrlKey&&k==86&&!inF){ var c=""; try{ c=window.clipboardData.getData("Text")||""; }catch(x){}
@@ -897,7 +1043,9 @@ window.onload=function(){
   load();
   if(/\\Temp\\|\.zip\\/i.test(DIR)) showWarn("You're running QuickLaunch from inside a zip or temporary folder. Copy QuickLaunch.hta to a normal folder first, or your list won't be saved.");
   try{ if(canSave&&!fso.FileExists(DIR+"\\QuickLaunch.ico")) writeB64(DIR+"\\QuickLaunch.ico",ICO_B64); }catch(e){}
-  sizeWindow(); wire(); applyLook(); render();
+  $("warn").onclick=function(e){ if(up(e.target||e.srcElement,"title")) hideWarn(); };
+  sizeWindow(); wire(); applyLook(); render(); updateClock();
+  window.setInterval(function(){ if(!tickT) updateClock(); },1000);
   window.setTimeout(checkAll,400); window.setTimeout(fetchIcons,1200);
 };
 </script>

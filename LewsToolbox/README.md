@@ -20,7 +20,7 @@ Nothing to install. You build it on your own PC once, and then it's a normal pro
 | Tab | What it does | Status |
 |---|---|---|
 | 🚀 Launcher | One-click open of apps, files, folders and web links | ✅ Stage 1 |
-| 📁 Bulk Files | Rename / copy / move many files with preview, Excel round trip and Undo | Stage 2 |
+| 📁 Bulk Files | Rename / copy / move many files with preview, Excel round trip and Undo | ✅ Stage 2 |
 | 🗂 Tracker | Your work list: Today, This week, Overdue, Board | Stage 3 |
 | 📋 Delegate | Give tasks to people (Excel sheet or HTML task pack) and load their updates back | Stage 4 |
 | ✅ Submission Check | Check a folder's file count and file names against your list | Stage 5 |
@@ -44,6 +44,32 @@ Nothing to install. You build it on your own PC once, and then it's a normal pro
   - **Import my QuickLaunch list**: pick `QuickLaunch-data\library.json`. Your QuickLaunch file is not changed
   - **Export what I'm looking at**: a CSV for Excel
 - **Clock** (bottom left): click for a stopwatch and timer
+
+## Bulk Files
+
+Rename, copy or move many files at once. Nothing changes on disk until you click **▶ Preview and run…** and say Yes.
+
+1. **📂 Pick folder…** (tick **Include subfolders** to go deeper; **Only:** e.g. `*.pdf; *.dwg`)
+2. Make the **new names** (only ticked files change):
+   - **Find / Replace** (e.g. `-P01` → `-P02`), **Add at start / end**, **Number** (001, 002…)
+   - **More ▾**: UPPER / lower case, spaces → `_`, remove characters, add today's date, change the file ending
+   - Or click a **New name** cell and type
+   - Or **✎ Edit new names in Excel** → change the *New name* column → save → **⬆ Load names from Excel**
+3. Check the **Check** column:
+   - Green **OK** = ready
+   - Orange = warning (e.g. the file ending changed) – still runs
+   - Red = problem, **skipped**: bad characters, same name twice, name already exists, path too long
+4. **What to do:**
+   - **Copy to another folder** (default, safe – originals untouched)
+   - **Move to another folder** / **Rename in place** – these change your original folder, so they stay **🔒 locked** until you tick *Allow changes to the original folder* (it locks again after each run)
+   - **Keep subfolders**: copies the folder structure too
+5. **▶ Preview and run…** shows what will happen → **Yes**
+
+Safety:
+- **Never overwrites** and **never deletes** files
+- **↶ Undo last run**: renames back / moves back / sends the copies to the Recycle Bin (files changed since are left alone)
+- Every run is logged: `exports\BulkFiles_<action>_<date>.csv`. **History** shows the last runs
+- Tip: in the Launcher, right-click a folder → **Open in Bulk Files**
 
 ## Settings (⚙)
 

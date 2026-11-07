@@ -192,7 +192,7 @@ namespace LewsToolbox
                 case "tracker": return new ComingSoon("Tracker", "Your own work list: Today, This week, Overdue and a Board view.\nDelegated tasks show here as “Waiting on …”.", 3);
                 case "delegate": return new ComingSoon("Delegate", "Make tasks, assign people, send each person an Excel sheet or HTML task pack,\nthen load their filled-in sheet back to see the status.", 4);
                 case "check": return new ComingSoon("Submission Check", "Pick a submission folder and your list - it checks file count and file names.", 5);
-                case "files": return new ComingSoon("Bulk Files", "Rename, copy and move many files at once, with a preview, an Excel round trip and Undo.", 2);
+                case "files": return new BulkFilesPage();
             }
             return new Panel();
         }
@@ -216,6 +216,9 @@ namespace LewsToolbox
             var ip = page as IPage;
             if (ip != null) ip.OnShown();
         }
+
+        /* Opens a tab and gives back its page (e.g. to hand it a folder) */
+        public Control Open(string key) { Show(key); Control c; pages.TryGetValue(key, out c); return c; }
 
         /* After a theme / size change: rebuild everything with the new look. */
         public void Restyle() { BeginInvoke(new Action(RestyleNow)); }

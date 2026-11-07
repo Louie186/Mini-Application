@@ -215,18 +215,25 @@ namespace LewsToolbox
             }
         }
 
-        public static bool Confirm(IWin32Window owner, string text, string title = "Lew's Toolbox")
+        /* Automatic tests only: answers Yes to every question and records the messages */
+        public static bool TestMode;
+        public static readonly System.Collections.Generic.List<string> TestLog = new System.Collections.Generic.List<string>();
+
+        public static bool Confirm(IWin32Window owner, string text, string title = "Lew's Toolbox", bool warn = false)
         {
-            return MessageBox.Show(owner, text, title, MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+            if (TestMode) { TestLog.Add("Q: " + text); return true; }
+            return MessageBox.Show(owner, text, title, MessageBoxButtons.YesNo, warn ? MessageBoxIcon.Warning : MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
         }
 
         public static void Info(IWin32Window owner, string text, string title = "Lew's Toolbox")
         {
+            if (TestMode) { TestLog.Add("I: " + text); return; }
             MessageBox.Show(owner, text, title, MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         public static void Error(IWin32Window owner, string text, Exception e = null)
         {
+            if (TestMode) { TestLog.Add("E: " + text + (e != null ? " " + e.Message : "")); return; }
             MessageBox.Show(owner, text + (e != null ? "\n\n" + e.Message : ""), "Lew's Toolbox", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 

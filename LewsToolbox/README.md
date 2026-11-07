@@ -21,7 +21,7 @@ Nothing to install. You build it on your own PC once, and then it's a normal pro
 |---|---|---|
 | 🚀 Launcher | One-click open of apps, files, folders and web links | ✅ Stage 1 |
 | 📁 Bulk Files | Rename / copy / move many files with preview, Excel round trip and Undo | ✅ Stage 2 |
-| 🗂 Tracker | Your work list: Today, This week, Overdue, Board | Stage 3 |
+| 🗂 Tracker | Your work list: Today, This week, Overdue, Board | ✅ Stage 3 |
 | 📋 Delegate | Give tasks to people (Excel sheet or HTML task pack) and load their updates back | Stage 4 |
 | ✅ Submission Check | Check a folder's file count and file names against your list | Stage 5 |
 
@@ -71,6 +71,29 @@ Safety:
 - Every run is logged: `exports\BulkFiles_<action>_<date>.csv`. **History** shows the last runs
 - Tip: in the Launcher, right-click a folder → **Open in Bulk Files**
 
+## Tracker
+
+Your own work list.
+
+- **Quick add:** type a task and press **Enter**. Words it understands:
+  - `today`, `tomorrow`, `mon` … `sun`, `next week`, `25/11` = due date
+  - `#Tower1` = project (use `_` for spaces: `#Tower_1`)
+  - `!` = high priority, `!low` = low
+  - `@Sam` = waiting on Sam
+  - Example: `Check RFI drawings fri #Tower1 !`
+  - Added in the **Today** view with no date = due today
+- **+ Detailed…** for every field: project, due, priority, status, waiting on, repeat, notes, time
+- **Views:** Today · This week · Overdue (red) · All open · **Board** · Done
+- **Board:** To do / Doing / Waiting / Done. Drag cards between columns. Double-click to edit
+- **Tick ✓** (or **Space**) = done. **Double-click** = edit. **Right-click** = status, due date, timer, duplicate, delete
+- **Repeat** (daily, weekdays, weekly, monthly): when you tick it done, the next one is made for you
+- **Time:** right-click → **⏱ Start timer** (one at a time, shown at the top) or **+ Add time** (e.g. `1.5` or `0:45`)
+- **Project** filter and **Search**
+- **Export ▾**
+  - **Copy this week's summary**: Done, Still open, Waiting on others, Time per project – paste into an email or Teams
+  - Weekly summary / all tasks → Excel (CSV)
+- **Delegated tasks** (from the Delegate tab, coming next) show here with 📋 as "Waiting on <name>". Change them in Delegate
+
 ## Settings (⚙)
 
 - **Themes:** Light, Dark, Blueprint, Retro 8-bit, Retro Grey, Retro Console. **Text size:** Compact / Normal / Large
@@ -96,6 +119,10 @@ Safety:
 ## For whoever maintains this
 
 - Code is in `src/` (C# 5, Windows Forms, .NET Framework 4, no extra libraries)
+- **One tab = one file** (`LauncherPage.cs`, `TrackerPage.cs`, `BulkFilesPage.cs`, `SettingsPage.cs` …)
+  - A tab marks itself with `[Tab("key")]` and the main window finds it. Adding or changing a tab needs no edits elsewhere
+  - Tabs never call each other directly. They pass small messages (`MainForm.Me.SendTo("files", "open-folder", path)`) or share a file in the data folder (`delegate-feed.json` → Tracker)
+  - Shared helpers (saving, Excel/CSV, themes) are in `Util.cs` and `Theme.cs`
 - `Build.bat` compiles it with the `csc.exe` that ships with Windows
 - `tools/make_icon.py` remakes `src/app.ico`
 - The old `QuickLaunch.hta` in the parent folder is separate and is not changed by this program

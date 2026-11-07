@@ -29,6 +29,7 @@ namespace LewsToolbox
         public int SortDir = 1;
     }
 
+    [Tab("launcher")]
     class LauncherPage : UserControl, IPage
     {
         LibraryData lib;
@@ -463,7 +464,7 @@ namespace LewsToolbox
             Theme.Item(m, "Open", () => OpenItem(it)).Font = Theme.UiFont(0, FontStyle.Bold);
             if (it.Type != "web") Theme.Item(m, "Open file location", () => { try { Shell.ShowInFolder(it.Path); } catch (Exception e) { Ui.Error(this, "Couldn't open the folder.", e); } });
             Theme.Item(m, "Copy path", () => { try { Clipboard.SetText(it.Path); } catch (Exception) { } });
-            if (it.Type == "folder") Theme.Item(m, "Open in Bulk Files", () => { var bf = MainForm.Me.Open("files") as BulkFilesPage; if (bf != null) bf.LoadFolder(it.Path); });
+            if (it.Type == "folder") Theme.Item(m, "Open in Bulk Files", () => MainForm.Me.SendTo("files", "open-folder", it.Path));
             m.Items.Add(new ToolStripSeparator());
             Theme.Item(m, "Edit...", () => Edit(it));
             Theme.Item(m, "Duplicate", () =>

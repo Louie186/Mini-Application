@@ -27,7 +27,8 @@ namespace LewsToolbox
     class BBatch { public string When = "", Kind = "", Source = "", Dest = ""; public bool Undone; public List<BOp> Ops = new List<BOp>(); }
     class BHistory { public List<BBatch> Batches = new List<BBatch>(); }
 
-    class BulkFilesPage : UserControl, IPage
+    [Tab("files")]
+    class BulkFilesPage : UserControl, IPage, IReceiver
     {
         List<BRow> rows = new List<BRow>();
         string folder = "", dest = "";
@@ -188,6 +189,7 @@ namespace LewsToolbox
         }
 
         public void LoadFolder(string f) { folder = f; LoadFiles(); }
+        public void Receive(string what, string value) { if (what == "open-folder" && Directory.Exists(value)) LoadFolder(value); }
 
         void LoadFiles()
         {

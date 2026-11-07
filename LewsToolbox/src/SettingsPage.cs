@@ -8,6 +8,7 @@ using System.Windows.Forms;
 
 namespace LewsToolbox
 {
+    [Tab("settings")]
     class SettingsPage : UserControl, IPage
     {
         Label dataLbl, trackerLbl;
@@ -70,7 +71,7 @@ namespace LewsToolbox
             root.Controls.Add(Ui.Lbl("Ctrl+1 … Ctrl+6 = switch tabs   ·   Ctrl+F = search   ·   Ctrl+V = add a copied path (Launcher)", "muted"));
 
             root.Controls.Add(H("About"));
-            root.Controls.Add(Ui.Lbl("Lew's Toolbox – stage 2 (Launcher, Bulk Files). Settings for this PC: %APPDATA%\\LewsToolbox", "muted"));
+            root.Controls.Add(Ui.Lbl("Lew's Toolbox. Settings for this PC: %APPDATA%\\LewsToolbox", "muted"));
 
             Controls.Add(root);
             Refresh_();

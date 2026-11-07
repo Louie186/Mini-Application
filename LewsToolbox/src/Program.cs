@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -89,6 +90,15 @@ namespace LewsToolbox
         void Reload();      // data folder changed - read the data again
     }
 
+    /* Each tab is ONE self-contained file: put [Tab("key")] on its UserControl and the main window finds it.
+       Changing or adding a tab never needs edits in other files. Until a tab's file exists, a "coming soon" page shows. */
+    [AttributeUsage(AttributeTargets.Class)]
+    class TabAttribute : Attribute { public readonly string Key; public TabAttribute(string key) { Key = key; } }
+
+    /* Optional: a tab can take simple messages from other tabs, e.g. Launcher -> Bulk Files "open-folder".
+       Tabs never call each other directly, so one can change without breaking another. */
+    interface IReceiver { void Receive(string what, string value); }
+
     class MainForm : Form
     {
         Panel nav, body;
@@ -100,12 +110,13 @@ namespace LewsToolbox
 
         static readonly string[][] Tabs =
         {
-            new[] { "launcher", "\U0001F680  Launcher" },
-            new[] { "tracker", "\U0001F5C2  Tracker" },
-            new[] { "delegate", "\U0001F4CB  Delegate" },
-            new[] { "check", "✅  Submission Check" },
-            new[] { "files", "\U0001F4C1  Bulk Files" },
-            new[] { "settings", "⚙  Settings" },
+            // key, menu text, what it will do (shown until the tab's file exists)
+            new[] { "launcher", "\U0001F680  Launcher", "One-click launcher." },
+            new[] { "tracker", "\U0001F5C2  Tracker", "Your own work list: Today, This week, Overdue and a Board view." },
+            new[] { "delegate", "\U0001F4CB  Delegate", "Make tasks, assign people, send each person an Excel sheet or HTML task pack,\nthen load their filled-in sheet back to see the status." },
+            new[] { "check", "✅  Submission Check", "Pick a submission folder and your list - it checks file count and file names." },
+            new[] { "files", "\U0001F4C1  Bulk Files", "Rename, copy and move many files at once." },
+            new[] { "settings", "⚙  Settings", "Looks and data folder." },
         };
 
         public MainForm()
@@ -185,16 +196,13 @@ namespace LewsToolbox
 
         Control Make(string key)
         {
-            switch (key)
+            foreach (var t in typeof(MainForm).Assembly.GetTypes())
             {
-                case "launcher": return new LauncherPage();
-                case "settings": return new SettingsPage();
-                case "tracker": return new ComingSoon("Tracker", "Your own work list: Today, This week, Overdue and a Board view.\nDelegated tasks show here as “Waiting on …”.", 3);
-                case "delegate": return new ComingSoon("Delegate", "Make tasks, assign people, send each person an Excel sheet or HTML task pack,\nthen load their filled-in sheet back to see the status.", 4);
-                case "check": return new ComingSoon("Submission Check", "Pick a submission folder and your list - it checks file count and file names.", 5);
-                case "files": return new BulkFilesPage();
+                var a = (TabAttribute)Attribute.GetCustomAttribute(t, typeof(TabAttribute));
+                if (a != null && a.Key == key) return (Control)Activator.CreateInstance(t);
             }
-            return new Panel();
+            var info = Tabs.First(x => x[0] == key);
+            return new ComingSoon(info[1].Trim().Substring(info[1].IndexOf(' ')).Trim(), info[2]);
         }
 
         public void Show(string key)
@@ -217,8 +225,13 @@ namespace LewsToolbox
             if (ip != null) ip.OnShown();
         }
 
-        /* Opens a tab and gives back its page (e.g. to hand it a folder) */
-        public Control Open(string key) { Show(key); Control c; pages.TryGetValue(key, out c); return c; }
+        /* Opens a tab and passes it a message, e.g. SendTo("files", "open-folder", path) */
+        public void SendTo(string key, string what, string value)
+        {
+            Show(key);
+            Control c;
+            if (pages.TryGetValue(key, out c) && c is IReceiver) ((IReceiver)c).Receive(what, value);
+        }
 
         /* After a theme / size change: rebuild everything with the new look. */
         public void Restyle() { BeginInvoke(new Action(RestyleNow)); }
@@ -251,12 +264,12 @@ namespace LewsToolbox
     /* Placeholder for tabs built in a later stage */
     class ComingSoon : UserControl
     {
-        public ComingSoon(string title, string text, int stage)
+        public ComingSoon(string title, string text)
         {
             var p = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(Theme.Px(30)) };
             p.Controls.Add(new Label { Text = title, AutoSize = true, Tag = "big bold" });
             p.Controls.Add(new Label { Text = text, AutoSize = true, Margin = new Padding(0, Theme.Px(10), 0, 0) });
-            p.Controls.Add(new Label { Text = "Coming in stage " + stage + ".", AutoSize = true, Tag = "muted", Margin = new Padding(0, Theme.Px(16), 0, 0) });
+            p.Controls.Add(new Label { Text = "Coming soon.", AutoSize = true, Tag = "muted", Margin = new Padding(0, Theme.Px(16), 0, 0) });
             Controls.Add(p);
         }
     }

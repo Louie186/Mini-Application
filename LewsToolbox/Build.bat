@@ -21,6 +21,7 @@ echo Building Lew's Toolbox...
 "%CSC%" /nologo /codepage:65001 /target:winexe /optimize+ /out:"LewsToolbox.exe" /win32icon:"src\app.ico" ^
   /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll /r:System.Xml.dll ^
   /r:System.Web.Extensions.dll /r:System.IO.Compression.dll ^
+  /resource:src\taskpack-runtime.js,taskpack-runtime.js ^
   src\*.cs
 if errorlevel 1 (
   echo.

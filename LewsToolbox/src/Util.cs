@@ -110,7 +110,10 @@ namespace LewsToolbox
     /* Reads the first sheet of an .xlsx file without Excel (an .xlsx is a zip of XML files). */
     static class Xlsx
     {
-        public static List<string[]> ReadFirstSheet(string path)
+        public static List<string[]> ReadFirstSheet(string path) { return ReadSheet(path, null); }
+
+        /* Reads a sheet by name (null = the first sheet). Gives back null if there is no sheet with that name. */
+        public static List<string[]> ReadSheet(string path, string sheetName)
         {
             var rows = new List<string[]>();
             // open shared so it still works while the file is open in Excel
@@ -129,9 +132,10 @@ namespace LewsToolbox
                         shared.Add(sb.ToString());
                     }
                 }
-                string sheetPath = FirstSheetPath(zip);
+                string sheetPath = SheetPath(zip, sheetName);
+                if (sheetPath == null) return null;
                 var se = zip.GetEntry(sheetPath);
-                if (se == null) throw new Exception("No sheet found in " + Path.GetFileName(path));
+                if (se == null) { if (sheetName != null) return null; throw new Exception("No sheet found in " + Path.GetFileName(path)); }
                 var sd = LoadXml(se);
                 foreach (XmlNode rn in sd.GetElementsByTagName("row"))
                 {
@@ -161,12 +165,15 @@ namespace LewsToolbox
             return rows;
         }
 
-        static string FirstSheetPath(ZipArchive zip)
+        static string SheetPath(ZipArchive zip, string name)
         {
             try
             {
                 var wb = LoadXml(zip.GetEntry("xl/workbook.xml"));
-                var sheet = (XmlElement)wb.GetElementsByTagName("sheet")[0];
+                XmlElement sheet = null;
+                foreach (XmlElement sh in wb.GetElementsByTagName("sheet"))
+                    if (name == null || string.Equals(sh.GetAttribute("name"), name, StringComparison.OrdinalIgnoreCase)) { sheet = sh; break; }
+                if (sheet == null) return null;
                 string rid = sheet.GetAttribute("id", "http://schemas.openxmlformats.org/officeDocument/2006/relationships");
                 var rels = LoadXml(zip.GetEntry("xl/_rels/workbook.xml.rels"));
                 foreach (XmlElement r in rels.GetElementsByTagName("Relationship"))
@@ -177,7 +184,7 @@ namespace LewsToolbox
                     }
             }
             catch (Exception) { }
-            return "xl/worksheets/sheet1.xml";
+            return name == null ? "xl/worksheets/sheet1.xml" : null;
         }
 
         static XmlDocument LoadXml(ZipArchiveEntry e)

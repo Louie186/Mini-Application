@@ -22,7 +22,7 @@ Nothing to install. You build it on your own PC once, and then it's a normal pro
 | 🚀 Launcher | One-click open of apps, files, folders and web links | ✅ Stage 1 |
 | 📁 Bulk Files | Rename / copy / move many files with preview, Excel round trip and Undo | ✅ Stage 2 |
 | 🗂 Tracker | Your work list: Today, This week, Overdue, Board | ✅ Stage 3 |
-| 📋 Delegate | Give tasks to people (Excel sheet or HTML task pack) and load their updates back | Stage 4 |
+| 📋 Delegate | Give tasks to people (Excel sheet or HTML task pack) and load their updates back | ✅ Stage 4 |
 | ✅ Submission Check | Check a folder's file count and file names against your list | Stage 5 |
 
 ## Launcher
@@ -92,7 +92,30 @@ Your own work list.
 - **Export ▾**
   - **Copy this week's summary**: Done, Still open, Waiting on others, Time per project – paste into an email or Teams
   - Weekly summary / all tasks → Excel (CSV)
-- **Delegated tasks** (from the Delegate tab, coming next) show here with 📋 as "Waiting on <name>". Change them in Delegate
+- **Delegated tasks** (from the Delegate tab) show here with 📋 as "Waiting on <name>". Change them in Delegate
+
+## Delegate
+
+Give tasks to people, send them a file, load their answers back, see who is behind.
+
+1. **+ New task**: title, group, project, **Assigned to** (comma between names), due date, notes
+   - Add **checklist items** in the table (each can have its own person and date)
+   - **+ Paste items**: paste a list (one per line, e.g. from Excel)
+   - IDs are made for you: `T001`, items `T001.1`, `T001.2` …
+2. **📤 Send to people…**: tick the people, tick the file types:
+   - **Excel task sheet** – yellow boxes to fill in, Status drop-down, + / − groups, empty NEW blocks to add work
+   - **HTML task pack** – opens in any browser (phone too), To do / Doing / Done buttons, they press **Save reply** and send you the .txt
+   - **Simple Excel table** – plain rows
+   - Each person gets **only their tasks**. Files have the date and time in their name, in `exports\Delegate\<date>`
+3. Attach the files to an email / Teams
+4. When they reply: **⬆ Load replies…** (pick one or many .xlsx / .txt) or **📋 Paste reply…** (pasted message text)
+   - You see every change first (status, notes, new items, new tasks) → **Yes** to apply
+   - Loading the same file twice does not add things twice
+5. **Views:** Tasks (with progress and **late** in red) · **👥 Team** (open, late, due this week / next week, Behind / Busy / Has room) · **🌐 Lew's Tracker** (read-only, when linked in Settings)
+- **Right-click** a row: set status, send this task, history, duplicate, delete
+- **More ▾**: export all to Excel (CSV), sent / received log, default project name, **copy Lew's Tracker tasks into the Toolbox**
+- Same file formats as Lew's Tracker (web app): its sheets and task-pack replies load here, and the Toolbox's files load there
+- Open tasks show in the **Tracker** tab as "Waiting on <name>"
 
 ## Settings (⚙)
 
@@ -119,10 +142,11 @@ Your own work list.
 ## For whoever maintains this
 
 - Code is in `src/` (C# 5, Windows Forms, .NET Framework 4, no extra libraries)
-- **One tab = one file** (`LauncherPage.cs`, `TrackerPage.cs`, `BulkFilesPage.cs`, `SettingsPage.cs` …)
+- **One tab = one file** (`LauncherPage.cs`, `TrackerPage.cs`, `BulkFilesPage.cs`, `SettingsPage.cs` …). Delegate has two: `DelegatePage.cs` (screen) and `DelegateFiles.cs` (file formats)
   - A tab marks itself with `[Tab("key")]` and the main window finds it. Adding or changing a tab needs no edits elsewhere
   - Tabs never call each other directly. They pass small messages (`MainForm.Me.SendTo("files", "open-folder", path)`) or share a file in the data folder (`delegate-feed.json` → Tracker)
-  - Shared helpers (saving, Excel/CSV, themes) are in `Util.cs` and `Theme.cs`
+  - Shared helpers (saving, Excel/CSV reading, themes) are in `Util.cs` and `Theme.cs`; `XlsxWriter.cs` makes .xlsx files
+- `src/taskpack-runtime.js` is the page inside an HTML task pack, copied unchanged from Lew's Tracker (`skills/delegate/taskpack.js`). `Build.bat` embeds it into the program. Keep it in step with the web app
 - `Build.bat` compiles it with the `csc.exe` that ships with Windows
 - `tools/make_icon.py` remakes `src/app.ico`
 - The old `QuickLaunch.hta` in the parent folder is separate and is not changed by this program

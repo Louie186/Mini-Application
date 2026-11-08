@@ -239,7 +239,7 @@ var LT = (function () {
     "#menu{display:none;position:fixed;z-index:30;min-width:200px;padding:4px;background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}",
     "#menu .mi{padding:7px 12px;cursor:pointer;white-space:nowrap;border-radius:{r}px}#menu .mi:hover{background:{accent};color:{accText}}",
     "#menu .sep{height:1px;margin:4px 6px;background:{line}}#menu .mi.on:before{content:'\\2713  '}",
-    "#toast{position:fixed;left:50%;top:14px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;transform:translateX(-50%);-ms-transform:translateX(-50%);display:none;background:{accent};color:{accText};border-radius:{r}px;box-shadow:0 6px 20px rgba(0,0,0,.3)}",
+    "#toast{position:fixed;right:18px;bottom:18px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;display:none;background:{accent};color:{accText};border-radius:{r}px;box-shadow:0 6px 20px rgba(0,0,0,.3)}",
     ".scroll{overflow:auto}",
     "a{color:{accent}}"
   ];

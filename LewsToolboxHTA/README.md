@@ -21,7 +21,7 @@ No install, no build step.
 |---|---|
 | 🚀 Launcher | ✅ Your full QuickLaunch, inside the Toolbox |
 | 📁 Bulk Files | ✅ Rename / copy / move with preview, Excel, lock and Undo |
-| 🗂 Tracker | Coming |
+| 🗂 Tracker | ✅ Your work list: Today / Week / Overdue / Board, repeats, timer, weekly summary |
 | 📋 Delegate | Coming |
 | ✅ Submission Check | Coming |
 | ⚙ Settings | ✅ |
@@ -44,6 +44,18 @@ Nothing changes on disk until you click **▶ Preview and run…** and say OK.
 3. **Check** column: green OK · orange warning (still runs) · red problem (skipped: bad characters, same name twice, already exists, path too long)
 4. **What to do:** Copy (default, safe) · Move · Rename in place – Move and Rename stay 🔒 locked until you tick *Allow changes to the original folder* (locks again after each run)
 5. **Never overwrites, never deletes.** **Undo last run** renames / moves back, or sends copies to the Recycle Bin. A CSV log is saved for every run; **History** lists them
+
+## Tracker
+
+- **Quick add:** type and press **Enter**. Words it understands: `today`, `tomorrow`, `mon` … `sun`, `next week`, `25/11` (due date), `#Tower1` (project, `_` for spaces), `!` / `!low` (priority), `@Sam` (waiting on Sam)
+  - Example: `Check RFI drawings fri #Tower1 !`. Added in **Today** with no date = due today
+- **+ Detailed…** for every field (project, due, priority, status, waiting on, repeat, notes, time)
+- **Views:** Today · This week · Overdue (red) · All open · **Board** (drag cards between To do / Doing / Waiting / Done) · Done
+- Tick = done · double-click = edit · right-click = status, due date, timer, add time, duplicate, delete
+- **Repeat** daily / weekdays / weekly / monthly: tick it done and the next one is made
+- **Time:** right-click → Start timer (shown at the top), or Add time (`1.5` or `0:45`)
+- **Export ▾:** copy this week's summary for email / Teams, or CSV for Excel
+- Delegated tasks (from the Delegate tab) show with 📋 as "Waiting on <name>"
 
 ## Settings
 

@@ -6,15 +6,358 @@
 <title>Tracker</title>
 <meta name="lt-order" content="3">
 <meta name="lt-icon" content="&#128450;">
+<!--
+  Lew's Toolbox - Tracker: your own work list.
+  Data: tracker.json in the data folder.
+  Delegated tasks: if "delegate-feed.json" is in the data folder (the Delegate tab writes it), its tasks show here
+  read-only as "Waiting on <name>". Format: [ { "id", "title", "who", "due" (yyyy-mm-dd), "status", "project" } ]
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+#top,#views,#filters{flex:none}
+#main{flex:1 1 auto;overflow:auto;min-height:0}
+#quick{width:420px;max-width:60%;margin:0 6px 6px 0}
+.lbl{display:inline-block;margin:0 6px 6px 0;vertical-align:middle}
+td.cb{width:30px;text-align:center}
+td.t{font-weight:bold}
+tr.done td{opacity:.6}
+tr.done td.t{text-decoration:line-through}
+.board{display:flex;padding:8px;height:100%;min-height:300px}
+.col{flex:1 1 0px;min-width:0;margin:0 4px;padding:8px;overflow-y:auto}
+.col h4{margin-bottom:8px}
+.card2{padding:8px 10px;margin-bottom:6px;cursor:pointer}
+.card2 b{display:block;margin-bottom:2px}
+.card2 .i{font-size:.85em}
+#tm{font-weight:bold}
+#dlg textarea{height:80px}
+</style>
 <script src="../core/lt-core.js"></script>
 </head>
 <body>
-<!-- Placeholder: this whole file is replaced when the Tracker tab is built. -->
-<div style="padding:30px">
-  <h2>Tracker</h2>
-  <div style="margin-top:10px">Your own work list: Today, This week, Overdue and a Board view.</div>
-  <div class="muted" style="margin-top:16px">Coming soon.</div>
+<div id="app">
+  <div id="top" class="bar">
+    <input type="text" id="quick" placeholder="Add a task...   e.g.  Check RFI drawings fri #Tower1 !">
+    <button class="btn primary" id="bAdd">+ Add</button>
+    <button class="btn" id="bDetail">+ Detailed...</button>
+    <button class="btn" id="bExport">Export &#9662;</button>
+    <span class="lbl muted" title="Quick add words:&#10;  today, tomorrow, mon ... sun, next week, 25/11 = due date&#10;  #Project = project (use _ for spaces: #Tower_1)&#10;  ! = high priority, !low = low&#10;  @Name = waiting on someone" style="cursor:help;font-weight:bold">?&nbsp;words</span>
+  </div>
+  <div id="views" class="bar2"></div>
+  <div id="filters" class="bar2">
+    <span class="lbl">Project:</span><select id="proj" style="width:170px;margin:0 8px 6px 0"></select>
+    <input type="text" id="search" placeholder="Search" style="width:180px;margin:0 8px 6px 0">
+    <span class="lbl" id="tm"></span><button class="btn small" id="bStop" style="display:none">&#9632; Stop timer</button>
+    <span class="lbl muted" id="hint"></span>
+  </div>
+  <div id="main"></div>
 </div>
-<script>window.ltTheme = function () { LT.applyLook(); }; LT.applyLook(); LT.tabKeys();</script>
+
+<div class="ov" id="dlg"><div class="card">
+  <h3 id="dTitle">Task</h3>
+  <div class="fld"><label>Task</label><input type="text" id="eTitle"></div>
+  <div class="row2">
+    <div class="fld"><label>Project</label><input type="text" id="eProj" list="projList"></div>
+    <div class="fld"><label>Due (dd/mm/yyyy, empty = no date)</label><input type="text" id="eDue"></div>
+  </div>
+  <div class="row2">
+    <div class="fld"><label>Priority</label><select id="ePrio"><option>High</option><option selected>Normal</option><option>Low</option></select></div>
+    <div class="fld"><label>Status</label><select id="eStat"><option>To do</option><option>Doing</option><option>Waiting</option><option>Done</option></select></div>
+  </div>
+  <div class="row2">
+    <div class="fld"><label>Waiting on</label><input type="text" id="eWho"></div>
+    <div class="fld"><label>Repeat</label><select id="eRep"><option value="">(no repeat)</option><option>Daily</option><option>Weekdays</option><option>Weekly</option><option>Monthly</option></select></div>
+  </div>
+  <div class="fld"><label>Notes</label><textarea id="eNotes" style="width:100%"></textarea></div>
+  <div class="fld"><label>Time</label><span id="eTime"></span> &nbsp; Add: <input type="text" id="eAddH" style="width:70px" placeholder="1.5 or 0:45"> <button class="btn small" id="eAddB">+ h</button></div>
+  <div class="acts"><button class="btn" id="eDel">Delete</button><span class="sp"></span><button class="btn" id="eCancel">Cancel</button><button class="btn primary" id="eOk">Save</button></div>
+</div></div>
+<datalist id="projList"></datalist>
+
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso;
+var STATUSES = ["To do", "Doing", "Waiting", "Done"], PRIOS = ["High", "Normal", "Low"];
+var VIEWS = [["today", "Today"], ["week", "This week"], ["overdue", "Overdue"], ["open", "All open"], ["board", "Board"], ["done", "Done"]];
+var data = { tasks: [], view: "today" }, feed = [], shown = [], editing = null, work = null;
+function FILE() { return LT.dataPath("tracker.json"); }
+function FEED() { return LT.dataPath("delegate-feed.json"); }
+
+/* ---------- data ---------- */
+function load() {
+  data = LT.readJson(FILE(), null) || { tasks: [], view: "today" };
+  if (!data.tasks) data.tasks = [];
+  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (!t.log) t.log = []; if (STATUSES.indexOf(t.status) < 0) t.status = "To do"; if (PRIOS.indexOf(t.priority) < 0) t.priority = "Normal"; }
+  loadFeed();
+}
+function loadFeed() {
+  feed = [];
+  try {
+    var a = LT.readJson(FEED(), []) || [];
+    for (var i = 0; i < a.length; i++) { var f = a[i]; var st = f.status || f.Status || ""; if (st == "Done" || st == "Completed") continue;
+      feed.push({ id: "feed:" + (f.id || f.Id || i), title: f.title || f.Title || "", waitingOn: f.who || f.Who || "", due: f.due || f.Due || "", project: f.project || f.Project || "", status: "Waiting", notes: st, priority: "Normal", log: [], fromDelegate: true }); }
+  } catch (e) { }
+}
+function save() { try { LT.saveJson(FILE(), data); } catch (e) { alert("Your tasks couldn't be saved to:\n" + FILE()); } }
+function all() { return data.tasks.concat(feed); }
+function D(s) { return LT.parseIso(s); }
+function todayD() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function weekStart(d) { return addDays(d, -((d.getDay() + 6) % 7)); }
+function hours(t) { var h = 0; for (var i = 0; i < (t.log || []).length; i++) h += t.log[i].hours; return h; }
+function overdue(t) { var d = D(t.due); return t.status != "Done" && d && d < todayD(); }
+function nice(due) {
+  var d = D(due); if (!d) return "";
+  var days = Math.round((d - todayD()) / 864e5);
+  if (days == 0) return "Today"; if (days == 1) return "Tomorrow"; if (days == -1) return "Yesterday";
+  if (days < 0) return LT.fmtDate(due) + "  (" + (-days) + "d late)";
+  if (days < 7) return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()];
+  return LT.fmtDate(due) + (d.getFullYear() != todayD().getFullYear() ? " " + d.getFullYear() : "");
+}
+function parseDate(s) {
+  s = LT.trim(s); if (!s) return "";
+  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s); if (m) return LT.iso(new Date(+m[1], +m[2] - 1, +m[3]));
+  m = /^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/.exec(s);
+  if (m) { var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : todayD().getFullYear(); return LT.iso(new Date(y, +m[2] - 1, +m[1])); }
+  return null;
+}
+function hrs(a) { a = LT.trim(a || "").toLowerCase().replace("h", ""); var m = /^(\d+):(\d{1,2})$/.exec(a); if (m) return +m[1] + +m[2] / 60; var n = parseFloat(a.replace(",", ".")); return n > 0 ? n : 0; }
+
+/* quick add:  "Check RFI drawings fri #Tower1 !" */
+function parse(text, today) {
+  var t = { id: LT.uid("t"), title: "", project: "", due: "", priority: "Normal", status: "To do", waitingOn: "", notes: "", repeat: "", created: LT.iso(today), doneOn: "", log: [], timer: 0 };
+  var words = [], parts = LT.trim(text).split(/\s+/), days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+  for (var i = 0; i < parts.length; i++) {
+    var w = parts[i], l = w.toLowerCase().replace(/[,.]$/, ""), m;
+    if (!w) continue;
+    if (l == "today" || l == "tod") t.due = LT.iso(today);
+    else if (l == "tomorrow" || l == "tmr" || l == "tom") t.due = LT.iso(addDays(today, 1));
+    else if (l == "next" && parts[i + 1] && /^week/i.test(parts[i + 1])) { t.due = LT.iso(addDays(weekStart(today), 7)); i++; }
+    else if (/^(mon|tue|wed|thu|fri|sat|sun)$|^(monday|tuesday|wednesday|thursday|friday|saturday|sunday|tues|weds|thur|thurs)$/.test(l)) {
+      var want = days.indexOf(l.substring(0, 3)), add = (want - today.getDay() + 7) % 7; if (add == 0) add = 7; t.due = LT.iso(addDays(today, add)); }
+    else if ((m = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/.exec(l))) {
+      var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : today.getFullYear(), d = new Date(y, +m[2] - 1, +m[1]);
+      if (!m[3] && d < addDays(today, -60)) d = new Date(y + 1, +m[2] - 1, +m[1]);
+      t.due = LT.iso(d); }
+    else if (w.charAt(0) == "#" && w.length > 1) t.project = w.substring(1).replace(/_/g, " ");
+    else if (w.charAt(0) == "@" && w.length > 1) { t.waitingOn = w.substring(1).replace(/_/g, " "); t.status = "Waiting"; }
+    else if (l == "!" || l == "!!" || l == "!high") t.priority = "High";
+    else if (l == "!low") t.priority = "Low";
+    else words.push(w);
+  }
+  t.title = words.join(" ");
+  return t;
+}
+
+/* ---------- what to show ---------- */
+function pick(view) {
+  var today = todayD(), wEnd = addDays(weekStart(today), 6), proj = $("proj").value, words = LT.trim($("search").value.toLowerCase()).split(/\s+/), out = [], a = all();
+  for (var i = 0; i < a.length; i++) {
+    var t = a[i], d = D(t.due), done = t.status == "Done";
+    if (proj && t.project != proj) continue;
+    if (words[0]) { var hay = (t.title + " " + t.project + " " + t.notes + " " + t.waitingOn).toLowerCase(), ok = true; for (var w = 0; w < words.length; w++) if (hay.indexOf(words[w]) < 0) ok = false; if (!ok) continue; }
+    if (view == "today" && !(!done && (t.status == "Doing" || (d && d <= today)))) continue;
+    if (view == "week" && !(!done && (t.status == "Doing" || (d && d <= wEnd)))) continue;
+    if (view == "overdue" && !overdue(t)) continue;
+    if (view == "open" && done) continue;
+    if (view == "board" && done && !(D(t.doneOn) && D(t.doneOn) >= addDays(today, -14))) continue;
+    if (view == "done" && !done) continue;
+    out.push(t);
+  }
+  if (view == "done") out.sort(function (a, b) { return (b.doneOn || "") < (a.doneOn || "") ? -1 : (b.doneOn || "") > (a.doneOn || "") ? 1 : 0; });
+  else out.sort(function (a, b) {
+    var x = a.due || "9999", y = b.due || "9999"; if (x != y) return x < y ? -1 : 1;
+    var p = PRIOS.indexOf(a.priority) - PRIOS.indexOf(b.priority); if (p) return p;
+    return a.title.toLowerCase() < b.title.toLowerCase() ? -1 : 1; });
+  return out;
+}
+
+function render() {
+  // project list
+  var keep = $("proj").value, seen = {}, ps = [], a = all();
+  for (var i = 0; i < a.length; i++) if (a[i].project && !seen[a[i].project]) { seen[a[i].project] = 1; ps.push(a[i].project); }
+  ps.sort();
+  var h = '<option value="">All projects</option>', dl = "";
+  for (var j = 0; j < ps.length; j++) { h += '<option' + (ps[j] == keep ? " selected" : "") + ">" + esc(ps[j]) + "</option>"; dl += '<option value="' + esc(ps[j]) + '">'; }
+  $("proj").innerHTML = h; $("projList").innerHTML = dl;
+  // view buttons with counts
+  h = "";
+  for (var v = 0; v < VIEWS.length; v++) { var k = VIEWS[v][0], n = k == "board" || k == "done" ? -1 : pick(k).length;
+    h += '<button class="btn' + (data.view == k ? " on" : "") + (k == "overdue" && n > 0 ? " late" : "") + '" data-v="' + k + '">' + VIEWS[v][1] + (n >= 0 ? " &nbsp;" + n : "") + "</button>"; }
+  $("views").innerHTML = h;
+  if (data.view == "board") board(); else list();
+  timer();
+}
+function list() {
+  shown = pick(data.view);
+  var h = ['<table class="grid"><tr><th></th><th>Task</th><th>Project</th><th>Due</th><th>Priority</th><th>Status</th><th>Hours</th><th>Notes</th></tr>'];
+  for (var i = 0; i < shown.length; i++) {
+    var t = shown[i], st = t.status == "Waiting" && t.waitingOn ? "Waiting on " + t.waitingOn : t.status, hr = hours(t);
+    var dueCls = overdue(t) ? "bad" : (t.due == LT.today() && t.status != "Done" ? "today" : "");
+    h.push('<tr data-i="' + i + '" class="' + (t.status == "Done" ? "done" : "") + '"><td class="cb"><input type="checkbox" data-done="' + i + '" style="height:auto"' + (t.status == "Done" ? " checked" : "") + (t.fromDelegate ? " disabled" : "") + '></td>' +
+      '<td class="t">' + (t.fromDelegate ? "&#128203; " : "") + (t.timer ? "&#9201; " : "") + esc(t.title) + (t.repeat ? " &#8635;" : "") + "</td><td>" + esc(t.project) + '</td><td class="' + dueCls + '">' + (t.status == "Done" ? "done " + esc(nice(t.doneOn)) : esc(nice(t.due))) +
+      '</td><td class="' + (t.priority == "High" ? "bad" : "") + '">' + (t.priority == "Normal" ? "" : t.priority) + '</td><td class="' + (t.status == "Doing" ? "ok" : t.status == "Waiting" ? "warn" : "") + '">' + esc(st) +
+      "</td><td>" + (hr ? Math.round(hr * 100) / 100 : "") + '</td><td class="muted">' + esc((t.notes || "").replace(/\s+/g, " ")) + "</td></tr>");
+  }
+  h.push("</table>");
+  $("main").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:30px">' + (data.view == "today" ? "Nothing due today &ndash; nice. Type a task above and press Enter." : "Nothing here.") + "</div>";
+  $("hint").innerHTML = shown.length ? "Double-click = edit &middot; tick = done &middot; right-click = more" : "";
+}
+function board() {
+  shown = pick("board");
+  var h = '<div class="board">';
+  for (var c = 0; c < 4; c++) {
+    var st = STATUSES[c], n = 0, cards = "";
+    for (var i = 0; i < shown.length; i++) { var t = shown[i]; if (t.status != st) continue; n++;
+      var sub = []; if (t.project) sub.push(esc(t.project)); if (t.due && t.status != "Done") sub.push('<span class="' + (overdue(t) ? "bad" : "") + '">' + esc(nice(t.due)) + "</span>");
+      if (t.waitingOn && t.status == "Waiting") sub.push("@" + esc(t.waitingOn)); if (hours(t)) sub.push(Math.round(hours(t) * 10) / 10 + "h");
+      cards += '<div class="card2' + (t.priority == "High" ? " hi" : "") + '" data-i="' + i + '" draggable="' + (t.fromDelegate ? "false" : "true") + '"><b>' + (t.fromDelegate ? "&#128203; " : "") + (t.priority == "High" ? "! " : "") + esc(t.title) + '</b><div class="i muted">' + sub.join(" &middot; ") + "</div></div>"; }
+    h += '<div class="col" data-st="' + st + '"><h4>' + st + " &nbsp;" + n + "</h4>" + cards + "</div>";
+  }
+  $("main").innerHTML = h + "</div>";
+  $("hint").innerHTML = "Drag cards between columns &middot; double-click a card to edit &middot; Done shows the last 14 days";
+}
+
+/* ---------- actions ---------- */
+function quickAdd() {
+  var s = LT.trim($("quick").value); if (!s) { $("quick").focus(); return; }
+  var t = parse(s, todayD());
+  if (!t.title) { alert("Type what the task is, e.g.  Check RFI drawings fri #Tower1"); return; }
+  if ($("proj").value && !t.project) t.project = $("proj").value;
+  if (!t.due && data.view == "today") t.due = LT.today();
+  data.tasks.push(t); save(); $("quick").value = ""; render();
+  LT.toast("Added: " + t.title + (t.due ? " · due " + nice(t.due) : ""));
+}
+function setStatus(t, st) {
+  if (t.fromDelegate) { render(); return; }
+  if (t.timer && st == "Done") stopTimer(t);
+  var was = t.status == "Done"; t.status = st;
+  if (st == "Done" && !was) { t.doneOn = LT.today(); var n = nextRepeat(t); if (n) { data.tasks.push(n); LT.toast("Repeats – next one is due " + nice(n.due)); } }
+  if (st != "Done") t.doneOn = "";
+  save(); render();
+}
+function nextRepeat(t) {
+  if (!t.repeat) return null;
+  var from = D(t.due) || todayD(), n;
+  if (t.repeat == "Daily") n = addDays(from, 1);
+  else if (t.repeat == "Weekdays") { n = addDays(from, 1); while (n.getDay() == 0 || n.getDay() == 6) n = addDays(n, 1); }
+  else if (t.repeat == "Weekly") n = addDays(from, 7);
+  else if (t.repeat == "Monthly") n = new Date(from.getFullYear(), from.getMonth() + 1, from.getDate());
+  else return null;
+  if (n < todayD()) n = todayD();
+  var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.due = LT.iso(n); c.log = []; c.timer = 0; c.created = LT.today();
+  return c;
+}
+function copy(t) { return JSON.parse(JSON.stringify(t)); }
+function del(t) { if (t.fromDelegate) return; if (!confirm('Delete the task "' + t.title + '"?')) return; data.tasks.splice(data.tasks.indexOf(t), 1); save(); render(); }
+
+function taskMenu(t, x, y) {
+  if (t.fromDelegate) { LT.menu(x, y, [{ label: "From the Delegate tab &ndash; change it there", fn: function () { if (LT.main()) LT.main().show("delegate"); } }]); return; }
+  var m = [{ label: "<b>Edit...</b>", fn: function () { edit(t); } }, "-"];
+  for (var i = 0; i < STATUSES.length; i++) (function (s) {
+    m.push({ label: s, on: t.status == s, fn: function () { if (s == "Waiting" && !t.waitingOn) { var w = prompt("Who are you waiting on?", ""); if (w == null) return; t.waitingOn = w; } setStatus(t, s); } });
+  })(STATUSES[i]);
+  m.push("-");
+  var dueTo = function (d) { return function () { t.due = d; save(); render(); }; };
+  m.push({ label: "Due today", fn: dueTo(LT.today()) }, { label: "Due tomorrow", fn: dueTo(LT.iso(addDays(todayD(), 1))) },
+    { label: "Due next Monday", fn: dueTo(LT.iso(addDays(weekStart(todayD()), 7))) }, { label: "No due date", fn: dueTo("") }, "-");
+  if (t.timer) m.push({ label: "&#9632; Stop timer", fn: function () { stopTimer(t); save(); render(); } });
+  else m.push({ label: "&#9201; Start timer", fn: function () { startTimer(t); } });
+  m.push({ label: "+ Add time...", fn: function () { var h = hrs(prompt('Hours spent on "' + t.title + '" today (e.g. 1.5 or 0:45):', "")); if (h > 0) { t.log.push({ date: LT.today(), hours: h }); save(); render(); } } }, "-");
+  m.push({ label: "Duplicate", fn: function () { var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.log = []; c.timer = 0; c.created = LT.today(); data.tasks.push(c); save(); render(); } });
+  m.push({ label: "Delete", fn: function () { del(t); } });
+  LT.menu(x, y, m);
+}
+
+/* ---------- time ---------- */
+function startTimer(t) { for (var i = 0; i < data.tasks.length; i++) if (data.tasks[i].timer) stopTimer(data.tasks[i]); t.timer = LT.now(); if (t.status == "To do") t.status = "Doing"; save(); render(); }
+function stopTimer(t) { if (!t.timer) return; var h = (LT.now() - t.timer) / 36e5; t.timer = 0; if (h >= 1 / 60) t.log.push({ date: LT.today(), hours: Math.round(h * 100) / 100 }); }
+function timer() {
+  var run = null; for (var i = 0; i < data.tasks.length; i++) if (data.tasks[i].timer) run = data.tasks[i];
+  if (!run) { $("tm").innerHTML = ""; $("bStop").style.display = "none"; return; }
+  var s = Math.floor((LT.now() - run.timer) / 1000);
+  $("tm").innerHTML = "&#9201; " + esc(run.title) + " &nbsp;" + Math.floor(s / 3600) + ":" + LT.pad(Math.floor(s / 60) % 60) + ":" + LT.pad(s % 60);
+  $("bStop").style.display = "";
+}
+
+/* ---------- edit dialog ---------- */
+function edit(t) {
+  if (t && t.fromDelegate) return;
+  editing = t;
+  work = t ? copy(t) : { id: LT.uid("t"), title: "", project: $("proj").value, due: data.view == "today" ? LT.today() : "", priority: "Normal", status: "To do", waitingOn: "", notes: "", repeat: "", created: LT.today(), doneOn: "", log: [], timer: 0 };
+  $("dTitle").innerHTML = t ? "Edit task" : "New task";
+  $("eTitle").value = work.title; $("eProj").value = work.project; $("eDue").value = work.due ? (function (d) { return LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear(); })(D(work.due)) : "";
+  $("ePrio").value = work.priority; $("eStat").value = work.status; $("eWho").value = work.waitingOn; $("eRep").value = work.repeat || ""; $("eNotes").value = work.notes || ""; $("eAddH").value = "";
+  showTime(); $("eDel").style.display = t ? "" : "none";
+  $("dlg").style.display = "block"; $("eTitle").focus();
+}
+function showTime() { var h = hours(work); $("eTime").innerHTML = h ? Math.round(h * 100) / 100 + " h logged (" + work.log.length + " entr" + (work.log.length == 1 ? "y" : "ies") + ")" : "No time logged"; }
+function saveEdit() {
+  var title = LT.trim($("eTitle").value); if (!title) { alert("Type what the task is."); return; }
+  var due = parseDate($("eDue").value); if (due === null) { alert("The due date isn't clear - use dd/mm/yyyy."); return; }
+  work.title = title; work.project = LT.trim($("eProj").value); work.due = due; work.priority = $("ePrio").value; work.waitingOn = LT.trim($("eWho").value);
+  work.repeat = $("eRep").value; work.notes = LT.trim($("eNotes").value);
+  var st = $("eStat").value;
+  $("dlg").style.display = "none";
+  if (!editing) { work.status = st; if (st == "Done") work.doneOn = LT.today(); data.tasks.push(work); save(); render(); return; }
+  var old = editing.status; work.status = old; data.tasks[data.tasks.indexOf(editing)] = work;
+  if (st != old) setStatus(work, st); else { save(); render(); }
+}
+
+/* ---------- weekly summary / export ---------- */
+function weekly() {
+  var ws = weekStart(todayD()), we = addDays(ws, 6), done = [], open = [], waiting = [], hp = {};
+  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i], dd = D(t.doneOn), du = D(t.due);
+    if (t.status == "Done" && dd && dd >= ws && dd <= we) done.push(t);
+    if (t.status != "Done" && du && du <= we) open.push(t);
+    for (var l = 0; l < t.log.length; l++) { var ld = D(t.log[l].date); if (ld && ld >= ws && ld <= we) { var p = t.project || "(no project)"; hp[p] = (hp[p] || 0) + t.log[l].hours; } } }
+  var a = all(); for (var j = 0; j < a.length; j++) if (a[j].status == "Waiting") waiting.push(a[j]);
+  var s = "Week " + ws.getDate() + " " + LT.MON[ws.getMonth()] + " – " + we.getDate() + " " + LT.MON[we.getMonth()] + " " + we.getFullYear() + (LT.settings().userName ? "  (" + LT.settings().userName + ")" : "") + "\r\n\r\n";
+  s += "DONE (" + done.length + ")\r\n"; for (var k = 0; k < done.length; k++) s += "  • " + done[k].title + (done[k].project ? "  [" + done[k].project + "]" : "") + "\r\n";
+  s += "\r\nSTILL OPEN – due this week or late (" + open.length + ")\r\n"; for (k = 0; k < open.length; k++) s += "  • " + open[k].title + "  – " + nice(open[k].due) + (open[k].project ? "  [" + open[k].project + "]" : "") + "\r\n";
+  if (waiting.length) { s += "\r\nWAITING ON OTHERS (" + waiting.length + ")\r\n"; for (k = 0; k < waiting.length; k++) s += "  • " + waiting[k].title + " – " + (waiting[k].waitingOn || "?") + (waiting[k].due ? ", due " + nice(waiting[k].due) : "") + "\r\n"; }
+  var tot = 0, hl = ""; for (var pk in hp) if (hp.hasOwnProperty(pk)) { tot += hp[pk]; hl += "  • " + pk + ": " + Math.round(hp[pk] * 10) / 10 + " h\r\n"; }
+  if (tot) s += "\r\nTIME (" + Math.round(tot * 10) / 10 + " h)\r\n" + hl;
+  return s;
+}
+function exportMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "&#128203; Copy this week's summary (for email / Teams)", fn: function () { if (LT.copyText(weekly())) LT.toast("This week's summary is copied"); } },
+    { label: "Weekly summary &rarr; Excel (CSV)", fn: function () { var rows = [["Weekly summary"]], ls = weekly().split("\r\n"); for (var i = 0; i < ls.length; i++) rows.push([ls[i].replace(/^\s*•\s*/, "")]); var f = LT.exportsDir() + "\\Tracker_week_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } },
+    { label: "All tasks &rarr; Excel (CSV)", fn: function () {
+      var rows = [["Task", "Project", "Due", "Priority", "Status", "Waiting on", "Repeat", "Hours", "Done on", "Created", "Notes"]];
+      for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; rows.push([t.title, t.project, t.due, t.priority, t.status, t.waitingOn, t.repeat, hours(t) ? Math.round(hours(t) * 100) / 100 : "", t.doneOn, t.created, t.notes]); }
+      var f = LT.exportsDir() + "\\Tracker_all_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } }]);
+}
+
+/* ---------- events ---------- */
+function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}"]); }
+$("bAdd").onclick = quickAdd;
+$("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { quickAdd(); return false; } };
+$("bDetail").onclick = function () { edit(null); };
+$("bExport").onclick = function (e) { var r = this.getBoundingClientRect(); exportMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("views").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { data.view = b.getAttribute("data-v"); save(); render(); } };
+$("proj").onchange = render; $("search").onkeyup = render;
+$("bStop").onclick = function () { for (var i = 0; i < data.tasks.length; i++) stopTimer(data.tasks[i]); save(); render(); };
+$("main").onclick = function (e) { var t = e.target || e.srcElement, d = t.getAttribute && t.getAttribute("data-done"); if (d != null) { var task = shown[+d]; setStatus(task, t.checked ? "Done" : "To do"); } };
+$("main").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "data-i"); if (r) edit(shown[+r.getAttribute("data-i")]); };
+$("main").oncontextmenu = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-i"); if (r) taskMenu(shown[+r.getAttribute("data-i")], e.clientX, e.clientY); return false; };
+/* board: drag a card to another column */
+var dragI = null;
+$("main").ondragstart = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-i"); if (!c) return; dragI = +c.getAttribute("data-i"); try { e.dataTransfer.setData("text", "" + dragI); } catch (x) { } };
+$("main").ondragover = function (e) { e = e || window.event; var col = LT.up(e.target || e.srcElement, "data-st"); if (col) { if (e.preventDefault) e.preventDefault(); e.returnValue = false; } return false; };
+$("main").ondragenter = function (e) { e = e || window.event; var col = LT.up(e.target || e.srcElement, "data-st"); if (col) { if (e.preventDefault) e.preventDefault(); col.className = "col over"; } return false; };
+$("main").ondragleave = function (e) { e = e || window.event; var col = LT.up(e.target || e.srcElement, "data-st"); if (col) col.className = "col"; };
+$("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); var col = LT.up(e.target || e.srcElement, "data-st"); if (col && dragI != null && shown[dragI]) { var st = col.getAttribute("data-st"), t = shown[dragI]; dragI = null; if (t.status != st) setStatus(t, st); else render(); } return false; };
+$("eOk").onclick = saveEdit; $("eCancel").onclick = function () { $("dlg").style.display = "none"; };
+$("eDel").onclick = function () { $("dlg").style.display = "none"; if (editing) del(editing); };
+$("eAddB").onclick = function () { var h = hrs($("eAddH").value); if (h > 0) { work.log.push({ date: LT.today(), hours: h }); $("eAddH").value = ""; showTime(); } };
+$("dlg").onkeydown = function (e) { e = e || window.event; var tg = (e.target || e.srcElement).tagName; if (e.keyCode == 27) $("dlg").style.display = "none"; if (e.keyCode == 13 && tg == "INPUT" && (e.target || e.srcElement).id != "eAddH") saveEdit(); };
+window.setInterval(timer, 1000);
+
+/* called by the main window */
+window.ltTheme = function () { look(); render(); };
+window.ltReload = function () { load(); render(); };
+window.ltShown = function () { loadFeed(); render(); try { $("quick").focus(); } catch (e) { } };
+look(); load(); render(); LT.tabKeys();
+</script>
 </body>
 </html>

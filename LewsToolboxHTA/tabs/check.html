@@ -6,15 +6,280 @@
 <title>Submission Check</title>
 <meta name="lt-order" content="5">
 <meta name="lt-icon" content="&#9989;">
+<!--
+  Lew's Toolbox - Submission Check: compares a submission folder (and its subfolders) with your list (Excel / CSV).
+  Checks: file count, each listed file found / missing / wrong revision / missing file type / wrong folder / listed twice,
+  files not on the list, empty files, upper/lower case differences.
+  Remembers the folder, list and columns in check.json.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#cols select{width:150px;height:26px;margin:0 10px 6px 0}
+#cols .lbl{margin-right:4px}
+#sum{flex:none;padding:8px 14px}
+#types{font-size:.92em}
+#types span{margin-right:14px}
+.right{float:right}
+</style>
 <script src="../core/lt-core.js"></script>
 </head>
 <body>
-<!-- Placeholder: this whole file is replaced when the Submission Check tab is built. -->
-<div style="padding:30px">
-  <h2>Submission Check</h2>
-  <div style="margin-top:10px">Check a submission folder against your list: file count and file names.</div>
-  <div class="muted" style="margin-top:16px">Coming soon.</div>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Submission folder...</button><span class="path big" id="folderLbl"></span>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
+  </div>
+  <div class="step">
+    <span class="num">2</span><button class="btn" id="bList">&#128196; My list (Excel / CSV)...</button><span class="path big" id="listLbl"></span>
+    <div id="cols" style="margin-left:32px">
+      <span class="lbl">File name / number:</span><select id="cName"></select>
+      <span class="lbl">Revision:</span><select id="cRev"></select>
+      <span class="lbl">File types:</span><select id="cFmt"></select>
+      <button class="btn small" id="bMoreCols">More &#9662;</button>
+    </div>
+  </div>
+  <div class="step bar">
+    <span class="num">3</span><button class="btn primary" id="bRun">&#9654; Check</button>
+    <span class="lbl">Show:</span><select id="show" style="width:170px;height:26px;margin:0 8px 6px 0"><option value="all">Everything</option><option value="bad" selected>Problems only</option><option value="miss">Missing</option><option value="rev">Wrong revision</option><option value="extra">Files not on the list</option><option value="ok">OK only</option></select>
+    <span class="right"><button class="btn" id="bReport">Report &#9662;</button><button class="btn" id="bFix" title="Open the folder in Bulk Files to fix names">Fix names in Bulk Files</button></span>
+  </div>
+  <div id="sum"><div id="sumTxt" class="muted">Pick the submission folder and your list, then &#9654; Check.</div><div id="types"></div></div>
+  <div id="res"></div>
 </div>
-<script>window.ltTheme = function () { LT.applyLook(); }; LT.applyLook(); LT.tabKeys();</script>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso;
+var cfg, table = null, head = [], headRow = 0, last = null, shown = [];
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
+var NAME_WORDS = ["file name", "filename", "drawing number", "drawing no", "drawing no.", "dwg no", "dwg number", "document number", "document no", "doc no", "doc number", "number", "name", "file", "deliverable"];
+function CFG() { return LT.dataPath("check.json"); }
+function loadCfg() { cfg = LT.readJson(CFG(), null) || {}; var d = { folder: "", list: "", formats: "", subs: true, colName: "", colRev: "", colFmt: "", colFolder: "", colTitle: "" }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
+function saveCfg() { try { LT.saveJson(CFG(), cfg); } catch (e) { } }
+function up(s) { return LT.trim(s).toUpperCase(); }
+function exts(s) { var a = ("" + (s || "")).split(/[\s,;\/+&]+/), o = []; for (var i = 0; i < a.length; i++) { var x = LT.trim(a[i]).replace(/^\./, "").toLowerCase(); if (x && o.indexOf(x) < 0) o.push(x); } return o; }
+/* "5013-KEO-ZZ-DR-A-10101-P02" -> base "5013-KEO-ZZ-DR-A-10101", rev "P02" */
+function splitRev(stem) {
+  var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")), seps = (stem.match(/[-_]/g) || []).length;
+  if (i > 0 && seps >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1) };
+  return { base: stem, rev: "" };
+}
+
+/* ---------- step 1 + 2 ---------- */
+function showPaths() {
+  $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
+  $("listLbl").innerHTML = cfg.list ? esc(fso.GetFileName(cfg.list)) + (table ? ' <span class="muted">(' + Math.max(0, table.length - headRow - 1) + " rows)</span>" : "") : '<span class="muted">not picked</span>';
+  $("subs").checked = cfg.subs;
+  $("cols").style.display = table ? "" : "none";
+}
+function pickFolder() { var f = LT.pickFolder("Pick the submission folder"); if (f) { cfg.folder = f; saveCfg(); showPaths(); } }
+function pickList() { LT.pickFile(function (p) { try { readList(p, true); cfg.list = p; saveCfg(); showPaths(); } catch (e) { alert("Couldn't read that list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); } }); }
+/* reads the list and guesses which columns are which (the person can change them) */
+function readList(p, guess) {
+  table = LT.readTable(p);
+  headRow = -1;
+  for (var r = 0; r < Math.min(30, table.length) && headRow < 0; r++) for (var c = 0; c < table[r].length; c++) if (NAME_WORDS.indexOf(LT.trim(table[r][c]).toLowerCase()) >= 0) { headRow = r; break; }
+  if (headRow < 0) { headRow = 0; for (var r2 = 0; r2 < table.length; r2++) { var n = 0; for (var c2 = 0; c2 < table[r2].length; c2++) if (LT.trim(table[r2][c2])) n++; if (n >= 2) { headRow = r2; break; } } }
+  head = []; var hr = table[headRow] || [];
+  for (var i = 0; i < hr.length; i++) head.push(LT.trim(hr[i]) || "Column " + String.fromCharCode(65 + (i % 26)));
+  var find = function (words, saved) {
+    if (!guess && saved && head.indexOf(saved) >= 0) return saved;
+    for (var w = 0; w < words.length; w++) for (var h = 0; h < head.length; h++) if (head[h].toLowerCase() == words[w]) return head[h];
+    for (var w2 = 0; w2 < words.length; w2++) for (var h2 = 0; h2 < head.length; h2++) if (head[h2].toLowerCase().indexOf(words[w2]) >= 0) return head[h2];
+    return "";
+  };
+  cfg.colName = find(NAME_WORDS, cfg.colName) || head[0] || "";
+  cfg.colRev = find(["revision", "rev", "rev.", "current revision", "issue rev"], cfg.colRev);
+  cfg.colFmt = find(["file types", "file type", "format", "formats", "type", "file format"], cfg.colFmt);
+  cfg.colFolder = find(["folder", "subfolder", "location", "path"], cfg.colFolder);
+  cfg.colTitle = find(["title", "description", "drawing title", "document title"], cfg.colTitle);
+  fillCols();
+}
+function fillCols() {
+  var opts = function (sel, none) { var h = none ? '<option value="">(none)</option>' : ""; for (var i = 0; i < head.length; i++) h += "<option" + (head[i] == sel ? " selected" : "") + ">" + esc(head[i]) + "</option>"; return h; };
+  $("cName").innerHTML = opts(cfg.colName, false); $("cRev").innerHTML = opts(cfg.colRev, true); $("cFmt").innerHTML = opts(cfg.colFmt, true);
+}
+function moreCols(x, y) {
+  var pick = function (key, label) { return function () { var a = ["(none)"].concat(head), list = ""; for (var i = 0; i < a.length; i++) list += "\n  " + i + "  =  " + a[i];
+    var v = prompt("Which column is the " + label + "? Type its number:" + list, "" + Math.max(0, head.indexOf(cfg[key]) + 1)); if (v == null) return; var n = parseInt(v, 10); if (n >= 0 && n < a.length) { cfg[key] = n ? a[n] : ""; saveCfg(); } }; };
+  LT.menu(x, y, [
+    { label: "Folder column" + (cfg.colFolder ? ": " + esc(cfg.colFolder) : " (none)") + "...", fn: pick("colFolder", "folder") },
+    { label: "Title column" + (cfg.colTitle ? ": " + esc(cfg.colTitle) : " (none)") + "...", fn: pick("colTitle", "title") },
+    { label: "File types for every row" + (cfg.formats ? ": " + esc(cfg.formats) : "") + "...", fn: function () { var v = prompt("When the list has no File types column: which types does every row need?\ne.g.  pdf   or   pdf, dwg      (empty = any type is fine)", cfg.formats); if (v != null) { cfg.formats = LT.trim(v); saveCfg(); } } }]);
+}
+
+/* ---------- step 3: the check ---------- */
+function scan(dir, root, deep, out) {
+  try {
+    var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
+    for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name;
+      if (f.Attributes & 6) continue; if (/^~\$/.test(n) || /^(thumbs\.db|desktop\.ini)$/i.test(n)) continue;
+      var rel = dir.length > root.length ? dir.substring(root.length).replace(/^\\+/, "") : "", i = n.lastIndexOf(".");
+      out.push({ full: "" + f.Path, folder: rel, rel: rel ? rel + "\\" + n : n, name: n, stem: i > 0 ? n.substring(0, i) : n, ext: i > 0 ? n.substring(i + 1).toLowerCase() : "", size: f.Size, used: false }); }
+    if (deep) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) { var sf = d.item(); if (sf.Attributes & 6) continue; scan("" + sf.Path, root, true, out); } }
+  } catch (x) { }
+}
+function check(rows, files, defFormats) {
+  var res = { rows: rows, files: files, extra: [], notes: [], types: {} }, defF = exts(defFormats), byStem = {}, byBase = {}, seenEntries = {};
+  for (var i = 0; i < files.length; i++) { var f = files[i], s = up(f.stem), b = splitRev(s).base; (byStem[s] = byStem[s] || []).push(f); (byBase[b] = byBase[b] || []).push(f); }
+  for (var r = 0; r < rows.length; r++) {
+    var row = rows[r], entry = LT.trim(row.entry), entryExt = "", m = /\.([A-Za-z][A-Za-z0-9]{1,3})$/.exec(entry);
+    if (m && !REV.test(m[1])) { entryExt = m[1].toLowerCase(); entry = entry.substring(0, entry.length - m[0].length); }
+    var need = exts(row.formats); if (!need.length) need = entryExt ? [entryExt] : defF;
+    var sr = splitRev(up(entry)), bas = sr.base, revIn = sr.rev, want = up(row.rev);
+    var wantStem = want && !revIn ? null : up(entry);
+    var key = wantStem || (bas + "|" + want);
+    if (seenEntries[key]) { row.status = "Listed twice"; row.note = "Same as row " + seenEntries[key]; row.lv = 1; row.files = []; continue; }
+    seenEntries[key] = row.no;
+    row.note = want && revIn && want != revIn ? "List name has " + revIn + " but Rev column says " + want + ". " : "";
+    var exact = [];
+    if (wantStem) exact = (byStem[wantStem] || []).slice(0);
+    else { var c = [bas + "-" + want, bas + "_" + want, bas + want, bas]; for (var k = 0; k < c.length; k++) { var l = byStem[c[k]] || []; for (var q = 0; q < l.length; q++) if (exact.indexOf(l[q]) < 0) exact.push(l[q]); } }
+    var other = []; var sb = byBase[bas] || []; for (var o = 0; o < sb.length; o++) if (exact.indexOf(sb[o]) < 0) other.push(sb[o]);
+    for (var u = 0; u < exact.length; u++) exact[u].used = true; for (var u2 = 0; u2 < other.length; u2++) other[u2].used = true;
+    row.files = exact.concat(other);
+    var hits = [], missing = [];
+    for (var h = 0; h < exact.length; h++) if (!need.length || need.indexOf(exact[h].ext) >= 0) hits.push(exact[h]);
+    for (var n = 0; n < need.length; n++) { var got = false; for (var e2 = 0; e2 < exact.length; e2++) if (exact[e2].ext == need[n]) got = true; if (!got) missing.push(need[n]);
+      var tc = res.types[need[n]] = res.types[need[n]] || [0, 0]; tc[0]++; if (got) tc[1]++; }
+    if (!exact.length && other.length) { var revs = []; for (var v = 0; v < other.length; v++) { var rv = splitRev(up(other[v].stem)).rev || "(no rev)"; if (revs.indexOf(rv) < 0) revs.push(rv); }
+      row.status = "Wrong revision"; row.lv = 2; row.note += "Expected " + (want || revIn || "(no rev)") + ", found " + revs.join(", "); continue; }
+    if (!exact.length) { row.status = "Missing"; row.lv = 2; row.note += need.length ? "Need: " + need.join(", ") : ""; continue; }
+    if (missing.length) { var have = []; for (var hv = 0; hv < exact.length; hv++) if (have.indexOf(exact[hv].ext) < 0) have.push(exact[hv].ext);
+      row.status = "Missing file type"; row.lv = 2; row.note += "Missing: " + missing.join(", ") + "  (have: " + have.join(", ") + ")"; continue; }
+    if (LT.trim(row.folder)) { var wf = LT.trim(row.folder).replace(/^[\\\/]+|[\\\/]+$/g, "").replace(/\//g, "\\").toLowerCase(), wrong = null;
+      for (var w = 0; w < hits.length; w++) { var hf = hits[w].folder.toLowerCase(); if (hf.slice(-wf.length) != wf && hf.indexOf(wf) != 0) wrong = hits[w]; }
+      if (wrong) { row.status = "Wrong folder"; row.lv = 1; row.note += 'Expected in "' + row.folder + '", found in "' + (wrong.folder || "(top folder)") + '"'; continue; } }
+    var notes = [];
+    for (var cs = 0; cs < hits.length; cs++) if (hits[cs].stem.indexOf(entry) != 0) { notes.push("Upper/lower case differs from the list: " + hits[cs].name); break; }
+    var names = {}; for (var dn = 0; dn < hits.length; dn++) { var nk = hits[dn].name.toLowerCase(); names[nk] = (names[nk] || 0) + 1; if (names[nk] == 2) notes.push("Same file in 2+ folders"); }
+    for (var z = 0; z < hits.length; z++) if (hits[z].size == 0) { notes.push("Empty file (0 KB): " + hits[z].name); break; }
+    if (other.length) notes.push("Also an old/other revision: " + other[0].name);
+    row.status = "Found"; row.lv = notes.length ? 1 : 0; row.note += notes.join(".  ");
+  }
+  for (var x = 0; x < files.length; x++) { if (!files[x].used) res.extra.push(files[x]); var t = res.types[files[x].ext] = res.types[files[x].ext] || [0, 0]; }
+  for (var tk in res.types) if (res.types.hasOwnProperty(tk)) { var cnt = 0; for (var y = 0; y < files.length; y++) if (files[y].ext == tk) cnt++; res.types[tk][1] = cnt; }
+  for (var en = 0; en < files.length; en++) { if (files[en].size == 0 && !files[en].used) res.notes.push("Empty file (0 KB): " + files[en].rel); if (files[en].full.length >= 250) res.notes.push("Path nearly too long (" + files[en].full.length + " characters): " + files[en].rel); }
+  return res;
+}
+function runCheck() {
+  if (!cfg.folder || !fso.FolderExists(cfg.folder)) { alert("Pick the submission folder first."); return; }
+  if (!cfg.list || !fso.FileExists(cfg.list)) { alert("Pick your list first (Excel or CSV)."); return; }
+  try { readList(cfg.list, false); } catch (e) { alert("Couldn't read the list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return; }
+  showPaths();
+  var col = function (name) { return name ? head.indexOf(name) : -1; }, iN = col(cfg.colName), iR = col(cfg.colRev), iF = col(cfg.colFmt), iD = col(cfg.colFolder), iT = col(cfg.colTitle);
+  if (iN < 0) { alert("Choose which column has the file name / number."); return; }
+  var rows = [];
+  for (var r = headRow + 1; r < table.length; r++) { var e = LT.cell(table[r], iN); if (!e) continue;
+    rows.push({ no: r + 1, entry: e, rev: LT.cell(table[r], iR), formats: LT.cell(table[r], iF), folder: LT.cell(table[r], iD), title: LT.cell(table[r], iT), status: "", note: "", lv: 0, files: [] }); }
+  if (!rows.length) { alert('No rows found under the heading "' + cfg.colName + '".'); return; }
+  var files = []; scan(cfg.folder, cfg.folder, cfg.subs, files);
+  last = check(rows, files, cfg.formats);
+  summary(); render();
+}
+function count(st) { var n = 0; for (var i = 0; i < last.rows.length; i++) if (last.rows[i].status == st) n++; return n; }
+function summary() {
+  var found = count("Found"), miss = count("Missing"), rev = count("Wrong revision"), type = count("Missing file type"), fold = count("Wrong folder"), warn = 0;
+  for (var i = 0; i < last.rows.length; i++) if (last.rows[i].status == "Found" && last.rows[i].lv == 1) warn++;
+  var ok = !miss && !rev && !type && !fold && !last.extra.length;
+  $("sumTxt").className = "big " + (ok ? "ok" : "bad");
+  $("sumTxt").innerHTML = (ok ? "&#9989; All good &ndash; " : "&#9888; ") + last.rows.length + " on the list &middot; " + found + " found" + (warn ? " (" + warn + " with a note)" : "") +
+    (miss ? " &middot; " + miss + " MISSING" : "") + (rev ? " &middot; " + rev + " wrong revision" : "") + (type ? " &middot; " + type + " missing a file type" : "") + (fold ? " &middot; " + fold + " in the wrong folder" : "") +
+    " &middot; " + last.extra.length + " not on the list &middot; " + last.files.length + " files in the folder";
+  var h = "<b>Count by file type:</b> &nbsp;", keys = []; for (var k in last.types) if (last.types.hasOwnProperty(k)) keys.push(k); keys.sort();
+  for (var j = 0; j < keys.length; j++) { var t = last.types[keys[j]], need = t[0] > 0;
+    h += '<span class="' + (need ? (t[1] >= t[0] ? "ok" : "bad") : "") + '">.' + esc(keys[j] || "(none)") + " " + t[1] + (need ? " / " + t[0] + " needed" : "") + "</span>"; }
+  $("types").innerHTML = h;
+  if (!ok && $("show").value == "ok") $("show").value = "bad";
+}
+function render() {
+  if (!last) { $("res").innerHTML = ""; return; }
+  var mode = $("show").value, h = ['<table class="grid"><tr><th>Row</th><th>On the list</th><th>Title</th><th>Rev</th><th>Types</th><th>Result</th><th>Found in folder</th><th>Note</th></tr>'];
+  shown = [];
+  if (mode != "extra") for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i];
+    if (mode == "bad" && r.lv == 0) continue; if (mode == "miss" && r.status != "Missing" && r.status != "Missing file type") continue; if (mode == "rev" && r.status != "Wrong revision") continue; if (mode == "ok" && r.lv != 0) continue;
+    var fl = []; for (var f = 0; f < r.files.length && f < 3; f++) fl.push(esc(r.files[f].rel)); if (r.files.length > 3) fl.push("&hellip;");
+    shown.push(r);
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td>' + r.no + "</td><td><b>" + esc(r.entry) + "</b></td><td>" + esc(r.title) + "</td><td>" + esc(r.rev) + "</td><td>" + esc(r.formats || cfg.formats) +
+      '</td><td class="' + (r.lv == 0 ? "ok" : r.lv == 1 ? "warn" : "bad") + '" style="font-weight:bold;white-space:nowrap">' + (r.lv == 0 ? "&#10004; " : r.lv == 1 ? "&#9888; " : "&#10006; ") + r.status + "</td><td>" + fl.join("<br>") + '</td><td class="muted">' + esc(r.note) + "</td></tr>"); }
+  if (mode == "all" || mode == "bad" || mode == "extra") for (var x = 0; x < last.extra.length; x++) { var e = last.extra[x]; shown.push(e);
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td></td><td></td><td></td><td></td><td>' + esc(e.ext) + '</td><td class="warn" style="font-weight:bold;white-space:nowrap">&#10133; Not on the list</td><td>' + esc(e.rel) + '</td><td class="muted">' + (e.size == 0 ? "Empty file (0 KB)" : "") + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+}
+
+/* ---------- report ---------- */
+function summaryText() {
+  var s = "Submission check – " + LT.today() + "\r\nFolder: " + cfg.folder + "\r\nList: " + fso.GetFileName(cfg.list) + "\r\n\r\nOn the list: " + last.rows.length + "   Found: " + count("Found") + "   Files in folder: " + last.files.length + "\r\n";
+  var sts = ["Missing", "Missing file type", "Wrong revision", "Wrong folder", "Listed twice"];
+  for (var i = 0; i < sts.length; i++) { var l = []; for (var j = 0; j < last.rows.length; j++) if (last.rows[j].status == sts[i]) l.push(last.rows[j]);
+    if (!l.length) continue; s += "\r\n" + sts[i].toUpperCase() + " (" + l.length + ")\r\n"; for (var k = 0; k < l.length; k++) s += "  • " + l[k].entry + (l[k].note ? " – " + l[k].note : "") + "\r\n"; }
+  if (last.extra.length) { s += "\r\nNOT ON THE LIST (" + last.extra.length + ")\r\n"; for (var x = 0; x < last.extra.length; x++) s += "  • " + last.extra[x].rel + "\r\n"; }
+  return s;
+}
+function reportRows() {
+  var t = [["Row", "On the list", "Title", "Rev", "Types", "Result", "Found in folder", "Note"]];
+  for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i], fl = []; for (var f = 0; f < r.files.length; f++) fl.push(r.files[f].rel); t.push([r.no, r.entry, r.title, r.rev, r.formats || cfg.formats, r.status, fl.join("\n"), r.note]); }
+  for (var x = 0; x < last.extra.length; x++) t.push(["", "", "", "", last.extra[x].ext, "Not on the list", last.extra[x].rel, last.extra[x].size == 0 ? "Empty file (0 KB)" : ""]);
+  return t;
+}
+function excelReport() {
+  if (!last) { alert("Run a check first."); return; }
+  var base = LT.exportsDir() + "\\SubmissionCheck_" + LT.safeName(fso.GetFileName(cfg.folder)).replace(/ /g, "_") + "_" + LT.stamp(), rows = reportRows();
+  LT.mkdirs(LT.exportsDir());
+  var xl = null, wb = null;
+  try {
+    xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
+    wb = xl.Workbooks.Add(); while (wb.Worksheets.Count < 2) wb.Worksheets.Add(); while (wb.Worksheets.Count > 2) wb.Worksheets(wb.Worksheets.Count).Delete();
+    var s1 = wb.Worksheets(1), s2 = wb.Worksheets(2); s1.Name = "Summary"; s2.Name = "Checklist";
+    var lines = summaryText().split("\r\n");
+    s1.Columns(1).ColumnWidth = 110; for (var i = 0; i < lines.length; i++) s1.Cells(i + 1, 1).Value = lines[i];
+    s1.Cells(1, 1).Font.Bold = true; s1.Cells(1, 1).Font.Size = 14;
+    var W = [7, 40, 34, 7, 10, 18, 50, 50];
+    for (var r = 0; r < rows.length; r++) for (var c = 0; c < rows[r].length; c++) { var cell = s2.Cells(r + 1, c + 1); if (c == 1 || c == 3) cell.NumberFormat = "@"; cell.Value = rows[r][c]; }
+    for (var w = 0; w < W.length; w++) s2.Columns(w + 1).ColumnWidth = W[w];
+    var hd = s2.Range("A1:H1"); hd.Font.Bold = true; hd.Interior.Color = 0x7E3E5B; hd.Font.Color = 0xFFFFFF;
+    for (var k = 1; k < rows.length; k++) { var res = s2.Cells(k + 1, 6), st = rows[k][5]; res.Font.Bold = true; res.Font.Color = st == "Found" ? 0x578B2E : /Wrong folder|Listed twice|Not on/.test(st) ? 0x0065A8 : 0x2B39C0; }
+    try { s2.Range("A1:H" + rows.length).AutoFilter(); } catch (e) { }
+    s1.Activate();
+    wb.SaveAs(base + ".xlsx", 51);
+    LT.open(base + ".xlsx"); return base + ".xlsx";
+  } catch (e) {
+    try { LT.writeCsv(base + ".csv", rows); LT.open(base + ".csv"); LT.toast("Excel isn't available - saved as CSV instead"); return base + ".csv"; } catch (e2) { alert("Couldn't make the report:\n" + (e.message || e)); return null; }
+  } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+}
+function reportMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Excel report", fn: excelReport },
+    { label: "&#128203; Copy summary (for email / Teams)", fn: function () { if (!last) { alert("Run a check first."); return; } if (LT.copyText(summaryText())) LT.toast("Summary copied"); } },
+    { label: "Other notes (empty files, long paths)", fn: function () { alert(!last ? "Run a check first." : last.notes.length ? last.notes.slice(0, 40).join("\n") : "Nothing else to report."); } }]);
+}
+
+/* ---------- events ---------- */
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}"]); }
+function under(btn, fn) { return function (e) { var r = btn.getBoundingClientRect(); fn(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; }; }
+$("bFolder").onclick = pickFolder; $("bList").onclick = pickList; $("bRun").onclick = runCheck;
+$("subs").onclick = function () { cfg.subs = this.checked; saveCfg(); };
+$("cName").onchange = function () { cfg.colName = this.value; saveCfg(); };
+$("cRev").onchange = function () { cfg.colRev = this.value; saveCfg(); };
+$("cFmt").onchange = function () { cfg.colFmt = this.value; saveCfg(); };
+$("bMoreCols").onclick = under($("bMoreCols"), moreCols);
+$("show").onchange = render;
+$("bReport").onclick = under($("bReport"), reportMenu);
+$("bFix").onclick = function () { if (cfg.folder && LT.main()) LT.main().send("files", "open-folder", cfg.folder); else alert("Pick the submission folder first."); };
+$("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-s"); if (!tr) return; var o = shown[+tr.getAttribute("data-s")]; try { if (o.full) LT.showInFolder(o.full); else if (o.files && o.files.length) LT.showInFolder(o.files[0].full); else LT.open(cfg.folder); } catch (x) { } };
+
+/* called by the main window */
+window.ltTheme = function () { look(); };
+window.ltReload = function () { loadCfg(); table = null; showPaths(); };
+window.ltReceive = function (what, value) { if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); } };
+look(); loadCfg();
+if (cfg.list && fso.FileExists(cfg.list)) { try { if (!/\.(xlsx|xlsm|xls)$/i.test(cfg.list)) readList(cfg.list, false); } catch (e) { } }
+showPaths(); LT.tabKeys();
+</script>
 </body>
 </html>

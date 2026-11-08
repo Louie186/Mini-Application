@@ -23,7 +23,7 @@ No install, no build step.
 | 📁 Bulk Files | ✅ Rename / copy / move with preview, Excel, lock and Undo |
 | 🗂 Tracker | ✅ Your work list: Today / Week / Overdue / Board, repeats, timer, weekly summary |
 | 📋 Delegate | ✅ Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
-| ✅ Submission Check | Coming |
+| ✅ Submission Check | ✅ Folder vs your list: missing, wrong revision, missing type, extra files, counts |
 | ⚙ Settings | ✅ |
 
 ## Launcher
@@ -76,6 +76,18 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 4. Views: **Tasks** (progress, late in red) · **👥 Team** (open, late, this / next week, Behind / Busy / Has room) · **🌐 Lew's Tracker** (read-only, when linked)
 - Right-click a row: status, send this task, history, duplicate, delete. **More ▾**: CSV export, sent / received log, project name, copy Lew's Tracker tasks in
 - Same formats as Lew's Tracker (web app). Open tasks show in the Tracker as "Waiting on <name>"
+
+## Submission Check
+
+1. **Submission folder…** (include subfolders)
+2. **My list (Excel / CSV)…** – any register, transmittal or checklist. It finds the heading row itself and guesses the columns; change them if needed:
+   - **File name / number** (with or without revision / ending), **Revision**, **File types** (e.g. `pdf, dwg`)
+   - **More ▾**: Folder column, Title column, file types every row needs (when the list has no types column)
+3. **▶ Check** – every list row gets: ✔ Found · ✖ Missing · ✖ Wrong revision · ✖ Missing file type · ⚠ Wrong folder · ⚠ Listed twice · ⚠ Found with a note (case differs, empty file, old revision also there)
+   - ➕ files in the folder that aren't on the list, and a **count by file type** (found / needed)
+- **Show:** problems only, missing, wrong revision, files not on the list… Double-click a row to open its folder
+- **Report ▾:** Excel report (through Excel, or CSV if Excel isn't there), copy summary for email / Teams, other notes
+- **Fix names in Bulk Files** opens the folder in Bulk Files. Folder, list and columns are remembered
 
 ## Settings
 

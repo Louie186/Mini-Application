@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Settings</title>
+<meta name="lt-order" content="9">
+<meta name="lt-icon" content="&#9881;">
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div class="scroll" style="height:100%;padding:18px 24px">
+  <h2>Settings</h2>
+
+  <div class="h">Look</div>
+  <div id="themes"></div>
+  <div><span class="muted">Text size: </span><span id="sizes"></span></div>
+
+  <div class="h">Your name</div>
+  <input type="text" id="uname" style="width:220px"> <button class="btn" id="bName">Save</button>
+  <span class="muted">Shown as "Issued by" on task sheets you send.</span>
+
+  <div class="h">Data folder</div>
+  <div class="muted">Where your lists are saved. Put it in OneDrive to use the same data on every PC.</div>
+  <div id="dataPath" style="font-weight:bold;margin:6px 0"></div>
+  <button class="btn primary" id="bData">Change folder...</button>
+  <button class="btn" id="bDataDef">Use the folder next to the program</button>
+  <button class="btn" id="bDataOpen">Open data folder</button>
+
+  <div class="h">Launcher list</div>
+  <div class="muted">Use the Toolbox's own list, or share the same list with your QuickLaunch.hta (pick the folder that has QuickLaunch.hta in it).</div>
+  <div id="lhPath" style="font-weight:bold;margin:6px 0"></div>
+  <button class="btn" id="bLhQl">Use my QuickLaunch list...</button>
+  <button class="btn" id="bLhOwn">Use the Toolbox's own list</button>
+
+  <div class="h">Link to Lew's Tracker (optional)</div>
+  <div class="muted">Pick the web app's data folder (the one with Delegation.json) to see those tasks in Delegate. The Toolbox only reads it.</div>
+  <div id="trPath" style="font-weight:bold;margin:6px 0"></div>
+  <button class="btn" id="bTr">Pick Lew's Tracker data folder...</button>
+  <button class="btn" id="bTrOff">Unlink</button>
+
+  <div class="h">Taskbar</div>
+  <button class="btn" id="bPin">Make taskbar shortcut (fixes the icon)</button>
+  <div class="muted">Puts a "Lew's Toolbox" shortcut on your Desktop: right-click it &gt; Pin to taskbar (Windows 11: Show more options first).</div>
+
+  <div class="h">Keyboard</div>
+  <div class="muted">Ctrl+1 ... Ctrl+9 = switch tabs (in the order of the side menu)</div>
+
+  <div class="h">About</div>
+  <div class="muted" id="about"></div>
+</div>
+<script>
+var S;
+function refresh() {
+  S = LT.settings();
+  var h = "";
+  for (var k in LT.THEMES) if (LT.THEMES.hasOwnProperty(k)) h += '<button class="btn' + (S.theme == k ? " on" : "") + '" data-theme="' + k + '">' + LT.THEMES[k].name + "</button>";
+  LT.$("themes").innerHTML = h;
+  h = ""; for (var z in LT.SIZES) if (LT.SIZES.hasOwnProperty(z)) h += '<button class="btn' + (S.size == z ? " on" : "") + '" data-size="' + z + '">' + LT.SIZES[z].name + "</button>";
+  LT.$("sizes").innerHTML = h;
+  LT.$("uname").value = S.userName || "";
+  LT.$("dataPath").innerHTML = LT.esc(LT.dataDir()) + (S.dataFolder ? "" : ' <span class="muted">(next to the program)</span>');
+  LT.$("lhPath").innerHTML = S.launcherHome ? LT.esc(S.launcherHome + "\\QuickLaunch-data") + ' <span class="muted">(shared with QuickLaunch.hta)</span>' : LT.esc(LT.dataDir() + "\\QuickLaunch-data") + ' <span class="muted">(the Toolbox\'s own list)</span>';
+  LT.$("trPath").innerHTML = S.trackerFolder ? LT.esc(S.trackerFolder) : '<span class="muted">Not linked</span>';
+  LT.$("about").innerHTML = "Lew's Toolbox (HTA) &middot; program folder: " + LT.esc(LT.appDir()) + " &middot; settings for this PC: " + LT.esc(LT.settingsFile());
+}
+function save(fn) { var s = LT.settings(); fn(s); LT.saveSettings(s); refresh(); }
+function look() { LT.applyLook(); }
+
+document.body.onclick = function (e) {
+  var t = e.target || e.srcElement, th = LT.up(t, "data-theme"), sz = LT.up(t, "data-size");
+  if (th) { save(function (s) { s.theme = th.getAttribute("data-theme"); }); look(); if (LT.main()) LT.main().themeChanged(window); }
+  else if (sz) { save(function (s) { s.size = sz.getAttribute("data-size"); }); look(); if (LT.main()) LT.main().themeChanged(window); }
+};
+LT.$("bName").onclick = function () { save(function (s) { s.userName = LT.trim(LT.$("uname").value); }); LT.toast("Saved"); };
+LT.$("bDataOpen").onclick = function () { try { LT.mkdirs(LT.dataDir()); LT.open(LT.dataDir()); } catch (e) { } };
+LT.$("bData").onclick = function () {
+  var f = LT.pickFolder("Pick a folder for Lew's Toolbox data (e.g. in OneDrive)"); if (!f) return;
+  if (!/LewsToolbox-data$/i.test(f) && !LT.fso.FolderExists(f + "\\QuickLaunch-data") && !LT.fso.FileExists(f + "\\tracker.json")) f = f + "\\LewsToolbox-data";
+  setData(f);
+};
+LT.$("bDataDef").onclick = function () { setData(""); };
+function setData(f) {
+  var oldDir = LT.dataDir(), newDir = f || (LT.appDir() + "\\LewsToolbox-data");
+  if (oldDir.toLowerCase() == newDir.toLowerCase()) return;
+  try { LT.mkdirs(newDir); } catch (e) { alert("Can't use that folder:\n" + newDir); return; }
+  var fso = LT.fso, newHas = fso.GetFolder(newDir).Files.Count > 0 || fso.GetFolder(newDir).SubFolders.Count > 0;
+  if (fso.FolderExists(oldDir) && !newHas && confirm("Copy your current data into the new folder?\n\n(Your old folder is kept as it is.)")) {
+    try { fso.CopyFolder(oldDir + "\\*", newDir, false); } catch (e) { }
+    try { fso.CopyFile(oldDir + "\\*", newDir, false); } catch (e) { }
+  } else if (newHas) alert("That folder already has data - it will be used as it is.");
+  save(function (s) { s.dataFolder = f; });
+  if (LT.main()) LT.main().dataChanged();
+}
+LT.$("bLhQl").onclick = function () {
+  var f = LT.pickFolder("Pick the folder that has QuickLaunch.hta in it"); if (!f) return;
+  if (!LT.fso.FolderExists(f + "\\QuickLaunch-data") && !confirm("There's no QuickLaunch-data folder there yet.\n\nUse it anyway?")) return;
+  alert("Tip: don't keep QuickLaunch.hta and the Toolbox's Launcher open at the same time - the one you close last saves the list.");
+  save(function (s) { s.launcherHome = f; }); if (LT.main()) LT.main().dataChanged();
+};
+LT.$("bLhOwn").onclick = function () { save(function (s) { s.launcherHome = ""; }); if (LT.main()) LT.main().dataChanged(); };
+LT.$("bTr").onclick = function () {
+  var f = LT.pickFolder("Pick Lew's Tracker data folder (it has Delegation.json)"); if (!f) return;
+  if (!LT.fso.FileExists(f + "\\Delegation.json") && !confirm("There's no Delegation.json there yet.\n\nUse it anyway?")) return;
+  save(function (s) { s.trackerFolder = f; });
+};
+LT.$("bTrOff").onclick = function () { save(function (s) { s.trackerFolder = ""; }); };
+LT.$("bPin").onclick = function () { if (LT.main()) { var l = LT.main().makeShortcut(); if (l) alert("A Lew's Toolbox shortcut is on your Desktop (it's selected).\n\nRight-click it > Pin to taskbar\n(Windows 11: right-click > Show more options > Pin to taskbar)."); } };
+
+/* called by the main window */
+window.ltTheme = function () { look(); refresh(); };
+window.ltShown = refresh;
+window.ltReload = refresh;
+look(); refresh(); LT.tabKeys();
+</script>
+</body>
+</html>

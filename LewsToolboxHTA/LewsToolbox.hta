@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Lew's Toolbox</title>
+<hta:application id="ltApp" applicationname="LewsToolbox" icon="LewsToolbox.ico" border="thick" caption="yes"
+  showintaskbar="yes" singleinstance="yes" scroll="no" contextmenu="no" innerborder="no" selection="no"
+  maximizebutton="yes" minimizebutton="yes" />
+<!--
+  Lew's Toolbox - launcher, tracker, delegation, submission check and bulk files.
+  Plug and play like QuickLaunch: keep this file with its "core" and "tabs" folders, double-click it.
+  Each tab is its own file in "tabs" - this window finds them by itself.
+-->
+<style>
+#shell{display:flex;height:100%}
+#nav{flex:none;width:200px;display:flex;flex-direction:column;padding:10px 8px}
+#brand{font-weight:bold;font-size:16px;padding:6px 8px 14px;white-space:nowrap}
+#tabs{flex:1 1 auto;overflow-y:auto}
+.nb{display:block;width:100%;text-align:left;height:38px;margin:0 0 4px;padding:0 10px;cursor:pointer;font:inherit;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none}
+.nb .ic{display:inline-block;width:24px}
+#clock{flex:none;text-align:center;padding:8px 0;line-height:1.4}
+#clock b{font-size:1.15em}
+#body{flex:1 1 auto;position:relative;min-width:0}
+#body iframe{position:absolute;left:0;top:0;width:100%;height:100%;border:0;display:none}
+#warn{display:none;position:absolute;left:0;right:0;top:0;z-index:5;padding:8px 12px;font-weight:bold;background:#b13e53;color:#fff}
+@media (max-width:700px){ #nav{width:58px} .nb .tx,#brand .tx{display:none} #clock span{display:none} }
+</style>
+<script src="core/lt-core.js"></script>
+</head>
+<body>
+<div id="shell">
+  <div id="nav">
+    <div id="brand">&#129520;<span class="tx"> Lew's Toolbox</span></div>
+    <div id="tabs"></div>
+    <div id="clock"><b id="clkT">--:--</b><br><span id="clkD"></span></div>
+  </div>
+  <div id="body"><div id="warn"></div></div>
+</div>
+<script>
+/* ================================================================
+   Main window. Finds every tab page in the "tabs" folder (each page says its own name and order
+   in its <title> and <meta name="lt-order">), shows them in the side menu and loads each one
+   the first time it is opened.
+   ================================================================ */
+var fso = LT.fso, APP = LT.appDir(), SELF = LT.pathFromUrl(location.href);
+var tabs = [], frames = {}, current = null;
+
+/* reads the name / order / icon of each tabs\*.html without opening it */
+function findTabs() {
+  var list = [], dir = APP + "\\tabs";
+  if (!fso.FolderExists(dir)) return list;
+  var e = new Enumerator(fso.GetFolder(dir).Files);
+  for (; !e.atEnd(); e.moveNext()) {
+    var f = e.item(), n = "" + f.Name;
+    if (!/\.html?$/i.test(n)) continue;
+    var head = "";
+    try { var t = fso.OpenTextFile(f.Path, 1, false, 0); head = t.AtEndOfStream ? "" : t.Read(3000); t.Close(); } catch (x) { continue; }
+    var title = /<title>([^<]*)<\/title>/i.exec(head), order = /<meta name="lt-order" content="(\d+)"/i.exec(head), icon = /<meta name="lt-icon" content="([^"]*)"/i.exec(head);
+    list.push({ key: n.replace(/\.html?$/i, "").toLowerCase(), file: f.Path, title: title ? title[1] : n, order: order ? +order[1] : 99, icon: icon ? icon[1] : "&#9679;" });
+  }
+  list.sort(function (a, b) { return a.order - b.order || (a.title < b.title ? -1 : 1); });
+  return list;
+}
+
+function renderNav() {
+  var h = "";
+  for (var i = 0; i < tabs.length; i++)
+    h += '<button class="nb' + (tabs[i].key == current ? " on" : "") + '" data-k="' + tabs[i].key + '" title="' + LT.esc(tabs[i].title) + ' (Ctrl+' + (i + 1) + ')"><span class="ic">' + tabs[i].icon + '</span><span class="tx">' + LT.esc(tabs[i].title) + "</span></button>";
+  LT.$("tabs").innerHTML = h || '<div class="muted" style="padding:8px">The "tabs" folder is missing. Keep LewsToolbox.hta together with its "core" and "tabs" folders.</div>';
+}
+
+function show(key) {
+  var t = null;
+  for (var i = 0; i < tabs.length; i++) if (tabs[i].key == key) t = tabs[i];
+  if (!t) t = tabs[0];
+  if (!t) return;
+  if (!frames[t.key]) {
+    // application="yes" lets the tab page use Windows (files, Excel) like this window
+    LT.$("body").insertAdjacentHTML("beforeend", '<iframe application="yes" id="f_' + t.key + '" src="tabs/' + encodeURI(t.file.substring(t.file.lastIndexOf("\\") + 1)) + '"></iframe>');
+    frames[t.key] = LT.$("f_" + t.key);
+  }
+  for (var k in frames) if (frames.hasOwnProperty(k)) frames[k].style.display = (k == t.key ? "block" : "none");
+  current = t.key;
+  renderNav();
+  var s = LT.settings(); s.lastTab = current; LT.saveSettings(s);
+  try { var w = frames[t.key].contentWindow; if (w && w.ltShown) w.ltShown(); } catch (x) { }
+  try { frames[t.key].focus(); } catch (x) { }
+}
+
+/* what the tab pages can call: LT.main().show("files"), .send("files","open-folder",path), .themeChanged() */
+var LTMain = {
+  show: show,
+  showIndex: function (n) { if (tabs[n]) show(tabs[n].key); },
+  /* opens a tab and hands it a message, e.g. Launcher -> Bulk Files "open-folder" */
+  send: function (key, what, value) {
+    show(key);
+    var tries = 0, f = frames[key];
+    (function go() {
+      try { var w = f.contentWindow; if (w && w.ltReceive && w.document.readyState == "complete") { w.ltReceive(what, value); return; } } catch (x) { }
+      if (++tries < 40) window.setTimeout(go, 150);
+    })();
+  },
+  /* after Settings changes the theme or text size: every tab redraws in the new look */
+  themeChanged: function (from) {
+    look();
+    for (var k in frames) if (frames.hasOwnProperty(k)) { try { var w = frames[k].contentWindow; if (w && w !== from && w.ltTheme) w.ltTheme(); } catch (x) { } }
+  },
+  dataChanged: function () {
+    for (var k in frames) if (frames.hasOwnProperty(k)) { try { var w = frames[k].contentWindow; if (w && w.ltReload) w.ltReload(); } catch (x) { } }
+  },
+  makeShortcut: function () { return taskbarShortcut(); },
+  appDir: APP
+};
+
+function look() {
+  LT.applyLook([
+    "#nav{background:{panel};border-right:{bw}px solid {line}}",
+    ".nb{background:transparent;color:{text};border:{bw}px solid transparent;border-radius:{r}px}",
+    ".nb:hover{background:{hover}}",
+    ".nb.on{background:{hover};border-color:{accent};color:{text}}",
+    "#clock{color:{text};cursor:default}#clkD{color:{muted};font-size:.85em}"
+  ]);
+}
+
+function clock() {
+  var d = new Date();
+  LT.$("clkT").innerHTML = LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes());
+  LT.$("clkD").innerHTML = LT.DAYS[d.getDay()] + " " + d.getDate() + " " + LT.MON[d.getMonth()];
+}
+
+/* ---------- window size + icon (same tricks as QuickLaunch) ---------- */
+function sizeWindow() {
+  try {
+    var s = LT.settings(), w = s.win ? s.win.w : 1180, h = s.win ? s.win.h : 720;
+    w = Math.min(Math.max(w, 520), screen.availWidth); h = Math.min(Math.max(h, 360), screen.availHeight);
+    window.resizeTo(w, h);
+    var dw = w - document.documentElement.clientWidth, dh = h - document.documentElement.clientHeight;
+    if (dw > 0 || dh > 0) window.resizeTo(w + dw, h + dh);
+    if (!s.win) window.moveTo(Math.max(0, (screen.availWidth - w - dw) / 2), Math.max(0, (screen.availHeight - h - dh) / 2));
+  } catch (e) { }
+}
+/* Windows only finds the window/taskbar icon if the HTA points to it with a FULL path */
+function fixHtaIcon() {
+  try {
+    var ico = APP + "\\LewsToolbox.ico"; if (!fso.FileExists(ico) || !/\.hta$/i.test(SELF)) return;
+    var f = fso.OpenTextFile(SELF, 1, false, 0), t = f.ReadAll(); f.Close();
+    var re = /(<hta:application[^>]*?\sicon=")([^"]*)(")/i, m = re.exec(t);
+    if (!m || m[2] == ico || t.indexOf("LewsToolbox") < 0) return;
+    var nt = t.replace(re, "$1" + ico.replace(/\$/g, "$$$$") + "$3"), tmp = SELF + ".new";
+    var w = fso.CreateTextFile(tmp, true, false); w.Write(nt); w.Close();
+    fso.CopyFile(tmp, SELF, true); fso.DeleteFile(tmp);
+  } catch (e) { }
+}
+function makeShortcut(where) {
+  var ico = APP + "\\LewsToolbox.ico", lnk = where + "\\Lew's Toolbox.lnk";
+  var sc = LT.wsh.CreateShortcut(lnk);
+  sc.TargetPath = LT.env("%WINDIR%") + "\\System32\\mshta.exe";
+  sc.Arguments = '"' + SELF + '"'; sc.WorkingDirectory = APP; sc.Description = "Lew's Toolbox";
+  if (fso.FileExists(ico)) sc.IconLocation = ico + ",0";
+  sc.Save(); return lnk;
+}
+function taskbarShortcut() {
+  try {
+    var lnk = makeShortcut(LT.wsh.SpecialFolders("Desktop")); makeShortcut(APP);
+    LT.wsh.Run('explorer.exe /select,"' + lnk + '"', 1, false);
+    return lnk;
+  } catch (e) { alert("Couldn't make the shortcut:\n" + (e.message || e)); return null; }
+}
+
+(function start() {
+  look(); sizeWindow(); clock();
+  window.setInterval(clock, 15000);
+  if (/\\Temp\\|\.zip\\/i.test(APP)) { var w = LT.$("warn"); w.innerHTML = "You're running Lew's Toolbox from inside a zip or temporary folder. Extract the whole folder first, or your work won't be saved."; w.style.display = "block"; }
+  try { LT.mkdirs(LT.dataDir()); } catch (e) { var w2 = LT.$("warn"); w2.innerHTML = "Can't save in the data folder: " + LT.esc(LT.dataDir()) + " - pick another one in Settings."; w2.style.display = "block"; }
+  tabs = findTabs();
+  LT.$("tabs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-k"); if (b) show(b.getAttribute("data-k")); };
+  document.onkeydown = function (e) { e = e || window.event; if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57) { LTMain.showIndex(e.keyCode - 49); return false; } };
+  var rt = null;
+  window.onresize = function () { if (rt) window.clearTimeout(rt); rt = window.setTimeout(function () { var s = LT.settings(); s.win = { w: document.documentElement.clientWidth, h: document.documentElement.clientHeight }; LT.saveSettings(s); }, 700); };
+  show(LT.settings().lastTab || "launcher");
+  window.setTimeout(function () { fixHtaIcon(); try { var l = APP + "\\Lew's Toolbox.lnk"; if (!fso.FileExists(l)) makeShortcut(APP); } catch (e) { } }, 3000);
+})();
+</script>
+</body>
+</html>

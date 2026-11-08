@@ -22,7 +22,7 @@ No install, no build step.
 | 🚀 Launcher | ✅ Your full QuickLaunch, inside the Toolbox |
 | 📁 Bulk Files | ✅ Rename / copy / move with preview, Excel, lock and Undo |
 | 🗂 Tracker | ✅ Your work list: Today / Week / Overdue / Board, repeats, timer, weekly summary |
-| 📋 Delegate | Coming |
+| 📋 Delegate | ✅ Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
 | ✅ Submission Check | Coming |
 | ⚙ Settings | ✅ |
 
@@ -56,6 +56,19 @@ Nothing changes on disk until you click **▶ Preview and run…** and say OK.
 - **Time:** right-click → Start timer (shown at the top), or Add time (`1.5` or `0:45`)
 - **Export ▾:** copy this week's summary for email / Teams, or CSV for Excel
 - Delegated tasks (from the Delegate tab) show with 📋 as "Waiting on <name>"
+
+## Delegate
+
+1. **+ New task**: title, group, project, **Assigned to** (comma between names), due date, notes, and **checklist items** (each with its own person / date). IDs are made for you: `T001`, `T001.1` …
+2. **📤 Send to people…** – tick people and file types. Each person gets only their tasks:
+   - **Excel task sheet** (yellow boxes, Status drop-down, + / − groups, NEW blocks to add work) – made through your Excel
+   - **HTML task pack** – opens in any browser (phone too); they press **Save reply** and send you the .txt
+   - **Simple Excel table**
+   - Saved in `exports\Delegate\<date time>`, and the folder opens – attach to email / Teams
+3. **⬆ Load replies…** (their Excel file or reply .txt) or **📋 Paste reply…** – you see every change first, then OK. Loading the same reply twice adds nothing
+4. Views: **Tasks** (progress, late in red) · **👥 Team** (open, late, this / next week, Behind / Busy / Has room) · **🌐 Lew's Tracker** (read-only, when linked)
+- Right-click a row: status, send this task, history, duplicate, delete. **More ▾**: CSV export, sent / received log, project name, copy Lew's Tracker tasks in
+- Same formats as Lew's Tracker (web app). Open tasks show in the Tracker as "Waiting on <name>"
 
 ## Settings
 

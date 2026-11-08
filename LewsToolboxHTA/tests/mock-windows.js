@@ -69,7 +69,42 @@
     BrowseForFolder: function () { var r = top.__nextFolder || null; top.__nextFolder = null; return r ? { Self: { Path: r } } : null; },
     NameSpace: function () { return null; }
   };
+
+  /* a pretend Excel: remembers what is written, saves it as JSON in the pretend file system */
+  function Sheet(name) { this.Name = name; this.Visible = -1; this.cells = {}; var me = this;
+    this.Cells = function (r, c) { return cellObj(me, r, c); };
+    this.Range = function (a) { var m = /^([A-Z]+)(\d+)$/.exec(a); if (m) return cellObj(me, +m[2], colNum(m[1])); return sink(); };
+    this.Rows = function () { return sink(); }; this.Columns = function () { return sink(); };
+    this.Outline = {}; this.Tab = {}; this.Activate = function () { }; this.Delete = function () { me.dead = true; };
+    this.UsedRange = { get Rows() { return { Count: me.maxR() }; }, get Columns() { return { Count: me.maxC() }; }, Row: 1, Column: 1,
+      get Value() { var nr = me.maxR(), nc = me.maxC(), a = []; for (var c = 1; c <= nc; c++) for (var r = 1; r <= nr; r++) { var v = me.cells[r + "," + c]; a.push(v == null ? null : v.show); } return a; } };
+    this.maxR = function () { var m = 0; for (var k in me.cells) m = Math.max(m, +k.split(",")[0]); return m || 1; };
+    this.maxC = function () { var m = 0; for (var k in me.cells) m = Math.max(m, +k.split(",")[1]); return m || 1; };
+  }
+  function colNum(s) { var n = 0; for (var i = 0; i < s.length; i++) n = n * 26 + s.charCodeAt(i) - 64; return n; }
+  function sink() { var o = { Interior: {}, Font: {}, Borders: {}, Validation: { Delete: function () { }, Add: function () { } }, FormatConditions: { Add: function () { return { Font: {} }; } } };
+    o.Merge = o.Group = o.AutoFilter = o.Select = function () { }; return o; }
+  function serial(d) { return (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(1899, 11, 30)) / 864e5; }
+  function cellObj(sh, r, c) { var k = r + "," + c, o = sink();
+    Object.defineProperty(o, "Value", { get: function () { var v = sh.cells[k]; return v ? v.show : null; }, set: function (v) { sh.cells[k] = { show: v == null ? "" : v }; } });
+    Object.defineProperty(o, "Value2", { get: function () { var v = sh.cells[k]; return v ? (v.serial != null ? v.serial : v.show) : null; }, set: function (v) { var old = sh.cells[k]; sh.cells[k] = { show: old && old.serial === v ? old.show : v, serial: old && old.serial === v ? v : null }; } });
+    Object.defineProperty(o, "Formula", { get: function () { var v = sh.cells[k]; return v ? v.f || v.show : ""; }, set: function (f) { var m = /^=DATE\((\d+),(\d+),(\d+)\)$/.exec(f);
+      if (m) { var d = new Date(+m[1], +m[2] - 1, +m[3]); sh.cells[k] = { show: m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2), serial: serial(d) }; } else sh.cells[k] = { show: "", f: f }; } });
+    return o; }
+  function Book(sheets) { var me = this; this.sheets = sheets || [new Sheet("Sheet1")];
+    var ws = function (i) { var live = me.sheets.filter(function (s) { return !s.dead; }); if (typeof i == "number") return live[i - 1]; for (var j = 0; j < live.length; j++) if (live[j].Name == i) return live[j]; throw err("no sheet " + i); };
+    Object.defineProperty(ws, "Count", { get: function () { return me.sheets.filter(function (s) { return !s.dead; }).length; } });
+    ws.Add = function () { var s = new Sheet("Sheet" + (me.sheets.length + 1)); me.sheets.unshift(s); return s; };
+    this.Worksheets = ws; this.Windows = function () { return {}; };
+    this.SaveAs = function (p) { var out = me.sheets.filter(function (s) { return !s.dead; }).map(function (s) { return { name: s.Name, visible: s.Visible, cells: s.cells }; });
+      FS.files[norm(p)] = { path: p, text: "MOCKXL" + JSON.stringify(out), time: Date.now() }; FS.log.push("excel save " + p); };
+    this.Close = function () { }; }
+  function excelApp() { return { Visible: false, DisplayAlerts: true, Quit: function () { },
+    Workbooks: { Add: function () { return new Book(); },
+      Open: function (p) { var f = FS.files[norm(p)]; if (!f || f.text.indexOf("MOCKXL") != 0) throw err("Excel can't open " + p);
+        var arr = JSON.parse(f.text.substring(6)); return new Book(arr.map(function (x) { var s = new Sheet(x.name); s.Visible = x.visible; s.cells = x.cells; return s; })); } } }; }
   W.ActiveXObject = function (name) {
+    if (/Excel\.Application/i.test(name) && top.__excel) return excelApp();
     if (/FileSystemObject/i.test(name)) return fso;
     if (/WScript\.Shell/i.test(name)) return wsh;
     if (/Shell\.Application/i.test(name)) return shellApp;

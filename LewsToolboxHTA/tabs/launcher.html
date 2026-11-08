@@ -1278,6 +1278,13 @@ function sizeWindow(){
   window.ltTheme = function () { ltSync(); save(); applyLook(); render(); };
   window.ltReload = function () { location.reload(); };
   window.ltShown = function () { try { $("q").focus(); } catch (e) { } };
+  /* right-click a folder > Open in Bulk Files */
+  var im = itemMenu;
+  itemMenu = function (it, x, y) {
+    var sm = showMenu;
+    if (it.type == "folder" && LT.main()) showMenu = function (x2, y2, m) { showMenu = sm; m.splice(3, 0, { label: "&#128221;&nbsp; Open in Bulk Files", fn: function () { LT.main().send("files", "open-folder", it.path); } }); sm(x2, y2, m); };
+    try { im(it, x, y); } finally { showMenu = sm; }
+  };
   LT.tabKeys();
 })();
 </script>

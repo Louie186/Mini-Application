@@ -6,15 +6,390 @@
 <title>Bulk Files</title>
 <meta name="lt-order" content="2">
 <meta name="lt-icon" content="&#128193;">
+<!--
+  Lew's Toolbox - Bulk Files: rename / copy / move many files with a preview, Excel round trip, safety lock and Undo.
+  Safety rules: Copy is the default. Nothing is ever overwritten or deleted. Rename / Move need the lock opened first.
+  Data: bulk-files-history.json (for Undo) and a CSV log per run in exports.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+#top,#tools,#listbar,#bottom{flex:none}
+#list{flex:1 1 auto;overflow:auto;min-height:0}
+.lbl{display:inline-block;margin:0 6px 6px 0;vertical-align:middle}
+input.s{width:110px;margin:0 6px 6px 0}
+input.n{width:60px;margin:0 6px 6px 0}
+.sep{display:inline-block;margin:0 6px;opacity:.5}
+td.cb{width:30px;text-align:center}
+td.nn input{width:100%;height:26px;font-weight:bold}
+td.nn input.same{font-weight:normal}
+td.fd{white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
+#bottom label{margin-right:12px;white-space:nowrap}
+#prog{display:none;font-weight:bold}
+.big{font-weight:bold}
+</style>
 <script src="../core/lt-core.js"></script>
 </head>
 <body>
-<!-- Placeholder: this whole file is replaced when the Bulk Files tab is built. -->
-<div style="padding:30px">
-  <h2>Bulk Files</h2>
-  <div style="margin-top:10px">Rename, copy and move many files at once, with a preview, an Excel round trip and Undo.</div>
-  <div class="muted" style="margin-top:16px">Coming soon.</div>
+<div id="app">
+  <div id="top" class="bar">
+    <button class="btn primary" id="bPick">&#128194; Pick folder...</button>
+    <span class="lbl big" id="folderLbl">No folder picked</span>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> Include subfolders</label>
+    <span class="lbl">Only:</span><input type="text" id="filter" class="s" title="Optional, e.g. *.pdf  or  *.pdf; *.dwg  or  A-1">
+    <button class="btn" id="bLoad">&#8635; Load files</button>
+    <span class="lbl muted" id="count"></span>
+  </div>
+  <div id="tools" class="bar2">
+    <span class="lbl big">New names:</span>
+    <input type="text" id="find" class="s" placeholder="Find"><input type="text" id="repl" class="s" placeholder="Replace with">
+    <label class="lbl" title="Match upper / lower case"><input type="checkbox" id="mcase" style="height:auto"> Aa</label>
+    <button class="btn small" id="bRepl">Replace</button><span class="sep">|</span>
+    <input type="text" id="prefix" class="s" placeholder="Prefix"><button class="btn small" id="bPre">Add at start</button>
+    <input type="text" id="suffix" class="s" placeholder="Suffix"><button class="btn small" id="bSuf">Add at end</button><span class="sep">|</span>
+    <span class="lbl">No. from</span><input type="text" id="nStart" class="n" value="1"><input type="text" id="nDig" class="n" value="3" title="Digits (3 = 001)" style="width:40px">
+    <button class="btn small" id="bNum">Number &#9662;</button><span class="sep">|</span>
+    <button class="btn small" id="bMore">More &#9662;</button>
+  </div>
+  <div id="listbar" class="bar2">
+    <button class="btn small" id="bAll">Tick all</button><button class="btn small" id="bNone">Untick all</button><button class="btn small" id="bInv">Invert</button><span class="sep">|</span>
+    <button class="btn small" id="bXOut">&#9998; Edit new names in Excel</button><button class="btn small" id="bXIn">&#11014; Load names from Excel</button>
+    <button class="btn small" id="bReset">&#8634; Reset new names</button><span class="sep">|</span>
+    <span class="lbl">Show:</span><select id="show" style="width:150px;margin-bottom:6px"><option value="all">All files</option><option value="tick">Ticked only</option><option value="chg">Changed names</option><option value="bad">Problems only</option></select>
+  </div>
+  <div id="list"></div>
+  <div id="bottom" class="bar" style="border-top-width:1px;border-top-style:solid">
+    <span class="lbl big">What to do:</span>
+    <label><input type="radio" name="mode" value="copy" checked style="height:auto"> Copy to another folder (safe)</label>
+    <label><input type="radio" name="mode" value="move" style="height:auto"> Move to another folder</label>
+    <label><input type="radio" name="mode" value="rename" style="height:auto"> Rename in place</label><br>
+    <button class="btn" id="bDest">&#128194; Pick target folder...</button><span class="lbl muted" id="destLbl">No target folder</span>
+    <label class="lbl"><input type="checkbox" id="keep" checked style="height:auto"> Keep subfolders</label><br>
+    <label class="lbl" title="Rename and Move change your original folder, so they stay locked until you tick this. It locks again after each run."><input type="checkbox" id="unlock" style="height:auto"> <span id="lockIc">&#128274;</span> Allow changes to the original folder</label>
+    <button class="btn primary" id="bRun">&#9654; Preview and run...</button>
+    <button class="btn" id="bUndo">&#8630; Undo last run...</button>
+    <button class="btn small" id="bHist">History</button>
+    <span class="lbl" id="prog"></span>
+    <span class="lbl muted" id="summary"></span>
+  </div>
 </div>
-<script>window.ltTheme = function () { LT.applyLook(); }; LT.applyLook(); LT.tabKeys();</script>
+<script>
+var fso = LT.fso, $ = LT.$, esc = LT.esc;
+var rows = [], folder = "", dest = "", busy = false;
+var HIST = function () { return LT.dataPath("bulk-files-history.json"); };
+var BAD = /[\\\/:*?"<>|\u0000-\u001f]/;
+var RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+
+function look() {
+  LT.applyLook(["#list{background:{panel}}", "#bottom{border-top-color:{line}}", ".pr2 td.ck{color:{bad};font-weight:bold}", ".pr1 td.ck{color:{warn}}", ".pr0 td.ck{color:{ok}}", ".prn td{color:{muted}}"]);
+}
+function mode() { var r = document.getElementsByName("mode"); for (var i = 0; i < r.length; i++) if (r[i].checked) return r[i].value; return "copy"; }
+function stem(n) { var i = n.lastIndexOf("."); return i > 0 ? n.substring(0, i) : n; }
+function ext(n) { var i = n.lastIndexOf("."); return i > 0 ? n.substring(i) : ""; }
+function join(a, b) { return a.replace(/\\+$/, "") + "\\" + b; }
+
+/* ---------- load ---------- */
+function pickSource() { var f = LT.pickFolder("Pick the folder with the files"); if (f) { folder = f; loadFiles(); } }
+function loadFiles() {
+  if (!folder || !fso.FolderExists(folder)) { alert("Pick a folder first."); return; }
+  var changed = 0; for (var i = 0; i < rows.length; i++) if (rows[i].nn != rows[i].name) changed++;
+  if (changed && !confirm("Reload the files? New names you typed will be lost.")) return;
+  $("folderLbl").innerHTML = esc(folder);
+  var pats = LT.trim($("filter").value).split(/[;,]+/), regs = [];
+  for (var p = 0; p < pats.length; p++) { var t = LT.trim(pats[p]); if (!t) continue; if (!/[*?]/.test(t)) t = "*" + t + "*"; regs.push(new RegExp("^" + t.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$", "i")); }
+  var list = [], skipped = [];
+  walk(folder, $("subs").checked, list, regs, skipped);
+  list.sort(function (a, b) { var x = a.rel.toLowerCase(), y = b.rel.toLowerCase(); if (x != y) return x < y ? -1 : 1; return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+  for (var k = 0; k < list.length; k++) list[k].id = k + 1;
+  rows = list; validate();
+  if (skipped.length) alert("Some folders couldn't be opened (no permission?) and were skipped:\n" + skipped.slice(0, 10).join("\n"));
+}
+function walk(dir, deep, list, regs, skipped) {
+  try {
+    var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
+    for (; !e.atEnd(); e.moveNext()) {
+      var f = e.item(), n = "" + f.Name;
+      if (f.Attributes & 6) continue;                    // hidden / system
+      if (/^~\$/.test(n) || /^thumbs\.db$/i.test(n)) continue;
+      if (regs.length) { var ok = false; for (var r = 0; r < regs.length; r++) if (regs[r].test(n)) ok = true; if (!ok) continue; }
+      var rel = dir.length > folder.length ? dir.substring(folder.length).replace(/^\\+/, "") : "";
+      list.push({ full: "" + f.Path, rel: rel, name: n, nn: n, tick: true, size: f.Size, note: "", lv: 0, target: "" });
+    }
+    if (deep) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) { var sf = d.item(); if (sf.Attributes & 6) continue; walk("" + sf.Path, true, list, regs, skipped); } }
+  } catch (x) { skipped.push(dir); }
+}
+function pickDest() { var f = LT.pickFolder("Pick the folder to copy / move the files into"); if (f) { dest = f; $("destLbl").innerHTML = esc(dest); $("destLbl").className = "lbl big"; validate(); } }
+
+/* ---------- new names (only the name part, not the .pdf ending; only ticked files) ---------- */
+function apply(fn) {
+  var any = false;
+  for (var i = 0; i < rows.length; i++) if (rows[i].tick) { rows[i].nn = fn(stem(rows[i].nn)) + ext(rows[i].nn); any = true; }
+  if (!any) alert("Tick the files to change first.");
+  validate();
+}
+function doReplace() {
+  var f = $("find").value; if (!f) { alert("Type the text to find."); return; }
+  var src = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), re = new RegExp(src, $("mcase").checked ? "g" : "gi"), one = new RegExp(src, $("mcase").checked ? "" : "i"), r = $("repl").value, hits = 0;
+  for (var i = 0; i < rows.length; i++) if (rows[i].tick && one.test(stem(rows[i].nn))) hits++;
+  apply(function (s) { return s.replace(re, function () { return r; }); });
+  LT.toast("Replaced in " + hits + " name" + (hits == 1 ? "" : "s"));
+}
+function num(n, d) { var s = "" + n; while (s.length < d) s = "0" + s; return s; }
+function numberMenu(x, y) {
+  var st = parseInt($("nStart").value, 10) || 0, dg = Math.max(1, Math.min(8, parseInt($("nDig").value, 10) || 3));
+  LT.menu(x, y, [
+    { label: "Put the number at the start (001_name)", fn: function () { var k = st; apply(function (s) { return num(k++, dg) + "_" + s; }); } },
+    { label: "Put the number at the end (name_001)", fn: function () { var k = st; apply(function (s) { return s + "_" + num(k++, dg); }); } },
+    { label: "Replace the whole name with the number", fn: function () { var k = st; apply(function () { return num(k++, dg); }); } }]);
+}
+function moreMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "UPPER CASE", fn: function () { apply(function (s) { return s.toUpperCase(); }); } },
+    { label: "lower case", fn: function () { apply(function (s) { return s.toLowerCase(); }); } },
+    { label: "Spaces &rarr; _", fn: function () { apply(function (s) { return s.replace(/ /g, "_"); }); } },
+    { label: "Spaces &rarr; -", fn: function () { apply(function (s) { return s.replace(/ /g, "-"); }); } },
+    { label: "Remove double spaces / trim", fn: function () { apply(function (s) { return LT.trim(s.replace(/ {2,}/g, " ")); }); } },
+    "-",
+    { label: "Remove first N characters...", fn: function () { var k = parseInt(prompt("How many from the START?", "1"), 10); if (k > 0) apply(function (s) { return s.length > k ? s.substring(k) : s; }); } },
+    { label: "Remove last N characters...", fn: function () { var k = parseInt(prompt("How many from the END (before .pdf etc.)?", "1"), 10); if (k > 0) apply(function (s) { return s.length > k ? s.substring(0, s.length - k) : s; }); } },
+    { label: "Add today's date at the end (_YYYY-MM-DD)", fn: function () { var d = LT.today(); apply(function (s) { return s + "_" + d; }); } },
+    { label: "Change the file ending (e.g. .PDF &rarr; .pdf)...", fn: function () {
+      var a = prompt("New ending for the ticked files (e.g. .pdf):", ".pdf"); if (!a) return; if (a.charAt(0) != ".") a = "." + a;
+      for (var i = 0; i < rows.length; i++) if (rows[i].tick) rows[i].nn = stem(rows[i].nn) + a; validate(); } }]);
+}
+
+/* ---------- checks ---------- */
+function targetOf(r) {
+  if (mode() == "rename") return join(fso.GetParentFolderName(r.full), r.nn);
+  if (!dest) return "";
+  return $("keep").checked && r.rel ? join(join(dest, r.rel), r.nn) : join(dest, r.nn);
+}
+function validate() {
+  var m = mode(), seen = {};
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i]; r.lv = 0; r.note = ""; r.target = "";
+    if (!r.tick) continue;
+    var n = r.nn || "";
+    if (!LT.trim(n)) { r.lv = 2; r.note = "New name is empty"; continue; }
+    if (BAD.test(n)) { r.lv = 2; r.note = "Has a character Windows doesn't allow:  \\ / : * ? \" < > |"; continue; }
+    if (/^ |[ .]$/.test(n)) { r.lv = 2; r.note = "Starts / ends with a space or dot"; continue; }
+    if (RESERVED.test(stem(n))) { r.lv = 2; r.note = '"' + stem(n) + '" is a name Windows reserves'; continue; }
+    if (m == "rename" && n == r.name) { r.lv = -1; r.note = "No change"; continue; }
+    r.target = targetOf(r);
+    if (!r.target) { r.lv = 1; r.note = "Pick a target folder"; continue; }
+    if (r.target.length >= 260) { r.lv = 2; r.note = "Path too long (" + r.target.length + " characters, max 259)"; continue; }
+    var caseOnly = m == "rename" && n.toLowerCase() == r.name.toLowerCase();
+    if (!caseOnly && fso.FileExists(r.target)) { r.lv = 2; r.note = "A file with this name is already there - won't overwrite"; continue; }
+    if (m != "rename" && r.target.toLowerCase() == r.full.toLowerCase()) { r.lv = 2; r.note = "Target is the file itself"; continue; }
+    var key = r.target.toLowerCase(); seen[key] = (seen[key] || 0) + 1;
+    if (ext(n).toLowerCase() != ext(r.name).toLowerCase()) { r.lv = 1; r.note = "File ending changed (" + ext(r.name) + " &rarr; " + (ext(n) || "none") + ")"; }
+    else r.note = n != r.name ? "OK &ndash; new name" : "OK";
+  }
+  for (var j = 0; j < rows.length; j++) { var q = rows[j]; if (q.tick && q.lv >= 0 && q.lv < 2 && q.target && seen[q.target.toLowerCase()] > 1) { q.lv = 2; q.note = "Same new name as another file (" + seen[q.target.toLowerCase()] + " files)"; } }
+  render(); buttons();
+}
+function buttons() {
+  var m = mode(), needLock = m != "copy";
+  $("unlock").disabled = !needLock; if (!needLock) $("unlock").checked = false;
+  $("lockIc").innerHTML = $("unlock").checked ? "&#128275;" : "&#128274;";
+  var ready = 0, bad = 0, chg = 0, tick = 0;
+  for (var i = 0; i < rows.length; i++) { var r = rows[i]; if (r.tick) tick++; if (r.nn != r.name) chg++; if (r.tick && (r.lv == 0 || r.lv == 1) && r.target) ready++; if (r.tick && r.lv == 2) bad++; }
+  $("bRun").disabled = busy || !ready || (needLock && !$("unlock").checked) || (m != "rename" && !dest);
+  $("count").innerHTML = rows.length ? rows.length + " files &middot; " + tick + " ticked &middot; " + chg + " new names" + (bad ? ' &middot; <span class="bad">' + bad + " problems</span>" : "") : "";
+  var s;
+  if (!rows.length) s = "Pick a folder to start.";
+  else if (m != "rename" && !dest) s = "Pick a target folder.";
+  else if (needLock && !$("unlock").checked) s = "Locked: tick “Allow changes to the original folder” to " + m + ".";
+  else s = ready + " file(s) ready" + (bad ? ", " + bad + " with problems will be skipped" : "") + ".";
+  $("summary").innerHTML = esc(s);
+  $("bUndo").disabled = !lastBatch();
+}
+var shown = [];
+function render() {
+  var sh = $("show").value; shown = [];
+  for (var i = 0; i < rows.length; i++) { var r = rows[i];
+    if (sh == "tick" && !r.tick) continue; if (sh == "chg" && r.nn == r.name) continue; if (sh == "bad" && !(r.tick && r.lv >= 1)) continue; shown.push(r); }
+  var lim = Math.min(shown.length, 3000), h = ['<table class="grid"><tr><th><input type="checkbox" id="cbAll" style="height:auto"' + (rows.length && allTicked() ? " checked" : "") + '></th><th>Folder</th><th>Current name</th><th>New name (click to edit)</th><th>Check</th></tr>'];
+  for (var k = 0; k < lim; k++) { var q = shown[k];
+    h.push('<tr class="' + (!q.tick ? "prn" : q.lv == -1 ? "prn" : "pr" + q.lv) + '" data-i="' + k + '"><td class="cb"><input type="checkbox" data-tk="' + k + '" style="height:auto"' + (q.tick ? " checked" : "") + '></td><td class="fd" title="' + esc(q.rel) + '">' + esc(q.rel || ".") +
+      '</td><td>' + esc(q.name) + '</td><td class="nn"><input type="text" data-nn="' + k + '" class="' + (q.nn == q.name ? "same" : "") + '" value="' + esc(q.nn) + '"></td><td class="ck">' + (q.tick ? q.note : "(not ticked)") + "</td></tr>"); }
+  if (shown.length > lim) h.push('<tr><td colspan="5" class="muted">... and ' + (shown.length - lim) + ' more (use "Only:" to narrow the list)</td></tr>');
+  h.push("</table>");
+  if (!rows.length) h = ['<div class="muted" style="padding:30px">Pick a folder (or right-click a folder in the Launcher &gt; Open in Bulk Files).</div>'];
+  $("list").innerHTML = h.join("");
+}
+function allTicked() { for (var i = 0; i < rows.length; i++) if (!rows[i].tick) return false; return true; }
+
+/* ---------- Excel round trip ---------- */
+function xFile() { return LT.exportsDir() + "\\bulk-files-names.csv"; }
+function excelOut() {
+  if (!rows.length) { alert("Load some files first."); return; }
+  var t = [["ID", "Folder", "Current name", "New name"]];
+  for (var i = 0; i < rows.length; i++) t.push([rows[i].id, rows[i].rel || ".", rows[i].name, rows[i].nn]);
+  try { LT.writeCsv(xFile(), t); LT.open(xFile()); } catch (e) { alert("Couldn't make the Excel file:\n" + (e.message || e)); return; }
+  alert("The file list is opening in Excel.\n\n1. Change only the  New name  column (formulas and fill-down are fine)\n2. Don't change ID or Current name, don't add rows\n3. Save (Ctrl+S, keep CSV format) and close Excel\n4. Click  Load names from Excel\n\nNothing changes on disk until you click Preview and run.");
+}
+function excelIn() {
+  if (!rows.length) { alert("Load the same folder first, then load the names."); return; }
+  if (fso.FileExists(xFile()) && confirm("Load names from the file made by “Edit new names in Excel”?\n\n(Cancel = pick another .csv / .xlsx file)")) { readNames(xFile()); return; }
+  LT.pickFile(readNames);
+}
+function readNames(p) {
+  var t;
+  try { t = LT.readTable(p); } catch (e) { alert("Couldn't read the file - is it still open in Excel? Save and close it, then try again.\n\n" + (e.message || e)); return; }
+  var hr = -1; for (var r = 0; r < t.length && hr < 0; r++) if (LT.col(t[r], ["New name"]) >= 0) hr = r;
+  if (hr < 0) { alert("The file needs a  New name  column (and ID or Current name)."); return; }
+  var h = t[hr], cId = LT.col(h, ["ID"]), cCur = LT.col(h, ["Current name", "Name", "File name"]), cNew = LT.col(h, ["New name"]), cF = LT.col(h, ["Folder"]);
+  var byId = {}; for (var i = 0; i < rows.length; i++) byId[rows[i].id] = rows[i];
+  var set = 0, same = 0, bad = [];
+  for (var k = hr + 1; k < t.length; k++) {
+    var x = t[k], nn = LT.cell(x, cNew), cur = LT.cell(x, cCur);
+    if (!nn && !cur) continue;
+    var row = byId[parseInt(LT.cell(x, cId), 10)] || null;
+    if (row && cur && row.name.toLowerCase() != cur.toLowerCase()) row = null;    // ID points to a different file now
+    if (!row && cur) { var fd = LT.cell(x, cF); if (fd == ".") fd = ""; var m = []; for (var j = 0; j < rows.length; j++) if (rows[j].name.toLowerCase() == cur.toLowerCase() && (cF < 0 || rows[j].rel.toLowerCase() == fd.toLowerCase())) m.push(rows[j]); if (m.length == 1) row = m[0]; }
+    if (!row) { bad.push(cur || ("row " + LT.cell(x, cId))); continue; }
+    if (!nn) { same++; continue; }
+    if (nn != row.nn) { row.nn = nn; set++; } else same++;
+  }
+  validate();
+  alert("New names loaded: " + set + "\nUnchanged: " + same + (bad.length ? "\n\nNot matched to a file (" + bad.length + "):\n" + bad.slice(0, 12).join("\n") : "") + "\n\nCheck the list, then click Preview and run.");
+}
+
+/* ---------- run ---------- */
+function inside(child, parent) { return child && parent && (child.toLowerCase().replace(/\\+$/, "") + "\\").indexOf(parent.toLowerCase().replace(/\\+$/, "") + "\\") == 0; }
+function run() {
+  validate();
+  var m = mode(), todo = [], warn = 0, bad = 0;
+  for (var i = 0; i < rows.length; i++) { var r = rows[i]; if (r.tick && (r.lv == 0 || r.lv == 1) && r.target) { todo.push(r); if (r.lv == 1) warn++; } if (r.tick && r.lv == 2) bad++; }
+  if (!todo.length) return;
+  if (m != "rename" && $("subs").checked && inside(dest, folder)) { alert("The target folder is inside the folder you're reading from.\nPick a target folder outside it (or untick Include subfolders)."); return; }
+  var verb = m == "copy" ? "COPY" : m == "move" ? "MOVE" : "RENAME", sample = [];
+  for (var s = 0; s < Math.min(8, todo.length); s++) sample.push("  " + todo[s].name + (todo[s].nn != todo[s].name ? "  →  " + todo[s].nn : ""));
+  var msg = verb + " " + todo.length + " file(s)" + (m == "rename" ? " in their own folders." : " into:\n" + dest + ($("keep").checked ? "\n(keeping subfolders)" : "")) +
+    "\n\n" + sample.join("\n") + (todo.length > 8 ? "\n  … and " + (todo.length - 8) + " more" : "") +
+    (warn ? "\n\n! " + warn + " with a warning (e.g. file ending changed)" : "") + (bad ? "\nx " + bad + " with problems will be SKIPPED" : "") +
+    "\n\nNothing is overwritten. You can Undo this run afterwards.\n\nGo ahead?";
+  if (!confirm(msg)) return;
+  var batch = { when: stampNow(), kind: m, source: folder, dest: m == "rename" ? folder : dest, undone: false, ops: [] }, errors = [];
+  var jobs = []; for (var j = 0; j < todo.length; j++) jobs.push({ full: todo[j].full, target: todo[j].target, size: todo[j].size });
+  setBusy(true);
+  if (m == "rename") {
+    // two steps so swaps (A->B and B->A) work: first to temporary names, then to the new names
+    var temps = [];
+    for (var a = 0; a < jobs.length; a++) {
+      var tmp = join(fso.GetParentFolderName(jobs[a].full), "~lt_" + LT.uid("") + "_" + fso.GetFileName(jobs[a].full));
+      try { fso.MoveFile(jobs[a].full, tmp); temps.push({ from: jobs[a].full, tmp: tmp, to: jobs[a].target, size: jobs[a].size }); } catch (e) { errors.push(fso.GetFileName(jobs[a].full) + ": " + (e.message || e)); }
+    }
+    step(temps, 0, function (t) {
+      try { if (fso.FileExists(t.to)) throw new Error("a file with the new name appeared - left as it was"); fso.MoveFile(t.tmp, t.to); batch.ops.push({ from: t.from, to: t.to, size: t.size }); }
+      catch (e) { errors.push(fso.GetFileName(t.from) + ": " + (e.message || e)); try { fso.MoveFile(t.tmp, t.from); } catch (e2) { errors.push("  !! still named " + fso.GetFileName(t.tmp) + " - rename it back by hand"); } }
+    }, function () { finished(batch, errors); });
+  } else {
+    step(jobs, 0, function (j2) {
+      try {
+        LT.mkdirs(fso.GetParentFolderName(j2.target));
+        if (fso.FileExists(j2.target)) throw new Error("a file with this name is already there - not overwritten");
+        if (m == "copy") fso.CopyFile(j2.full, j2.target, false); else fso.MoveFile(j2.full, j2.target);
+        batch.ops.push({ from: j2.full, to: j2.target, size: j2.size });
+      } catch (e) { errors.push(fso.GetFileName(j2.full) + ": " + (e.message || e)); }
+    }, function () { finished(batch, errors); });
+  }
+}
+/* does a few files at a time so the window keeps showing progress */
+function step(list, i, fn, done) {
+  var end = Math.min(list.length, i + 5);
+  for (; i < end; i++) fn(list[i]);
+  $("prog").innerHTML = "Working&hellip; " + i + " / " + list.length + " (don't close the window)";
+  if (i < list.length) window.setTimeout(function () { step(list, i, fn, done); }, 1); else done();
+}
+function setBusy(on) { busy = on; $("prog").style.display = on ? "inline-block" : "none"; var b = document.getElementsByTagName("button"); for (var i = 0; i < b.length; i++) b[i].disabled = on; if (!on) buttons(); }
+function stampNow() { var d = new Date(); return LT.iso(d) + " " + LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes()) + ":" + LT.pad(d.getSeconds()); }
+function finished(batch, errors) {
+  setBusy(false);
+  if (batch.ops.length) { saveBatch(batch); writeLog(batch, errors); }
+  $("unlock").checked = false;
+  var verb = batch.kind == "copy" ? "Copied" : batch.kind == "move" ? "Moved" : "Renamed";
+  alert(verb + ": " + batch.ops.length + " file(s)" + (errors.length ? "\n\nNot done (" + errors.length + "):\n" + errors.slice(0, 15).join("\n") + (errors.length > 15 ? "\n… (all in the log)" : "") : "") +
+    "\n\nA log was saved in the exports folder. Use  Undo last run  to put it back.");
+  if (batch.kind != "copy") { rows = []; loadFiles(); } else validate();
+  if (batch.kind != "rename" && batch.ops.length) { try { LT.open(batch.dest); } catch (e) { } }
+}
+
+/* ---------- history, log, undo ---------- */
+function history() { var h = LT.readJson(HIST(), null); return h && h.batches ? h : { batches: [] }; }
+function saveBatch(b) { var h = history(); h.batches.push(b); while (h.batches.length > 30) h.batches.shift(); try { LT.saveJson(HIST(), h); } catch (e) { alert("The run worked, but its Undo record couldn't be saved."); } }
+function lastBatch() { var h = history(); for (var i = h.batches.length - 1; i >= 0; i--) if (!h.batches[i].undone) return h.batches[i]; return null; }
+function writeLog(b, errors) {
+  try {
+    var t = [["Time", "Action", "From", "To"]];
+    for (var i = 0; i < b.ops.length; i++) t.push([b.when, b.kind, b.ops[i].from, b.ops[i].to]);
+    for (var j = 0; j < errors.length; j++) t.push([b.when, "NOT DONE", errors[j], ""]);
+    LT.writeCsv(LT.exportsDir() + "\\BulkFiles_" + b.kind + "_" + LT.stamp() + ".csv", t);
+  } catch (e) { }
+}
+/* the Recycle Bin, so an Undo of a copy can still be got back */
+function recycle(p) { try { var bin = LT.shell().NameSpace(10); if (!bin) return false; bin.MoveHere(p, 0x14); return true; } catch (e) { return false; } }
+function undo() {
+  var h = history(), b = null;
+  for (var i = h.batches.length - 1; i >= 0; i--) if (!h.batches[i].undone) { b = h.batches[i]; break; }
+  if (!b) { alert("Nothing to undo."); return; }
+  var what = b.kind == "copy" ? "send the " + b.ops.length + " COPIES to the Recycle Bin (your originals are not touched)" : b.kind == "move" ? "move " + b.ops.length + " file(s) back to where they were" : "rename " + b.ops.length + " file(s) back to their old names";
+  if (!confirm("Undo the " + b.kind + " from " + b.when + "?\n\nThis will " + what + ".\nFiles changed since then are left alone.")) return;
+  var done = 0, skipped = [];
+  for (var k = b.ops.length - 1; k >= 0; k--) {
+    var o = b.ops[k];
+    try {
+      if (!fso.FileExists(o.to)) { skipped.push(fso.GetFileName(o.to) + ": not there any more"); continue; }
+      if (b.kind == "copy") {
+        if (fso.GetFile(o.to).Size != o.size) { skipped.push(fso.GetFileName(o.to) + ": changed since the copy - kept"); continue; }
+        if (recycle(o.to)) done++; else skipped.push(fso.GetFileName(o.to) + ": couldn't send to the Recycle Bin - kept");
+      } else {
+        if (fso.FileExists(o.from)) { skipped.push(fso.GetFileName(o.from) + ": a file with the old name is back - kept"); continue; }
+        LT.mkdirs(fso.GetParentFolderName(o.from)); fso.MoveFile(o.to, o.from); done++;
+      }
+    } catch (e) { skipped.push(fso.GetFileName(o.to) + ": " + (e.message || e)); }
+  }
+  b.undone = true; try { LT.saveJson(HIST(), h); } catch (e) { }
+  alert("Undone: " + done + (skipped.length ? "\n\nLeft as they are (" + skipped.length + "):\n" + skipped.slice(0, 15).join("\n") : ""));
+  if (folder && fso.FolderExists(folder)) { rows = []; loadFiles(); } else buttons();
+}
+function showHistory() {
+  var h = history(); if (!h.batches.length) { alert("No runs yet."); return; }
+  var out = [];
+  for (var i = h.batches.length - 1; i >= 0 && out.length < 15; i--) { var b = h.batches[i]; out.push(b.when + "   " + b.kind.toUpperCase() + "   " + b.ops.length + " file(s)" + (b.undone ? "   (undone)" : "") + "\n      " + b.source + (b.kind != "rename" ? "  →  " + b.dest : "")); }
+  alert(out.join("\n\n") + "\n\nFull logs (CSV) are in:\n" + LT.exportsDir());
+}
+
+/* ---------- events ---------- */
+$("bPick").onclick = pickSource; $("bLoad").onclick = loadFiles; $("bDest").onclick = pickDest;
+$("bRepl").onclick = doReplace;
+$("bPre").onclick = function () { var p = $("prefix").value; apply(function (s) { return p + s; }); };
+$("bSuf").onclick = function () { var p = $("suffix").value; apply(function (s) { return s + p; }); };
+$("bNum").onclick = function (e) { var r = this.getBoundingClientRect(); numberMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("bMore").onclick = function (e) { var r = this.getBoundingClientRect(); moreMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("bAll").onclick = function () { for (var i = 0; i < rows.length; i++) rows[i].tick = true; validate(); };
+$("bNone").onclick = function () { for (var i = 0; i < rows.length; i++) rows[i].tick = false; validate(); };
+$("bInv").onclick = function () { for (var i = 0; i < rows.length; i++) rows[i].tick = !rows[i].tick; validate(); };
+$("bXOut").onclick = excelOut; $("bXIn").onclick = excelIn;
+$("bReset").onclick = function () { var c = 0; for (var i = 0; i < rows.length; i++) if (rows[i].nn != rows[i].name) c++; if (c && !confirm("Put every new name back to the current name?")) return; for (var j = 0; j < rows.length; j++) rows[j].nn = rows[j].name; validate(); };
+$("show").onchange = render;
+$("keep").onclick = validate; $("unlock").onclick = buttons;
+var radios = document.getElementsByName("mode"); for (var ri = 0; ri < radios.length; ri++) radios[ri].onclick = function () { $("unlock").checked = false; validate(); };
+$("bRun").onclick = run; $("bUndo").onclick = undo; $("bHist").onclick = showHistory;
+$("list").onclick = function (e) {
+  var t = e.target || e.srcElement;
+  if (t.id == "cbAll") { for (var i = 0; i < rows.length; i++) rows[i].tick = t.checked; validate(); return; }
+  var tk = t.getAttribute && t.getAttribute("data-tk"); if (tk != null) { shown[+tk].tick = t.checked; validate(); }
+};
+$("list").onchange = function (e) { var t = e.target || e.srcElement, k = t.getAttribute && t.getAttribute("data-nn"); if (k != null) { shown[+k].nn = LT.trim(t.value); validate(); } };
+$("list").onkeydown = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (e.keyCode == 13 && t.getAttribute && t.getAttribute("data-nn") != null) { t.blur(); } };
+$("list").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-i"); if (tr && (e.target || e.srcElement).tagName != "INPUT") { try { LT.showInFolder(shown[+tr.getAttribute("data-i")].full); } catch (x) { } } };
+
+/* called by the main window */
+window.ltTheme = function () { look(); };
+window.ltReload = function () { buttons(); };
+window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { folder = value; rows = []; loadFiles(); } };
+look(); validate(); LT.tabKeys();
+</script>
 </body>
 </html>

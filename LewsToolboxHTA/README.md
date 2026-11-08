@@ -20,7 +20,7 @@ No install, no build step.
 | Tab | Status |
 |---|---|
 | 🚀 Launcher | ✅ Your full QuickLaunch, inside the Toolbox |
-| 📁 Bulk Files | Coming next |
+| 📁 Bulk Files | ✅ Rename / copy / move with preview, Excel, lock and Undo |
 | 🗂 Tracker | Coming |
 | 📋 Delegate | Coming |
 | ✅ Submission Check | Coming |
@@ -33,6 +33,17 @@ No install, no build step.
   - **Settings → Launcher list → Use my QuickLaunch list…** and pick the folder that has QuickLaunch.hta
   - Then both show the same list. Don't keep both open at the same time (the last one closed saves)
 - QuickLaunch.hta itself is never changed
+
+## Bulk Files
+
+Nothing changes on disk until you click **▶ Preview and run…** and say OK.
+
+1. **Pick folder…** (Include subfolders; **Only:** e.g. `*.pdf; *.dwg`) – or right-click a folder in the Launcher → **Open in Bulk Files**
+2. New names (ticked files only): **Find / Replace**, **Add at start / end**, **Number ▾**, **More ▾** (case, spaces, remove characters, date, file ending), or type in the **New name** box
+   - Or **Edit new names in Excel** → change the *New name* column → save → **Load names from Excel**
+3. **Check** column: green OK · orange warning (still runs) · red problem (skipped: bad characters, same name twice, already exists, path too long)
+4. **What to do:** Copy (default, safe) · Move · Rename in place – Move and Rename stay 🔒 locked until you tick *Allow changes to the original folder* (locks again after each run)
+5. **Never overwrites, never deletes.** **Undo last run** renames / moves back, or sends copies to the Recycle Bin. A CSV log is saved for every run; **History** lists them
 
 ## Settings
 

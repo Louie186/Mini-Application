@@ -156,6 +156,11 @@ Check a submission folder against your list before you send it.
 
 ## If something goes wrong
 
+- **"Access denied" in the black window:** Build.bat now shows *Step 1 / 2 / 3*, so you can see which step stopped
+  - Step 1 (folder locked): it builds in `%LOCALAPPDATA%\LewsToolbox` instead and opens that folder
+  - Step 2 (company blocks the build tool): use the **ready-made program** in the `Ready-made` folder of the zip you were sent (unblock the zip before extracting)
+  - Step 3 (program built but blocked from opening): your company only allows approved programs – ask IT to allow `LewsToolbox.exe`
+
 - **Build.bat says it can't find the compiler:** ask IT to turn on ".NET Framework 4.8" (it's part of Windows)
 - **Build failed:** send Claude a photo of the black window
 - **Lost your list?** Each file in the data folder has a `.backup` copy next to it. It's used automatically if the main file is damaged

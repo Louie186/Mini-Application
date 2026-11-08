@@ -23,7 +23,7 @@ Nothing to install. You build it on your own PC once, and then it's a normal pro
 | 📁 Bulk Files | Rename / copy / move many files with preview, Excel round trip and Undo | ✅ Stage 2 |
 | 🗂 Tracker | Your work list: Today, This week, Overdue, Board | ✅ Stage 3 |
 | 📋 Delegate | Give tasks to people (Excel sheet or HTML task pack) and load their updates back | ✅ Stage 4 |
-| ✅ Submission Check | Check a folder's file count and file names against your list | Stage 5 |
+| ✅ Submission Check | Check a folder's file count and file names against your list | ✅ Stage 5 |
 
 ## Launcher
 
@@ -117,6 +117,28 @@ Give tasks to people, send them a file, load their answers back, see who is behi
 - Same file formats as Lew's Tracker (web app): its sheets and task-pack replies load here, and the Toolbox's files load there
 - Open tasks show in the **Tracker** tab as "Waiting on <name>"
 
+## Submission Check
+
+Check a submission folder against your list before you send it.
+
+1. **📂 Submission folder…** (subfolders included)
+2. **📄 My list (Excel / CSV)…** – any drawing register, transmittal or checklist
+   - It finds the heading row by itself (title rows above it are fine)
+   - Check the column boxes it picked, change them if needed:
+     - **File name / number** (needed) – with or without revision and ending, e.g. `5013-KEO-ZZ-DR-A-10101` or `…-10101-P02.pdf`
+     - **Revision** (optional), **File types** (optional, e.g. `pdf, dwg`), **Folder** (optional), **Title** (optional)
+   - **All rows need:** file types for every row when the list has no File types column (empty = any type)
+3. **▶ Check**
+   - ✔ **Found**  ·  ✖ **Missing**  ·  ✖ **Wrong revision** (e.g. list says P02, folder has P01)  ·  ✖ **Missing file type** (e.g. PDF there, DWG missing)
+   - ⚠ **Wrong folder**  ·  ⚠ **Listed twice**  ·  ⚠ Found with a note (upper/lower case differs, empty file, old revision also there, same file in two folders)
+   - ➕ **Not on the list** – files in the folder that aren't on your list
+   - **Count by file type**: found / needed for each type
+- **Show:** everything, problems only, missing, wrong revision, files not on the list, OK only
+- Double-click a row to open the file's folder
+- **Report ▾**: **Excel report** (Summary, Checklist with results, Not on the list), **Copy summary** for email / Teams, other notes (empty files, long paths, names that don't follow the list's pattern)
+- **Fix names in Bulk Files** opens the folder in the Bulk Files tab
+- It remembers your folder, list and columns
+
 ## Settings (⚙)
 
 - **Themes:** Light, Dark, Blueprint, Retro 8-bit, Retro Grey, Retro Console. **Text size:** Compact / Normal / Large
@@ -142,7 +164,7 @@ Give tasks to people, send them a file, load their answers back, see who is behi
 ## For whoever maintains this
 
 - Code is in `src/` (C# 5, Windows Forms, .NET Framework 4, no extra libraries)
-- **One tab = one file** (`LauncherPage.cs`, `TrackerPage.cs`, `BulkFilesPage.cs`, `SettingsPage.cs` …). Delegate has two: `DelegatePage.cs` (screen) and `DelegateFiles.cs` (file formats)
+- **One tab = one file** (`LauncherPage.cs`, `TrackerPage.cs`, `BulkFilesPage.cs`, `SettingsPage.cs` …). Delegate has two: `DelegatePage.cs` (screen) and `DelegateFiles.cs` (file formats). Submission Check is `CheckPage.cs`
   - A tab marks itself with `[Tab("key")]` and the main window finds it. Adding or changing a tab needs no edits elsewhere
   - Tabs never call each other directly. They pass small messages (`MainForm.Me.SendTo("files", "open-folder", path)`) or share a file in the data folder (`delegate-feed.json` → Tracker)
   - Shared helpers (saving, Excel/CSV reading, themes) are in `Util.cs` and `Theme.cs`; `XlsxWriter.cs` makes .xlsx files

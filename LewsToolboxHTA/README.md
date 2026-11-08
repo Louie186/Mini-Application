@@ -36,14 +36,21 @@ No install, no build step.
 
 ## Bulk Files
 
-Nothing changes on disk until you click **▶ Preview and run…** and say OK.
+Three steps on screen. Nothing changes on disk until you click **▶ Preview and run…** and say OK.
 
-1. **Pick folder…** (Include subfolders; **Only:** e.g. `*.pdf; *.dwg`) – or right-click a folder in the Launcher → **Open in Bulk Files**
-2. New names (ticked files only): **Find / Replace**, **Add at start / end**, **Number ▾**, **More ▾** (case, spaces, remove characters, date, file ending), or type in the **New name** box
-   - Or **Edit new names in Excel** → change the *New name* column → save → **Load names from Excel**
-3. **Check** column: green OK · orange warning (still runs) · red problem (skipped: bad characters, same name twice, already exists, path too long)
-4. **What to do:** Copy (default, safe) · Move · Rename in place – Move and Rename stay 🔒 locked until you tick *Allow changes to the original folder* (locks again after each run)
-5. **Never overwrites, never deletes.** **Undo last run** renames / moves back, or sends copies to the Recycle Bin. A CSV log is saved for every run; **History** lists them
+1. **Pick folder…** (or right-click a folder in the Launcher → Open in Bulk Files). **Options ▾**: include subfolders, only some files (e.g. `*.pdf`)
+2. **New names** for the ticked files: **Find → Replace with** (e.g. `_P01` → `_P02`), or type in the **New name** box
+   - **More name tools ▾**: add text at the start / end, numbering, case, spaces, remove characters, date, file ending, put names back
+   - **Excel ▾**: edit the new names in Excel, then load them back
+3. Choose **Copy to a folder** (default, safe), **Move to a folder** or **Rename in place** → **Preview and run…**
+   - Move and Rename stay 🔒 locked until you tick *Allow changes to the original folder* (locks again after each run)
+
+**Select several rows like File Explorer:** click, **Ctrl+click**, **Shift+click**, **Ctrl+A**
+- **Space** = tick / untick the selected rows; ticking one box of a selection ticks them all
+- **Delete** = take the selected rows off the list (the files themselves are not touched)
+- **Right-click** = tick / untick, tick only these, take off the list, put names back, show in folder
+
+**Check** column: green OK · orange warning (still runs) · red problem (skipped). **Never overwrites, never deletes.** **Undo last run** puts things back; a CSV log is saved for every run.
 
 ## Tracker
 

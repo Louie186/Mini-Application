@@ -10,7 +10,7 @@ module.exports = async ({ page, out }) => {
   const f = page.frame({ url: /files\.html/ });
   const rows = () => f.evaluate(() => rows.map(r => ({ name: r.name, nn: r.nn, lv: r.lv, note: r.note, tick: r.tick })));
   const ls = () => page.evaluate(() => Object.values(window.__mockFs.files).map(x => x.path).filter(p => /^C:\\(Sub|Out)/.test(p)).sort());
-  await f.fill('#filter', '*.pdf'); await f.evaluate(() => { window.top.__nextFolder = 'C:\\Sub'; });
+  await f.evaluate(() => { opt.filter = '*.pdf'; window.top.__nextFolder = 'C:\\Sub'; });
   await f.click('#bPick'); await page.waitForTimeout(200);
   ok((await rows()).length == 3, 'loads 3 pdfs incl. subfolder');
   await f.fill('#find', '_P01'); await f.fill('#repl', '_P02'); await f.click('#bRepl');
@@ -24,7 +24,7 @@ module.exports = async ({ page, out }) => {
   ok(L.includes('C:\\Out\\A-101_P02.pdf') && L.includes('C:\\Out\\Deep\\A-201_P02.pdf'), 'copied with new names, subfolder kept');
   ok(L.includes('C:\\Sub\\A-101_P01.pdf'), 'originals untouched');
   await f.evaluate(() => validate()); ok((await rows()).every(r => r.lv == 2), 'copying again is blocked: already there');
-  await f.check('input[value="rename"]'); await f.evaluate(() => validate());
+  await f.selectOption('#mode', 'rename'); await f.evaluate(() => validate());
   ok(await f.evaluate(() => $('bRun').disabled), 'rename locked until unlocked');
   await f.check('#unlock'); await f.evaluate(() => buttons());
   ok(!(await f.evaluate(() => $('bRun').disabled)), 'rename allowed after unlock');
@@ -38,11 +38,25 @@ module.exports = async ({ page, out }) => {
   await f.click('#bUndo'); await page.waitForTimeout(300);
   L = await ls(); ok(L.includes('C:\\Sub\\A-101_P01.pdf') && L.includes('C:\\Sub\\Deep\\A-201_P01.pdf'), 'undo rename puts names back');
   // Excel round trip (CSV)
-  await f.click('#bXOut'); await page.waitForTimeout(200);
+  await f.click('#bExcel'); await f.click('#menu .mi >> nth=0'); await page.waitForTimeout(200);
   const csv = await page.evaluate(() => { const v = Object.values(window.__mockFs.files).find(x => /bulk-files-names\.csv$/i.test(x.path)); return v && v.path; });
   ok(!!csv, 'names exported for Excel');
   await page.evaluate(p => { const f = window.__mockFs.files[p.toLowerCase()]; const lines = f.text.replace(/^\ufeff/, '').split('\r\n'); const c = lines[1].split(','); c[3] = 'From-Excel.pdf'; lines[1] = c.join(','); f.text = lines.join('\r\n'); }, csv);
   await f.evaluate(() => readNames(xFile()));
   ok((await rows()).some(r => r.nn == 'From-Excel.pdf'), 'new names loaded back from Excel');
+  // multi-select like File Explorer
+  await f.selectOption('#mode', 'copy'); await f.evaluate(() => validate());
+  const trs = await f.$$('tr[data-i]');
+  await trs[0].click({ position: { x: 300, y: 10 } }); await trs[2].click({ position: { x: 300, y: 10 }, modifiers: ['Shift'] });
+  ok(await f.evaluate(() => selected().length == 3), 'click + Shift+click selects a range (3)');
+  await (await f.$$('tr[data-i]'))[1].click({ position: { x: 300, y: 10 }, modifiers: ['Control'] });
+  ok(await f.evaluate(() => selected().length == 2 && !shown[1].sel), 'Ctrl+click takes one out of the selection');
+  await page.keyboard.press('Space');
+  ok(await f.evaluate(() => !shown[0].tick && shown[1].tick && !shown[2].tick), 'Space unticks the selected rows only');
+  await f.click('tr[data-i="0"] input[data-tk]');
+  ok(await f.evaluate(() => shown[0].tick && shown[2].tick), 'ticking one box of the selection ticks all selected');
+  await f.evaluate(() => { for (var i = 0; i < shown.length; i++) shown[i].sel = false; shown[1].sel = true; paintSel(); });
+  await page.keyboard.press('Delete');
+  ok(await f.evaluate(() => rows.length == 2), 'Delete takes the selected row off the list');
   await page.screenshot({ path: out + '/h_files2.png' });
 };

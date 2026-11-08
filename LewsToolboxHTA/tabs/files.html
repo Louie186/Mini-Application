@@ -8,99 +8,102 @@
 <meta name="lt-icon" content="&#128193;">
 <!--
   Lew's Toolbox - Bulk Files: rename / copy / move many files with a preview, Excel round trip, safety lock and Undo.
+  Three steps on screen: 1 pick folder, 2 new names, 3 what to do. Less-used tools are in the "More" menus.
+  Select rows like File Explorer: click, Ctrl+click, Shift+click, Ctrl+A. Space = tick / untick, Delete = take off the list.
   Safety rules: Copy is the default. Nothing is ever overwritten or deleted. Rename / Move need the lock opened first.
   Data: bulk-files-history.json (for Undo) and a CSV log per run in exports.
 -->
 <style>
 #app{display:flex;flex-direction:column;height:100%}
-#top,#tools,#listbar,#bottom{flex:none}
+.step{flex:none;padding:10px 14px 4px}
 #list{flex:1 1 auto;overflow:auto;min-height:0}
-.lbl{display:inline-block;margin:0 6px 6px 0;vertical-align:middle}
-input.s{width:110px;margin:0 6px 6px 0}
-input.n{width:60px;margin:0 6px 6px 0}
-.sep{display:inline-block;margin:0 6px;opacity:.5}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:520px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#find,#repl{width:150px;margin:0 6px 6px 0}
+#info{flex:none;padding:6px 14px;font-size:.9em}
+#info .r{float:right}
+table.grid{-ms-user-select:none;user-select:none}
 td.cb{width:30px;text-align:center}
 td.nn input{width:100%;height:26px;font-weight:bold}
 td.nn input.same{font-weight:normal}
-td.fd{white-space:nowrap;max-width:220px;overflow:hidden;text-overflow:ellipsis}
-#bottom label{margin-right:12px;white-space:nowrap}
+td.fd{white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
+#mode{width:190px;margin:0 8px 6px 0}
 #prog{display:none;font-weight:bold}
-.big{font-weight:bold}
+.right{float:right}
 </style>
 <script src="../core/lt-core.js"></script>
 </head>
 <body>
 <div id="app">
-  <div id="top" class="bar">
+  <!-- step 1 -->
+  <div class="step bar">
+    <span class="num">1</span>
     <button class="btn primary" id="bPick">&#128194; Pick folder...</button>
-    <span class="lbl big" id="folderLbl">No folder picked</span>
-    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> Include subfolders</label>
-    <span class="lbl">Only:</span><input type="text" id="filter" class="s" title="Optional, e.g. *.pdf  or  *.pdf; *.dwg  or  A-1">
-    <button class="btn" id="bLoad">&#8635; Load files</button>
-    <span class="lbl muted" id="count"></span>
+    <span class="path big" id="folderLbl">No folder picked yet</span>
+    <button class="btn small" id="bOpt">Options &#9662;</button>
   </div>
-  <div id="tools" class="bar2">
-    <span class="lbl big">New names:</span>
-    <input type="text" id="find" class="s" placeholder="Find"><input type="text" id="repl" class="s" placeholder="Replace with">
-    <label class="lbl" title="Match upper / lower case"><input type="checkbox" id="mcase" style="height:auto"> Aa</label>
-    <button class="btn small" id="bRepl">Replace</button><span class="sep">|</span>
-    <input type="text" id="prefix" class="s" placeholder="Prefix"><button class="btn small" id="bPre">Add at start</button>
-    <input type="text" id="suffix" class="s" placeholder="Suffix"><button class="btn small" id="bSuf">Add at end</button><span class="sep">|</span>
-    <span class="lbl">No. from</span><input type="text" id="nStart" class="n" value="1"><input type="text" id="nDig" class="n" value="3" title="Digits (3 = 001)" style="width:40px">
-    <button class="btn small" id="bNum">Number &#9662;</button><span class="sep">|</span>
-    <button class="btn small" id="bMore">More &#9662;</button>
+  <!-- step 2 -->
+  <div class="step">
+    <span class="num">2</span><span class="lbl big">New names</span>
+    <input type="text" id="find" placeholder="Find (e.g. _P01)"><span class="lbl muted">&rarr;</span><input type="text" id="repl" placeholder="Replace with (e.g. _P02)">
+    <button class="btn" id="bRepl">Replace</button>
+    <button class="btn" id="bTools">More name tools &#9662;</button>
+    <button class="btn" id="bExcel">Excel &#9662;</button>
   </div>
-  <div id="listbar" class="bar2">
-    <button class="btn small" id="bAll">Tick all</button><button class="btn small" id="bNone">Untick all</button><button class="btn small" id="bInv">Invert</button><span class="sep">|</span>
-    <button class="btn small" id="bXOut">&#9998; Edit new names in Excel</button><button class="btn small" id="bXIn">&#11014; Load names from Excel</button>
-    <button class="btn small" id="bReset">&#8634; Reset new names</button><span class="sep">|</span>
-    <span class="lbl">Show:</span><select id="show" style="width:150px;margin-bottom:6px"><option value="all">All files</option><option value="tick">Ticked only</option><option value="chg">Changed names</option><option value="bad">Problems only</option></select>
-  </div>
+  <div id="info"><span class="r">Show: <select id="show" style="width:140px;height:26px"><option value="all">All files</option><option value="tick">Ticked only</option><option value="chg">Changed names</option><option value="bad">Problems only</option></select></span>
+    <span id="count" class="big"></span> <span class="muted" id="tip">&nbsp; Tip: Ctrl+click / Shift+click to select several rows, then Space to tick or untick them (right-click for more)</span></div>
   <div id="list"></div>
-  <div id="bottom" class="bar" style="border-top-width:1px;border-top-style:solid">
-    <span class="lbl big">What to do:</span>
-    <label><input type="radio" name="mode" value="copy" checked style="height:auto"> Copy to another folder (safe)</label>
-    <label><input type="radio" name="mode" value="move" style="height:auto"> Move to another folder</label>
-    <label><input type="radio" name="mode" value="rename" style="height:auto"> Rename in place</label><br>
-    <button class="btn" id="bDest">&#128194; Pick target folder...</button><span class="lbl muted" id="destLbl">No target folder</span>
-    <label class="lbl"><input type="checkbox" id="keep" checked style="height:auto"> Keep subfolders</label><br>
-    <label class="lbl" title="Rename and Move change your original folder, so they stay locked until you tick this. It locks again after each run."><input type="checkbox" id="unlock" style="height:auto"> <span id="lockIc">&#128274;</span> Allow changes to the original folder</label>
+  <!-- step 3 -->
+  <div class="step bar" id="bottom">
+    <span class="num">3</span>
+    <select id="mode"><option value="copy">Copy to a folder (safe)</option><option value="move">Move to a folder</option><option value="rename">Rename in place</option></select>
+    <span id="destBox"><button class="btn" id="bDest">&#128194; Target folder...</button><span class="path" id="destLbl"></span>
+      <label class="lbl"><input type="checkbox" id="keep" checked style="height:auto"> keep subfolders</label></span>
+    <label class="lbl" id="lockBox" style="display:none" title="Rename and Move change your original folder, so they stay locked until you tick this. It locks again after each run."><input type="checkbox" id="unlock" style="height:auto"> <span id="lockIc">&#128274;</span> Allow changes to the original folder</label>
     <button class="btn primary" id="bRun">&#9654; Preview and run...</button>
-    <button class="btn" id="bUndo">&#8630; Undo last run...</button>
-    <button class="btn small" id="bHist">History</button>
-    <span class="lbl" id="prog"></span>
-    <span class="lbl muted" id="summary"></span>
+    <span class="right"><button class="btn small" id="bUndo">&#8630; Undo last run</button><button class="btn small" id="bHist">History</button></span>
+    <div><span class="lbl" id="prog"></span><span class="lbl muted" id="summary"></span></div>
   </div>
 </div>
 <script>
 var fso = LT.fso, $ = LT.$, esc = LT.esc;
-var rows = [], folder = "", dest = "", busy = false;
+var rows = [], folder = "", dest = "", busy = false, opt = { subs: true, filter: "" }, anchor = -1;
 var HIST = function () { return LT.dataPath("bulk-files-history.json"); };
 var BAD = /[\\\/:*?"<>|\u0000-\u001f]/;
 var RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
 
 function look() {
-  LT.applyLook(["#list{background:{panel}}", "#bottom{border-top-color:{line}}", ".pr2 td.ck{color:{bad};font-weight:bold}", ".pr1 td.ck{color:{warn}}", ".pr0 td.ck{color:{ok}}", ".prn td{color:{muted}}"]);
+  LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#info{background:{bg};border-bottom:1px solid {line}}", "#list{background:{panel}}",
+    "#bottom{border-top:{bw}px solid {line}}", ".pr2 td.ck{color:{bad};font-weight:bold}", ".pr1 td.ck{color:{warn}}", ".pr0 td.ck{color:{ok}}", ".prn td{color:{muted}}",
+    "table.grid tr.sel td{background:{accent};color:{accText}}", "table.grid tr.sel td.ck{color:{accText}}"]);
 }
-function mode() { var r = document.getElementsByName("mode"); for (var i = 0; i < r.length; i++) if (r[i].checked) return r[i].value; return "copy"; }
+function mode() { return $("mode").value; }
 function stem(n) { var i = n.lastIndexOf("."); return i > 0 ? n.substring(0, i) : n; }
 function ext(n) { var i = n.lastIndexOf("."); return i > 0 ? n.substring(i) : ""; }
 function join(a, b) { return a.replace(/\\+$/, "") + "\\" + b; }
 
-/* ---------- load ---------- */
+/* ---------- step 1: load ---------- */
 function pickSource() { var f = LT.pickFolder("Pick the folder with the files"); if (f) { folder = f; loadFiles(); } }
+function optionsMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Include subfolders", on: opt.subs, fn: function () { opt.subs = !opt.subs; if (folder) reload(); } },
+    { label: "Only some files..." + (opt.filter ? " (now: " + esc(opt.filter) + ")" : ""), fn: function () { var f = prompt("Only files like this (e.g.  *.pdf   or   *.pdf; *.dwg   or   A-1).\nLeave empty for all files.", opt.filter); if (f != null) { opt.filter = LT.trim(f); if (folder) reload(); } } },
+    "-", { label: "&#8635; Reload the files", fn: function () { if (folder) reload(); } },
+    { label: "Open the folder", fn: function () { if (folder) LT.open(folder); } }]);
+}
+function reload() { var c = 0; for (var i = 0; i < rows.length; i++) if (rows[i].nn != rows[i].name) c++; if (c && !confirm("Reload the files? New names you typed will be lost.")) return; rows = []; loadFiles(); }
 function loadFiles() {
   if (!folder || !fso.FolderExists(folder)) { alert("Pick a folder first."); return; }
-  var changed = 0; for (var i = 0; i < rows.length; i++) if (rows[i].nn != rows[i].name) changed++;
-  if (changed && !confirm("Reload the files? New names you typed will be lost.")) return;
-  $("folderLbl").innerHTML = esc(folder);
-  var pats = LT.trim($("filter").value).split(/[;,]+/), regs = [];
+  $("folderLbl").innerHTML = esc(folder) + (opt.filter ? ' <span class="muted">(only ' + esc(opt.filter) + ")</span>" : "") + (opt.subs ? "" : ' <span class="muted">(no subfolders)</span>');
+  var pats = opt.filter.split(/[;,]+/), regs = [];
   for (var p = 0; p < pats.length; p++) { var t = LT.trim(pats[p]); if (!t) continue; if (!/[*?]/.test(t)) t = "*" + t + "*"; regs.push(new RegExp("^" + t.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".") + "$", "i")); }
   var list = [], skipped = [];
-  walk(folder, $("subs").checked, list, regs, skipped);
+  walk(folder, opt.subs, list, regs, skipped);
   list.sort(function (a, b) { var x = a.rel.toLowerCase(), y = b.rel.toLowerCase(); if (x != y) return x < y ? -1 : 1; return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
   for (var k = 0; k < list.length; k++) list[k].id = k + 1;
-  rows = list; validate();
+  rows = list; anchor = -1; validate();
   if (skipped.length) alert("Some folders couldn't be opened (no permission?) and were skipped:\n" + skipped.slice(0, 10).join("\n"));
 }
 function walk(dir, deep, list, regs, skipped) {
@@ -112,49 +115,53 @@ function walk(dir, deep, list, regs, skipped) {
       if (/^~\$/.test(n) || /^thumbs\.db$/i.test(n)) continue;
       if (regs.length) { var ok = false; for (var r = 0; r < regs.length; r++) if (regs[r].test(n)) ok = true; if (!ok) continue; }
       var rel = dir.length > folder.length ? dir.substring(folder.length).replace(/^\\+/, "") : "";
-      list.push({ full: "" + f.Path, rel: rel, name: n, nn: n, tick: true, size: f.Size, note: "", lv: 0, target: "" });
+      list.push({ full: "" + f.Path, rel: rel, name: n, nn: n, tick: true, sel: false, size: f.Size, note: "", lv: 0, target: "" });
     }
     if (deep) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) { var sf = d.item(); if (sf.Attributes & 6) continue; walk("" + sf.Path, true, list, regs, skipped); } }
   } catch (x) { skipped.push(dir); }
 }
-function pickDest() { var f = LT.pickFolder("Pick the folder to copy / move the files into"); if (f) { dest = f; $("destLbl").innerHTML = esc(dest); $("destLbl").className = "lbl big"; validate(); } }
 
-/* ---------- new names (only the name part, not the .pdf ending; only ticked files) ---------- */
+/* ---------- step 2: new names (only the name part, not the .pdf ending; only ticked files) ---------- */
 function apply(fn) {
   var any = false;
   for (var i = 0; i < rows.length; i++) if (rows[i].tick) { rows[i].nn = fn(stem(rows[i].nn)) + ext(rows[i].nn); any = true; }
-  if (!any) alert("Tick the files to change first.");
+  if (!any) alert(rows.length ? "Tick the files to change first." : "Pick a folder first.");
   validate();
 }
 function doReplace() {
-  var f = $("find").value; if (!f) { alert("Type the text to find."); return; }
-  var src = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), re = new RegExp(src, $("mcase").checked ? "g" : "gi"), one = new RegExp(src, $("mcase").checked ? "" : "i"), r = $("repl").value, hits = 0;
+  var f = $("find").value; if (!f) { alert("Type the text to find."); $("find").focus(); return; }
+  var src = f.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), re = new RegExp(src, "gi"), one = new RegExp(src, "i"), r = $("repl").value, hits = 0;
   for (var i = 0; i < rows.length; i++) if (rows[i].tick && one.test(stem(rows[i].nn))) hits++;
   apply(function (s) { return s.replace(re, function () { return r; }); });
   LT.toast("Replaced in " + hits + " name" + (hits == 1 ? "" : "s"));
 }
 function num(n, d) { var s = "" + n; while (s.length < d) s = "0" + s; return s; }
-function numberMenu(x, y) {
-  var st = parseInt($("nStart").value, 10) || 0, dg = Math.max(1, Math.min(8, parseInt($("nDig").value, 10) || 3));
+function askNumber() { var a = prompt("First number - type it the way it should look\n(e.g.  001  = 3 digits starting at 1,   10  = starting at 10):", "001"); if (!a || !/^\d+$/.test(LT.trim(a))) return null; a = LT.trim(a); return { n: parseInt(a, 10), d: a.length }; }
+function toolsMenu(x, y) {
   LT.menu(x, y, [
-    { label: "Put the number at the start (001_name)", fn: function () { var k = st; apply(function (s) { return num(k++, dg) + "_" + s; }); } },
-    { label: "Put the number at the end (name_001)", fn: function () { var k = st; apply(function (s) { return s + "_" + num(k++, dg); }); } },
-    { label: "Replace the whole name with the number", fn: function () { var k = st; apply(function () { return num(k++, dg); }); } }]);
-}
-function moreMenu(x, y) {
-  LT.menu(x, y, [
+    { label: "Add text at the start...", fn: function () { var p = prompt("Text to add at the START of the ticked names:", ""); if (p) apply(function (s) { return p + s; }); } },
+    { label: "Add text at the end...", fn: function () { var p = prompt("Text to add at the END of the ticked names (before .pdf etc.):", ""); if (p) apply(function (s) { return s + p; }); } },
+    { label: "Number them at the start (001_name)...", fn: function () { var o = askNumber(); if (!o) return; var k = o.n; apply(function (s) { return num(k++, o.d) + "_" + s; }); } },
+    { label: "Number them at the end (name_001)...", fn: function () { var o = askNumber(); if (!o) return; var k = o.n; apply(function (s) { return s + "_" + num(k++, o.d); }); } },
+    "-",
     { label: "UPPER CASE", fn: function () { apply(function (s) { return s.toUpperCase(); }); } },
     { label: "lower case", fn: function () { apply(function (s) { return s.toLowerCase(); }); } },
     { label: "Spaces &rarr; _", fn: function () { apply(function (s) { return s.replace(/ /g, "_"); }); } },
     { label: "Spaces &rarr; -", fn: function () { apply(function (s) { return s.replace(/ /g, "-"); }); } },
     { label: "Remove double spaces / trim", fn: function () { apply(function (s) { return LT.trim(s.replace(/ {2,}/g, " ")); }); } },
     "-",
-    { label: "Remove first N characters...", fn: function () { var k = parseInt(prompt("How many from the START?", "1"), 10); if (k > 0) apply(function (s) { return s.length > k ? s.substring(k) : s; }); } },
-    { label: "Remove last N characters...", fn: function () { var k = parseInt(prompt("How many from the END (before .pdf etc.)?", "1"), 10); if (k > 0) apply(function (s) { return s.length > k ? s.substring(0, s.length - k) : s; }); } },
+    { label: "Remove characters from the start...", fn: function () { var k = parseInt(prompt("How many characters from the START?", "1"), 10); if (k > 0) apply(function (s) { return s.length > k ? s.substring(k) : s; }); } },
+    { label: "Remove characters from the end...", fn: function () { var k = parseInt(prompt("How many characters from the END (before .pdf etc.)?", "1"), 10); if (k > 0) apply(function (s) { return s.length > k ? s.substring(0, s.length - k) : s; }); } },
     { label: "Add today's date at the end (_YYYY-MM-DD)", fn: function () { var d = LT.today(); apply(function (s) { return s + "_" + d; }); } },
     { label: "Change the file ending (e.g. .PDF &rarr; .pdf)...", fn: function () {
       var a = prompt("New ending for the ticked files (e.g. .pdf):", ".pdf"); if (!a) return; if (a.charAt(0) != ".") a = "." + a;
-      for (var i = 0; i < rows.length; i++) if (rows[i].tick) rows[i].nn = stem(rows[i].nn) + a; validate(); } }]);
+      for (var i = 0; i < rows.length; i++) if (rows[i].tick) rows[i].nn = stem(rows[i].nn) + a; validate(); } },
+    "-",
+    { label: "&#8634; Put all names back as they were", fn: resetNames }]);
+}
+function resetNames() { var c = 0; for (var i = 0; i < rows.length; i++) if (rows[i].nn != rows[i].name) c++; if (c && !confirm("Put every new name back to the current name?")) return; for (var j = 0; j < rows.length; j++) rows[j].nn = rows[j].name; validate(); }
+function excelMenu(x, y) {
+  LT.menu(x, y, [{ label: "&#9998; Edit new names in Excel", fn: excelOut }, { label: "&#11014; Load the names back from Excel", fn: excelIn }]);
 }
 
 /* ---------- checks ---------- */
@@ -189,15 +196,19 @@ function validate() {
 }
 function buttons() {
   var m = mode(), needLock = m != "copy";
-  $("unlock").disabled = !needLock; if (!needLock) $("unlock").checked = false;
+  $("destBox").style.display = m == "rename" ? "none" : "";
+  $("lockBox").style.display = needLock ? "" : "none";
+  if (!needLock) $("unlock").checked = false;
   $("lockIc").innerHTML = $("unlock").checked ? "&#128275;" : "&#128274;";
-  var ready = 0, bad = 0, chg = 0, tick = 0;
-  for (var i = 0; i < rows.length; i++) { var r = rows[i]; if (r.tick) tick++; if (r.nn != r.name) chg++; if (r.tick && (r.lv == 0 || r.lv == 1) && r.target) ready++; if (r.tick && r.lv == 2) bad++; }
+  $("destLbl").innerHTML = dest ? esc(dest) : '<span class="muted">not picked</span>';
+  var ready = 0, bad = 0, chg = 0, tick = 0, sel = 0;
+  for (var i = 0; i < rows.length; i++) { var r = rows[i]; if (r.tick) tick++; if (r.sel) sel++; if (r.nn != r.name) chg++; if (r.tick && (r.lv == 0 || r.lv == 1) && r.target) ready++; if (r.tick && r.lv == 2) bad++; }
   $("bRun").disabled = busy || !ready || (needLock && !$("unlock").checked) || (m != "rename" && !dest);
-  $("count").innerHTML = rows.length ? rows.length + " files &middot; " + tick + " ticked &middot; " + chg + " new names" + (bad ? ' &middot; <span class="bad">' + bad + " problems</span>" : "") : "";
+  $("count").innerHTML = rows.length ? rows.length + " files &middot; " + tick + " ticked" + (sel ? " &middot; " + sel + " selected" : "") + " &middot; " + chg + " new names" + (bad ? ' &middot; <span class="bad">' + bad + " problems</span>" : "") : "";
+  $("tip").style.display = rows.length ? "" : "none";
   var s;
-  if (!rows.length) s = "Pick a folder to start.";
-  else if (m != "rename" && !dest) s = "Pick a target folder.";
+  if (!rows.length) s = "";
+  else if (m != "rename" && !dest) s = "Pick the target folder.";
   else if (needLock && !$("unlock").checked) s = "Locked: tick “Allow changes to the original folder” to " + m + ".";
   else s = ready + " file(s) ready" + (bad ? ", " + bad + " with problems will be skipped" : "") + ".";
   $("summary").innerHTML = esc(s);
@@ -208,28 +219,64 @@ function render() {
   var sh = $("show").value; shown = [];
   for (var i = 0; i < rows.length; i++) { var r = rows[i];
     if (sh == "tick" && !r.tick) continue; if (sh == "chg" && r.nn == r.name) continue; if (sh == "bad" && !(r.tick && r.lv >= 1)) continue; shown.push(r); }
-  var lim = Math.min(shown.length, 3000), h = ['<table class="grid"><tr><th><input type="checkbox" id="cbAll" style="height:auto"' + (rows.length && allTicked() ? " checked" : "") + '></th><th>Folder</th><th>Current name</th><th>New name (click to edit)</th><th>Check</th></tr>'];
+  var lim = Math.min(shown.length, 3000), h = ['<table class="grid"><tr><th class="cb"><input type="checkbox" id="cbAll" title="Tick / untick all" style="height:auto"' + (rows.length && allTicked() ? " checked" : "") + '></th><th>Folder</th><th>Current name</th><th>New name (click to edit)</th><th>Check</th></tr>'];
   for (var k = 0; k < lim; k++) { var q = shown[k];
-    h.push('<tr class="' + (!q.tick ? "prn" : q.lv == -1 ? "prn" : "pr" + q.lv) + '" data-i="' + k + '"><td class="cb"><input type="checkbox" data-tk="' + k + '" style="height:auto"' + (q.tick ? " checked" : "") + '></td><td class="fd" title="' + esc(q.rel) + '">' + esc(q.rel || ".") +
+    h.push('<tr class="' + (!q.tick ? "prn" : q.lv == -1 ? "prn" : "pr" + q.lv) + (q.sel ? " sel" : "") + '" data-i="' + k + '"><td class="cb"><input type="checkbox" data-tk="' + k + '" style="height:auto"' + (q.tick ? " checked" : "") + '></td><td class="fd" title="' + esc(q.rel) + '">' + esc(q.rel || ".") +
       '</td><td>' + esc(q.name) + '</td><td class="nn"><input type="text" data-nn="' + k + '" class="' + (q.nn == q.name ? "same" : "") + '" value="' + esc(q.nn) + '"></td><td class="ck">' + (q.tick ? q.note : "(not ticked)") + "</td></tr>"); }
-  if (shown.length > lim) h.push('<tr><td colspan="5" class="muted">... and ' + (shown.length - lim) + ' more (use "Only:" to narrow the list)</td></tr>');
+  if (shown.length > lim) h.push('<tr><td colspan="5" class="muted">... and ' + (shown.length - lim) + ' more (Options &gt; Only some files, to narrow the list)</td></tr>');
   h.push("</table>");
-  if (!rows.length) h = ['<div class="muted" style="padding:30px">Pick a folder (or right-click a folder in the Launcher &gt; Open in Bulk Files).</div>'];
+  if (!rows.length) h = ['<div class="muted" style="padding:30px;line-height:1.8">Start with <b>1 &nbsp;Pick folder</b> (or right-click a folder in the Launcher &gt; Open in Bulk Files).<br>Then make the <b>2 &nbsp;New names</b>, and choose <b>3 &nbsp;what to do</b>.<br>Nothing changes on disk until you click Preview and run.</div>'];
   $("list").innerHTML = h.join("");
 }
 function allTicked() { for (var i = 0; i < rows.length; i++) if (!rows[i].tick) return false; return true; }
 
+/* ---------- selecting rows like File Explorer ---------- */
+function selected() { var s = []; for (var i = 0; i < shown.length; i++) if (shown[i].sel) s.push(shown[i]); return s; }
+function paintSel() {
+  var trs = $("list").getElementsByTagName("tr");
+  for (var i = 0; i < trs.length; i++) { var k = trs[i].getAttribute("data-i"); if (k == null) continue; var c = trs[i].className.replace(/\s*\bsel\b/g, ""); trs[i].className = shown[+k].sel ? c + " sel" : c; }
+  buttons();
+}
+function clickRow(k, e) {
+  if (e.shiftKey && anchor >= 0) {
+    if (!e.ctrlKey) for (var i = 0; i < shown.length; i++) shown[i].sel = false;
+    var a = Math.min(anchor, k), b = Math.max(anchor, k); for (var j = a; j <= b; j++) shown[j].sel = true;
+  } else if (e.ctrlKey) { shown[k].sel = !shown[k].sel; anchor = k; }
+  else { for (var m = 0; m < shown.length; m++) shown[m].sel = false; shown[k].sel = true; anchor = k; }
+  paintSel();
+}
+function setTick(list, on) { for (var i = 0; i < list.length; i++) list[i].tick = on; validate(); }
+function toggleSelected() { var s = selected(); if (!s.length) return; var anyOff = false; for (var i = 0; i < s.length; i++) if (!s[i].tick) anyOff = true; setTick(s, anyOff); }
+function removeSelected() {
+  var s = selected(); if (!s.length) return;
+  if (!confirm("Take " + s.length + " file(s) off this list?\n\n(Only off the list - the files themselves are not touched.)")) return;
+  var keep = []; for (var i = 0; i < rows.length; i++) if (!rows[i].sel) keep.push(rows[i]); rows = keep; anchor = -1; validate();
+}
+function rowMenu(x, y) {
+  var s = selected(), n = s.length;
+  LT.menu(x, y, [
+    { label: "&#10004; Tick " + (n > 1 ? "the " + n + " selected" : "this file"), fn: function () { setTick(selected(), true); } },
+    { label: "&#9744; Untick " + (n > 1 ? "the " + n + " selected" : "this file"), fn: function () { setTick(selected(), false); } },
+    { label: "Tick only " + (n > 1 ? "these" : "this one") + " (untick the rest)", fn: function () { for (var i = 0; i < rows.length; i++) rows[i].tick = !!rows[i].sel; validate(); } },
+    "-",
+    { label: "Take " + (n > 1 ? "these " + n : "it") + " off the list", fn: removeSelected },
+    { label: "&#8634; Put " + (n > 1 ? "their" : "its") + " name back", fn: function () { var t = selected(); for (var i = 0; i < t.length; i++) t[i].nn = t[i].name; validate(); } },
+    "-",
+    { label: "Select all", fn: function () { for (var i = 0; i < shown.length; i++) shown[i].sel = true; paintSel(); } },
+    { label: "Show in folder", fn: function () { var t = selected(); if (t[0]) LT.showInFolder(t[0].full); } }]);
+}
+
 /* ---------- Excel round trip ---------- */
 function xFile() { return LT.exportsDir() + "\\bulk-files-names.csv"; }
 function excelOut() {
-  if (!rows.length) { alert("Load some files first."); return; }
+  if (!rows.length) { alert("Pick a folder first."); return; }
   var t = [["ID", "Folder", "Current name", "New name"]];
   for (var i = 0; i < rows.length; i++) t.push([rows[i].id, rows[i].rel || ".", rows[i].name, rows[i].nn]);
   try { LT.writeCsv(xFile(), t); LT.open(xFile()); } catch (e) { alert("Couldn't make the Excel file:\n" + (e.message || e)); return; }
-  alert("The file list is opening in Excel.\n\n1. Change only the  New name  column (formulas and fill-down are fine)\n2. Don't change ID or Current name, don't add rows\n3. Save (Ctrl+S, keep CSV format) and close Excel\n4. Click  Load names from Excel\n\nNothing changes on disk until you click Preview and run.");
+  alert("The file list is opening in Excel.\n\n1. Change only the  New name  column (formulas and fill-down are fine)\n2. Don't change ID or Current name, don't add rows\n3. Save (Ctrl+S, keep CSV format) and close Excel\n4. Excel ▾ > Load the names back from Excel\n\nNothing changes on disk until you click Preview and run.");
 }
 function excelIn() {
-  if (!rows.length) { alert("Load the same folder first, then load the names."); return; }
+  if (!rows.length) { alert("Pick the same folder first, then load the names."); return; }
   if (fso.FileExists(xFile()) && confirm("Load names from the file made by “Edit new names in Excel”?\n\n(Cancel = pick another .csv / .xlsx file)")) { readNames(xFile()); return; }
   LT.pickFile(readNames);
 }
@@ -255,14 +302,15 @@ function readNames(p) {
   alert("New names loaded: " + set + "\nUnchanged: " + same + (bad.length ? "\n\nNot matched to a file (" + bad.length + "):\n" + bad.slice(0, 12).join("\n") : "") + "\n\nCheck the list, then click Preview and run.");
 }
 
-/* ---------- run ---------- */
+/* ---------- step 3: run ---------- */
+function pickDest() { var f = LT.pickFolder("Pick the folder to copy / move the files into"); if (f) { dest = f; validate(); } }
 function inside(child, parent) { return child && parent && (child.toLowerCase().replace(/\\+$/, "") + "\\").indexOf(parent.toLowerCase().replace(/\\+$/, "") + "\\") == 0; }
 function run() {
   validate();
   var m = mode(), todo = [], warn = 0, bad = 0;
   for (var i = 0; i < rows.length; i++) { var r = rows[i]; if (r.tick && (r.lv == 0 || r.lv == 1) && r.target) { todo.push(r); if (r.lv == 1) warn++; } if (r.tick && r.lv == 2) bad++; }
   if (!todo.length) return;
-  if (m != "rename" && $("subs").checked && inside(dest, folder)) { alert("The target folder is inside the folder you're reading from.\nPick a target folder outside it (or untick Include subfolders)."); return; }
+  if (m != "rename" && opt.subs && inside(dest, folder)) { alert("The target folder is inside the folder you're reading from.\nPick a target folder outside it (or untick Options > Include subfolders)."); return; }
   var verb = m == "copy" ? "COPY" : m == "move" ? "MOVE" : "RENAME", sample = [];
   for (var s = 0; s < Math.min(8, todo.length); s++) sample.push("  " + todo[s].name + (todo[s].nn != todo[s].name ? "  →  " + todo[s].nn : ""));
   var msg = verb + " " + todo.length + " file(s)" + (m == "rename" ? " in their own folders." : " into:\n" + dest + ($("keep").checked ? "\n(keeping subfolders)" : "")) +
@@ -361,29 +409,43 @@ function showHistory() {
 }
 
 /* ---------- events ---------- */
-$("bPick").onclick = pickSource; $("bLoad").onclick = loadFiles; $("bDest").onclick = pickDest;
-$("bRepl").onclick = doReplace;
-$("bPre").onclick = function () { var p = $("prefix").value; apply(function (s) { return p + s; }); };
-$("bSuf").onclick = function () { var p = $("suffix").value; apply(function (s) { return s + p; }); };
-$("bNum").onclick = function (e) { var r = this.getBoundingClientRect(); numberMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
-$("bMore").onclick = function (e) { var r = this.getBoundingClientRect(); moreMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
-$("bAll").onclick = function () { for (var i = 0; i < rows.length; i++) rows[i].tick = true; validate(); };
-$("bNone").onclick = function () { for (var i = 0; i < rows.length; i++) rows[i].tick = false; validate(); };
-$("bInv").onclick = function () { for (var i = 0; i < rows.length; i++) rows[i].tick = !rows[i].tick; validate(); };
-$("bXOut").onclick = excelOut; $("bXIn").onclick = excelIn;
-$("bReset").onclick = function () { var c = 0; for (var i = 0; i < rows.length; i++) if (rows[i].nn != rows[i].name) c++; if (c && !confirm("Put every new name back to the current name?")) return; for (var j = 0; j < rows.length; j++) rows[j].nn = rows[j].name; validate(); };
+function under(btn, fn) { return function (e) { var r = btn.getBoundingClientRect(); fn(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; }; }
+$("bPick").onclick = pickSource; $("bOpt").onclick = under($("bOpt"), optionsMenu);
+$("bRepl").onclick = doReplace; $("bTools").onclick = under($("bTools"), toolsMenu); $("bExcel").onclick = under($("bExcel"), excelMenu);
+$("find").onkeydown = $("repl").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { doReplace(); return false; } };
+$("bDest").onclick = pickDest;
 $("show").onchange = render;
+$("mode").onchange = function () { $("unlock").checked = false; validate(); };
 $("keep").onclick = validate; $("unlock").onclick = buttons;
-var radios = document.getElementsByName("mode"); for (var ri = 0; ri < radios.length; ri++) radios[ri].onclick = function () { $("unlock").checked = false; validate(); };
 $("bRun").onclick = run; $("bUndo").onclick = undo; $("bHist").onclick = showHistory;
 $("list").onclick = function (e) {
-  var t = e.target || e.srcElement;
-  if (t.id == "cbAll") { for (var i = 0; i < rows.length; i++) rows[i].tick = t.checked; validate(); return; }
-  var tk = t.getAttribute && t.getAttribute("data-tk"); if (tk != null) { shown[+tk].tick = t.checked; validate(); }
+  e = e || window.event; var t = e.target || e.srcElement;
+  if (t.id == "cbAll") { setTick(rows, t.checked); return; }
+  var tk = t.getAttribute && t.getAttribute("data-tk");
+  if (tk != null) {   // a tick box: if its row is part of a selection, the whole selection follows
+    var r = shown[+tk], s = selected();
+    if (r.sel && s.length > 1) setTick(s, t.checked); else { r.tick = t.checked; validate(); }
+    return;
+  }
+  if (t.tagName == "INPUT") return;
+  var tr = LT.up(t, "data-i"); if (tr) clickRow(+tr.getAttribute("data-i"), e);
+};
+$("list").oncontextmenu = function (e) {
+  e = e || window.event; var tr = LT.up(e.target || e.srcElement, "data-i");
+  if (tr) { var k = +tr.getAttribute("data-i"); if (!shown[k].sel) clickRow(k, { ctrlKey: false, shiftKey: false }); rowMenu(e.clientX, e.clientY); }
+  if (e.preventDefault) e.preventDefault(); return false;
 };
 $("list").onchange = function (e) { var t = e.target || e.srcElement, k = t.getAttribute && t.getAttribute("data-nn"); if (k != null) { shown[+k].nn = LT.trim(t.value); validate(); } };
-$("list").onkeydown = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (e.keyCode == 13 && t.getAttribute && t.getAttribute("data-nn") != null) { t.blur(); } };
 $("list").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-i"); if (tr && (e.target || e.srcElement).tagName != "INPUT") { try { LT.showInFolder(shown[+tr.getAttribute("data-i")].full); } catch (x) { } } };
+document.onkeydown = function (e) {
+  e = e || window.event; var t = e.target || e.srcElement, inInput = t && (t.tagName == "INPUT" && t.type == "text" || t.tagName == "SELECT");
+  if (e.keyCode == 13 && t.getAttribute && t.getAttribute("data-nn") != null) { t.blur(); return false; }
+  if (inInput || busy) return;
+  if (e.keyCode == 32 && selected().length) { toggleSelected(); return false; }                   // Space
+  if (e.keyCode == 46 && selected().length) { removeSelected(); return false; }                   // Delete
+  if (e.ctrlKey && e.keyCode == 65 && shown.length) { for (var i = 0; i < shown.length; i++) shown[i].sel = true; paintSel(); return false; }   // Ctrl+A
+  if (e.keyCode == 27) { for (var j = 0; j < shown.length; j++) shown[j].sel = false; paintSel(); }
+};
 
 /* called by the main window */
 window.ltTheme = function () { look(); };

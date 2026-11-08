@@ -17,14 +17,22 @@ No install, no build step.
 
 ## Tabs
 
-| Tab | Status |
+| Tab | What it does |
 |---|---|
-| 🚀 Launcher | ✅ Your full QuickLaunch, inside the Toolbox |
-| 📁 Bulk Files | ✅ Rename / copy / move with preview, Excel, lock and Undo |
-| 🗂 Tracker | ✅ Your work list: Today / Week / Overdue / Board, repeats, timer, weekly summary |
-| 📋 Delegate | ✅ Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
-| ✅ Submission Check | ✅ Folder vs your list: missing, wrong revision, missing type, extra files, counts |
-| ⚙ Settings | ✅ |
+| 🏠 Home | Start of the day: today's tasks, waiting on others, next 2 weeks, recent files, team this week |
+| 🚀 Launcher | Your full QuickLaunch, inside the Toolbox |
+| 📁 Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
+| 🗂 Tracker | Your work list: Today / Week / Overdue / Board, repeats, timer |
+| 📋 Delegate | Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
+| ✅ Submission Check | Folder vs your list: missing, wrong revision, missing type, extra files |
+| 🏷 Naming Checker | Every file name vs your naming rule (ISO 19650 style), part by part |
+| 🔄 What Changed | Two submissions compared: new, revised, removed, same rev but changed |
+| 📨 Transmittal | Issue sheet (Excel) with numbering, log, copy files to the transmittal folder |
+| 🗄 Superseded | Printed sheets: latest revision stays, older ones move to "Superseded" |
+| 📂 Project Folders | Your standard folder tree for a new project in one click |
+| 📊 Weekly Report | One click: done, delegated, sent, next week, team load – copy / email / save |
+| 👥 Team Workload | Hours per task and per person per week, as a heat-map |
+| ⚙ Settings | Looks, data folder, Launcher list, links, taskbar shortcut |
 
 ## Launcher
 
@@ -88,6 +96,54 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Show:** problems only, missing, wrong revision, files not on the list… Double-click a row to open its folder
 - **Report ▾:** Excel report (through Excel, or CSV if Excel isn't there), copy summary for email / Teams, other notes
 - **Fix names in Bulk Files** opens the folder in Bulk Files. Folder, list and columns are remembered
+
+## Home
+
+- Opens first. **Add a task for today** goes straight into the Tracker
+- **Today** (late, due today, doing) · **Waiting on others** (open delegated items, late first) · **Next 2 weeks** (every date from Tracker and Delegate, busy days in red) · **Recent files** (from the Launcher) · **Team this week** (once Team Workload is used)
+- Click anything to jump to its tab
+
+## Naming Checker
+
+1. **Naming rule** – starts with an ISO 19650 rule (Project-Originator-Volume-Level-Type-Role-Number-Revision). **✎ Change the rule** (per part: any text / N letters / N digits / list of codes / revision) or **Rule ▾ > Set up from an example name**. Keep several rules (one per project)
+2. **Folder** (subfolders, only some types)
+3. **Check names** – each wrong name says which part is wrong ("Type XX is not an allowed code"). **Export (CSV)**, **Fix names in Bulk Files**
+
+## What Changed
+
+- **Before** and **Now**: each a folder or a list (Excel / CSV) → **Compare**
+- Matched by drawing number: ➕ **New** · ↻ **Revised** (P01 → P02) · ✖ **Removed** · ⚠ **Same revision, file changed** (folders: re-issued without a new revision?) · Unchanged
+- **Copy summary** for the email "changes since last issue", or **Export (CSV)**
+
+## Transmittal
+
+1. Project, **To**, Attention, Purpose of issue, Notes
+2. Documents: **From a folder**, **Paste a list**, or Submission Check → Report ▾ → **Make a transmittal**. **Fill titles from my list** uses the list set up in Submission Check
+3. **Make the transmittal** – Excel issue sheet (CSV without Excel), numbered **TR-001, TR-002…**; tick *also copy the files* to put the files in the transmittal folder
+- **Sent log ▾**: reopen or reuse a past transmittal, numbering / prefix, where transmittals are saved, export the log
+
+## Superseded
+
+- Pick the **printed sheets folder** → **Find old revisions**: for each drawing the latest revision stays, older ones are ticked to move (untick to keep)
+- Move to a **"Superseded" folder next to them** or **one central folder** → **Preview and move** → **Undo last move** if needed
+- **Options ▾**: revision order (default T, P, C – oldest to newest), folder name, central folder. Never overwrites or deletes
+
+## Project Folders
+
+1. **Template** – one folder per line (`01 WIP\Architecture`), `{PROJECT}` = project name. Starts with an ISO 19650 style tree; **Template ▾**: save, save as new, rename, delete, **copy the folders of an existing project**
+2. **Where** – parent folder + project folder name; the preview shows what's new and what's already there
+3. **Create the folders** – only missing folders are made, nothing is deleted
+
+## Weekly Report
+
+- **This week / Last week**, tick the parts you want: my work (done, still open, time), delegated work by person (and late items), submissions sent, next week, team load
+- **Copy for email / Teams**, **Open as an email**, or **Save** (text + CSV)
+
+## Team Workload
+
+- **People and hours per week** (click a name to change hours, e.g. part-time). People come from Delegate
+- Type the **hours each open task needs**; the heat-map shows hours per person per week: green has room · amber 80–100% · red overloaded. Click a box to see its tasks
+- **Options ▾**: include your own Tracker tasks, hours for tasks with no estimate, weeks to show, export
 
 ## Settings
 

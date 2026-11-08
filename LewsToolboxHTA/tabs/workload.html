@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Team Workload</title>
+<meta name="lt-order" content="12">
+<meta name="lt-icon" content="&#128101;">
+<!--
+  Lew's Toolbox - Team workload: hours per task and hours per person per week, as a heat-map
+  (green = has room, amber = nearly full, red = overloaded). Tasks come from the Delegate tab (and optionally
+  your own Tracker tasks); this tab only adds the estimates and weekly hours, saved in workload.json.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#items{flex:1 1 auto;overflow:auto;min-height:0}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+#heat{padding:0 14px 8px;flex:none}
+#heat td.c{text-align:center;cursor:pointer;font-weight:bold;width:130px}
+#heat td.c.sel{outline:2px solid #000}
+.chip2{display:inline-block;padding:3px 10px;margin:0 6px 6px 0;cursor:pointer}
+#items input{width:70px;height:24px;text-align:right}
+.right{float:right}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="lbl big">People and hours per week:</span><span id="people"></span>
+    <button class="btn small" id="bAdd">+ Person</button>
+    <span class="right"><button class="btn small" id="bOpt">Options &#9662;</button></span>
+  </div>
+  <div class="step"><span class="lbl big">Hours planned per week</span><span class="lbl muted" id="legend"></span></div>
+  <div id="heat"></div>
+  <div class="step bar" style="border-top-width:1px;border-top-style:solid"><span class="lbl big" id="itemsTitle">Open tasks &ndash; type the hours each one needs</span><span class="lbl muted" id="warnTxt"></span><span class="right"><button class="btn small" id="bAll">Show all</button></span></div>
+  <div id="items"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, store, items = [], weeks = [], pick = null;
+function FILE() { return LT.dataPath("workload.json"); }
+function load() { store = LT.readJson(FILE(), null) || {}; store.people = store.people || []; store.estimates = store.estimates || {}; store.defaultHours = store.defaultHours || 0; store.weeks = store.weeks || 4; store.mine = !!store.mine; }
+function save() { try { LT.saveJson(FILE(), store); } catch (e) { alert("Couldn't save the workload."); } }
+function D(s) { return LT.parseIso(s); }
+function todayD() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function names(s) { var a = ("" + (s || "")).split(/\s*(?:,|;|&|\/|\band\b)\s*/i), o = []; for (var i = 0; i < a.length; i++) if (LT.trim(a[i])) o.push(LT.trim(a[i])); return o; }
+function person(n) { for (var i = 0; i < store.people.length; i++) if (store.people[i].name.toLowerCase() == n.toLowerCase()) return store.people[i]; return null; }
+
+/* the open work: delegated items (and your own tasks if ticked in Options) */
+function gather() {
+  items = [];
+  var dl = LT.readJson(LT.dataPath("delegate.json"), null) || { tasks: [] };
+  for (var i = 0; i < (dl.tasks || []).length; i++) { var t = dl.tasks[i], list = t.subs && t.subs.length ? t.subs : [t];
+    for (var j = 0; j < list.length; j++) { var it = list[j]; if (it.status == "Completed") continue; var who = names(it.who || t.who); if (!who.length) continue;
+      items.push({ key: it.code, code: it.code, title: (list === t.subs ? t.title + " – " : "") + it.title, who: who, due: it.due || t.due || "", from: "Delegate" }); } }
+  if (store.mine) { var me = LT.settings().userName || "Me", tr = LT.readJson(LT.dataPath("tracker.json"), null) || { tasks: [] };
+    for (var k = 0; k < (tr.tasks || []).length; k++) { var x = tr.tasks[k]; if (x.status == "Done") continue; items.push({ key: "t:" + x.id, code: "", title: x.title, who: [me], due: x.due || "", from: "Tracker" }); } }
+  // everyone who has work is on the list
+  var added = 0;
+  for (var p = 0; p < items.length; p++) for (var q = 0; q < items[p].who.length; q++) if (!person(items[p].who[q])) { store.people.push({ name: items[p].who[q], hours: 37.5 }); added++; }
+  if (added) save();
+  var ws = addDays(todayD(), -((todayD().getDay() + 6) % 7)); weeks = [];
+  for (var w = 0; w < store.weeks; w++) weeks.push(addDays(ws, 7 * w));
+  for (var z = 0; z < items.length; z++) { var d = D(items[z].due), wi = 0; if (d) { wi = Math.floor((d - ws) / (7 * 864e5)); if (wi < 0) wi = 0; } items[z].week = wi; items[z].late = d && d < todayD(); }
+}
+function est(it) { var v = store.estimates[it.key]; return v == null || v === "" ? null : +v; }
+function hoursFor(name, w) { var h = 0, un = 0; for (var i = 0; i < items.length; i++) { var it = items[i]; if (it.week != w) continue; var share = 0; for (var k = 0; k < it.who.length; k++) if (it.who[k].toLowerCase() == name.toLowerCase()) share = 1 / it.who.length; if (!share) continue;
+  var e = est(it); if (e == null) { un++; e = store.defaultHours; } h += e * share; } return { h: Math.round(h * 10) / 10, un: un }; }
+
+function render() {
+  gather();
+  var ph = ""; for (var i = 0; i < store.people.length; i++) ph += '<span class="chip2" data-p="' + i + '" title="Click to change hours or remove">' + esc(store.people[i].name) + " &nbsp;<b>" + store.people[i].hours + "h</b></span>";
+  $("people").innerHTML = ph || '<span class="muted">Nobody yet &ndash; people appear when you assign tasks in Delegate.</span>';
+  var h = ['<table class="grid"><tr><th>Person</th>'];
+  for (var w = 0; w < weeks.length; w++) h.push("<th>" + (w == 0 ? "This week" : w == 1 ? "Next week" : "Week of " + weeks[w].getDate() + " " + LT.MON[weeks[w].getMonth()]) + (w == 0 ? ' <span class="muted">(+ late)</span>' : "") + "</th>");
+  h.push("</tr>");
+  var unTotal = 0;
+  for (var p = 0; p < store.people.length; p++) { var pr = store.people[p]; h.push("<tr><td><b>" + esc(pr.name) + "</b></td>");
+    for (var c = 0; c < weeks.length; c++) { var r = hoursFor(pr.name, c), pct = pr.hours ? r.h / pr.hours * 100 : 0; unTotal += r.un;
+      var cls = r.h == 0 ? "z" : pct > 100 ? "hot" : pct >= 80 ? "warm" : "cool";
+      h.push('<td class="c ' + cls + (pick && pick.p == p && pick.w == c ? " sel" : "") + '" data-c="' + p + "," + c + '">' + r.h + " / " + pr.hours + "h" + (r.h ? " &nbsp;" + Math.round(pct) + "%" : "") + (r.un ? '<br><span class="un">' + r.un + " not estimated</span>" : "") + "</td>"); }
+    h.push("</tr>"); }
+  h.push("</table>");
+  $("heat").innerHTML = store.people.length ? h.join("") : "";
+  $("legend").innerHTML = '<span class="cool">&#9632; has room</span> &nbsp;<span class="warm">&#9632; 80&ndash;100%</span> &nbsp;<span class="hot">&#9632; over 100%</span> &nbsp;&middot; click a box to see its tasks';
+  $("warnTxt").innerHTML = unTotal ? "&#9888; " + unTotal + " task(s) have no hours yet" + (store.defaultHours ? " (counted as " + store.defaultHours + "h)" : " (counted as 0h)") : "";
+  list();
+}
+function list() {
+  var h = ['<table class="grid"><tr><th>ID</th><th>Task</th><th>Who</th><th>Due</th><th>Week</th><th>Hours needed</th></tr>'], n = 0;
+  for (var i = 0; i < items.length; i++) { var it = items[i];
+    if (pick) { var nm = store.people[pick.p] ? store.people[pick.p].name.toLowerCase() : "", mine = false; for (var k = 0; k < it.who.length; k++) if (it.who[k].toLowerCase() == nm) mine = true; if (!mine || it.week != pick.w) continue; }
+    n++; var e = est(it);
+    h.push("<tr><td>" + esc(it.code || it.from) + "</td><td>" + esc(it.title) + "</td><td>" + esc(it.who.join(", ")) + '</td><td class="' + (it.late ? "bad" : "") + '">' + esc(LT.fmtDate(it.due)) + (it.late ? " late" : "") + "</td><td>" + (it.week == 0 ? "this week" : it.week == 1 ? "next week" : it.week < weeks.length ? "+" + it.week + " weeks" : "later") +
+      '</td><td><input type="text" data-k="' + esc(it.key) + '" value="' + (e == null ? "" : e) + '" placeholder="h"></td></tr>'); }
+  h.push("</table>");
+  $("itemsTitle").innerHTML = pick && store.people[pick.p] ? esc(store.people[pick.p].name) + " &ndash; " + (pick.w == 0 ? "this week (and late)" : pick.w == 1 ? "next week" : "week of " + weeks[pick.w].getDate() + " " + LT.MON[weeks[pick.w].getMonth()]) : "Open tasks &ndash; type the hours each one needs";
+  $("bAll").style.display = pick ? "" : "none";
+  $("items").innerHTML = n ? h.join("") : '<div class="muted" style="padding:20px">' + (items.length ? "No tasks here." : "No open delegated tasks. Assign work in the Delegate tab (and tick Options &gt; include my own tasks to plan yours too).") + "</div>";
+}
+function optMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Include my own tasks (Tracker)", on: store.mine, fn: function () { store.mine = !store.mine; save(); render(); } },
+    { label: "Tasks with no hours count as " + store.defaultHours + "h...", fn: function () { var v = parseFloat(prompt("Hours to count for a task with no estimate (0 = don't count):", "" + store.defaultHours)); if (v >= 0) { store.defaultHours = v; save(); render(); } } },
+    { label: "Weeks to show: " + store.weeks + "...", fn: function () { var v = parseInt(prompt("How many weeks ahead (2-8)?", "" + store.weeks), 10); if (v >= 2 && v <= 8) { store.weeks = v; save(); render(); } } },
+    { label: "Export (CSV)", fn: function () { var t = [["Person", "Hours per week"]]; for (var w = 0; w < weeks.length; w++) t[0].push(LT.iso(weeks[w])); for (var p = 0; p < store.people.length; p++) { var r = [store.people[p].name, store.people[p].hours]; for (var c = 0; c < weeks.length; c++) r.push(hoursFor(store.people[p].name, c).h); t.push(r); } var f = LT.exportsDir() + "\\Workload_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f); } }]);
+}
+$("bAdd").onclick = function () { var n = prompt("Name (as written in Delegate):", ""); if (!n || person(n)) return; var hrs = parseFloat(prompt("Hours available per week for " + n + ":", "37.5")); store.people.push({ name: LT.trim(n), hours: hrs > 0 ? hrs : 37.5 }); save(); render(); };
+$("bOpt").onclick = function (e) { var r = this.getBoundingClientRect(); optMenu(r.left - 200, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("bAll").onclick = function () { pick = null; render(); };
+$("people").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-p"); if (!c) return; var p = store.people[+c.getAttribute("data-p")], r = c.getBoundingClientRect();
+  LT.menu(r.left, r.bottom + 2, [{ label: "Hours per week for " + esc(p.name) + " (now " + p.hours + ")...", fn: function () { var v = parseFloat(prompt("Hours available per week (e.g. 37.5, or 18 for part-time / half on another project):", "" + p.hours)); if (v >= 0) { p.hours = v; save(); render(); } } },
+    { label: "Remove " + esc(p.name) + " from this list", fn: function () { store.people.splice(store.people.indexOf(p), 1); save(); render(); } }]); };
+$("heat").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-c"); if (!c) return; var a = c.getAttribute("data-c").split(","); pick = { p: +a[0], w: +a[1] }; render(); };
+$("items").onchange = function (e) { var t = e.target || e.srcElement, k = t.getAttribute && t.getAttribute("data-k"); if (k == null) return; var v = LT.trim(t.value).replace(",", ".");
+  if (v === "") delete store.estimates[k]; else if (!(parseFloat(v) >= 0)) { alert("Type a number of hours, e.g. 4 or 1.5"); return; } else store.estimates[k] = parseFloat(v); save(); render(); };
+function look() { LT.applyLook([".chip2{background:{chip};border-radius:{rc}px}", "#heat td.c.cool{background:#d9f2e3;color:#14532d}", "#heat td.c.warm{background:#fff1c2;color:#7a4b00}", "#heat td.c.hot{background:#f9d0cc;color:#8a1c12}", "#heat td.c.z{color:{muted}}",
+  ".cool{color:#1f8a4c}.warm{color:#a86500}.hot{color:#c0392b}", ".un{font-weight:normal;font-size:.8em;opacity:.8}", "#items{background:{panel}}", "#heat td.c.sel{outline:2px solid {accent}}"]); }
+window.ltTheme = look; window.ltShown = render; window.ltReload = function () { load(); render(); };
+look(); load(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

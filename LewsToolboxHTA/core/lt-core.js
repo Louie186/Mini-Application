@@ -76,7 +76,7 @@ var LT = (function () {
   };
 
   /* ---------- settings (per PC) + data folder ---------- */
-  var DEF = { dataFolder: "", theme: "light", size: "normal", userName: "", trackerFolder: "", launcherHome: "", lastTab: "launcher", win: null };
+  var DEF = { dataFolder: "", theme: "light", size: "normal", userName: "", trackerFolder: "", launcherHome: "", lastTab: "home", win: null };
   L.settings = function () {
     var s = L.readJson(L.settingsFile(), {}) || {};
     for (var k in DEF) if (DEF.hasOwnProperty(k) && s[k] === undefined) s[k] = DEF[k];

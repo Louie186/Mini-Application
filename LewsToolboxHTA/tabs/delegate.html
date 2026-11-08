@@ -258,7 +258,7 @@ function team() {
 function rowMenu(t, s, x, y) {
   var m = [{ label: "<b>Edit task...</b>", fn: function () { edit(t); } }];
   if (s || !t.subs.length) for (var i = 0; i < ST.length; i++) (function (v) {
-    m.push({ label: "Status: " + v, on: (s ? s.status : t.status) == v, fn: function () { var st = stampNow() + " · me"; if (s) { s.status = v; s.updated = st; } else t.status = v; t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); save(); render(); } });
+    m.push({ label: "Status: " + v, on: (s ? s.status : t.status) == v, fn: function () { var st = stampNow() + " · me"; if (s) { s.status = v; s.updated = st; s.doneOn = v == "Completed" ? LT.today() : ""; } else { t.status = v; t.doneOn = v == "Completed" ? LT.today() : ""; } t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); save(); render(); } });
   })(ST[i]);
   m.push("-", { label: "&#128228; Send this task...", fn: function () { openSend(t); } },
     { label: "History", fn: function () { alert(t.history.length ? t.history.slice(-30).join("\n") : "No history yet."); } },
@@ -304,6 +304,7 @@ function saveEdit() {
     var sd = parseDate(q("iD").value); if (sd === null) { bad.push(it + ': "' + q("iD").value + '"'); continue; }
     var sc = r.getElementsByTagName("input")[0].value, s = (sc && old[sc]) ? old[sc] : { id: LT.uid("s"), code: "", updated: "" };
     s.title = it; s.who = LT.trim(q("iW").value); s.due = sd; s.status = q("iS").value; s.notes = LT.trim(q("iN").value);
+    s.doneOn = s.status == "Completed" ? (s.doneOn || LT.today()) : "";
     subs.push(s);
   }
   if (bad.length) { alert("These dates aren't clear - use dd/mm/yyyy:\n" + bad.join("\n")); return; }
@@ -313,7 +314,7 @@ function saveEdit() {
   var keep = []; for (var k = 0; k < subs.length; k++) if (subs[k].code && subs[k].code.indexOf(t.code + ".") == 0) keep.push(subs[k]);
   t.subs = keep; for (var n = 0; n < subs.length; n++) if (!(subs[n].code && subs[n].code.indexOf(t.code + ".") == 0)) { subs[n].code = nextSub(t); t.subs.push(subs[n]); }
   t.subs.sort(function (a, b) { return subs.indexOf(a) - subs.indexOf(b); });
-  if (!t.subs.length) t.status = $("eStat").value;
+  if (!t.subs.length) { t.status = $("eStat").value; t.doneOn = t.status == "Completed" ? (t.doneOn || LT.today()) : ""; }
   t.updated = stampNow() + " · me"; t.history = t.history || []; t.history.push(stampNow() + (editing ? "  Edited" : "  Created"));
   if (editing) data.tasks[data.tasks.indexOf(editing)] = t; else data.tasks.push(t);
   $("dlg").style.display = "none"; save(); render();
@@ -583,7 +584,7 @@ function applyReplies(reps) {
         cur = t; newT = null;
         var canSt = s || (!t.subs.length && !row.derived), oldSt = s ? s.status : t.status, oldNo = s ? s.notes : t.notes, label = s ? s.code + " " + s.title : t.code + " " + t.title;
         if (canSt && ST.indexOf(row.status) >= 0 && row.status != oldSt) { var v = row.status;
-          ch.push({ text: label + ":  " + oldSt + " → " + v + "   (" + from + ")", run: function () { if (s) { s.status = v; s.updated = st; } else t.status = v; t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); } }); }
+          ch.push({ text: label + ":  " + oldSt + " → " + v + "   (" + from + ")", run: function () { if (s) { s.status = v; s.updated = st; s.doneOn = v == "Completed" ? LT.today() : ""; } else { t.status = v; t.doneOn = v == "Completed" ? LT.today() : ""; } t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); } }); }
         if (row.notes != null && LT.trim(row.notes) != LT.trim(oldNo || "")) { var nv = LT.trim(row.notes);
           ch.push({ text: label + ':  notes → "' + (nv.length > 60 ? nv.substring(0, 60) + "…" : nv) + '"   (' + from + ")", run: function () { if (s) { s.notes = nv; s.updated = st; } else t.notes = nv; t.updated = st; } }); }
         return;

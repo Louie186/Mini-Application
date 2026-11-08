@@ -141,7 +141,7 @@ function check(rows, files, defFormats) {
     else { var c = [bas + "-" + want, bas + "_" + want, bas + want, bas]; for (var k = 0; k < c.length; k++) { var l = byStem[c[k]] || []; for (var q = 0; q < l.length; q++) if (exact.indexOf(l[q]) < 0) exact.push(l[q]); } }
     var other = []; var sb = byBase[bas] || []; for (var o = 0; o < sb.length; o++) if (exact.indexOf(sb[o]) < 0) other.push(sb[o]);
     for (var u = 0; u < exact.length; u++) exact[u].used = true; for (var u2 = 0; u2 < other.length; u2++) other[u2].used = true;
-    row.files = exact.concat(other);
+    row.files = exact.concat(other); row.exact = exact;
     var hits = [], missing = [];
     for (var h = 0; h < exact.length; h++) if (!need.length || need.indexOf(exact[h].ext) >= 0) hits.push(exact[h]);
     for (var n = 0; n < need.length; n++) { var got = false; for (var e2 = 0; e2 < exact.length; e2++) if (exact[e2].ext == need[n]) got = true; if (!got) missing.push(need[n]);
@@ -255,6 +255,9 @@ function excelReport() {
 function reportMenu(x, y) {
   LT.menu(x, y, [
     { label: "Excel report", fn: excelReport },
+    { label: "&#128232; Make a transmittal (the found files)", fn: function () { if (!last) { alert("Run a check first."); return; } var p = [];
+      for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i]; if (r.status != "Found" && r.status != "Wrong folder") continue; for (var k = 0; k < (r.exact || []).length; k++) p.push(r.exact[k].full); }
+      if (!p.length) { alert("No found files to issue."); return; } if (LT.main()) LT.main().send("transmittal", "add-files", JSON.stringify(p)); } },
     { label: "&#128203; Copy summary (for email / Teams)", fn: function () { if (!last) { alert("Run a check first."); return; } if (LT.copyText(summaryText())) LT.toast("Summary copied"); } },
     { label: "Other notes (empty files, long paths)", fn: function () { alert(!last ? "Run a check first." : last.notes.length ? last.notes.slice(0, 40).join("\n") : "Nothing else to report."); } }]);
 }

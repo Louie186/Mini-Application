@@ -357,6 +357,11 @@ window.setInterval(timer, 1000);
 window.ltTheme = function () { look(); render(); };
 window.ltReload = function () { load(); render(); };
 window.ltShown = function () { loadFeed(); render(); try { $("quick").focus(); } catch (e) { } };
+/* from Home: "add-task" with quick-add words, "view" to open a view */
+window.ltReceive = function (what, value) {
+  if (what == "add-task" && value) { var v = data.view; data.view = "today"; $("quick").value = value; quickAdd(); data.view = v; save(); render(); }
+  else if (what == "view") { data.view = value; save(); render(); }
+};
 look(); load(); render(); LT.tabKeys();
 </script>
 </body>

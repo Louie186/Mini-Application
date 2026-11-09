@@ -6,6 +6,7 @@
 <title>Settings</title>
 <meta name="lt-order" content="99">
 <meta name="lt-icon" content="&#9881;">
+<meta name="lt-desc" content="Colours and text size, where your data is saved, your name, the Launcher list, and these hover tips.">
 <script src="../core/lt-core.js"></script>
 </head>
 <body>
@@ -15,6 +16,9 @@
   <div class="h">Look</div>
   <div id="themes"></div>
   <div><span class="muted">Text size: </span><span id="sizes"></span></div>
+
+  <div class="h">Hover tips</div>
+  <label><input type="checkbox" id="tips" style="height:auto"> Show what each tab does when the mouse is over it in the side menu</label>
 
   <div class="h">Your name</div>
   <input type="text" id="uname" style="width:220px"> <button class="btn" id="bName">Save</button>
@@ -43,6 +47,9 @@
   <button class="btn" id="bPin">Make taskbar shortcut (fixes the icon)</button>
   <div class="muted">Puts a "Lew's Toolbox" shortcut on your Desktop: right-click it &gt; Pin to taskbar (Windows 11: Show more options first).</div>
 
+  <div class="h">What each tab does</div>
+  <table class="grid" id="tabList" style="max-width:900px"></table>
+
   <div class="h">Keyboard</div>
   <div class="muted">Ctrl+1 ... Ctrl+9 = switch tabs (in the order of the side menu)</div>
 
@@ -62,6 +69,10 @@ function refresh() {
   LT.$("dataPath").innerHTML = LT.esc(LT.dataDir()) + (S.dataFolder ? "" : ' <span class="muted">(next to the program)</span>');
   LT.$("lhPath").innerHTML = S.launcherHome ? LT.esc(S.launcherHome + "\\QuickLaunch-data") + ' <span class="muted">(shared with QuickLaunch.hta)</span>' : LT.esc(LT.dataDir() + "\\QuickLaunch-data") + ' <span class="muted">(the Toolbox\'s own list)</span>';
   LT.$("trPath").innerHTML = S.trackerFolder ? LT.esc(S.trackerFolder) : '<span class="muted">Not linked</span>';
+  LT.$("tips").checked = S.tips !== false;
+  var tl = LT.main() ? LT.main().tabList() : [], th = "";
+  for (var t = 0; t < tl.length; t++) th += '<tr><td style="white-space:nowrap"><b>' + tl[t].icon + " " + LT.esc(tl[t].title) + '</b></td><td class="muted">' + tl[t].desc + "</td></tr>";
+  LT.$("tabList").innerHTML = th;
   LT.$("about").innerHTML = "Lew's Toolbox (HTA) &middot; program folder: " + LT.esc(LT.appDir()) + " &middot; settings for this PC: " + LT.esc(LT.settingsFile());
 }
 function save(fn) { var s = LT.settings(); fn(s); LT.saveSettings(s); refresh(); }
@@ -72,6 +83,7 @@ document.body.onclick = function (e) {
   if (th) { save(function (s) { s.theme = th.getAttribute("data-theme"); }); look(); if (LT.main()) LT.main().themeChanged(window); }
   else if (sz) { save(function (s) { s.size = sz.getAttribute("data-size"); }); look(); if (LT.main()) LT.main().themeChanged(window); }
 };
+LT.$("tips").onclick = function () { var on = this.checked; save(function (s) { s.tips = on; }); if (LT.main()) LT.main().tipsChanged(); };
 LT.$("bName").onclick = function () { save(function (s) { s.userName = LT.trim(LT.$("uname").value); }); LT.toast("Saved"); };
 LT.$("bDataOpen").onclick = function () { try { LT.mkdirs(LT.dataDir()); LT.open(LT.dataDir()); } catch (e) { } };
 LT.$("bData").onclick = function () {

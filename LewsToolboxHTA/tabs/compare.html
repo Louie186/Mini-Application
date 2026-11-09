@@ -6,6 +6,7 @@
 <title>What Changed</title>
 <meta name="lt-order" content="7">
 <meta name="lt-icon" content="&#128260;">
+<meta name="lt-desc" content="Compares the last submission with this one: what is new, revised (P01 to P02), removed, or changed without a new revision.">
 <!--
   Lew's Toolbox - What changed: compares two submissions (folders, or lists in Excel / CSV) drawing by drawing:
   New, Removed, Revised (P01 -> P02), Unchanged, and "same revision but the file changed".
@@ -67,14 +68,12 @@ function read(side, only) {
       if ($("subs").checked) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) if (!(d.item().Attributes & 6)) walk("" + d.item().Path); } } catch (x) { } };
     walk(side.path);
   } else {
-    var t = LT.readTable(side.path), head = -1, words = ["file name", "filename", "drawing number", "drawing no", "document number", "doc no", "number", "name"];
-    for (var r = 0; r < Math.min(30, t.length) && head < 0; r++) for (var c = 0; c < t[r].length; c++) if (words.indexOf(LT.trim(t[r][c]).toLowerCase()) >= 0) { head = r; side.col = c; break; }
-    if (head < 0) { head = -1; side.col = 0; }
-    var revCol = head >= 0 ? LT.col(t[head], ["revision", "rev", "rev."]) : -1, titleCol = head >= 0 ? LT.col(t[head], ["title", "description", "drawing title"]) : -1;
-    for (var k = head + 1; k < t.length; k++) { var v = LT.cell(t[k], side.col); if (!v) continue; var m = /\.([a-z0-9]{2,4})$/i.exec(v), ext = m && !REV.test(m[1]) ? m[1].toLowerCase() : "";
+    var L = LT.readList(side.path), t = L.table, head = L.headRow, col = L.numCol >= 0 ? L.numCol : 0;
+    var revCol = head >= 0 ? LT.col(t[head], ["revision", "rev", "rev."]) : -1, titleCol = head >= 0 ? LT.col(t[head], ["title", "description", "drawing title"]) : col + 1;
+    for (var k = head + 1; k < t.length; k++) { var v = LT.cell(t[k], col); if (!v || LT.isCategory(v, LT.cell(t[k], revCol))) continue; var m = /\.([a-z0-9]{2,4})$/i.exec(v), ext = m && !REV.test(m[1]) ? m[1].toLowerCase() : "";
       if (ext) v = v.substring(0, v.length - m[0].length);
       var rv = LT.cell(t[k], revCol); if (rv && !split(v).rev) v = v + "-" + rv;
-      add(v, ext, { name: LT.cell(t[k], side.col), title: LT.cell(t[k], titleCol) }); }
+      add(v, ext, { name: LT.cell(t[k], col), title: LT.cell(t[k], titleCol) }); }
   }
   return out;
 }

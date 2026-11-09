@@ -88,7 +88,11 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 ## Submission Check
 
 1. **Submission folder…** (include subfolders)
-2. **My list (Excel / CSV)…** – any register, transmittal or checklist. It finds the heading row itself and guesses the columns; change them if needed:
+2. **My list (Excel / CSV)…** – any register, transmittal or checklist
+   - **Sheet:** it picks the sheet with drawing numbers in Column A (else the one with the most numbers); change it with the **Sheet** picker
+   - Works **with or without a heading row** (no heading: Column A = numbers, Column B = description)
+   - Rows like **"Residential"** or **"Enlarged drawings"** are read as **category titles**, not drawings – the results show each drawing's category
+   - It guesses the columns; change them if needed:
    - **File name / number** (with or without revision / ending), **Revision**, **File types** (e.g. `pdf, dwg`)
    - **More ▾**: Folder column, Title column, file types every row needs (when the list has no types column)
 3. **▶ Check** – every list row gets: ✔ Found · ✖ Missing · ✖ Wrong revision · ✖ Missing file type · ⚠ Wrong folder · ⚠ Listed twice · ⚠ Found with a note (case differs, empty file, old revision also there)
@@ -147,6 +151,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 
 ## Settings
 
+- **Hover tips** (on by default): point at a tab in the side menu to see what it does. Settings also lists **what each tab does**
 - Themes (Light, Dark, Blueprint, Retro 8-bit, Retro Grey, Retro Console) and text size – every tab follows
 - Your name, data folder, Launcher list, Lew's Tracker link, taskbar shortcut
 - `Ctrl+1` … `Ctrl+9` switch tabs
@@ -154,7 +159,8 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 ## For whoever maintains this
 
 - **One tab = one file** in `tabs\`. The main window lists every `tabs\*.html` by itself, using the page's
-  `<title>`, `<meta name="lt-order">` and `<meta name="lt-icon">`. Adding or changing a tab needs no other edits
+  `<title>`, `<meta name="lt-order">`, `<meta name="lt-icon">` and `<meta name="lt-desc">` (the hover tip). Adding or changing a tab needs no other edits
+- Lists are read with `LT.readList` (sheet choice, heading row or none, drawing-number column) and `LT.isCategory` (title rows)
 - Each tab runs in its own frame (`application="yes"`), shares `core\lt-core.js` (files, settings, themes, Excel, menus)
   and talks to others only through the main window: `LT.main().send("files", "open-folder", path)`
 - Plain JavaScript (ES5) only – the HTA engine is Internet Explorer 11

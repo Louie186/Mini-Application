@@ -6,6 +6,7 @@
 <title>Transmittal</title>
 <meta name="lt-order" content="8">
 <meta name="lt-icon" content="&#128232;">
+<meta name="lt-desc" content="Makes a numbered transmittal sheet (TR-001, TR-002...) in Excel for the documents you issue, and keeps a log of everything sent.">
 <!--
   Lew's Toolbox - Transmittal maker: an issue sheet (Excel, or CSV without Excel) from picked files, a pasted list,
   or the "Found" files of Submission Check. Numbers itself (TR-001...), keeps a log, can copy the files into a
@@ -96,11 +97,10 @@ function fillTitles(quiet) {
   if (!c || !c.list || !fso.FileExists(c.list) || !c.colTitle) { if (!quiet) alert("Set up your list in Submission Check first (with its Title column) - titles are taken from there."); return; }
   var need = false; for (var i = 0; i < docs.length; i++) if (!docs[i].title) need = true; if (!need) { if (!quiet) LT.toast("All documents already have a title"); return; }
   if (quiet && /\.(xlsx|xlsm|xls)$/i.test(c.list)) return;     // reading Excel takes a moment - only when asked
-  var t; try { t = LT.readTable(c.list); } catch (e) { if (!quiet) alert("Couldn't read the list - is it open in Excel?"); return; }
-  var head = -1, cn = -1, ct = -1;
-  for (var r = 0; r < Math.min(30, t.length) && head < 0; r++) { cn = LT.col(t[r], [c.colName]); ct = LT.col(t[r], [c.colTitle]); if (cn >= 0 && ct >= 0) head = r; }
-  if (head < 0) { if (!quiet) alert("Couldn't find the columns " + c.colName + " / " + c.colTitle + " in the list."); return; }
-  var map = {}; for (var k = head + 1; k < t.length; k++) { var nm = split(LT.cell(t[k], cn).replace(/\.[a-z0-9]{2,4}$/i, "")).base.toUpperCase(); if (nm) map[nm] = LT.cell(t[k], ct); }
+  var L; try { L = LT.readList(c.list, c.sheet); } catch (e) { if (!quiet) alert("Couldn't read the list - is it open in Excel?"); return; }
+  var t = L.table, cn = L.head.indexOf(c.colName), ct = L.head.indexOf(c.colTitle);
+  if (cn < 0 || ct < 0) { if (!quiet) alert("Couldn't find the columns " + c.colName + " / " + c.colTitle + " in the list."); return; }
+  var map = {}; for (var k = L.headRow + 1; k < t.length; k++) { var nm = split(LT.cell(t[k], cn).replace(/\.[a-z0-9]{2,4}$/i, "")).base.toUpperCase(); if (nm) map[nm] = LT.cell(t[k], ct); }
   var n = 0; for (var d = 0; d < docs.length; d++) if (!docs[d].title && map[docs[d].number.toUpperCase()]) { docs[d].title = map[docs[d].number.toUpperCase()]; n++; }
   render(); if (n || !quiet) LT.toast(n + " title(s) filled from your list");
 }

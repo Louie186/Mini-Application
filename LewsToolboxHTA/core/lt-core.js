@@ -76,7 +76,7 @@ var LT = (function () {
   };
 
   /* ---------- settings (per PC) + data folder ---------- */
-  var DEF = { dataFolder: "", theme: "light", size: "normal", userName: "", trackerFolder: "", launcherHome: "", lastTab: "home", win: null };
+  var DEF = { dataFolder: "", theme: "light", size: "normal", userName: "", trackerFolder: "", launcherHome: "", lastTab: "home", win: null, tips: true };
   L.settings = function () {
     var s = L.readJson(L.settingsFile(), {}) || {};
     for (var k in DEF) if (DEF.hasOwnProperty(k) && s[k] === undefined) s[k] = DEF[k];
@@ -164,26 +164,67 @@ var LT = (function () {
     return "" + x;
   }
   /* reads a sheet (by name, or the first) into rows of text. Gives back null if the sheet isn't there. */
+  function sheetRows(ws) {
+    var out = [], ur = ws.UsedRange, nr = ur.Rows.Count, nc = ur.Columns.Count, r0 = ur.Row, c0 = ur.Column, v = ur.Value;
+    for (var a = 1; a < r0; a++) out.push([]);
+    if (nr == 1 && nc == 1) { var one = []; for (var b = 1; b < c0; b++) one.push(""); one.push(cellText(v)); out.push(one); }
+    else {
+      var arr = new VBArray(v).toArray();
+      for (var r = 0; r < nr; r++) { var row = []; for (var k = 1; k < c0; k++) row.push(""); for (var c = 0; c < nc; c++) row.push(cellText(arr[c * nr + r])); out.push(row); }
+    }
+    return out;
+  }
   L.readExcel = function (p, sheetName) {
-    var xl = null, wb = null, out = [];
+    var xl = null, wb = null;
     try {
       xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
       wb = xl.Workbooks.Open(p, 0, true);
       var ws = null;
       if (sheetName) { for (var i = 1; i <= wb.Worksheets.Count; i++) if (("" + wb.Worksheets(i).Name).toLowerCase() == sheetName.toLowerCase()) ws = wb.Worksheets(i); if (!ws) return null; }
       else ws = wb.Worksheets(1);
-      var ur = ws.UsedRange, nr = ur.Rows.Count, nc = ur.Columns.Count, r0 = ur.Row, c0 = ur.Column, v = ur.Value;
-      for (var a = 1; a < r0; a++) out.push([]);
-      if (nr == 1 && nc == 1) { var one = []; for (var b = 1; b < c0; b++) one.push(""); one.push(cellText(v)); out.push(one); }
-      else {
-        var arr = new VBArray(v).toArray();
-        for (var r = 0; r < nr; r++) { var row = []; for (var k = 1; k < c0; k++) row.push(""); for (var c = 0; c < nc; c++) row.push(cellText(arr[c * nr + r])); out.push(row); }
-      }
+      return sheetRows(ws);
+    } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+  };
+  /* every visible sheet in one go: { names: [...], rows: { name: [[...]] } } */
+  L.readExcelAll = function (p) {
+    var xl = null, wb = null, out = { names: [], rows: {} };
+    try {
+      xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
+      wb = xl.Workbooks.Open(p, 0, true);
+      for (var i = 1; i <= wb.Worksheets.Count; i++) { var ws = wb.Worksheets(i); if (ws.Visible != -1 && ws.Visible !== true) continue; var n = "" + ws.Name; out.names.push(n); out.rows[n] = sheetRows(ws); }
     } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
     return out;
   };
   L.readTable = function (p) {
     return /\.(xlsx|xlsm|xls)$/i.test(p) ? L.readExcel(p) : L.parseCsv(L.readText(p));
+  };
+
+  /* ---------- drawing lists (registers, transmittals, checklists) ---------- */
+  /* looks like a drawing / document number: 3+ separators, no spaces, has a digit (5013-KEO-T1-ZZ-PLN-INT-10100-T1) */
+  L.isDocNo = function (s) { s = L.trim(s).replace(/\.[A-Za-z0-9]{2,4}$/, ""); return !/\s/.test(s) && /\d/.test(s) && (s.match(/[-_]/g) || []).length >= 3; };
+  /* a category title inside the list, like "Residential" or "Enlarged drawings": no digits, or words with spaces, and nothing else on the row */
+  L.isCategory = function (s, restOfRow) { s = L.trim(s); if (!s || L.isDocNo(s)) return false; if (restOfRow) return false; return !/\d/.test(s) || (/\s/.test(s) && !/[-_].*\d/.test(s)); };
+  var NAME_WORDS = ["file name", "filename", "drawing number", "drawing numbers", "drawing no", "drawing no.", "dwg no", "dwg number", "document number", "document no", "doc no", "doc number", "number", "name", "file", "deliverable"];
+  function docCount(rows) { var best = { col: -1, n: 0 }, per = {}; for (var r = 0; r < Math.min(rows.length, 2000); r++) for (var c = 0; c < rows[r].length; c++) if (L.isDocNo(rows[r][c])) { per[c] = (per[c] || 0) + 1; if (per[c] > best.n) best = { col: c, n: per[c] }; } return best; }
+  /* reads a list from Excel (picks the sheet with the drawing numbers, or the one named) or CSV.
+     Works with or without a heading row. Gives back { sheets, sheet, table, headRow (-1 = no heading), head, numCol } */
+  L.readList = function (p, sheetName) {
+    var res = { sheets: [], sheet: "", table: [], headRow: -1, head: [], numCol: -1 };
+    if (/\.(xlsx|xlsm|xls)$/i.test(p)) {
+      var all = L.readExcelAll(p), pick = null, bestN = -1;
+      res.sheets = all.names;
+      if (sheetName && all.rows[sheetName]) pick = sheetName;
+      // the sheet with drawing numbers in Column A wins (a plain list), then the one with the most numbers
+      else for (var i = 0; i < all.names.length; i++) { var dc = docCount(all.rows[all.names[i]]), n = dc.n ? dc.n + (dc.col == 0 ? 1e6 : 0) : 0; if (n > bestN) { bestN = n; pick = all.names[i]; } }
+      res.sheet = pick || ""; res.table = pick ? all.rows[pick] : [];
+    } else { res.table = L.parseCsv(L.readText(p)); res.sheets = ["(CSV)"]; res.sheet = "(CSV)"; }
+    var t = res.table;
+    for (var r = 0; r < Math.min(30, t.length) && res.headRow < 0; r++) for (var c = 0; c < t[r].length; c++) if (NAME_WORDS.indexOf(L.trim(t[r][c]).toLowerCase()) >= 0) { res.headRow = r; break; }
+    var width = 0; for (var w = 0; w < Math.min(t.length, 300); w++) width = Math.max(width, t[w].length);
+    var letters = function (i) { var s = ""; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+    for (var h = 0; h < width; h++) { var name = res.headRow >= 0 ? L.trim((t[res.headRow] || [])[h]) : ""; res.head.push(name || "Column " + letters(h)); }
+    res.numCol = docCount(t.slice(res.headRow + 1)).col;
+    return res;
   };
   L.col = function (head, names) {
     for (var i = 0; i < head.length; i++) { var h = L.trim(head[i]).toLowerCase(); for (var j = 0; j < names.length; j++) if (h == names[j].toLowerCase()) return i; }

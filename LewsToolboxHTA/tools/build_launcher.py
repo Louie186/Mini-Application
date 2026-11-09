@@ -23,7 +23,7 @@ def sub(pattern, repl, text, count=1, flags=0):
 # 1. the main window is the application
 t = sub(r'<hta:application[\s\S]*?/>\n', '', t)
 t = sub(r'<title>QuickLaunch</title>',
-        '<title>Launcher</title>\n<meta name="lt-order" content="1">\n<meta name="lt-icon" content="&#128640;">\n'
+        '<title>Launcher</title>\n<meta name="lt-order" content="1">\n<meta name="lt-icon" content="&#128640;">\n<meta name="lt-desc" content="Open your apps, files, folders and websites in one click (your QuickLaunch). Copy a path, press Ctrl+V to add it.">\n'
         '<!-- MADE BY tools/build_launcher.py FROM src/QuickLaunch.template.hta - change that file, not this one. -->', t)
 t = t.replace('__ICO__', '').replace('__LOGO__', '')
 

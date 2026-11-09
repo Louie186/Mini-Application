@@ -6,6 +6,7 @@
 <title>Submission Check</title>
 <meta name="lt-order" content="5">
 <meta name="lt-icon" content="&#9989;">
+<meta name="lt-desc" content="Before you send a submission: checks the folder against your drawing list - what is missing, wrong revision, missing PDF / DWG, and files that are not on the list.">
 <!--
   Lew's Toolbox - Submission Check: compares a submission folder (and its subfolders) with your list (Excel / CSV).
   Checks: file count, each listed file found / missing / wrong revision / missing file type / wrong folder / listed twice,
@@ -38,6 +39,7 @@
   <div class="step">
     <span class="num">2</span><button class="btn" id="bList">&#128196; My list (Excel / CSV)...</button><span class="path big" id="listLbl"></span>
     <div id="cols" style="margin-left:32px">
+      <span id="sheetBox"><span class="lbl">Sheet:</span><select id="cSheet"></select></span>
       <span class="lbl">File name / number:</span><select id="cName"></select>
       <span class="lbl">Revision:</span><select id="cRev"></select>
       <span class="lbl">File types:</span><select id="cFmt"></select>
@@ -54,7 +56,7 @@
 </div>
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso;
-var cfg, table = null, head = [], headRow = 0, last = null, shown = [];
+var cfg, table = null, head = [], headRow = 0, sheets = [], last = null, shown = [];
 var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
 var NAME_WORDS = ["file name", "filename", "drawing number", "drawing no", "drawing no.", "dwg no", "dwg number", "document number", "document no", "doc no", "doc number", "number", "name", "file", "deliverable"];
 function CFG() { return LT.dataPath("check.json"); }
@@ -80,26 +82,27 @@ function pickFolder() { var f = LT.pickFolder("Pick the submission folder"); if 
 function pickList() { LT.pickFile(function (p) { try { readList(p, true); cfg.list = p; saveCfg(); showPaths(); } catch (e) { alert("Couldn't read that list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); } }); }
 /* reads the list and guesses which columns are which (the person can change them) */
 function readList(p, guess) {
-  table = LT.readTable(p);
-  headRow = -1;
-  for (var r = 0; r < Math.min(30, table.length) && headRow < 0; r++) for (var c = 0; c < table[r].length; c++) if (NAME_WORDS.indexOf(LT.trim(table[r][c]).toLowerCase()) >= 0) { headRow = r; break; }
-  if (headRow < 0) { headRow = 0; for (var r2 = 0; r2 < table.length; r2++) { var n = 0; for (var c2 = 0; c2 < table[r2].length; c2++) if (LT.trim(table[r2][c2])) n++; if (n >= 2) { headRow = r2; break; } } }
-  head = []; var hr = table[headRow] || [];
-  for (var i = 0; i < hr.length; i++) head.push(LT.trim(hr[i]) || "Column " + String.fromCharCode(65 + (i % 26)));
+  var L = LT.readList(p, guess ? "" : cfg.sheet);
+  sheets = L.sheets; cfg.sheet = L.sheet; table = L.table; headRow = L.headRow; head = L.head;
   var find = function (words, saved) {
     if (!guess && saved && head.indexOf(saved) >= 0) return saved;
+    if (headRow < 0) return "";
     for (var w = 0; w < words.length; w++) for (var h = 0; h < head.length; h++) if (head[h].toLowerCase() == words[w]) return head[h];
     for (var w2 = 0; w2 < words.length; w2++) for (var h2 = 0; h2 < head.length; h2++) if (head[h2].toLowerCase().indexOf(words[w2]) >= 0) return head[h2];
     return "";
   };
-  cfg.colName = find(NAME_WORDS, cfg.colName) || head[0] || "";
+  cfg.colName = find(NAME_WORDS, cfg.colName) || (L.numCol >= 0 ? head[L.numCol] : head[0]) || "";
   cfg.colRev = find(["revision", "rev", "rev.", "current revision", "issue rev"], cfg.colRev);
   cfg.colFmt = find(["file types", "file type", "format", "formats", "type", "file format"], cfg.colFmt);
   cfg.colFolder = find(["folder", "subfolder", "location", "path"], cfg.colFolder);
   cfg.colTitle = find(["title", "description", "drawing title", "document title"], cfg.colTitle);
+  // no heading row: the description is the column next to the numbers
+  if (headRow < 0 && !cfg.colTitle) { var nc = head.indexOf(cfg.colName) + 1, n = 0; for (var r = 0; r < Math.min(table.length, 200); r++) if (LT.cell(table[r], nc)) n++; if (n) cfg.colTitle = head[nc]; }
   fillCols();
 }
 function fillCols() {
+  var so = ""; for (var i = 0; i < sheets.length; i++) so += "<option" + (sheets[i] == cfg.sheet ? " selected" : "") + ">" + esc(sheets[i]) + "</option>";
+  $("cSheet").innerHTML = so; $("sheetBox").style.display = sheets.length > 1 ? "" : "none";
   var opts = function (sel, none) { var h = none ? '<option value="">(none)</option>' : ""; for (var i = 0; i < head.length; i++) h += "<option" + (head[i] == sel ? " selected" : "") + ">" + esc(head[i]) + "</option>"; return h; };
   $("cName").innerHTML = opts(cfg.colName, false); $("cRev").innerHTML = opts(cfg.colRev, true); $("cFmt").innerHTML = opts(cfg.colFmt, true);
 }
@@ -173,9 +176,11 @@ function runCheck() {
   showPaths();
   var col = function (name) { return name ? head.indexOf(name) : -1; }, iN = col(cfg.colName), iR = col(cfg.colRev), iF = col(cfg.colFmt), iD = col(cfg.colFolder), iT = col(cfg.colTitle);
   if (iN < 0) { alert("Choose which column has the file name / number."); return; }
-  var rows = [];
+  var rows = [], cat = "";
   for (var r = headRow + 1; r < table.length; r++) { var e = LT.cell(table[r], iN); if (!e) continue;
-    rows.push({ no: r + 1, entry: e, rev: LT.cell(table[r], iR), formats: LT.cell(table[r], iF), folder: LT.cell(table[r], iD), title: LT.cell(table[r], iT), status: "", note: "", lv: 0, files: [] }); }
+    var rest = LT.cell(table[r], iR) + LT.cell(table[r], iF) + LT.cell(table[r], iD) + LT.cell(table[r], iT);
+    if (LT.isCategory(e, rest)) { cat = e; continue; }       // a title like "Residential" - the rows under it belong to it
+    rows.push({ no: r + 1, cat: cat, entry: e, rev: LT.cell(table[r], iR), formats: LT.cell(table[r], iF), folder: LT.cell(table[r], iD), title: LT.cell(table[r], iT), status: "", note: "", lv: 0, files: [] }); }
   if (!rows.length) { alert('No rows found under the heading "' + cfg.colName + '".'); return; }
   var files = []; scan(cfg.folder, cfg.folder, cfg.subs, files);
   last = check(rows, files, cfg.formats);
@@ -198,16 +203,16 @@ function summary() {
 }
 function render() {
   if (!last) { $("res").innerHTML = ""; return; }
-  var mode = $("show").value, h = ['<table class="grid"><tr><th>Row</th><th>On the list</th><th>Title</th><th>Rev</th><th>Types</th><th>Result</th><th>Found in folder</th><th>Note</th></tr>'];
+  var mode = $("show").value, h = ['<table class="grid"><tr><th>Row</th><th>Category</th><th>On the list</th><th>Title</th><th>Rev</th><th>Types</th><th>Result</th><th>Found in folder</th><th>Note</th></tr>'];
   shown = [];
   if (mode != "extra") for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i];
     if (mode == "bad" && r.lv == 0) continue; if (mode == "miss" && r.status != "Missing" && r.status != "Missing file type") continue; if (mode == "rev" && r.status != "Wrong revision") continue; if (mode == "ok" && r.lv != 0) continue;
     var fl = []; for (var f = 0; f < r.files.length && f < 3; f++) fl.push(esc(r.files[f].rel)); if (r.files.length > 3) fl.push("&hellip;");
     shown.push(r);
-    h.push('<tr data-s="' + (shown.length - 1) + '"><td>' + r.no + "</td><td><b>" + esc(r.entry) + "</b></td><td>" + esc(r.title) + "</td><td>" + esc(r.rev) + "</td><td>" + esc(r.formats || cfg.formats) +
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td>' + r.no + '</td><td class="muted">' + esc(r.cat || "") + "</td><td><b>" + esc(r.entry) + "</b></td><td>" + esc(r.title) + "</td><td>" + esc(r.rev) + "</td><td>" + esc(r.formats || cfg.formats) +
       '</td><td class="' + (r.lv == 0 ? "ok" : r.lv == 1 ? "warn" : "bad") + '" style="font-weight:bold;white-space:nowrap">' + (r.lv == 0 ? "&#10004; " : r.lv == 1 ? "&#9888; " : "&#10006; ") + r.status + "</td><td>" + fl.join("<br>") + '</td><td class="muted">' + esc(r.note) + "</td></tr>"); }
   if (mode == "all" || mode == "bad" || mode == "extra") for (var x = 0; x < last.extra.length; x++) { var e = last.extra[x]; shown.push(e);
-    h.push('<tr data-s="' + (shown.length - 1) + '"><td></td><td></td><td></td><td></td><td>' + esc(e.ext) + '</td><td class="warn" style="font-weight:bold;white-space:nowrap">&#10133; Not on the list</td><td>' + esc(e.rel) + '</td><td class="muted">' + (e.size == 0 ? "Empty file (0 KB)" : "") + "</td></tr>"); }
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td></td><td></td><td></td><td></td><td></td><td>' + esc(e.ext) + '</td><td class="warn" style="font-weight:bold;white-space:nowrap">&#10133; Not on the list</td><td>' + esc(e.rel) + '</td><td class="muted">' + (e.size == 0 ? "Empty file (0 KB)" : "") + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
 }
@@ -222,9 +227,9 @@ function summaryText() {
   return s;
 }
 function reportRows() {
-  var t = [["Row", "On the list", "Title", "Rev", "Types", "Result", "Found in folder", "Note"]];
-  for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i], fl = []; for (var f = 0; f < r.files.length; f++) fl.push(r.files[f].rel); t.push([r.no, r.entry, r.title, r.rev, r.formats || cfg.formats, r.status, fl.join("\n"), r.note]); }
-  for (var x = 0; x < last.extra.length; x++) t.push(["", "", "", "", last.extra[x].ext, "Not on the list", last.extra[x].rel, last.extra[x].size == 0 ? "Empty file (0 KB)" : ""]);
+  var t = [["Row", "Category", "On the list", "Title", "Rev", "Types", "Result", "Found in folder", "Note"]];
+  for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i], fl = []; for (var f = 0; f < r.files.length; f++) fl.push(r.files[f].rel); t.push([r.no, r.cat || "", r.entry, r.title, r.rev, r.formats || cfg.formats, r.status, fl.join("\n"), r.note]); }
+  for (var x = 0; x < last.extra.length; x++) t.push(["", "", "", "", "", last.extra[x].ext, "Not on the list", last.extra[x].rel, last.extra[x].size == 0 ? "Empty file (0 KB)" : ""]);
   return t;
 }
 function excelReport() {
@@ -239,12 +244,12 @@ function excelReport() {
     var lines = summaryText().split("\r\n");
     s1.Columns(1).ColumnWidth = 110; for (var i = 0; i < lines.length; i++) s1.Cells(i + 1, 1).Value = lines[i];
     s1.Cells(1, 1).Font.Bold = true; s1.Cells(1, 1).Font.Size = 14;
-    var W = [7, 40, 34, 7, 10, 18, 50, 50];
-    for (var r = 0; r < rows.length; r++) for (var c = 0; c < rows[r].length; c++) { var cell = s2.Cells(r + 1, c + 1); if (c == 1 || c == 3) cell.NumberFormat = "@"; cell.Value = rows[r][c]; }
+    var W = [7, 18, 40, 34, 7, 10, 18, 50, 50];
+    for (var r = 0; r < rows.length; r++) for (var c = 0; c < rows[r].length; c++) { var cell = s2.Cells(r + 1, c + 1); if (c == 2 || c == 4) cell.NumberFormat = "@"; cell.Value = rows[r][c]; }
     for (var w = 0; w < W.length; w++) s2.Columns(w + 1).ColumnWidth = W[w];
-    var hd = s2.Range("A1:H1"); hd.Font.Bold = true; hd.Interior.Color = 0x7E3E5B; hd.Font.Color = 0xFFFFFF;
-    for (var k = 1; k < rows.length; k++) { var res = s2.Cells(k + 1, 6), st = rows[k][5]; res.Font.Bold = true; res.Font.Color = st == "Found" ? 0x578B2E : /Wrong folder|Listed twice|Not on/.test(st) ? 0x0065A8 : 0x2B39C0; }
-    try { s2.Range("A1:H" + rows.length).AutoFilter(); } catch (e) { }
+    var hd = s2.Range("A1:I1"); hd.Font.Bold = true; hd.Interior.Color = 0x7E3E5B; hd.Font.Color = 0xFFFFFF;
+    for (var k = 1; k < rows.length; k++) { var res = s2.Cells(k + 1, 7), st = rows[k][6]; res.Font.Bold = true; res.Font.Color = st == "Found" ? 0x578B2E : /Wrong folder|Listed twice|Not on/.test(st) ? 0x0065A8 : 0x2B39C0; }
+    try { s2.Range("A1:I" + rows.length).AutoFilter(); } catch (e) { }
     s1.Activate();
     wb.SaveAs(base + ".xlsx", 51);
     LT.open(base + ".xlsx"); return base + ".xlsx";
@@ -268,6 +273,7 @@ function under(btn, fn) { return function (e) { var r = btn.getBoundingClientRec
 $("bFolder").onclick = pickFolder; $("bList").onclick = pickList; $("bRun").onclick = runCheck;
 $("subs").onclick = function () { cfg.subs = this.checked; saveCfg(); };
 $("cName").onchange = function () { cfg.colName = this.value; saveCfg(); };
+$("cSheet").onchange = function () { cfg.sheet = this.value; cfg.colName = cfg.colRev = cfg.colFmt = cfg.colFolder = cfg.colTitle = ""; try { readList(cfg.list, false); } catch (e) { alert("Couldn't read that sheet."); } saveCfg(); showPaths(); };
 $("cRev").onchange = function () { cfg.colRev = this.value; saveCfg(); };
 $("cFmt").onchange = function () { cfg.colFmt = this.value; saveCfg(); };
 $("bMoreCols").onclick = under($("bMoreCols"), moreCols);

@@ -26,6 +26,7 @@ No install, no build step.
 | 📋 Delegate | Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
 | 📘 Drawing Register | Load each new MIDP: new / removed / retitled drawings, and every drawing's Tower / Typology / Model |
 | ✅ Submission Check | Folder vs your list: missing, wrong revision, missing type, extra files |
+| 🔎 Find Drawings | Where is this drawing? Every file of it in one or more folders: revision, type, location |
 | 🔍 Folder Contents | Pick a folder: every drawing once, its revisions, file types, and Tower / Typology / Model from your list |
 | 🏷 Naming Checker | Every file name vs your naming rule (ISO 19650 style), part by part |
 | 🔄 What Changed | Two submissions compared: new, revised, removed, same rev but changed |
@@ -134,6 +135,23 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **Show:** problems only, missing, wrong revision, files not on the list… Double-click a row to open its folder
 - **Report ▾:** Excel report (through Excel, or CSV if Excel isn't there), copy summary for email / Teams, other notes
 - **Fix names in Bulk Files** opens the folder in Bulk Files. Folder, list and columns are remembered
+
+## Find Drawings
+
+"Where is this drawing?" – for one drawing or a whole list.
+
+1. **Add folder…** – one or more (e.g. the project folder and an archive), subfolders included
+   - Big folders are read a little at a time: you see the count go up, and **Stop** if it takes too long
+   - Read once, then every search is instant. **Read again** after files change
+2. **Drawings to find** – type or paste, one per line (Ctrl+Enter = Find). Or **Load a list (Excel / CSV)…**, or **From the Drawing Register…** (by Tower / Typology / Section)
+   - The revision is ignored when searching (`…-10100`, `…-10100-T2` find the same files)
+   - A short number like `10270` finds the full number
+   - File names with a title after the number or a date in front are found too
+3. One line per file: **Drawing · Rev · Type · Location · File name · Tower / Typology**
+   - The newest revision is marked **latest** (order T → P → C, the same setting as Superseded)
+   - ✖ **Not found** in red for drawings with no file
+- **Show:** every file / not found only / found only · **latest revision only** · file type
+- **Copy the folders** (full paths), **Export ▾** (CSV, copy the result). Double-click = open the folder; right-click = open the file, copy the location
 
 ## Folder Contents
 

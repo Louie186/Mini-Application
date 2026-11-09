@@ -429,7 +429,9 @@ var LT = (function () {
     var D = P.drawings, seq = {}, cnt = {}, mm = {}, up = function (x) { return L.trim(x).toUpperCase().replace(/\s*-\s*/g, " - ").replace(/\s+/g, " "); };
     for (var m = 0; m < (P.models || []).length; m++) { var mk = up(P.models[m].tower) + "|" + up(P.models[m].typo); if (!mm[mk]) mm[mk] = P.models[m].model; }
     for (var k in D) if (D.hasOwnProperty(k)) { var ns = k.split(/[-_ .]+/); for (var j = 0; j < ns.length; j++) if (/^\d{3,}$/.test(ns[j])) { seq[ns[j]] = k; cnt[ns[j]] = (cnt[ns[j]] || 0) + 1; } }
-    return { name: name, id: id, count: function () { var n = 0; for (var k2 in D) if (D.hasOwnProperty(k2)) n++; return n; },
+    return { name: name, id: id,
+      list: function () { var o = []; for (var k4 in D) if (D.hasOwnProperty(k4)) { var d4 = D[k4]; o.push({ number: d4.num || k4, title: d4.title || "", cat: d4.cat || "", tower: d4.tower || "", typo: d4.typo || "", inMidp: d4.inMidp !== false }); } return o; },
+      count: function () { var n = 0; for (var k2 in D) if (D.hasOwnProperty(k2)) n++; return n; },
       find: function (s) {
         s = L.trim(s).toUpperCase().replace(/\.[A-Z0-9]{2,4}$/, "").replace(/-+$/, "");
         var hit = function (k3) { var d = D[k3]; return d ? { number: d.num || k3, title: d.title || "", cat: d.cat || "", tower: d.tower || "", typo: d.typo || "", ok: !!d.ok, model: d.model || (d.typo && d.typo != "-" ? mm[up(d.tower) + "|" + up(d.typo)] || d.impModel || "" : "") } : null; };

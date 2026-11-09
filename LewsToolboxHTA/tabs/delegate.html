@@ -63,7 +63,7 @@ td.it{padding-left:28px}
     <div class="fld"><label>Assigned to (comma between names)</label><input type="text" id="eWho" list="pplList"></div>
   </div>
   <div class="row2">
-    <div class="fld"><label>Due (dd/mm/yyyy)</label><input type="text" id="eDue"></div>
+    <div class="fld"><label>Due (click to pick, or type dd/mm/yyyy)</label><input type="text" id="eDue"></div>
     <div class="fld"><label>Status (when there are no items)</label><select id="eStat"><option>Not started</option><option>In progress</option><option>Completed</option></select></div>
   </div>
   <div class="fld"><label>Notes</label><input type="text" id="eNotes"></div>
@@ -676,7 +676,7 @@ document.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 27) 
 window.ltTheme = function () { look(); render(); };
 window.ltReload = function () { load(); render(); };
 window.ltShown = function () { loadWeb(); render(); };
-look(); load(); render(); LT.tabKeys();
+look(); load(); render(); LT.tabKeys(); LT.datePicker(function (i) { return i.id == "eDue" || /(^| )iD( |$)/.test(i.className); });
 </script>
 </body>
 </html>

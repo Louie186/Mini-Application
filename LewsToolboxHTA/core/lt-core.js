@@ -174,6 +174,7 @@ var LT = (function () {
     }
     return out;
   }
+  L.sheetRows = sheetRows;
   L.readExcel = function (p, sheetName) {
     var xl = null, wb = null;
     try {
@@ -220,6 +221,8 @@ var LT = (function () {
     } else { res.table = L.parseCsv(L.readText(p)); res.sheets = ["(CSV)"]; res.sheet = "(CSV)"; }
     var t = res.table;
     for (var r = 0; r < Math.min(30, t.length) && res.headRow < 0; r++) for (var c = 0; c < t[r].length; c++) if (NAME_WORDS.indexOf(L.trim(t[r][c]).toLowerCase()) >= 0) { res.headRow = r; break; }
+    // also "Drawing Number (without revision)" and the like
+    for (var r2 = 0; r2 < Math.min(30, t.length) && res.headRow < 0; r2++) for (var c2 = 0; c2 < t[r2].length; c2++) if (NAME_WORDS.indexOf(L.trim(("" + t[r2][c2]).replace(/\([^)]*\)/g, "")).toLowerCase()) >= 0) { res.headRow = r2; break; }
     var width = 0; for (var w = 0; w < Math.min(t.length, 300); w++) width = Math.max(width, t[w].length);
     var letters = function (i) { var s = ""; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
     for (var h = 0; h < width; h++) { var name = res.headRow >= 0 ? L.trim((t[res.headRow] || [])[h]) : ""; res.head.push(name || "Column " + letters(h)); }
@@ -322,6 +325,11 @@ var LT = (function () {
     "#menu .sep{height:1px;margin:4px 6px;background:{line}}#menu .mi.on:before{content:'\\2713  '}",
     "#toast{position:fixed;right:18px;bottom:18px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;display:none;background:{accent};color:{accText};border-radius:{r}px;box-shadow:0 6px 20px rgba(0,0,0,.3)}",
     ".scroll{overflow:auto}",
+    "#datePop{display:none;position:fixed;z-index:35;width:236px;padding:8px;background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}",
+    ".dpH{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.dpB{cursor:pointer;padding:3px 8px;border-radius:{r}px;font-weight:bold}.dpB:hover{background:{hover}}",
+    ".dpT{width:100%;border-collapse:collapse}.dpT th{font-size:.75em;color:{muted};padding:2px 0;text-align:center}.dpT td{text-align:center;padding:4px 0;cursor:pointer;border-radius:{r}px}",
+    ".dpT td.dpD:hover{background:{hover}}.dpT td.dpN{color:{accent};font-weight:bold}.dpT td.dpS{background:{accent};color:{accText};font-weight:bold}",
+    ".dpF{display:flex;justify-content:space-between;margin-top:6px;border-top:1px solid {line};padding-top:5px;font-size:.9em}",
     "a{color:{accent}}"
   ];
   L.themeVars = function () {
@@ -363,6 +371,74 @@ var LT = (function () {
   };
   function outside(e) { var m = document.getElementById("menu"), t = e.target || e.srcElement; while (t) { if (t == m) return; t = t.parentNode; } L.hideMenu(); }
   L.hideMenu = function () { var m = document.getElementById("menu"); if (m) m.style.display = "none"; };
+
+  /* ---------- pop-up calendar for date boxes (dd/mm/yyyy) ----------
+     L.datePicker(test): a click in any text box where test(input) is true opens a small calendar under it.
+     Typing still works. Works for rows added later too (one handler on the page). */
+  var dp = null, dpIn = null, dpM = null;
+  function dpParse(s) { var m = /^\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\s*$/.exec(s || ""); if (!m) return null; var y = +m[3]; if (y < 100) y += 2000; var d = new Date(y, +m[2] - 1, +m[1]); return isNaN(d.getTime()) ? null : d; }
+  function dpDraw() {
+    var sel = dpParse(dpIn.value), t = new Date(), y = dpM.getFullYear(), mo = dpM.getMonth(), first = new Date(y, mo, 1), start = (first.getDay() + 6) % 7, days = new Date(y, mo + 1, 0).getDate();
+    var h = '<div class="dpH"><span class="dpB" data-dp="-1">&#9664;</span><b>' + ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][mo] + " " + y + '</b><span class="dpB" data-dp="1">&#9654;</span></div><table class="dpT"><tr>';
+    var wd = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]; for (var w = 0; w < 7; w++) h += "<th>" + wd[w] + "</th>"; h += "</tr><tr>";
+    for (var b = 0; b < start; b++) h += "<td></td>";
+    for (var d = 1; d <= days; d++) {
+      var c = "dpD"; if (sel && sel.getFullYear() == y && sel.getMonth() == mo && sel.getDate() == d) c += " dpS"; else if (t.getFullYear() == y && t.getMonth() == mo && t.getDate() == d) c += " dpN";
+      h += '<td class="' + c + '" data-day="' + d + '">' + d + "</td>"; if ((start + d) % 7 == 0 && d < days) h += "</tr><tr>";
+    }
+    h += '</tr></table><div class="dpF"><span class="dpB" data-dp="today">Today</span><span class="dpB" data-dp="week">+1 week</span><span class="dpB" data-dp="clear">Clear</span></div>';
+    dp.innerHTML = h;
+  }
+  function dpSet(d) { dpIn.value = d ? L.pad(d.getDate()) + "/" + L.pad(d.getMonth() + 1) + "/" + d.getFullYear() : ""; try { if (dpIn.onchange) dpIn.onchange(); } catch (e) { } L.hideDate(); }
+  L.hideDate = function () { if (dp) dp.style.display = "none"; dpIn = null; };
+  L.showDate = function (inp) {
+    if (!dp) {
+      dp = document.createElement("div"); dp.id = "datePop"; document.body.appendChild(dp);
+      dp.onmousedown = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); e.returnValue = false; e.cancelBubble = true; if (e.stopPropagation) e.stopPropagation(); return false; };
+      dp.onclick = function (e) {
+        var ev = e || window.event; ev.cancelBubble = true; if (ev.stopPropagation) ev.stopPropagation();
+        var el = (e || window.event).target || (e || window.event).srcElement, b = L.up(el, "data-dp"), dd = L.up(el, "data-day");
+        if (dd) dpSet(new Date(dpM.getFullYear(), dpM.getMonth(), +dd.getAttribute("data-day")));
+        else if (b) { var a = b.getAttribute("data-dp"), n = new Date(); n = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+          if (a == "today") dpSet(n); else if (a == "week") dpSet(new Date(n.getFullYear(), n.getMonth(), n.getDate() + 7)); else if (a == "clear") dpSet(null);
+          else { dpM = new Date(dpM.getFullYear(), dpM.getMonth() + (+a), 1); dpDraw(); } }
+      };
+    }
+    dpIn = inp; var s = dpParse(inp.value) || new Date(); dpM = new Date(s.getFullYear(), s.getMonth(), 1); dpDraw(); dp.style.display = "block";
+    var r = inp.getBoundingClientRect(), W = document.documentElement.clientWidth, H = document.documentElement.clientHeight, w = dp.offsetWidth, h = dp.offsetHeight;
+    dp.style.left = Math.max(4, Math.min(r.left, W - w - 4)) + "px"; dp.style.top = (r.bottom + h + 4 > H && r.top - h - 2 > 0 ? r.top - h - 2 : r.bottom + 2) + "px";
+  };
+  L.datePicker = function (test) {
+    var h = function (e) {
+      e = e || window.event; var t = e.target || e.srcElement;
+      if (t && t.tagName == "INPUT" && test(t)) { if (dpIn != t) L.showDate(t); return; }
+      if (dp && dp.style.display == "block") { var x = t; while (x) { if (x == dp) return; x = x.parentNode; } L.hideDate(); }
+    };
+    var k = function (e) { e = e || window.event; if (dpIn && (e.keyCode == 27 || e.keyCode == 9)) L.hideDate(); };
+    if (document.attachEvent) { document.attachEvent("onclick", h); document.attachEvent("onkeydown", k); } else { document.addEventListener("click", h, false); document.addEventListener("keydown", k, false); }
+  };
+
+  /* ---------- Drawing Register (made in the Drawing Register tab), for other tabs to look drawings up ----------
+     L.register() gives null, or { name, find(numberOrFileName) -> { number, title, cat, tower, typo, model } or null } */
+  L.registerIndex = function () { return L.readJson(L.dataPath("register.json"), null) || { projects: [], current: "" }; };
+  L.registerFile = function (id) { return L.dataPath("register\\" + id + ".json"); };
+  L.register = function (id) {
+    var ix = L.registerIndex(); id = id || ix.current; if (!id) return null;
+    var name = ""; for (var i = 0; i < ix.projects.length; i++) if (ix.projects[i].id == id) name = ix.projects[i].name;
+    var P = L.readJson(L.registerFile(id), null); if (!P || !P.drawings) return null;
+    var D = P.drawings, seq = {}, cnt = {}, mm = {}, up = function (x) { return L.trim(x).toUpperCase().replace(/\s*-\s*/g, " - ").replace(/\s+/g, " "); };
+    for (var m = 0; m < (P.models || []).length; m++) { var mk = up(P.models[m].tower) + "|" + up(P.models[m].typo); if (!mm[mk]) mm[mk] = P.models[m].model; }
+    for (var k in D) if (D.hasOwnProperty(k)) { var ns = k.split(/[-_ .]+/); for (var j = 0; j < ns.length; j++) if (/^\d{3,}$/.test(ns[j])) { seq[ns[j]] = k; cnt[ns[j]] = (cnt[ns[j]] || 0) + 1; } }
+    return { name: name, id: id, count: function () { var n = 0; for (var k2 in D) if (D.hasOwnProperty(k2)) n++; return n; },
+      find: function (s) {
+        s = L.trim(s).toUpperCase().replace(/\.[A-Z0-9]{2,4}$/, "").replace(/-+$/, "");
+        var hit = function (k3) { var d = D[k3]; return d ? { number: d.num || k3, title: d.title || "", cat: d.cat || "", tower: d.tower || "", typo: d.typo || "", ok: !!d.ok, model: d.model || (d.typo && d.typo != "-" ? mm[up(d.tower) + "|" + up(d.typo)] || d.impModel || "" : "") } : null; };
+        if (D[s]) return hit(s);
+        var p = s.split(/[-_]/); while (p.length > 2) { p.pop(); var b = p.join("-"); if (D[b]) return hit(b); }
+        var ns2 = s.split(/[-_ .]+/); for (var q = ns2.length - 1; q >= 0; q--) if (/^\d{3,}$/.test(ns2[q]) && cnt[ns2[q]] == 1) return hit(seq[ns2[q]]);
+        return null;
+      } };
+  };
 
   /* ---------- inside the main window ---------- */
   L.main = function () { try { return window.top && window.top.LTMain ? window.top.LTMain : null; } catch (e) { return null; } };

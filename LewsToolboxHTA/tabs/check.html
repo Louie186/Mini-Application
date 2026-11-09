@@ -185,6 +185,10 @@ function runCheck() {
     if (LT.isCategory(e, rest)) { cat = e; continue; }       // a title like "Residential" - the rows under it belong to it
     rows.push({ no: r + 1, cat: cat, entry: e, rev: LT.cell(table[r], iR), formats: LT.cell(table[r], iF), folder: LT.cell(table[r], iD), title: LT.cell(table[r], iT), tower: LT.cell(table[r], iTw), typo: LT.cell(table[r], iTy), model: LT.cell(table[r], iM), status: "", note: "", lv: 0, files: [], found: [] }); }
   if (!rows.length) { alert('No rows found under the heading "' + cfg.colName + '".'); return; }
+  /* Tower / Typology / Model the list doesn't have come from the Drawing Register (when there is one) */
+  regUsed = 0; var REG = null; try { REG = LT.register(); } catch (x) { }
+  if (REG) for (var g = 0; g < rows.length; g++) { var rw = rows[g]; if (!LT.isBlankish(rw.tower) || !LT.isBlankish(rw.typo)) continue; var f = REG.find(rw.entry); if (!f) continue;
+    rw.tower = f.tower; rw.typo = f.typo; if (LT.isBlankish(rw.model)) rw.model = f.model; if (!rw.title) rw.title = f.title; if (!rw.cat) rw.cat = f.cat; regUsed++; }
   var files = []; scan(cfg.folder, cfg.folder, cfg.subs, files);
   last = check(rows, files, cfg.formats);
   fillFilters(); summary(); render();
@@ -197,14 +201,15 @@ function summary() {
   $("sumTxt").className = "big " + (ok ? "ok" : "bad");
   $("sumTxt").innerHTML = (ok ? "&#9989; All good &ndash; " : "&#9888; ") + last.rows.length + " on the list &middot; " + found + " found" + (warn ? " (" + warn + " with a note)" : "") +
     (miss ? " &middot; " + miss + " MISSING" : "") + (rev ? " &middot; " + rev + " wrong revision" : "") + (type ? " &middot; " + type + " missing a file type" : "") + (fold ? " &middot; " + fold + " in the wrong folder" : "") +
-    " &middot; " + last.extra.length + " not on the list &middot; " + last.files.length + " files in the folder";
+    " &middot; " + last.extra.length + " not on the list &middot; " + last.files.length + " files in the folder" + (regUsed ? ' &middot; <span class="muted" style="font-weight:normal">Tower / Typology for ' + regUsed + " from the Drawing Register</span>" : "");
   var h = "<b>Count by file type:</b> &nbsp;", keys = []; for (var k in last.types) if (last.types.hasOwnProperty(k)) keys.push(k); keys.sort();
   for (var j = 0; j < keys.length; j++) { var t = last.types[keys[j]], need = t[0] > 0;
     h += '<span class="' + (need ? (t[1] >= t[0] ? "ok" : "bad") : "") + '">.' + esc(keys[j] || "(none)") + " " + t[1] + (need ? " / " + t[0] + " needed" : "") + "</span>"; }
   $("types").innerHTML = h;
   if (!ok && $("show").value == "ok") $("show").value = "bad";
 }
-function extras() { return { tower: !!cfg.colTower, typo: !!cfg.colTypo, model: !!cfg.colModel }; }
+var regUsed = 0;
+function extras() { return { tower: !!cfg.colTower || regUsed > 0, typo: !!cfg.colTypo || regUsed > 0, model: !!cfg.colModel || regUsed > 0 }; }
 /* Tower / Typology filters, filled after each check */
 function fillFilters() {
   var ex = extras(), tw = {}, ty = {}, a = [], b = [];

@@ -58,7 +58,7 @@ tr.done td.t{text-decoration:line-through}
   <div class="fld"><label>Task</label><input type="text" id="eTitle"></div>
   <div class="row2">
     <div class="fld"><label>Project</label><input type="text" id="eProj" list="projList"></div>
-    <div class="fld"><label>Due (dd/mm/yyyy, empty = no date)</label><input type="text" id="eDue"></div>
+    <div class="fld"><label>Due (click to pick, or type dd/mm/yyyy; empty = no date)</label><input type="text" id="eDue"></div>
   </div>
   <div class="row2">
     <div class="fld"><label>Priority</label><select id="ePrio"><option>High</option><option selected>Normal</option><option>Low</option></select></div>
@@ -363,7 +363,7 @@ window.ltReceive = function (what, value) {
   if (what == "add-task" && value) { var v = data.view; data.view = "today"; $("quick").value = value; quickAdd(); data.view = v; save(); render(); }
   else if (what == "view") { data.view = value; save(); render(); }
 };
-look(); load(); render(); LT.tabKeys();
+look(); load(); render(); LT.tabKeys(); LT.datePicker(function (i) { return i.id == "eDue"; });
 </script>
 </body>
 </html>

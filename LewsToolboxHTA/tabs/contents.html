@@ -63,7 +63,8 @@
 <!-- which reference? -->
 <div class="ov" id="ask"><div class="card">
   <h3>Which list should give the Tower / Typology / Model?</h3>
-  <button class="btn primary" id="aCheck">&#9989; The list I use in Submission Check<div class="muted" id="aCheckName" style="font-weight:normal;font-size:.9em"></div></button>
+  <button class="btn primary" id="aReg">&#128216; My Drawing Register<div class="muted" id="aRegName" style="font-weight:normal;font-size:.9em"></div></button>
+  <button class="btn" id="aCheck">&#9989; The list I use in Submission Check<div class="muted" id="aCheckName" style="font-weight:normal;font-size:.9em"></div></button>
   <button class="btn" id="aPick">&#128196; Another Excel / CSV list...</button>
   <button class="btn" id="aNone">None &ndash; just show the drawings and their file types</button>
 </div></div>
@@ -82,11 +83,12 @@ function checkList() { var c = LT.readJson(LT.dataPath("check.json"), null); ret
 /* ---------- step 1: the folder ---------- */
 function paths() {
   $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
-  $("refLbl").innerHTML = cfg.refKind == "none" ? '<span class="muted">none &ndash; drawings and file types only</span>' : cfg.ref ? esc(fso.GetFileName(cfg.ref)) + (cfg.refKind == "check" ? ' <span class="muted">(Submission Check list)</span>' : "") + (list ? ' <span class="muted">&middot; ' + list.sheet + "</span>" : "") : '<span class="muted">not picked</span>';
+  $("refLbl").innerHTML = cfg.refKind == "register" ? (refMap && refMap.reg ? esc(refMap.reg.name) + ' <span class="muted">(Drawing Register)</span>' : '<span class="muted">Drawing Register</span>') : cfg.refKind == "none" ? '<span class="muted">none &ndash; drawings and file types only</span>' : cfg.ref ? esc(fso.GetFileName(cfg.ref)) + (cfg.refKind == "check" ? ' <span class="muted">(Submission Check list)</span>' : "") + (list ? ' <span class="muted">&middot; ' + list.sheet + "</span>" : "") : '<span class="muted">not picked</span>';
   $("subs").checked = cfg.subs;
 }
 function pickFolder() { var f = LT.pickFolder("Pick the folder with the drawings"); if (!f) return; cfg.folder = f; save(); paths(); if (!cfg.refKind) askRef(); else run(); }
-function askRef() { var c = checkList(); $("aCheck").style.display = c ? "" : "none"; $("aCheckName").innerHTML = c ? esc(fso.GetFileName(c.list)) : ""; $("ask").style.display = "block"; }
+function reg() { try { return LT.register(); } catch (e) { return null; } }
+function askRef() { var R = reg(); $("aReg").style.display = R ? "" : "none"; $("aRegName").innerHTML = R ? esc(R.name) + " &middot; " + R.count() + " drawings" : ""; var c = checkList(); $("aCheck").style.display = c ? "" : "none"; $("aCheckName").innerHTML = c ? esc(fso.GetFileName(c.list)) : ""; $("ask").style.display = "block"; }
 
 /* ---------- step 2: the reference list ---------- */
 function useRef(kind, path) {
@@ -98,6 +100,7 @@ function useRef(kind, path) {
 }
 function readRef(guess) {
   refMap = null; list = null;
+  if (cfg.refKind == "register") { $("cols").style.display = "none"; var R = reg(); if (!R) { alert("There's no Drawing Register yet - make one in the Drawing Register tab, or pick another list."); return true; } refMap = { reg: R, n: R.count() }; return true; }
   if (cfg.refKind == "none" || !cfg.ref) { $("cols").style.display = "none"; return true; }
   if (!fso.FileExists(cfg.ref)) { alert("The reference list isn't there any more:\n" + cfg.ref); return false; }
   try { list = LT.readList(cfg.ref, guess ? "" : cfg.sheet); } catch (e) { alert("Couldn't read the reference list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return false; }
@@ -125,6 +128,7 @@ function fillCols() {
 }
 function lookup(base) {
   if (!refMap) return null;
+  if (refMap.reg) return refMap.reg.find(base);
   var hit = refMap.byBase[up(base)]; if (hit) return hit;
   var ns = numbers(base); for (var i = ns.length - 1; i >= 0; i--) if (refMap.bySeq[ns[i]] && refMap.seqCount[ns[i]] == 1) return refMap.bySeq[ns[i]];
   return null;
@@ -141,7 +145,7 @@ function scan(dir, root, deep, out) {
 }
 function run(guess) {
   if (!cfg.folder || !fso.FolderExists(cfg.folder)) { alert("Pick the folder first."); return; }
-  if (!readRef(guess)) return;
+  if (!readRef(guess)) return; paths();
   var files = []; scan(cfg.folder, cfg.folder, cfg.subs, files);
   var draw = {}, keys = [], other = [], types = {};
   for (var i = 0; i < files.length; i++) { var f = files[i]; types[f.ext] = (types[f.ext] || 0) + 1;
@@ -238,11 +242,12 @@ function exportMenu(x, y) {
 /* ---------- events ---------- */
 $("bFolder").onclick = pickFolder; $("bRescan").onclick = function () { run(); };
 $("subs").onclick = function () { cfg.subs = this.checked; save(); if (result) run(); };
-$("bRef").onclick = function (e) { var r = this.getBoundingClientRect(), c = checkList(); LT.menu(r.left, r.bottom + 2, [
+$("bRef").onclick = function (e) { var r = this.getBoundingClientRect(), c = checkList(), R = reg(); LT.menu(r.left, r.bottom + 2, [
+  { label: "&#128216; Use my Drawing Register" + (R ? " (" + esc(R.name) + ")" : " (not made yet)"), fn: function () { if (R) useRef("register"); else alert("Make a project in the Drawing Register tab first, or pick a list here."); } },
   { label: "&#9989; Use my Submission Check list" + (c ? " (" + esc(fso.GetFileName(c.list)) + ")" : " (not set up yet)"), fn: function () { if (c) useRef("check"); else alert("Set up your list in Submission Check first, or pick a list here."); } },
   { label: "&#128196; Another Excel / CSV list...", fn: function () { LT.pickFile(function (p) { useRef("file", p); }); } },
   { label: "None &ndash; drawings and file types only", fn: function () { useRef("none"); } }]); (e || window.event).cancelBubble = true; };
-$("aCheck").onclick = function () { useRef("check"); }; $("aNone").onclick = function () { useRef("none"); };
+$("aCheck").onclick = function () { useRef("check"); }; $("aReg").onclick = function () { useRef("register"); }; $("aNone").onclick = function () { useRef("none"); };
 $("aPick").onclick = function () { $("ask").style.display = "none"; LT.pickFile(function (p) { useRef("file", p); }); };
 var colKeys = { cName: "name", cTitle: "title", cTower: "tower", cTypo: "typo", cModel: "model" };
 for (var ck in colKeys) if (colKeys.hasOwnProperty(ck)) (function (id, key) { $(id).onchange = function () { cfg.cols[key] = this.value; save(); run(); }; })(ck, colKeys[ck]);

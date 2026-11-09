@@ -24,6 +24,7 @@ No install, no build step.
 | 📁 Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
 | 🗂 Tracker | Your work list: Today / Week / Overdue / Board, repeats, timer |
 | 📋 Delegate | Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
+| 📘 Drawing Register | Load each new MIDP: new / removed / retitled drawings, and every drawing's Tower / Typology / Model |
 | ✅ Submission Check | Folder vs your list: missing, wrong revision, missing type, extra files |
 | 🔍 Folder Contents | Pick a folder: every drawing once, its revisions, file types, and Tower / Typology / Model from your list |
 | 🏷 Naming Checker | Every file name vs your naming rule (ISO 19650 style), part by part |
@@ -65,7 +66,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 
 - **Quick add:** type and press **Enter**. Words it understands: `today`, `tomorrow`, `mon` … `sun`, `next week`, `25/11` (due date), `#Tower1` (project, `_` for spaces), `!` / `!low` (priority), `@Sam` (waiting on Sam)
   - Example: `Check RFI drawings fri #Tower1 !`. Added in **Today** with no date = due today
-- **+ Detailed…** for every field (project, due, priority, status, waiting on, repeat, notes, time)
+- **+ Detailed…** for every field (project, due – click it for a calendar, priority, status, waiting on, repeat, notes, time)
 - **Views:** Today · This week · Overdue (red) · All open · **Board** (drag cards between To do / Doing / Waiting / Done) · Done
 - Tick = done · double-click = edit · right-click = status, due date, timer, add time, duplicate, delete
 - **Repeat** daily / weekdays / weekly / monthly: tick it done and the next one is made
@@ -75,7 +76,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 
 ## Delegate
 
-1. **+ New task**: title, group, project, **Assigned to** (comma between names), due date, notes, and **checklist items** (each with its own person / date). IDs are made for you: `T001`, `T001.1` …
+1. **+ New task**: title, group, project, **Assigned to** (comma between names), due date (**click it for a calendar**), notes, and **checklist items** (each with its own person / date). IDs are made for you: `T001`, `T001.1` …
 2. **📤 Send to people…** – tick people and file types. Each person gets only their tasks:
    - **Excel task sheet** (yellow boxes, Status drop-down, + / − groups, NEW blocks to add work) – made through your Excel
    - **HTML task pack** – opens in any browser (phone too); they press **Save reply** and send you the .txt
@@ -86,6 +87,34 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - Right-click a row: status, send this task, history, duplicate, delete. **More ▾**: CSV export, sent / received log, project name, copy Lew's Tracker tasks in
 - Same formats as Lew's Tracker (web app). Open tasks show in the Tracker as "Waiting on <name>"
 
+## Drawing Register
+
+One list of every drawing in a project, kept up to date from the MIDP. One register per project (**Project ▾**: new, rename, remove).
+
+**First time for a project (about 2 minutes)**
+1. **+ Make a project**, then **⚙ Setup**:
+   - **Tower is part no. …** of the drawing number (e.g. `3` for `5013-KEO-T1-…`), or 0
+   - **Models table → Import from Excel…** (a sheet with Tower, Typology, Model number headings), or type `Tower | Typology | Model` lines
+   - **Import an existing drawing list…** (e.g. your last generated list or base data) – these count as checked
+   - **Typology rules** (optional): `Unit Type {n} BR - Type {x} => {n}BR{x}`
+2. **📥 Load new MIDP…** – the first time it asks which sheet has the drawings, then remembers it
+
+**Every new MIDP**
+- **📥 Load new MIDP…** → you see ➕ new, ✖ removed, ✎ title changed, ↩ back, then **Save to the register**
+- New drawings get a **Tower / Typology guess** (orange) from:
+  1. a known drawing with the most similar title
+  2. your typology rules
+  3. a section whose drawings have no typology (`-`)
+- **Model** comes from the models table (Tower + Typology)
+- **To check**: tick rows (click, Shift+click) → **✔ Accept the guesses** or **Set Tower / Typology…**; double-click a row to edit one; right-click for more
+- **Not for a typology ( - )** for general drawings
+
+**Views:** In the MIDP · Changes in the last MIDP · To check · Removed from the MIDP · Everything. Filters: Section, Tower, Typology, search
+- **Export ▾:** Excel with Number, Description, Tower, Typology, Model (like the generated list), or with revision / section / status; copy the MIDP changes for email / Teams
+- **History ▾:** every MIDP loaded, with its changes
+- **Submission Check** and **Folder Contents** look drawings up here (Folder Contents: Reference list ▾ → Drawing Register)
+- Nothing about a project is written into the program – each project lives in `register\` in your data folder
+
 ## Submission Check
 
 1. **Submission folder…** (include subfolders)
@@ -93,7 +122,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
    - **Sheet:** it picks the sheet with drawing numbers in Column A (else the one with the most numbers); change it with the **Sheet** picker
    - Works **with or without a heading row** (no heading: Column A = numbers, Column B = description)
    - Rows like **"Residential"** or **"Enlarged drawings"** are read as **category titles**, not drawings – the results show each drawing's category
-   - **Tower, Typology, Model** columns (optional): found from the headings, or – with no heading row – from what the cells look like (`Tower 1` / `T1`, `1BRA`, `21000`)
+   - **Tower, Typology, Model** columns (optional): found from the headings, or – with no heading row – from what the cells look like (`Tower 1` / `T1`, `1BRA`, `21000`). Not in your list? They come from the **Drawing Register**
    - A list with only the **number part** (e.g. `10110`) matches any file with that number in its name
    - It guesses the columns; change them if needed:
    - **File name / number** (with or without revision / ending), **Revision**, **File types** (e.g. `pdf, dwg`)
@@ -111,7 +140,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 The folder comes first – "what's in here?"
 
 1. **Folder…** (include subfolders). The first time it asks **which list gives the Tower / Typology / Model**:
-   - the list you use in Submission Check, **another Excel / CSV list**, or **none** (just drawings and file types)
+   - your **Drawing Register**, the list you use in Submission Check, **another Excel / CSV list**, or **none** (just drawings and file types)
    - Change it any time with **Reference list ▾**; the columns are guessed and can be changed (Sheet, Number, Description, Tower, Typology, Model)
 2. Each drawing is shown **once**: its revisions (`T1, T2`), **file types** (`dwg`, `pdf ×2`, `rvt`), description, Tower, Typology, Model, folder
    - Top line: drawings, files, found in the list, **not in the list**, more than one revision, and a **count per file type** (click one to show only it)
@@ -177,6 +206,8 @@ The folder comes first – "what's in here?"
 
 - **One tab = one file** in `tabs\`. The main window lists every `tabs\*.html` by itself, using the page's
   `<title>`, `<meta name="lt-order">`, `<meta name="lt-icon">` and `<meta name="lt-desc">` (the hover tip). Adding or changing a tab needs no other edits
+- Date boxes: `LT.datePicker(test)` adds the pop-up calendar (dd/mm/yyyy)
+- `LT.register()` gives the current Drawing Register for look-ups (`find(number or file name)`)
 - Lists are read with `LT.readList` (sheet choice, heading row or none, drawing-number column) and `LT.isCategory` (title rows)
 - Each tab runs in its own frame (`application="yes"`), shares `core\lt-core.js` (files, settings, themes, Excel, menus)
   and talks to others only through the main window: `LT.main().send("files", "open-folder", path)`

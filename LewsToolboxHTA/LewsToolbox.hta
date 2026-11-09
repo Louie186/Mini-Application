@@ -59,7 +59,7 @@ function findTabs() {
     if (!/\.html?$/i.test(n)) continue;
     var head = "";
     try { var t = fso.OpenTextFile(f.Path, 1, false, 0); head = t.AtEndOfStream ? "" : t.Read(3000); t.Close(); } catch (x) { continue; }
-    var title = /<title>([^<]*)<\/title>/i.exec(head), order = /<meta name="lt-order" content="(\d+)"/i.exec(head), icon = /<meta name="lt-icon" content="([^"]*)"/i.exec(head), desc = /<meta name="lt-desc" content="([^"]*)"/i.exec(head);
+    var title = /<title>([^<]*)<\/title>/i.exec(head), order = /<meta name="lt-order" content="(\d+(?:\.\d+)?)"/i.exec(head), icon = /<meta name="lt-icon" content="([^"]*)"/i.exec(head), desc = /<meta name="lt-desc" content="([^"]*)"/i.exec(head);
     list.push({ key: n.replace(/\.html?$/i, "").toLowerCase(), file: f.Path, title: title ? title[1] : n, order: order ? +order[1] : 99, icon: icon ? icon[1] : "&#9679;", desc: desc ? desc[1] : "" });
   }
   list.sort(function (a, b) { return a.order - b.order || (a.title < b.title ? -1 : 1); });

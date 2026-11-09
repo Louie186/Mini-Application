@@ -93,7 +93,7 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 
 **First time for a project (about 2 minutes)**
 1. **+ Make a project**, then **⚙ Setup**:
-   - **Tower is part no. …** of the drawing number (e.g. `3` for `5013-KEO-T1-…`), or 0
+   - **Tower is part no. …** of the drawing number (e.g. `3` for `PRJ-ABC-T1-…`), or 0
    - **Models table → Import from Excel…** (a sheet with Tower, Typology, Model number headings), or type `Tower | Typology | Model` lines
    - **Import an existing drawing list…** (e.g. your last generated list or base data) – these count as checked
    - **Typology rules** (optional): `Unit Type {n} BR - Type {x} => {n}BR{x}`

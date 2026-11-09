@@ -71,6 +71,7 @@
 
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg, list = null, refMap = null, result = null, shown = [];
+var regUsed = 0;
 var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
 function FILE() { return LT.dataPath("contents.json"); }
 function load() { cfg = LT.readJson(FILE(), null) || {}; var d = { folder: "", subs: true, ref: "", refKind: "", sheet: "", cols: {} }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
@@ -78,6 +79,14 @@ function save() { try { LT.saveJson(FILE(), cfg); } catch (e) { } }
 function up(s) { return LT.trim(s).toUpperCase(); }
 function splitRev(stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; }
 function numbers(s) { var seg = up(s).split(/[-_ .]+/), o = []; for (var i = 0; i < seg.length; i++) if (/^\d{3,}$/.test(seg[i])) o.push(seg[i]); return o; }
+/* the drawing number inside a file name: the whole name, or a part of it like "5013-...-10100-T1 - Title" / "20261101_5013-...-10100-T1" */
+function drawNo(stem) {
+  var nd = LT.trim(stem).replace(/^\d{6,8}[_-](?=\w)/, "");       // a date in front, e.g. 20261101_
+  if (LT.isDocNo(nd)) return nd;
+  var parts = LT.trim(stem).split(/\s+/);
+  for (var i = 0; i < parts.length; i++) { var p = parts[i].replace(/^[\[(]+|[\])]+$/g, "").replace(/^\d{6,8}[_-](?=\w)/, ""); if (LT.isDocNo(p)) return p; }
+  var m = /[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+){3,}/.exec(stem); return m && LT.isDocNo(m[0]) ? m[0].replace(/^\d{6,8}[_-](?=\w)/, "") : "";
+}
 function checkList() { var c = LT.readJson(LT.dataPath("check.json"), null); return c && c.list && fso.FileExists(c.list) ? c : null; }
 
 /* ---------- step 1: the folder ---------- */
@@ -149,12 +158,16 @@ function run(guess) {
   var files = []; scan(cfg.folder, cfg.folder, cfg.subs, files);
   var draw = {}, keys = [], other = [], types = {};
   for (var i = 0; i < files.length; i++) { var f = files[i]; types[f.ext] = (types[f.ext] || 0) + 1;
-    if (!LT.isDocNo(f.stem)) { other.push(f); continue; }
-    var s = splitRev(f.stem), k = up(s.base);
+    var dn = drawNo(f.stem); if (!dn) { other.push(f); continue; }
+    var s = splitRev(dn), k = up(s.base);
     if (!draw[k]) { draw[k] = { base: s.base, revs: [], types: {}, folders: [], files: [], ref: null }; keys.push(k); }
     var d = draw[k]; if (s.rev && d.revs.indexOf(s.rev) < 0) d.revs.push(s.rev); d.types[f.ext] = (d.types[f.ext] || 0) + 1; if (d.folders.indexOf(f.folder) < 0) d.folders.push(f.folder); d.files.push(f); }
   keys.sort();
-  var rows = []; for (var j = 0; j < keys.length; j++) { var x = draw[keys[j]]; x.revs.sort(); x.ref = lookup(x.base); rows.push(x); }
+  var R = cfg.refKind == "register" ? null : reg(); regUsed = 0;
+  var rows = []; for (var j = 0; j < keys.length; j++) { var x = draw[keys[j]]; x.revs.sort(); x.ref = lookup(x.base);
+    /* Tower / Typology / Model the reference list doesn't have come from the Drawing Register */
+    if (R && (!x.ref || (!x.ref.tower && !x.ref.typo && !x.ref.model))) { var g = R.find(x.base); if (g) { x.ref = x.ref ? { number: x.ref.number, title: x.ref.title || g.title, tower: g.tower, typo: g.typo, model: g.model } : g; x.fromReg = 1; regUsed++; } }
+    rows.push(x); }
   result = { rows: rows, other: other, files: files, types: types };
   fillFilters(); summary(); render();
 }
@@ -171,7 +184,7 @@ function summary() {
   var n = result.rows.length, noref = 0, multi = 0; for (var i = 0; i < n; i++) { if (refMap && !result.rows[i].ref) noref++; if (result.rows[i].revs.length > 1) multi++; }
   $("sumTxt").className = "big";
   $("sumTxt").innerHTML = n + " drawing(s) &middot; " + result.files.length + " file(s)" + (refMap ? " &middot; " + (n - noref) + " found in the reference" + (noref ? ' &middot; <span class="bad">' + noref + " not in the reference</span>" : "") : "") +
-    (multi ? ' &middot; <span class="warn">' + multi + " with more than one revision</span>" : "") + (result.other.length ? " &middot; " + result.other.length + " other file(s)" : "");
+    (regUsed ? ' &middot; <span class="muted" style="font-weight:normal">Tower / Typology for ' + regUsed + " from the Drawing Register</span>" : "") + (multi ? ' &middot; <span class="warn">' + multi + " with more than one revision</span>" : "") + (result.other.length ? " &middot; " + result.other.length + " other file(s)" : "");
   var h = "<b>File types:</b> &nbsp;", t = typeList(result.types); for (var j = 0; j < t.length; j++) h += '<span data-t="' + esc(t[j]) + '" title="Show only these">.' + esc(t[j] || "(none)") + " " + result.types[t[j]] + "</span>";
   $("types").innerHTML = h;
 }
@@ -189,13 +202,13 @@ function render() {
   if (mode == "other") { var o = ['<table class="grid"><tr><th>File</th><th>Folder</th><th>Type</th></tr>'];
     for (var k = 0; k < result.other.length; k++) { var f = result.other[k]; if ($("fType").value && f.ext != $("fType").value) continue; shown.push({ files: [f] }); o.push('<tr data-s="' + (shown.length - 1) + '"><td>' + esc(f.name) + '</td><td class="muted">' + esc(f.folder || "(top)") + "</td><td>" + esc(f.ext) + "</td></tr>"); }
     $("res").innerHTML = shown.length ? o.join("") + "</table>" : '<div class="muted" style="padding:24px">No other files.</div>'; return; }
-  var ref = !!refMap, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower</th><th>Typology</th><th>Model</th>" : "") + "<th>Folder</th><th>Note</th></tr>"];
+  var ref = !!refMap || regUsed > 0, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower</th><th>Typology</th><th>Model</th>" : "") + "<th>Folder</th><th>Note</th></tr>"];
   for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i];
-    if (!pass(r)) continue; if (mode == "noref" && (!ref || r.ref)) continue; if (mode == "multi" && r.revs.length < 2) continue;
+    if (!pass(r)) continue; if (mode == "noref" && (!refMap || r.ref)) continue; if (mode == "multi" && r.revs.length < 2) continue;
     shown.push(r); var note = [];
-    if (ref && !r.ref) note.push('<span class="bad">not in the reference list</span>'); if (r.revs.length > 1) note.push('<span class="warn">' + r.revs.length + " revisions here</span>");
+    if (refMap && !r.ref) note.push('<span class="bad">not in the reference list</span>'); if (r.revs.length > 1) note.push('<span class="warn">' + r.revs.length + " revisions here</span>");
     h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(r.base) + "</b></td><td>" + esc(r.revs.join(", ")) + "</td><td>" + badge(r.types) + "</td>" +
-      (ref ? "<td>" + esc(r.ref ? r.ref.title : "") + "</td><td>" + esc(r.ref ? r.ref.tower : "") + "</td><td>" + esc(r.ref ? r.ref.typo : "") + "</td><td>" + esc(r.ref ? r.ref.model : "") + "</td>" : "") +
+      (ref ? "<td>" + esc(r.ref ? r.ref.title : "") + "</td><td>" + esc(r.ref ? r.ref.tower : "") + "</td><td>" + esc(r.ref ? r.ref.typo : "") + '</td><td style="white-space:nowrap">' + esc(r.ref ? r.ref.model : "") + "</td>" : "") +
       '<td class="muted">' + esc(r.folders.join(", ") || "(top)") + "</td><td>" + note.join(" &middot; ") + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
@@ -213,7 +226,7 @@ function groupRows() {
 function groups() {
   var gs = groupRows(), h = ['<table class="grid"><tr><th>Tower</th><th>Typology</th><th>Model</th><th>Drawings</th><th>Drawings with each file type</th></tr>'];
   for (var i = 0; i < gs.length; i++) { var x = gs[i]; h.push("<tr><td><b>" + esc(x.tower || "&ndash;") + "</b></td><td><b>" + esc(x.typo || "&ndash;") + "</b></td><td>" + esc(x.models.join(", ")) + "</td><td>" + x.n + "</td><td>" + badge(x.types) + "</td></tr>"); }
-  $("res").innerHTML = gs.length ? h.join("") + "</table>" + (refMap ? "" : '<div class="muted" style="padding:12px">Pick a reference list in step 2 to group by tower / typology.</div>') : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+  $("res").innerHTML = gs.length ? h.join("") + "</table>" + (refMap || regUsed ? "" : '<div class="muted" style="padding:12px">Pick a reference list in step 2 to group by tower / typology.</div>') : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
 }
 
 /* ---------- export ---------- */
@@ -226,7 +239,7 @@ function rowsOut() {
 function summaryText() {
   var s = "Folder contents – " + LT.today() + "\r\n" + cfg.folder + "\r\n\r\n" + result.rows.length + " drawings, " + result.files.length + " files\r\nFile types: ";
   var t = typeList(result.types), a = []; for (var i = 0; i < t.length; i++) a.push(t[i] + " " + result.types[t[i]]); s += a.join(", ") + "\r\n";
-  if (refMap) { var gs = groupRows(); s += "\r\nBY TOWER / TYPOLOGY\r\n"; for (var g = 0; g < gs.length; g++) { var x = gs[g], ty = typeList(x.types), b = []; for (var k = 0; k < ty.length; k++) b.push(ty[k] + " " + x.types[ty[k]]);
+  if (refMap || regUsed) { var gs = groupRows(); s += "\r\nBY TOWER / TYPOLOGY\r\n"; for (var g = 0; g < gs.length; g++) { var x = gs[g], ty = typeList(x.types), b = []; for (var k = 0; k < ty.length; k++) b.push(ty[k] + " " + x.types[ty[k]]);
     s += "  • " + [x.tower, x.typo].filter(Boolean).join(" · ") + ": " + x.n + " drawing(s) – " + b.join(", ") + (x.models.length ? "  (model " + x.models.join(", ") + ")" : "") + "\r\n"; } }
   return s;
 }

@@ -142,6 +142,8 @@ The folder comes first – "what's in here?"
 1. **Folder…** (include subfolders). The first time it asks **which list gives the Tower / Typology / Model**:
    - your **Drawing Register**, the list you use in Submission Check, **another Excel / CSV list**, or **none** (just drawings and file types)
    - Change it any time with **Reference list ▾**; the columns are guessed and can be changed (Sheet, Number, Description, Tower, Typology, Model)
+   - With a **Drawing Register**, any Tower / Typology / Model your list doesn't have comes from the register (even with "none")
+   - File names with extra text work too, e.g. `…-10100-T1 - Title.pdf` or `20261101_…-10100-T1.pdf`
 2. Each drawing is shown **once**: its revisions (`T1, T2`), **file types** (`dwg`, `pdf ×2`, `rvt`), description, Tower, Typology, Model, folder
    - Top line: drawings, files, found in the list, **not in the list**, more than one revision, and a **count per file type** (click one to show only it)
 3. **Show:** every drawing · not in the reference list · more than one revision · **summary by tower / typology** · other files (not drawings). Filters: Tower, Typology, File type, search

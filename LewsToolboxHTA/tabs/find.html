@@ -24,8 +24,9 @@
 .ty{display:inline-block;padding:1px 6px;font-size:.85em;font-weight:bold}
 td.no{font-weight:bold;white-space:nowrap}
 .loc{font-family:Consolas,monospace;font-size:.9em}
-.fchip{display:inline-block;padding:3px 6px 3px 10px;margin:0 6px 6px 0;font-weight:bold;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle}
-.fchip span{cursor:pointer;margin-left:6px;padding:0 4px}
+.fchip{display:inline-block;padding:3px 10px 3px 4px;margin:0 6px 6px 0;font-weight:bold;white-space:nowrap;vertical-align:middle}
+.fchip .x{cursor:pointer;margin-right:6px;padding:0 6px;font-weight:bold}
+.fchip .t{display:inline-block;max-width:300px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
 #prog{display:none}
 #q{width:470px;height:78px;font-family:Consolas,monospace;font-size:.92em}
 #ovReg .card{width:440px}
@@ -35,7 +36,7 @@ td.no{font-weight:bold;white-space:nowrap}
 <body>
 <div id="app">
   <div class="step bar">
-    <span class="num">1</span><span id="roots"></span><button class="btn primary" id="bAdd">&#128194; Add folder...</button>
+    <span class="num">1</span><span id="roots"></span><button class="btn primary" id="bAdd">&#128194; Add folder...</button><button class="btn" id="bNew" title="Take all folders off and empty the drawings box">New search</button>
     <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
     <span class="lbl muted" id="idxLbl"></span><button class="btn small" id="bRead">&#8635; Read again</button>
     <span id="prog"><span class="lbl big" id="progTxt"></span><button class="btn small" id="bStop">Stop</button></span>
@@ -96,7 +97,8 @@ function revKey(rev, order) { var m = REVP.exec(rev || ""); if (!m) return -1; v
 /* ---------- step 1: folders ---------- */
 function rootName(r) { var n = fso.GetFileName(r); return n || r; }
 function showRoots() {
-  var h = ""; for (var i = 0; i < cfg.roots.length; i++) h += '<span class="fchip" title="' + esc(cfg.roots[i]) + '">' + esc(cfg.roots[i]) + '<span data-rm="' + i + '" title="Take this folder off">&#10005;</span></span>';
+  var h = ""; for (var i = 0; i < cfg.roots.length; i++) { var pp = cfg.roots[i].split("\\"), sh = pp.length > 3 ? "...\\" + pp.slice(-2).join("\\") : cfg.roots[i];
+    h += '<span class="fchip" title="' + esc(cfg.roots[i]) + '"><span class="x" data-rm="' + i + '" title="Take this folder off the search (nothing is deleted)">&#10005;</span><span class="t">' + esc(sh) + "</span></span>"; }
   $("roots").innerHTML = h || '<span class="lbl muted">no folder yet</span>';
   $("idxLbl").innerHTML = IDX ? fmt(IDX.nFiles) + " files read (" + fmt(IDX.nDraw) + " drawings) in " + fmt(IDX.nDirs) + " folders" + (IDX.stopped ? ' <span class="warn">- stopped part way</span>' : "") + (IDX.skipped ? ' <span class="warn">&middot; ' + IDX.skipped + " folder(s) couldn't be opened</span>" : "") : "";
   $("bAdd").innerHTML = cfg.roots.length ? "+ Add another folder..." : "&#128194; Add folder...";
@@ -220,6 +222,7 @@ $("subs").onclick = function () { cfg.subs = this.checked; IDX = null; save(); s
 $("bRead").onclick = function () { IDX = null; readFolders(last ? find : null); };
 $("bStop").onclick = function () { stopNow = true; };
 $("bFind").onclick = find;
+$("bNew").onclick = function () { if (cfg.roots.length && !confirm("Start a new search?\n\nTakes all folders off the search and empties the drawings box.\n(Nothing is deleted from your drive.)")) return; cfg.roots = []; IDX = null; showRoots(); $("bClear").onclick(); };
 $("bClear").onclick = function () { $("q").value = ""; last = null; $("res").innerHTML = ""; $("sum").className = "muted"; $("sum").innerHTML = "Type the drawings, then Find."; save(); };
 $("q").onkeydown = function (e) { e = e || window.event; if (e.ctrlKey && e.keyCode == 13) { find(); return false; } };
 $("bList").onclick = loadList;
@@ -239,7 +242,7 @@ $("res").oncontextmenu = function (e) {
     "-", { label: "Copy the location", fn: function () { LT.copyText(IDX.dirs[x.rec.d].full); LT.toast("Copied"); } }, { label: "Copy the full path", fn: function () { LT.copyText(x.full); LT.toast("Copied"); } }]);
   if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
 };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".ty{background:{chip};color:{text};border-radius:{r}px}", ".fchip{background:{chip};border-radius:{r}px}.fchip span:hover{color:{bad}}", "tr.grp td{border-top:2px solid {line}}"]); }
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".ty{background:{chip};color:{text};border-radius:{r}px}", ".fchip{background:{chip};border-radius:{r}px}.fchip .x:hover{background:{bad};color:#fff;border-radius:{r}px}", "tr.grp td{border-top:2px solid {line}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); IDX = null; showRoots(); };
 window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { addFolder(value); } };
 look(); load(); showRoots(); LT.tabKeys();

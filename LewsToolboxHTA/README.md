@@ -141,6 +141,7 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 "Where is this drawing?" – for one drawing or a whole list.
 
 1. **Add folder…** – one or more (e.g. the project folder and an archive), subfolders included
+   - **✕** at the front of a folder takes it off the search (long paths are shortened – point at one to see it all). **New search** takes all folders off and empties the drawings box. Nothing is deleted from your drive
    - Big folders are read a little at a time: you see the count go up, and **Stop** if it takes too long
    - Read once, then every search is instant. **Read again** after files change
 2. **Drawings to find** – type or paste, one per line (Ctrl+Enter = Find). Or **Load a list (Excel / CSV)…**, or **From the Drawing Register…** (by Tower / Typology / Section)

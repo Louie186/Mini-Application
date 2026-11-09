@@ -37,6 +37,18 @@ module.exports = async ({ page, out }) => {
   await f.selectOption('#show', 'all');
   ok(await f.evaluate(() => folderText().length == 6 && folderText()[0] == 'Q:\\Archive\\Old'), 'copy the folders gives full paths (6)');
   ok(await f.evaluate(() => exportRows().length == 9 && exportRows()[8][5] == 'NOT FOUND'), 'export rows (7 files + 1 not found)');
+  // long folder paths: the X stays visible and works; New search empties everything
+  await page.evaluate(() => { const fs = window.__mockFs; ['C:\\Users\\F265\\DC\\ACCDocs\\Company\\25-0000\\Project Files\\102-WIP Very Long Folder Name For Testing', 'C:\\Users\\F265\\DC\\ACCDocs\\Company\\25-0000\\Project Files\\300-PUBLISHED Another Long Folder Name'].forEach(p => fs.dirs[p.toLowerCase()] = p); });
+  for (const p of ['C:\\Users\\F265\\DC\\ACCDocs\\Company\\25-0000\\Project Files\\102-WIP Very Long Folder Name For Testing', 'C:\\Users\\F265\\DC\\ACCDocs\\Company\\25-0000\\Project Files\\300-PUBLISHED Another Long Folder Name']) { await f.evaluate((p) => { top.__nextFolder = p; }, p); await f.click('#bAdd'); }
+  const xs = await f.evaluate(() => [...document.querySelectorAll('#roots .x')].map(x => { const r = x.getBoundingClientRect(); return r.width > 0 && r.right < innerWidth; }));
+  ok(xs.length == 4 && xs.every(Boolean), 'every folder X is visible (4 folders, long paths shortened)');
+  await page.screenshot({ path: out + '/k_find_chips.png', clip: { x: 200, y: 0, width: 980, height: 60 } });
+  await f.click('#roots [data-rm="3"]');
+  ok(await f.evaluate(() => cfg.roots.length == 3 && !/300-PUBLISHED/.test(cfg.roots.join())), 'clicking the X takes that folder off');
+  const keepQ = await f.evaluate(() => document.getElementById('q').value);
+  await f.click('#bNew');
+  ok(await f.evaluate(() => cfg.roots.length == 0 && document.getElementById('q').value == '' && !last), 'New search: no folders, empty drawings box, no result');
+  await f.evaluate((q) => { cfg.roots = ['P:\\Proj', 'Q:\\Archive']; document.getElementById('q').value = q; save(); showRoots(); }, keepQ);
   // remembered
   ok(await f.evaluate(() => { const c = LT.readJson(LT.dataPath('find.json'), {}); return c.roots.length == 2 && /30442/.test(c.q); }), 'folders and search remembered');
   // big folder: 5,000 files in 500 folders, read in steps

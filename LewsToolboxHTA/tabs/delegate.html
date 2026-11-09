@@ -6,7 +6,7 @@
 <title>Delegate</title>
 <meta name="lt-order" content="4">
 <meta name="lt-icon" content="&#128203;">
-<meta name="lt-desc" content="Give tasks to your team. Sends each person an Excel sheet or an HTML task pack, then loads their replies back so you see who has done what.">
+<meta name="lt-desc" content="Give tasks to your team. Sends each person an Excel sheet or an HTML task pack, then loads their replies back so you see who has done what. Board and Calendar: drag to change status or due date.">
 <!--
   Lew's Toolbox - Delegate: make tasks (with checklist items), assign people, send each person an Excel task sheet
   and/or an HTML task pack, load their filled-in files / replies back and see the status.
@@ -28,6 +28,23 @@ td.it{padding-left:28px}
 #whoList{max-height:170px;overflow-y:auto;padding:4px 0}
 #whoList label,#send label{display:block;margin:3px 0}
 #paste textarea{width:100%;height:260px}
+/* board */
+.board{display:flex;padding:8px;min-height:100%}
+.col{flex:1 1 0px;min-width:0;margin:0 4px;padding:8px}
+.col h4{margin:2px 2px 8px}
+.dc{padding:8px 10px;margin-bottom:6px;cursor:move}
+.dc b{display:block;margin:2px 0}
+.dc .m{font-size:.85em}
+.pb{height:5px;margin-top:6px;overflow:hidden}.pb i{display:block;height:100%}
+/* calendar */
+.calh{padding:6px 12px 8px}.calh b{display:inline-block;min-width:150px;text-align:center;font-size:1.1em;vertical-align:middle;margin:0 6px 6px 0}
+table.cal{width:100%;border-collapse:collapse;table-layout:fixed}
+table.cal th{padding:5px;font-size:.8em;text-align:center}
+table.cal td{height:96px;vertical-align:top;padding:4px 5px}
+table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
+.ev{display:block;margin-top:3px;padding:2px 6px;font-size:.88em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:move}
+.ev.p{font-weight:bold}
+.evm{display:block;margin-top:3px;font-size:.85em;font-weight:bold;cursor:pointer}
 </style>
 <script src="../core/lt-core.js"></script>
 </head>
@@ -195,12 +212,118 @@ function render() {
   $("person").innerHTML = h; $("pplList").innerHTML = dl;
   var open = 0, nLate = 0;
   for (var j = 0; j < data.tasks.length; j++) { var t = data.tasks[j]; if (statusOf(t) != "Completed") open++; if (!t.subs.length) { if (late(t.due, t.status)) nLate++; } else for (var k = 0; k < t.subs.length; k++) if (late(t.subs[k].due || t.due, t.subs[k].status)) nLate++; }
-  h = '<button class="btn' + (view == "list" ? " on" : "") + '" data-v="list">&#9776; Tasks &nbsp;' + open + '</button><button class="btn' + (view == "team" ? " on" : "") + '" data-v="team">&#128101; Team</button>';
+  h = '<button class="btn' + (view == "list" ? " on" : "") + '" data-v="list">&#9776; Tasks &nbsp;' + open + '</button><button class="btn' + (view == "board" ? " on" : "") + '" data-v="board">&#9638; Board</button><button class="btn' + (view == "cal" ? " on" : "") + '" data-v="cal">&#128197; Calendar</button><button class="btn' + (view == "team" ? " on" : "") + '" data-v="team">&#128101; Team</button>';
   if (LT.settings().trackerFolder) h += '<button class="btn' + (view == "web" ? " on" : "") + '" data-v="web">&#127760; Lew\'s Tracker &nbsp;' + web.length + "</button>";
   if (nLate) h += '<span class="lbl bad" style="font-weight:bold">' + nLate + " late</span>";
   if (data.imports.length) { var li = data.imports[data.imports.length - 1]; h += '<span class="lbl muted">Last reply: ' + esc(li.from) + ", " + esc(li.when) + "</span>"; }
   $("views").innerHTML = h;
-  if (view == "team") team(); else list(view == "web" ? web : data.tasks);
+  if (view == "team") team(); else if (view == "board") board(); else if (view == "cal") cal(); else list(view == "web" ? web : data.tasks);
+}
+
+/* ---------- board: drag a card to another column = new status ---------- */
+var dragMap = [], dragI = null, calMonth = null, calOpen = "";
+function shownTasks(hideDone) {
+  var who = $("person").value, words = LT.trim($("search").value.toLowerCase()).split(/\s+/), out = []; if (!words[0]) words = [];
+  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (hideDone && statusOf(t) == "Completed") continue; if (match(t, who, words)) out.push(t); }
+  return out.sort(function (a, b) { return a.code.toLowerCase() < b.code.toLowerCase() ? -1 : 1; });
+}
+function board() {
+  rowMap = []; dragMap = [];
+  var list = shownTasks(false), h = ['<div class="board">'];
+  for (var c = 0; c < ST.length; c++) {
+    var cards = [], n = 0;
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i], st = statusOf(t); if (st != ST[c]) continue; n++;
+      rowMap.push({ t: t, s: null }); dragMap.push({ t: t, kind: "status" });
+      var done = 0; for (var j = 0; j < t.subs.length; j++) if (t.subs[j].status == "Completed") done++;
+      cards.push('<div class="dc" draggable="true" data-r="' + (rowMap.length - 1) + '" data-dg="' + (dragMap.length - 1) + '"><div class="m muted">' + esc(t.code) + (t.group ? " &middot; " + esc(t.group) : "") + "</div><b>" + esc(t.title) + '</b><div class="m">' +
+        (t.who ? "&#128100; " + esc(t.who) : '<span class="muted">No one yet</span>') + (t.due ? ' &nbsp; <span class="' + (late(t.due, st) ? "bad" : "muted") + '">&#128197; ' + esc(LT.fmtDate(t.due)) + "</span>" : "") +
+        (t.subs.length ? ' &nbsp; <span class="muted">&#9745; ' + done + "/" + t.subs.length + "</span>" : "") + "</div>" +
+        (t.subs.length ? '<div class="pb"><i style="width:' + Math.round(progress(t) * 100) + '%"></i></div>' : "") + "</div>");
+    }
+    h.push('<div class="col" data-st="' + ST[c] + '"><h4><span class="' + (ST[c] == "Completed" ? "ok" : ST[c] == "In progress" ? "warn" : "") + '">' + ST[c] + '</span> <span class="muted">' + n + "</span></h4>" + cards.join("") + "</div>");
+  }
+  h.push("</div>");
+  $("main").innerHTML = h.join("");
+  $("hint").innerHTML = "Drag a card to another column &middot; double-click = edit &middot; tasks with items move by themselves when their items change";
+}
+
+/* ---------- calendar: drag a task (or its items due that day) to another day ---------- */
+function cal() {
+  rowMap = []; dragMap = [];
+  if (!calMonth) { var n = todayD(); calMonth = new Date(n.getFullYear(), n.getMonth(), 1); }
+  var who = $("person").value, hide = $("hideDone").checked, list = shownTasks(hide), days = {};
+  var slot = function (iso, t) { var d = days[iso] = days[iso] || {}; return d[t.id || t.code] = d[t.id || t.code] || { t: t, main: false, items: [] }; };
+  for (var i = 0; i < list.length; i++) {
+    var t = list[i];
+    if (t.due) slot(t.due, t).main = true;
+    for (var j = 0; j < t.subs.length; j++) { var s = t.subs[j], due = s.due || t.due;
+      if (!due || (hide && s.status == "Completed") || (who && !has(s.who || t.who, who))) continue;
+      slot(due, t).items.push(s); }
+  }
+  var y = calMonth.getFullYear(), m = calMonth.getMonth(), first = new Date(y, m, 1), start = new Date(y, m, 1 - ((first.getDay() + 6) % 7)), today = LT.today();
+  var h = ['<div class="calh"><button class="btn small" data-mon="-1">&#8249;</button><b>' + ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m] + " " + y +
+    '</b><button class="btn small" data-mon="1">&#8250;</button><button class="btn small" data-mon="0">Today</button></div><table class="cal"><tr>'];
+  var dn = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; for (var k = 0; k < 7; k++) h.push("<th>" + dn[k] + "</th>");
+  h.push("</tr>");
+  for (var w = 0; w < 6; w++) {
+    h.push("<tr>");
+    for (var dd = 0; dd < 7; dd++) {
+      var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + dd), iso = LT.iso(d), gs = [], g;
+      for (var key in days[iso] || {}) if (days[iso].hasOwnProperty(key)) gs.push(days[iso][key]);
+      gs.sort(function (a, b) { return (b.main - a.main) || (a.t.code.toLowerCase() < b.t.code.toLowerCase() ? -1 : 1); });
+      var cells = [], MAX = calOpen == iso ? 99 : 3;
+      for (var q = 0; q < gs.length && q < MAX; q++) {
+        g = gs[q];
+        var st = statusOf(g.t), its = g.items, lateN = 0, doneN = 0;
+        for (var z = 0; z < its.length; z++) { if (its[z].status == "Completed") doneN++; if (late(iso, its[z].status)) lateN++; }
+        if (g.main && !g.t.subs.length && late(g.t.due, st)) lateN++;
+        var cls = lateN ? "lt" : (g.main ? st == "Completed" : its.length && doneN == its.length) ? "ok" : (g.main ? st != "Not started" : doneN < its.length && its.length && (function () { for (var z2 = 0; z2 < its.length; z2++) if (its[z2].status != "Not started") return true; return false; })()) ? "ip" : "";
+        rowMap.push({ t: g.t, s: null }); dragMap.push({ t: g.t, kind: g.main ? "task" : "items", from: iso });
+        var tip = g.t.code + " " + g.t.title + (g.main ? " - due" : " - " + its.length + " item(s) due") + (g.t.who ? " - " + g.t.who : "") + (lateN ? " - " + lateN + " late" : "") + ". Drag to another day to move.";
+        cells.push('<span class="ev ' + (g.main ? "p " : "") + cls + '" draggable="true" data-r="' + (rowMap.length - 1) + '" data-dg="' + (dragMap.length - 1) + '" title="' + esc(tip) + '">' + (g.main ? "" : "&#8627; ") + esc(g.t.title) + (its.length ? " (" + doneN + "/" + its.length + ")" : "") + "</span>");
+      }
+      if (gs.length > 3) cells.push('<span class="evm" data-open="' + iso + '">' + (calOpen == iso ? "Show less" : "+" + (gs.length - 3) + " more") + "</span>");
+      h.push('<td data-day="' + iso + '" class="' + (d.getMonth() != m ? "oth" : "") + (iso == today ? " tdy" : "") + '"><div class="n">' + d.getDate() + "</div>" + cells.join("") + "</td>");
+    }
+    h.push("</tr>");
+  }
+  h.push("</table>");
+  $("main").innerHTML = h.join("");
+  $("hint").innerHTML = "Bold = task due &middot; &#8627; = its items due that day &middot; red = late &middot; drag to another day to move &middot; double-click = edit";
+}
+function setTaskStatus(t, v, how) {
+  var st = stampNow() + " · me";
+  t.status = v; t.doneOn = v == "Completed" ? LT.today() : ""; t.updated = st;
+  t.history.push(st + "  " + t.code + " → " + v + (how ? "  (" + how + ")" : ""));
+  save(); render();
+}
+function moveDue(t, from, to, kind) {
+  if (!to || from == to) return;
+  var who = $("person").value, before = { due: t.due, subs: [] }, n = 0;
+  for (var i = 0; i < t.subs.length; i++) before.subs.push(t.subs[i].due);
+  if (kind == "task") { t.due = to; n = 1; }
+  else for (var j = 0; j < t.subs.length; j++) { var s = t.subs[j]; if ((s.due || t.due) == from && (!who || has(s.who || t.who, who)) && !($("hideDone").checked && s.status == "Completed")) { s.due = to; n++; } }
+  if (!n) return;
+  var st = stampNow() + " · me", what = kind == "task" ? "Due" : n + " item" + (n == 1 ? "" : "s") + " due";
+  t.updated = st; t.history.push(st + "  " + what + ": " + dmy(from) + " → " + dmy(to) + "  (dragged on the calendar)");
+  save(); render();
+  LT.toast(t.code + (kind == "task" ? " moved" : " - " + n + " item" + (n == 1 ? "" : "s") + " moved") + " to " + LT.fmtDate(to), function () {
+    t.due = before.due; for (var k = 0; k < t.subs.length; k++) t.subs[k].due = before.subs[k];
+    var st2 = stampNow() + " · me"; t.updated = st2; t.history.push(st2 + "  Undo: " + what + " back to " + dmy(from)); save(); render();
+  });
+}
+function dropOn(el) {
+  var m = dragI != null ? dragMap[dragI] : null; dragI = null; if (!m) return;
+  var stEl = LT.up(el, "data-st"), dayEl = LT.up(el, "data-day");
+  if (stEl && m.kind == "status") {
+    var t = m.t, v = stEl.getAttribute("data-st"), was = t.status;
+    if (statusOf(t) == v) { render(); return; }
+    if (t.subs.length) { LT.toast(t.code + " has items - its status comes from them"); render(); return; }
+    setTaskStatus(t, v, "dragged on the board");
+    LT.toast(t.code + " moved to " + v, function () { setTaskStatus(t, was, "undo"); });
+  } else if (dayEl && m.kind != "status") moveDue(m.t, m.from, dayEl.getAttribute("data-day"), m.kind);
+  else render();
 }
 function match(t, who, words) {
   if (who) { var ok = has(t.who, who); for (var i = 0; i < t.subs.length && !ok; i++) if (has(t.subs[i].who, who)) ok = true; if (!ok) return false; }
@@ -650,7 +773,14 @@ function copyWeb() {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["tr.task td{background:{chip}}", "#items th{padding:3px}"]); }
+function look() { LT.applyLook(["tr.task td{background:{chip}}", "#items th{padding:3px}",
+  ".col{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}.col.over{border-color:{accent};background:{hover}}",
+  ".dc{background:{bg};border:{bw}px solid {line};border-radius:{r}px}.dc:hover{border-color:{accent}}",
+  ".pb{background:{chip};border-radius:3px}.pb i{background:{accent}}",
+  "table.cal th{color:{muted};border-bottom:{bw}px solid {line}}table.cal td{border:1px solid {line};background:{panel}}",
+  "table.cal td.oth{background:{bg}}table.cal td.oth .n{color:{muted}}table.cal td.tdy .n{color:{accent}}table.cal td.over{background:{hover};outline:2px dashed {accent}}",
+  ".ev{background:{chip};color:{text};border-left:3px solid {muted};border-radius:{r}px}.ev.ip{border-left-color:{warn}}.ev.ok{border-left-color:{ok};color:{muted};text-decoration:line-through}.ev.lt{border-left-color:{bad};color:{bad}}",
+  ".evm{color:{accent}}"]); }
 $("bNew").onclick = function () { edit(null); };
 $("bSend").onclick = function () { openSend(null); };
 $("bLoad").onclick = loadReplies;
@@ -658,6 +788,18 @@ $("bPaste").onclick = function () { $("pText").value = ""; $("paste").style.disp
 $("bMore").onclick = function (e) { var r = this.getBoundingClientRect(); moreMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
 $("views").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { view = b.getAttribute("data-v"); if (view == "web") loadWeb(); render(); } };
 $("person").onchange = render; $("search").onkeyup = render; $("hideDone").onclick = render;
+/* board + calendar: drag and drop (works in the HTA's Internet Explorer engine too) */
+function dropTarget(el) { return view == "board" ? LT.up(el, "data-st") : view == "cal" ? LT.up(el, "data-day") : null; }
+function mark(el, on) { var o = el.className.replace(/\s*over/g, ""); el.className = on ? (o ? o + " over" : "over") : o; }
+var overEl = null;
+$("main").ondragstart = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-dg"); if (!c) return; dragI = +c.getAttribute("data-dg"); try { e.dataTransfer.setData("text", "" + dragI); e.dataTransfer.effectAllowed = "move"; } catch (x) { } };
+$("main").ondragover = function (e) { e = e || window.event; var t = dropTarget(e.target || e.srcElement); if (t && dragI != null) { if (overEl && overEl !== t) mark(overEl, false); if (overEl !== t) { mark(t, true); overEl = t; } if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } };
+$("main").ondragenter = function (e) { e = e || window.event; var t = dropTarget(e.target || e.srcElement); if (t && dragI != null) { if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } };
+$("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); if (overEl) { mark(overEl, false); overEl = null; } dropOn(e.target || e.srcElement); return false; };
+$("main").ondragend = function () { dragI = null; if (overEl) { mark(overEl, false); overEl = null; } };
+$("main").onclick = function (e) { var el = e ? e.target : window.event.srcElement, b = LT.up(el, "data-mon"), o = LT.up(el, "data-open");
+  if (b) { var v = +b.getAttribute("data-mon"), n = todayD(); calMonth = v ? new Date(calMonth.getFullYear(), calMonth.getMonth() + v, 1) : new Date(n.getFullYear(), n.getMonth(), 1); render(); }
+  else if (o) { calOpen = calOpen == o.getAttribute("data-open") ? "" : o.getAttribute("data-open"); render(); } };
 $("main").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "data-r"); if (!r) return; var m = rowMap[+r.getAttribute("data-r")];
   if (m.person) { view = "list"; $("person").value = m.person; render(); var opts = $("person").options; for (var i = 0; i < opts.length; i++) if (opts[i].text == m.person) $("person").selectedIndex = i; render(); return; }
   if (!m.t.fromWeb) edit(m.t); };

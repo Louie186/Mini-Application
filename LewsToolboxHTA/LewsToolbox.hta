@@ -14,8 +14,12 @@
 -->
 <style>
 #shell{display:flex;height:100%}
-#nav{flex:none;width:200px;display:flex;flex-direction:column;padding:10px 8px}
-#brand{font-weight:bold;font-size:16px;padding:6px 8px 14px;white-space:nowrap}
+#nav{flex:none;width:200px;display:flex;flex-direction:column;padding:10px 8px;overflow:hidden;transition:width .35s ease-out}
+#brand{font-weight:bold;font-size:16px;padding:6px 8px 14px;white-space:nowrap;position:relative}
+#railBtn{position:absolute;right:2px;top:4px;width:28px;height:26px;padding:0;cursor:pointer;font:inherit;font-size:14px;line-height:22px;text-align:center;outline:none}
+#shell.rail #nav{width:58px}#shell.rail .nb .tx,#shell.rail #brand .tx,#shell.rail #clock span{display:none}
+#shell.rail .nb{padding:0;text-align:center;text-overflow:clip}#shell.rail .nb .ic{width:auto}
+#shell.rail #brand{padding-bottom:40px}#shell.rail #railBtn{left:6px;right:auto;top:34px}
 #tabs{flex:1 1 auto;overflow-y:auto}
 .nb{display:block;width:100%;text-align:left;height:34px;margin:0 0 2px;padding:0 10px;cursor:pointer;font:inherit;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none}
 .nb .ic{display:inline-block;width:24px}
@@ -26,14 +30,14 @@
 #tip{display:none;position:fixed;z-index:50;width:280px;padding:10px 12px;line-height:1.45;font-size:13px}
 #tip b{display:block;margin-bottom:3px}
 #warn{display:none;position:absolute;left:0;right:0;top:0;z-index:5;padding:8px 12px;font-weight:bold;background:#b13e53;color:#fff}
-@media (max-width:700px){ #nav{width:58px} .nb .tx,#brand .tx{display:none} #clock span{display:none} }
+@media (max-width:700px){ #nav{width:58px} .nb{padding:0;text-align:center;text-overflow:clip} .nb .ic{width:auto} .nb .tx,#brand .tx{display:none} #clock span{display:none} #railBtn{display:none} }
 </style>
 <script src="core/lt-core.js"></script>
 </head>
 <body>
 <div id="shell">
   <div id="nav">
-    <div id="brand">&#129520;<span class="tx"> Lew's Toolbox</span></div>
+    <div id="brand">&#129520;<span class="tx"> Lew's Toolbox</span><button id="railBtn" title="Fold the menu to icons / open it again (Ctrl+[)">&#9664;</button></div>
     <div id="tabs"></div>
     <div id="clock"><b id="clkT">--:--</b><br><span id="clkD"></span></div>
   </div>
@@ -113,6 +117,7 @@ var LTMain = {
     for (var k in frames) if (frames.hasOwnProperty(k)) { try { var w = frames[k].contentWindow; if (w && w.ltReload) w.ltReload(); } catch (x) { } }
   },
   makeShortcut: function () { return taskbarShortcut(); },
+  toggleRail: function () { setRail(LT.$("shell").className != "rail", true); },
   /* for Settings: every tab with its description */
   tabList: function () { var o = []; for (var i = 0; i < tabs.length; i++) o.push({ key: tabs[i].key, title: tabs[i].title, icon: tabs[i].icon, desc: tabs[i].desc }); return o; },
   tipsChanged: function () { tipsOn = LT.settings().tips !== false; hideTip(); renderNav(); },
@@ -120,14 +125,25 @@ var LTMain = {
 };
 
 function look() {
-  LT.applyLook([
+  var rules = [
     "#nav{background:{panel};border-right:{bw}px solid {line}}",
     ".nb{background:transparent;color:{text};border:{bw}px solid transparent;border-radius:{r}px}",
     ".nb:hover{background:{hover}}",
     ".nb.on{background:{hover};border-color:{accent};color:{text}}",
+    "#railBtn{background:transparent;color:{muted};border:{bw}px solid {line};border-radius:{r}px}#railBtn:hover{color:{text};border-color:{accent}}",
     "#clock{color:{text};cursor:default}#clkD{color:{muted};font-size:.85em}",
     "#tip{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#tip .k{margin-top:6px;font-size:.85em;color:{muted}}"
-  ]);
+  ];
+  /* Slate: the menu item you're on gets a soft fill and a thin blue bar on its left */
+  if (LT.themeVars().slate) rules.push(".nb.on{border-color:transparent;background:{chip};box-shadow:inset 3px 0 0 {accent2}}");
+  LT.applyLook(rules);
+}
+/* fold the side menu down to icons (remembered in settings) */
+function setRail(on, keep) {
+  LT.$("shell").className = on ? "rail" : "";
+  LT.$("railBtn").innerHTML = on ? "&#9654;" : "&#9664;";
+  LT.$("railBtn").title = on ? "Open the menu (Ctrl+[)" : "Fold the menu to icons (Ctrl+[)";
+  if (keep) { var s = LT.settings(); s.rail = !!on; LT.saveSettings(s); }
 }
 
 /* the hover tip beside the side menu: what each tab is for (Settings > Hover tips) */
@@ -196,7 +212,9 @@ function taskbarShortcut() {
   LT.$("tabs").onmouseover = function (e) { var b = LT.up(e.target || e.srcElement, "data-k"); if (b) showTip(b); else hideTip(); };
   LT.$("tabs").onmouseout = function (e) { var to = e.relatedTarget || e.toElement; if (!to || !LT.up(to, "data-k")) hideTip(); };
   LT.$("tabs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-k"); if (b) { hideTip(); show(b.getAttribute("data-k")); } };
-  document.onkeydown = function (e) { e = e || window.event; if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57) { LTMain.showIndex(e.keyCode - 49); return false; } };
+  document.onkeydown = function (e) { e = e || window.event; if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57) { LTMain.showIndex(e.keyCode - 49); return false; } if (e.ctrlKey && e.keyCode == 219) { setRail(LT.$("shell").className != "rail", true); return false; } };
+  LT.$("railBtn").onclick = function (e) { setRail(LT.$("shell").className != "rail", true); (e || window.event).cancelBubble = true; };
+  if (LT.settings().rail) setRail(true, false);
   var rt = null;
   window.onresize = function () { if (rt) window.clearTimeout(rt); rt = window.setTimeout(function () { var s = LT.settings(); s.win = { w: document.documentElement.clientWidth, h: document.documentElement.clientHeight }; LT.saveSettings(s); }, 700); };
   show(LT.settings().lastTab || "launcher");

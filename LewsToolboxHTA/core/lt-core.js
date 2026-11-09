@@ -123,12 +123,14 @@ var LT = (function () {
   L.uid = function (p) { return (p || "x") + L.now().toString(36) + Math.floor(Math.random() * 1e5).toString(36); };
   L.safeName = function (s) { return L.trim(("" + s).replace(/[\\\/:*?"<>|\u0000-\u001f]/g, "_")); };
   L.up = function (el, attr) { while (el && el.getAttribute) { if (el.getAttribute(attr) != null) return el; el = el.parentNode; } return null; };
-  L.toast = function (msg) {
+  /* L.toast("Moved", function () { ...put it back... }) shows an Undo button for 6 seconds */
+  L.toast = function (msg, undo) {
     var t = document.getElementById("toast");
     if (!t) { t = document.createElement("div"); t.id = "toast"; document.body.appendChild(t); }
-    t.innerHTML = L.esc(msg); t.style.display = "block";
+    t.innerHTML = L.esc(msg) + (undo ? '<span class="undo" id="toastUndo">Undo</span>' : ""); t.style.display = "block";
+    if (undo) document.getElementById("toastUndo").onclick = function () { t.style.display = "none"; if (L._tt) window.clearTimeout(L._tt); undo(); };
     if (L._tt) window.clearTimeout(L._tt);
-    L._tt = window.setTimeout(function () { t.style.display = "none"; }, 2600);
+    L._tt = window.setTimeout(function () { t.style.display = "none"; }, undo ? 6000 : 2600);
   };
 
   /* ---------- CSV ---------- */
@@ -282,6 +284,8 @@ var LT = (function () {
     blueprint: { name: "Blueprint", bg: "#0d2a4c", panel: "#12365f", hover: "#1a4679", text: "#e6f0ff", muted: "#9fb9dd", line: "#2b5a8f", accent: "#ffd166", accText: "#0d2a4c", chip: "#173f6d", font: "'Segoe UI',Tahoma,sans-serif", r: 4, bw: 1, shadow: "none", big: "0 16px 40px rgba(0,0,0,.45)", ok: "#5fd38d", warn: "#ffd166", bad: "#ff8a80" },
     retro: { name: "Retro 8-bit", bg: "#1a1c2c", panel: "#29366f", hover: "#3b5dc9", text: "#f4f4f4", muted: "#94b0c2", line: "#0b0c16", accent: "#ffcd75", accText: "#1a1c2c", chip: "#333c57", font: "'Lucida Console',Consolas,monospace", r: 0, bw: 2, shadow: "3px 3px 0 #0b0c16", big: "6px 6px 0 #0b0c16", retro: 1, ok: "#a7f070", warn: "#ffcd75", bad: "#ff6b6b" },
     gameboy: { name: "Retro Grey", bg: "#d6d2c8", panel: "#e8e5de", hover: "#f6f4ef", text: "#23233a", muted: "#6b6b7d", line: "#4a4a5e", accent: "#8b1c62", accText: "#ffffff", chip: "#cbc6ba", font: "'Lucida Console',Consolas,monospace", r: 0, bw: 2, shadow: "3px 3px 0 #4a4a5e", big: "6px 6px 0 #4a4a5e", retro: 1, ok: "#2e7d32", warn: "#9a5b00", bad: "#b13e53" },
+    slate: { name: "Slate", bg: "#080b0f", panel: "#0f141a", hover: "#18202a", text: "#e7edf3", muted: "#7d8b99", line: "#1d2630", accent: "#3f86a8", accent2: "#5fa8c9", accText: "#ffffff", chip: "#141b23", font: "'Segoe UI',Tahoma,sans-serif", r: 10, bw: 1, shadow: "none", big: "0 16px 40px rgba(0,0,0,.55)", slate: 1, ok: "#4cc38a", warn: "#e5a94b", bad: "#e5645b" },
+    slatelight: { name: "Slate Light", bg: "#eef2f5", panel: "#ffffff", hover: "#e6eef4", text: "#12202c", muted: "#5f6e7b", line: "#dde4ea", accent: "#2f7aa0", accent2: "#2f7aa0", accText: "#ffffff", chip: "#eaf0f4", font: "'Segoe UI',Tahoma,sans-serif", r: 10, bw: 1, shadow: "none", big: "0 16px 40px rgba(20,40,60,.18)", slate: 1, ok: "#22915c", warn: "#a86b00", bad: "#d0453b" },
     console: { name: "Retro Console", bg: "#dfe7f2", panel: "#c9d6ea", hover: "#f0f5fc", text: "#141b33", muted: "#5a6a90", line: "#1b2a6b", accent: "#1b2a6b", accText: "#f0f5fc", chip: "#d3deef", font: "'Lucida Console',Consolas,monospace", r: 0, bw: 2, shadow: "3px 3px 0 #1b2a6b", big: "6px 6px 0 #1b2a6b", retro: 1, ok: "#1f7a3a", warn: "#9a5b00", bad: "#b13e53" }
   };
   L.SIZES = { compact: { name: "Compact", fs: 12, row: 30 }, normal: { name: "Normal", fs: 13, row: 36 }, large: { name: "Large", fs: 15, row: 44 } };
@@ -324,6 +328,7 @@ var LT = (function () {
     "#menu .mi{padding:7px 12px;cursor:pointer;white-space:nowrap;border-radius:{r}px}#menu .mi:hover{background:{accent};color:{accText}}",
     "#menu .sep{height:1px;margin:4px 6px;background:{line}}#menu .mi.on:before{content:'\\2713  '}",
     "#toast{position:fixed;right:18px;bottom:18px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;display:none;background:{accent};color:{accText};border-radius:{r}px;box-shadow:0 6px 20px rgba(0,0,0,.3)}",
+    "#toast .undo{display:inline-block;margin-left:14px;padding:1px 10px;cursor:pointer;text-decoration:underline}",
     ".scroll{overflow:auto}",
     "#datePop{display:none;position:fixed;z-index:35;width:236px;padding:8px;background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}",
     ".dpH{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}.dpB{cursor:pointer;padding:3px 8px;border-radius:{r}px;font-weight:bold}.dpB:hover{background:{hover}}",
@@ -344,6 +349,10 @@ var LT = (function () {
     if (extraRules) L._extra = extraRules;
     var v = L.themeVars(), rules = L.BASE_CSS.concat(L._extra || []);
     if (v.retro) rules.push(".btn,.chip.on{box-shadow:{shadow}}.btn:active{box-shadow:none}");
+    /* Slate: pill buttons, quieter table headings, softer cards (the "project dashboard" look) */
+    if (v.slate) rules.push(".btn{border-radius:99px}.btn.on{background:{chip};border-color:{accent2};color:{text}}",
+      "table.grid th{text-transform:none;letter-spacing:0;font-size:.85em}",
+      ".card{border-radius:16px}#toast{border-radius:12px}");
     var el = document.getElementById("ltTheme");
     if (!el) { el = document.createElement("style"); el.id = "ltTheme"; document.getElementsByTagName("head")[0].appendChild(el); }
     setCss(el, rules.join("\n").replace(/\{(\w+)\}/g, function (m, k) { return v[k] !== undefined ? v[k] : m; }));
@@ -449,6 +458,7 @@ var LT = (function () {
     var h = function (e) {
       e = e || window.event;
       if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57 && L.main()) { L.main().showIndex(e.keyCode - 49); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }
+      if (e.ctrlKey && e.keyCode == 219 && L.main() && L.main().toggleRail) { L.main().toggleRail(); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }
     };
     if (document.attachEvent) document.attachEvent("onkeydown", h); else document.addEventListener("keydown", h, false);
   };

@@ -37,6 +37,15 @@ No install, no build step.
 | 👥 Team Workload | Hours per task and per person per week, as a heat-map |
 | ⚙ Settings | Looks, data folder, Launcher list, links, taskbar shortcut |
 
+## Looks and the side menu
+
+- **Settings → Looks:** two new looks, **Slate** (dark) and **Slate Light**
+  - Clean dashboard style: one steel-blue colour, pill-shaped buttons, rounded cards
+  - The tab you're on gets a thin blue bar on its left
+- **Fold the menu:** click **◀** next to *Lew's Toolbox* (or press **Ctrl+[**)
+  - The menu shrinks to icons only. Click **▶** (or Ctrl+[ again) to open it
+  - Remembered next time
+
 ## Launcher
 
 - Works exactly like QuickLaunch (same buttons, keys, Excel bulk edit, timer)
@@ -84,7 +93,14 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
    - **Simple Excel table**
    - Saved in `exports\Delegate\<date time>`, and the folder opens – attach to email / Teams
 3. **⬆ Load replies…** (their Excel file or reply .txt) or **📋 Paste reply…** – you see every change first, then OK. Loading the same reply twice adds nothing
-4. Views: **Tasks** (progress, late in red) · **👥 Team** (open, late, this / next week, Behind / Busy / Has room) · **🌐 Lew's Tracker** (read-only, when linked)
+4. Views: **Tasks** (progress, late in red) · **▦ Board** · **📅 Calendar** · **👥 Team** (open, late, this / next week, Behind / Busy / Has room) · **🌐 Lew's Tracker** (read-only, when linked)
+5. **▦ Board** – drag a card to another column to change its status
+   - A task with items gets its status from its items, so it doesn't move (a message says why)
+6. **📅 Calendar** – drag to another day to change the due date
+   - **Bold** chip = the task's own due date · **↳** chip = only its items due that day
+   - With a person picked, only that person's items move
+   - Every move is written in the task's **History**
+- Every drag shows a message with **Undo** for 6 seconds
 - Right-click a row: status, send this task, history, duplicate, delete. **More ▾**: CSV export, sent / received log, project name, copy Lew's Tracker tasks in
 - Same formats as Lew's Tracker (web app). Open tasks show in the Tracker as "Waiting on <name>"
 

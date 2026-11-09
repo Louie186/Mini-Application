@@ -25,6 +25,7 @@ No install, no build step.
 | 🗂 Tracker | Your work list: Today / Week / Overdue / Board, repeats, timer |
 | 📋 Delegate | Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
 | ✅ Submission Check | Folder vs your list: missing, wrong revision, missing type, extra files |
+| 🔍 Folder Contents | Pick a folder: every drawing once, its revisions, file types, and Tower / Typology / Model from your list |
 | 🏷 Naming Checker | Every file name vs your naming rule (ISO 19650 style), part by part |
 | 🔄 What Changed | Two submissions compared: new, revised, removed, same rev but changed |
 | 📨 Transmittal | Issue sheet (Excel) with numbering, log, copy files to the transmittal folder |
@@ -104,6 +105,18 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Show:** problems only, missing, wrong revision, files not on the list… Double-click a row to open its folder
 - **Report ▾:** Excel report (through Excel, or CSV if Excel isn't there), copy summary for email / Teams, other notes
 - **Fix names in Bulk Files** opens the folder in Bulk Files. Folder, list and columns are remembered
+
+## Folder Contents
+
+The folder comes first – "what's in here?"
+
+1. **Folder…** (include subfolders). The first time it asks **which list gives the Tower / Typology / Model**:
+   - the list you use in Submission Check, **another Excel / CSV list**, or **none** (just drawings and file types)
+   - Change it any time with **Reference list ▾**; the columns are guessed and can be changed (Sheet, Number, Description, Tower, Typology, Model)
+2. Each drawing is shown **once**: its revisions (`T1, T2`), **file types** (`dwg`, `pdf ×2`, `rvt`), description, Tower, Typology, Model, folder
+   - Top line: drawings, files, found in the list, **not in the list**, more than one revision, and a **count per file type** (click one to show only it)
+3. **Show:** every drawing · not in the reference list · more than one revision · **summary by tower / typology** · other files (not drawings). Filters: Tower, Typology, File type, search
+- **Export ▾:** CSV, copy summary for email / Teams, check this folder in Submission Check, open it in Bulk Files. Double-click a row to open its folder
 
 ## Home
 

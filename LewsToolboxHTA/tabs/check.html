@@ -88,37 +88,8 @@ function pickList() { LT.pickFile(function (p) { try { readList(p, true); cfg.li
 function readList(p, guess) {
   var L = LT.readList(p, guess ? "" : cfg.sheet);
   sheets = L.sheets; cfg.sheet = L.sheet; table = L.table; headRow = L.headRow; head = L.head;
-  var used = {}, find = function (words, saved) {
-    var got = "";
-    if (!guess && saved && head.indexOf(saved) >= 0) got = saved;
-    else if (headRow >= 0) {
-      for (var w = 0; w < words.length && !got; w++) for (var h = 0; h < head.length; h++) if (!used[head[h]] && head[h].toLowerCase() == words[w]) { got = head[h]; break; }
-      for (var w2 = 0; w2 < words.length && !got; w2++) for (var h2 = 0; h2 < head.length; h2++) if (!used[head[h2]] && head[h2].toLowerCase().indexOf(words[w2]) >= 0) { got = head[h2]; break; }
-    }
-    if (got) used[got] = 1;
-    return got;
-  };
-  cfg.colName = find(NAME_WORDS, cfg.colName) || (L.numCol >= 0 ? head[L.numCol] : head[0]) || "";
-  used[cfg.colName] = 1;
-  cfg.colTower = find(["tower", "building", "block", "bldg"], cfg.colTower);
-  cfg.colTypo = find(["typology", "unit type", "apartment type", "unit"], cfg.colTypo);
-  cfg.colModel = find(["model", "model no", "model number", "model ref"], cfg.colModel);
-  cfg.colRev = find(["revision", "rev", "rev.", "current revision", "issue rev"], cfg.colRev);
-  cfg.colFmt = find(["file types", "file type", "format", "formats", "type", "file format"], cfg.colFmt);
-  cfg.colFolder = find(["folder", "subfolder", "location", "path"], cfg.colFolder);
-  cfg.colTitle = find(["title", "description", "drawing title", "document title"], cfg.colTitle);
-  // no heading row: the description is the column next to the numbers
-  if (headRow < 0 && !cfg.colTitle) { var nc = head.indexOf(cfg.colName) + 1, n = 0; for (var r = 0; r < Math.min(table.length, 200); r++) if (LT.cell(table[r], nc)) n++; if (n) cfg.colTitle = head[nc]; }
-  // no heading row: Tower / Typology / Model found by what the cells look like (Tower 1, 1BRA, 21000)
-  if (headRow < 0 && (guess || !cfg.colTower && !cfg.colTypo && !cfg.colModel)) {
-    var taken = {}; taken[cfg.colName] = 1; taken[cfg.colTitle] = 1;
-    var best = function (re) { var top = "", topN = 0; for (var c = 0; c < head.length; c++) { if (taken[head[c]]) continue; var hit = 0, all = 0;
-        for (var r2 = 0; r2 < Math.min(table.length, 300); r2++) { var v = LT.cell(table[r2], c); if (!v) continue; all++; if (re.test(v)) hit++; }
-        if (all && hit / all >= 0.6 && hit > topN) { top = head[c]; topN = hit; } } if (top) taken[top] = 1; return top; };
-    cfg.colTower = best(/^(tower|twr|t|building|bldg|block|blk)\s*[-_.]?\s*\d+[a-z]?$|^podium$/i);
-    cfg.colTypo = best(/^(\d+\s*-?\s*b(ed)?r?(oom)?s?\s*[a-z]?\d*|studio\s*[a-z]?\d*|ph\s*[a-z]?\d*|penthouse.*|duplex.*|\d[a-z]{2,4}\d*)$/i);
-    cfg.colModel = best(/^(\d{3,6}|[a-z0-9]+([-_][a-z0-9]*){3,}-?)$/i);
-  }
+  var c = LT.listColumns(L, { name: cfg.colName, title: cfg.colTitle, rev: cfg.colRev, fmt: cfg.colFmt, folder: cfg.colFolder, tower: cfg.colTower, typo: cfg.colTypo, model: cfg.colModel }, guess);
+  cfg.colName = c.name; cfg.colTitle = c.title; cfg.colRev = c.rev; cfg.colFmt = c.fmt; cfg.colFolder = c.folder; cfg.colTower = c.tower; cfg.colTypo = c.typo; cfg.colModel = c.model;
   fillCols();
 }
 function fillCols() {
@@ -210,7 +181,7 @@ function runCheck() {
   for (var r = headRow + 1; r < table.length; r++) { var e = LT.cell(table[r], iN); if (!e) continue;
     // anything else on the row? (formula leftovers like 0, - or #N/A don't count)
     var rest = "", others = [iR, iF, iD, iT, iTw, iTy, iM];
-    for (var o = 0; o < others.length; o++) { var ov = LT.cell(table[r], others[o]); if (!/^(0|-+|#?n\/a|#ref!|#value!|#name\?)$/i.test(ov)) rest += ov; }
+    for (var o = 0; o < others.length; o++) { var ov = LT.cell(table[r], others[o]); if (!LT.isBlankish(ov)) rest += ov; }
     if (LT.isCategory(e, rest)) { cat = e; continue; }       // a title like "Residential" - the rows under it belong to it
     rows.push({ no: r + 1, cat: cat, entry: e, rev: LT.cell(table[r], iR), formats: LT.cell(table[r], iF), folder: LT.cell(table[r], iD), title: LT.cell(table[r], iT), tower: LT.cell(table[r], iTw), typo: LT.cell(table[r], iTy), model: LT.cell(table[r], iM), status: "", note: "", lv: 0, files: [], found: [] }); }
   if (!rows.length) { alert('No rows found under the heading "' + cfg.colName + '".'); return; }

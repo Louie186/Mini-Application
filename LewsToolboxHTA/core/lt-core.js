@@ -226,6 +226,46 @@ var LT = (function () {
     res.numCol = docCount(t.slice(res.headRow + 1)).col;
     return res;
   };
+  /* which column is which in a list read by readList. saved = earlier choices { name, title, rev, fmt, folder, tower, typo, model },
+     guess = true to work it out again. Headings decide when there are any; without a heading row the cells do
+     (number column, the text column next to it, Tower 1 / T1, 1BRA, 21000). */
+  L.listColumns = function (list, saved, guess) {
+    saved = saved || {};
+    var head = list.head, t = list.table, hr = list.headRow, used = {}, out = {};
+    var find = function (key, words) {
+      var got = "";
+      if (!guess && saved[key] && head.indexOf(saved[key]) >= 0) got = saved[key];
+      else if (hr >= 0) {
+        for (var w = 0; w < words.length && !got; w++) for (var h = 0; h < head.length; h++) if (!used[head[h]] && head[h].toLowerCase() == words[w]) { got = head[h]; break; }
+        for (var w2 = 0; w2 < words.length && !got; w2++) for (var h2 = 0; h2 < head.length; h2++) if (!used[head[h2]] && head[h2].toLowerCase().indexOf(words[w2]) >= 0) { got = head[h2]; break; }
+      }
+      if (got) used[got] = 1;
+      out[key] = got;
+    };
+    find("name", NAME_WORDS); if (!out.name) { out.name = list.numCol >= 0 ? head[list.numCol] : (head[0] || ""); used[out.name] = 1; }
+    find("tower", ["tower", "building", "block", "bldg"]);
+    find("typo", ["typology", "unit type", "apartment type", "unit"]);
+    find("model", ["model", "model no", "model number", "model ref"]);
+    find("rev", ["revision", "rev", "rev.", "current revision", "issue rev"]);
+    find("fmt", ["file types", "file type", "format", "formats", "type", "file format"]);
+    find("folder", ["folder", "subfolder", "location", "path"]);
+    find("title", ["title", "description", "drawing title", "document title"]);
+    if (hr < 0) {
+      if (!out.title) { var nc = head.indexOf(out.name) + 1, n = 0; for (var r = 0; r < Math.min(t.length, 200); r++) if (L.cell(t[r], nc)) n++; if (n) out.title = head[nc]; }
+      if (guess || (!out.tower && !out.typo && !out.model)) {
+        var taken = {}; taken[out.name] = 1; taken[out.title] = 1;
+        var best = function (re) { var top = "", topN = 0; for (var c = 0; c < head.length; c++) { if (taken[head[c]]) continue; var hit = 0, all = 0;
+            for (var r2 = 0; r2 < Math.min(t.length, 300); r2++) { var v = L.cell(t[r2], c); if (!v || /^(0|-+|#?n\/a)$/i.test(v)) continue; all++; if (re.test(v)) hit++; }
+            if (all && hit / all >= 0.6 && hit > topN) { top = head[c]; topN = hit; } } if (top) taken[top] = 1; return top; };
+        out.tower = best(/^(tower|twr|t|building|bldg|block|blk)\s*[-_.]?\s*\d+[a-z]?$|^podium$/i);
+        out.typo = best(/^(\d+\s*-?\s*b(ed)?r?(oom)?s?\s*[a-z]?\d*|studio\s*[a-z]?\d*|ph\s*[a-z]?\d*|penthouse.*|duplex.*|\d[a-z]{2,4}\d*)$/i);
+        out.model = best(/^(\d{3,6}|[a-z0-9]+([-_][a-z0-9]*){3,}-?)$/i);
+      }
+    }
+    return out;
+  };
+  /* a value that is only a formula leftover (0, -, #N/A...) */
+  L.isBlankish = function (v) { return !v || /^(0|-+|#?n\/a|#ref!|#value!|#name\?)$/i.test(L.trim(v)); };
   L.col = function (head, names) {
     for (var i = 0; i < head.length; i++) { var h = L.trim(head[i]).toLowerCase(); for (var j = 0; j < names.length; j++) if (h == names[j].toLowerCase()) return i; }
     return -1;

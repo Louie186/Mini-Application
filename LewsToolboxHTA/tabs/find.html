@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Find Drawings</title>
+<meta name="lt-order" content="6">
+<meta name="lt-icon" content="&#128270;">
+<meta name="lt-desc" content="Where is this drawing? Type or paste drawing numbers (or load a list) and see every file of them in one or more folders: revision, file type and the folder it is in.">
+<!--
+  Lew's Toolbox - Find Drawings. Reads one or more folders (and their subfolders) in small steps, so even a huge
+  project folder doesn't freeze the window, then finds each drawing typed / pasted / loaded:
+  revision ignored when matching but shown, the latest revision marked, a short number like 10270 also works.
+  Settings: find.json (folders, subfolders, last search).
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:top}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.right{float:right}
+#sum{flex:none;padding:8px 14px}
+.ty{display:inline-block;padding:1px 6px;font-size:.85em;font-weight:bold}
+td.no{font-weight:bold;white-space:nowrap}
+.loc{font-family:Consolas,monospace;font-size:.9em}
+.fchip{display:inline-block;padding:3px 10px 3px 4px;margin:0 6px 6px 0;font-weight:bold;white-space:nowrap;vertical-align:middle}
+.fchip .x{cursor:pointer;margin-right:6px;padding:0 6px;font-weight:bold}
+.fchip .t{display:inline-block;max-width:300px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
+#prog{display:none}
+#q{width:470px;height:78px;font-family:Consolas,monospace;font-size:.92em}
+#ovReg .card{width:440px}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><span id="roots"></span><button class="btn primary" id="bAdd">&#128194; Add folder...</button><button class="btn" id="bNew" title="Take all folders off and empty the drawings box">New search</button>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
+    <span class="lbl muted" id="idxLbl"></span><button class="btn small" id="bRead">&#8635; Read again</button>
+    <span id="prog"><span class="lbl big" id="progTxt"></span><button class="btn small" id="bStop">Stop</button></span>
+  </div>
+  <div class="step">
+    <span class="num">2</span><div style="display:inline-block;vertical-align:top">
+      <div class="lbl muted">Drawings to find &ndash; type or paste, one per line (revision not needed, a short number like 10270 works too):</div><br>
+      <textarea id="q"></textarea>
+    </div>
+    <div style="display:inline-block;vertical-align:top;margin-left:10px">
+      <button class="btn" id="bList">&#128196; Load a list (Excel / CSV)...</button><br>
+      <button class="btn" id="bReg">&#128216; From the Drawing Register...</button><br>
+      <button class="btn primary" id="bFind">&#128270; Find</button><button class="btn small" id="bClear">Clear</button>
+    </div>
+  </div>
+  <div class="step bar">
+    <span class="num">3</span><span class="lbl">Show:</span>
+    <select id="show" style="width:190px;height:26px;margin:0 8px 6px 0"><option value="all">Every file found</option><option value="miss">Not found only</option><option value="found">Found only</option></select>
+    <label class="lbl"><input type="checkbox" id="latest" style="height:auto"> latest revision only</label>
+    <span class="lbl">File type:</span><select id="fType" style="width:90px;height:26px;margin:0 8px 6px 0"></select>
+    <span class="right"><button class="btn" id="bFolders">Copy the folders</button><button class="btn" id="bExport">Export &#9662;</button></span>
+  </div>
+  <div id="sum" class="muted">Add a folder, type the drawings, then Find.</div>
+  <div id="res"></div>
+</div>
+
+<div class="ov" id="ovReg"><div class="card">
+  <h3>Drawings from the Drawing Register</h3>
+  <div class="muted" id="regName" style="margin-bottom:8px"></div>
+  <div class="fld"><label>Tower</label><select id="rTower"></select></div>
+  <div class="fld"><label>Typology</label><select id="rTypo"></select></div>
+  <div class="fld"><label>Section</label><select id="rCat"></select></div>
+  <div class="muted" id="rN"></div>
+  <div class="acts"><span class="sp"></span><button class="btn" id="rCancel">Cancel</button><button class="btn primary" id="rOk">Add them</button></div>
+</div></div>
+
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg;
+var IDX = null, scanning = null, stopNow = false, last = null, shown = [];
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i, REVP = /^([A-Z]*)(\d+)$/i;
+function FILE() { return LT.dataPath("find.json"); }
+function load() { cfg = LT.readJson(FILE(), null) || {}; cfg.roots = cfg.roots || []; if (cfg.subs === undefined) cfg.subs = true; $("q").value = cfg.q || ""; $("subs").checked = cfg.subs; }
+function save() { cfg.q = $("q").value; try { LT.saveJson(FILE(), cfg); } catch (e) { } }
+function up(s) { return LT.trim(s).toUpperCase(); }
+function fmt(n) { return ("" + n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
+/* ---------- names ---------- */
+function splitRev(stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; }
+function drawNo(stem) {
+  var nd = LT.trim(stem).replace(/^\d{6,8}[_-](?=\w)/, ""); if (LT.isDocNo(nd)) return nd;
+  var parts = LT.trim(stem).split(/\s+/);
+  for (var i = 0; i < parts.length; i++) { var p = parts[i].replace(/^[\[(]+|[\])]+$/g, "").replace(/^\d{6,8}[_-](?=\w)/, ""); if (LT.isDocNo(p)) return p; }
+  var m = /[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+){3,}/.exec(stem); return m && LT.isDocNo(m[0]) ? m[0].replace(/^\d{6,8}[_-](?=\w)/, "") : "";
+}
+function revOrder() { var s = LT.readJson(LT.dataPath("superseded.json"), null); return ((s && s.order) || "T, P, C").toUpperCase().split(/[\s,>]+/); }
+function revKey(rev, order) { var m = REVP.exec(rev || ""); if (!m) return -1; var g = m[1] ? order.indexOf(m[1].toUpperCase()) : -1; return (g < 0 ? (m[1] ? 50 : 0) : g + 1) * 10000 + parseInt(m[2], 10); }
+
+/* ---------- step 1: folders ---------- */
+function rootName(r) { var n = fso.GetFileName(r); return n || r; }
+function showRoots() {
+  var h = ""; for (var i = 0; i < cfg.roots.length; i++) { var pp = cfg.roots[i].split("\\"), sh = pp.length > 3 ? "...\\" + pp.slice(-2).join("\\") : cfg.roots[i];
+    h += '<span class="fchip" title="' + esc(cfg.roots[i]) + '"><span class="x" data-rm="' + i + '" title="Take this folder off the search (nothing is deleted)">&#10005;</span><span class="t">' + esc(sh) + "</span></span>"; }
+  $("roots").innerHTML = h || '<span class="lbl muted">no folder yet</span>';
+  $("idxLbl").innerHTML = IDX ? fmt(IDX.nFiles) + " files read (" + fmt(IDX.nDraw) + " drawings) in " + fmt(IDX.nDirs) + " folders" + (IDX.stopped ? ' <span class="warn">- stopped part way</span>' : "") + (IDX.skipped ? ' <span class="warn">&middot; ' + IDX.skipped + " folder(s) couldn't be opened</span>" : "") : "";
+  $("bAdd").innerHTML = cfg.roots.length ? "+ Add another folder..." : "&#128194; Add folder...";
+}
+function addFolder(f) { if (!f) return; for (var i = 0; i < cfg.roots.length; i++) if (cfg.roots[i].toLowerCase() == f.toLowerCase()) return; cfg.roots.push(f); IDX = null; save(); showRoots(); }
+
+/* reads the folders a little at a time so the window keeps working; then calls done() */
+function readFolders(done) {
+  if (scanning) return; if (!cfg.roots.length) { alert("Add a folder first."); return; }
+  var idx = { files: [], dirs: [], byKey: {}, bySeq: {}, nFiles: 0, nDraw: 0, nDirs: 0, skipped: 0, stopped: false, types: {} };
+  var queue = []; for (var r = 0; r < cfg.roots.length; r++) queue.push({ path: cfg.roots[r], rel: "", root: cfg.roots.length > 1 ? rootName(cfg.roots[r]) : "" });
+  stopNow = false; scanning = true; $("prog").style.display = ""; var t0 = LT.now();
+  var step = function () {
+    var t = LT.now();
+    while (queue.length && LT.now() - t < 120) {
+      var q = queue.shift(), fo; try { fo = fso.GetFolder(q.path); } catch (e) { idx.skipped++; continue; }
+      var di = idx.dirs.length; idx.dirs.push({ full: q.path, show: q.root && q.rel ? q.root + "\\" + q.rel : q.root || q.rel, rootFull: q.top || q.path }); idx.nDirs++;
+      try { for (var e = new Enumerator(fo.Files); !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name, i = n.lastIndexOf(".");
+          idx.nFiles++; if (/^~\$|^thumbs\.db$|^desktop\.ini$/i.test(n)) continue;
+          var stem = i > 0 ? n.substring(0, i) : n, ext = i > 0 ? n.substring(i + 1).toLowerCase() : "", dn = drawNo(stem); if (!dn) continue;
+          var s = splitRev(dn), key = up(s.base), rec = { n: n, d: di, ext: ext, base: s.base, rev: s.rev, key: key };
+          idx.files.push(rec); idx.nDraw++; (idx.byKey[key] || (idx.byKey[key] = [])).push(rec); idx.types[ext] = 1;
+          var seg = key.split(/[-_ .]+/); for (var k = 0; k < seg.length; k++) if (/^\d{3,}$/.test(seg[k])) { var b = idx.bySeq[seg[k]] || (idx.bySeq[seg[k]] = {}); b[key] = 1; } } } catch (x) { }
+      if (cfg.subs) try { for (var d = new Enumerator(fo.SubFolders); !d.atEnd(); d.moveNext()) { var sf = d.item(); if (sf.Attributes & 6) continue; var nm = "" + sf.Name; queue.push({ path: "" + sf.Path, rel: q.rel ? q.rel + "\\" + nm : nm, root: q.root, top: q.top || q.path }); } } catch (x2) { idx.skipped++; }
+    }
+    $("progTxt").innerHTML = "Reading... " + fmt(idx.nFiles) + " files, " + fmt(idx.nDirs) + " folders";
+    idx.steps = (idx.steps || 0) + 1;
+    if (queue.length && !stopNow) { window.setTimeout(step, 1); return; }
+    idx.stopped = !!queue.length; idx.secs = Math.round((LT.now() - t0) / 100) / 10;
+    IDX = idx; scanning = null; $("prog").style.display = "none"; showRoots(); fillTypes();
+    if (done) done();
+  };
+  step();
+}
+
+/* ---------- step 2: what to find ---------- */
+function entries() {
+  var ls = $("q").value.split(/\r?\n/), out = [], seen = {};
+  for (var i = 0; i < ls.length; i++) { var l = LT.trim(ls[i].split("\t")[0]); if (!l) continue;
+    var dn = drawNo(l.replace(/\.[A-Za-z0-9]{2,4}$/, "")), q;
+    if (dn) { var s = splitRev(dn); q = { text: l, key: up(s.base), base: s.base, short: false }; }
+    else { var m = /\d{3,}/.exec(l); if (!m) continue; q = { text: l, key: m[0], base: m[0], short: true }; }
+    if (seen[q.key]) continue; seen[q.key] = 1; out.push(q); }
+  return out;
+}
+function loadList() {
+  LT.pickFile(function (p) {
+    try { var L = LT.readList(p, ""), c = LT.listColumns(L, {}, true), iN = L.head.indexOf(c.name), a = [];
+      for (var r = L.headRow + 1; r < L.table.length; r++) { var e = LT.cell(L.table[r], iN); if (e && !LT.isCategory(e, "") && /\d{3,}/.test(e)) a.push(e); }
+      if (!a.length) { alert("No drawing numbers found in that list."); return; }
+      var cur = LT.trim($("q").value); $("q").value = (cur ? cur + "\r\n" : "") + a.join("\r\n"); save(); LT.toast(a.length + " drawings added");
+    } catch (e) { alert("Couldn't read that list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); }
+  });
+}
+var REGL = null;
+function regShow() {
+  var R = null; try { R = LT.register(); } catch (e) { } if (!R) { alert("There's no Drawing Register yet - make one in the Drawing Register tab."); return; }
+  REGL = R.list(); $("regName").innerHTML = esc(R.name) + " &middot; " + REGL.length + " drawings";
+  var tw = {}, ty = {}, ct = {}, A = [], B = [], C = [];
+  for (var i = 0; i < REGL.length; i++) { var d = REGL[i]; if (!d.inMidp) continue; if (d.tower && d.tower != "-" && !tw[d.tower]) { tw[d.tower] = 1; A.push(d.tower); } if (d.typo && d.typo != "-" && !ty[d.typo]) { ty[d.typo] = 1; B.push(d.typo); } if (d.cat && !ct[d.cat]) { ct[d.cat] = 1; C.push(d.cat); } }
+  A.sort(); B.sort();
+  var o = function (l) { var h = '<option value="">All</option>'; for (var k = 0; k < l.length; k++) h += "<option>" + esc(l[k]) + "</option>"; return h; };
+  $("rTower").innerHTML = o(A); $("rTypo").innerHTML = o(B); $("rCat").innerHTML = o(C); regCount(); $("ovReg").style.display = "block";
+}
+function regPick() { var t = $("rTower").value, y = $("rTypo").value, c = $("rCat").value, a = []; for (var i = 0; i < REGL.length; i++) { var d = REGL[i]; if (!d.inMidp || (t && d.tower != t) || (y && d.typo != y) || (c && d.cat != c)) continue; a.push(d.number); } return a; }
+function regCount() { $("rN").innerHTML = regPick().length + " drawings"; }
+
+/* ---------- step 3: find ---------- */
+function find() {
+  var q = entries(); if (!q.length) { alert("Type or paste the drawing numbers to find."); return; }
+  save();
+  if (!IDX) { readFolders(find); return; }
+  var order = revOrder(), groups = [];
+  for (var i = 0; i < q.length; i++) { var e = q[i], keys = [];
+    if (!e.short) { if (IDX.byKey[e.key]) keys.push(e.key); }
+    else { var b = IDX.bySeq[e.key]; if (b) for (var k in b) if (b.hasOwnProperty(k)) keys.push(k); keys.sort(); }
+    var files = []; for (var j = 0; j < keys.length; j++) files = files.concat(IDX.byKey[keys[j]]);
+    var best = -2; for (var f = 0; f < files.length; f++) { var rk = revKey(files[f].rev, order); if (rk > best) best = rk; }
+    var fs = []; for (var g = 0; g < files.length; g++) { var x = files[g]; fs.push({ rec: x, latest: revKey(x.rev, order) == best && best >= 0, loc: loc(x), full: IDX.dirs[x.d].full + "\\" + x.n }); }
+    fs.sort(function (a, b) { return a.rec.key < b.rec.key ? -1 : a.rec.key > b.rec.key ? 1 : revKey(a.rec.rev, order) - revKey(b.rec.rev, order) || (a.loc < b.loc ? -1 : a.loc > b.loc ? 1 : 0) || (a.rec.ext < b.rec.ext ? -1 : 1); });
+    var info = null; try { var R = LT.register(); if (R) info = R.find(keys[0] || e.base); } catch (x2) { }
+    groups.push({ q: e, keys: keys, files: fs, info: info }); }
+  last = { groups: groups, when: LT.now() };
+  render();
+}
+function loc(x) { var d = IDX.dirs[x.d]; return d.show || "(top of " + rootName(d.full) + ")"; }
+function fillTypes() { var a = []; for (var k in IDX.types) if (IDX.types.hasOwnProperty(k)) a.push(k); a.sort(); var keep = $("fType").value, h = '<option value="">All</option>'; for (var i = 0; i < a.length; i++) h += "<option" + (a[i] == keep ? " selected" : "") + ">" + esc(a[i]) + "</option>"; $("fType").innerHTML = h; }
+function render() {
+  if (!last) return;
+  var mode = $("show").value, lat = $("latest").checked, ft = $("fType").value, h = ['<table class="grid"><tr><th>Drawing</th><th>Rev</th><th>Type</th><th>Location (folder)</th><th>File name</th><th>Tower / Typology</th></tr>'];
+  var nFound = 0, nFiles = 0, dirs = {}, nDirs = 0, nMiss = 0; shown = [];
+  for (var i = 0; i < last.groups.length; i++) { var g = last.groups[i], fs = [];
+    for (var j = 0; j < g.files.length; j++) { var f = g.files[j]; if (lat && !f.latest) continue; if (ft && f.rec.ext != ft) continue; fs.push(f); }
+    if (g.files.length) nFound++; else nMiss++;
+    if ((mode == "miss" && g.files.length) || (mode == "found" && !g.files.length)) continue;
+    var tt = g.info && g.info.typo && g.info.typo != "-" ? esc(g.info.tower + " / " + g.info.typo) : "";
+    var head = esc(g.q.short || g.q.text.toUpperCase() != g.q.base.toUpperCase() ? g.q.text : g.q.base) + (g.q.short && g.keys.length ? ' <span class="muted" style="font-weight:normal">&rarr; ' + esc(g.keys.length == 1 ? IDX.byKey[g.keys[0]][0].base : g.keys.length + " drawings") + "</span>" : "");
+    if (!g.files.length) { h.push('<tr class="grp"><td class="no">' + head + '</td><td></td><td></td><td class="bad"><b>&#10006; Not found in ' + (cfg.roots.length > 1 ? "these folders" : "this folder") + "</b></td><td></td><td>" + tt + "</td></tr>"); continue; }
+    if (!fs.length) { h.push('<tr class="grp"><td class="no">' + head + '</td><td></td><td></td><td class="muted">(' + g.files.length + " file(s), hidden by the filters)</td><td></td><td>" + tt + "</td></tr>"); continue; }
+    for (var k = 0; k < fs.length; k++) { var x = fs[k]; shown.push(x); nFiles++; if (!dirs[x.loc]) { dirs[x.loc] = 1; nDirs++; }
+      var sub = g.q.short && g.keys.length > 1 && (k == 0 || fs[k - 1].rec.key != x.rec.key) ? '<div class="muted small">' + esc(x.rec.base) + "</div>" : "";
+      h.push("<tr" + (k == 0 ? ' class="grp"' : "") + ' data-s="' + (shown.length - 1) + '"><td class="no">' + (k == 0 ? head : "") + sub + "</td><td>" + (x.latest ? "<b>" + esc(x.rec.rev || "-") + '</b> <span class="ok small">latest</span>' : esc(x.rec.rev || "-")) + '</td><td><span class="ty">' + esc(x.rec.ext) + '</span></td><td class="loc">' + esc(x.loc) + '</td><td class="muted">' + esc(x.rec.n) + "</td><td>" + (k == 0 ? tt : "") + "</td></tr>"); } }
+  h.push("</table>");
+  $("sum").className = "big";
+  $("sum").innerHTML = last.groups.length + " drawing(s) searched &middot; " + nFound + " found &middot; " + nFiles + " file(s) in " + nDirs + " folder(s)" + (nMiss ? ' &middot; <span class="bad">' + nMiss + " not found</span>" : ' &middot; <span class="ok">all found</span>') + (IDX && IDX.stopped ? ' &middot; <span class="warn">folders only partly read (stopped)</span>' : "");
+  $("res").innerHTML = h.join("") + '<div class="muted" style="padding:10px 14px">Double-click a line to open its folder. Right-click: open the file, copy the location.</div>';
+}
+function exportRows() {
+  var t = [["Searched", "Drawing", "Revision", "Latest", "Type", "Location", "Full folder", "File name", "Tower", "Typology", "Model"]];
+  for (var i = 0; i < last.groups.length; i++) { var g = last.groups[i], inf = g.info || {};
+    if (!g.files.length) t.push([g.q.text, "", "", "", "", "NOT FOUND", "", "", inf.tower || "", inf.typo || "", inf.model || ""]);
+    for (var j = 0; j < g.files.length; j++) { var f = g.files[j]; t.push([g.q.text, f.rec.base, f.rec.rev, f.latest ? "yes" : "", f.rec.ext, f.loc, IDX.dirs[f.rec.d].full, f.rec.n, inf.tower || "", inf.typo || "", inf.model || ""]); } }
+  return t;
+}
+function folderText() { var seen = {}, a = []; for (var i = 0; i < shown.length; i++) { var d = IDX.dirs[shown[i].rec.d].full; if (!seen[d]) { seen[d] = 1; a.push(d); } } return a; }
+
+/* ---------- events ---------- */
+$("roots").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-rm"); if (!b) return; cfg.roots.splice(+b.getAttribute("data-rm"), 1); IDX = null; save(); showRoots(); };
+$("bAdd").onclick = function () { addFolder(LT.pickFolder("Pick a folder to search (its subfolders are included)")); };
+$("subs").onclick = function () { cfg.subs = this.checked; IDX = null; save(); showRoots(); };
+$("bRead").onclick = function () { IDX = null; readFolders(last ? find : null); };
+$("bStop").onclick = function () { stopNow = true; };
+$("bFind").onclick = find;
+$("bNew").onclick = function () { if (cfg.roots.length && !confirm("Start a new search?\n\nTakes all folders off the search and empties the drawings box.\n(Nothing is deleted from your drive.)")) return; cfg.roots = []; IDX = null; showRoots(); $("bClear").onclick(); };
+$("bClear").onclick = function () { $("q").value = ""; last = null; $("res").innerHTML = ""; $("sum").className = "muted"; $("sum").innerHTML = "Type the drawings, then Find."; save(); };
+$("q").onkeydown = function (e) { e = e || window.event; if (e.ctrlKey && e.keyCode == 13) { find(); return false; } };
+$("bList").onclick = loadList;
+$("bReg").onclick = regShow;
+$("rTower").onchange = regCount; $("rTypo").onchange = regCount; $("rCat").onchange = regCount;
+$("rCancel").onclick = function () { $("ovReg").style.display = "none"; };
+$("rOk").onclick = function () { var a = regPick(); $("ovReg").style.display = "none"; if (!a.length) return; var cur = LT.trim($("q").value); $("q").value = (cur ? cur + "\r\n" : "") + a.join("\r\n"); save(); LT.toast(a.length + " drawings added"); };
+$("show").onchange = render; $("latest").onclick = render; $("fType").onchange = render;
+$("bFolders").onclick = function () { if (!shown.length) { alert("Find something first."); return; } var a = folderText(); if (LT.copyText(a.join("\r\n"))) LT.toast(a.length + " folder(s) copied"); };
+$("bExport").onclick = function (e) { var r = this.getBoundingClientRect(); (e || window.event).cancelBubble = true;
+  LT.menu(r.left - 150, r.bottom + 2, [{ label: "Excel / CSV of everything found", fn: function () { if (!last) { alert("Find something first."); return; } var f = LT.exportsDir() + "\\FindDrawings_" + LT.stamp() + ".csv"; LT.writeCsv(f, exportRows()); LT.open(f); } },
+    { label: "&#128203; Copy the result (for email / Teams)", fn: function () { if (!last) return; var t = exportRows(), s = ""; for (var i = 1; i < t.length; i++) s += (t[i][5] == "NOT FOUND" ? t[i][0] + "  -  NOT FOUND" : t[i][7] + "   " + t[i][6]) + "\r\n"; if (LT.copyText(s)) LT.toast("Copied"); } }]); };
+$("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-s"); if (tr) try { LT.showInFolder(shown[+tr.getAttribute("data-s")].full); } catch (x) { } };
+$("res").oncontextmenu = function (e) {
+  e = e || window.event; var tr = LT.up(e.target || e.srcElement, "data-s"); if (!tr) return true; var x = shown[+tr.getAttribute("data-s")];
+  LT.menu(e.clientX, e.clientY, [{ label: "Open the file", fn: function () { try { LT.open(x.full); } catch (y) { } } }, { label: "Show in its folder", fn: function () { try { LT.showInFolder(x.full); } catch (y) { } } },
+    "-", { label: "Copy the location", fn: function () { LT.copyText(IDX.dirs[x.rec.d].full); LT.toast("Copied"); } }, { label: "Copy the full path", fn: function () { LT.copyText(x.full); LT.toast("Copied"); } }]);
+  if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
+};
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".ty{background:{chip};color:{text};border-radius:{r}px}", ".fchip{background:{chip};border-radius:{r}px}.fchip .x:hover{background:{bad};color:#fff;border-radius:{r}px}", "tr.grp td{border-top:2px solid {line}}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); IDX = null; showRoots(); };
+window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { addFolder(value); } };
+look(); load(); showRoots(); LT.tabKeys();
+</script>
+</body>
+</html>

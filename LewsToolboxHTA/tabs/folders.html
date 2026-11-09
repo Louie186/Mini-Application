@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Project Folders</title>
+<meta name="lt-order" content="10">
+<meta name="lt-icon" content="&#128194;">
+<meta name="lt-desc" content="Creates your standard project folder structure in one click, from a template you can edit.">
+<!--
+  Lew's Toolbox - Project folder setup: makes your standard folder tree for a new project in one click.
+  Templates (one folder per line) are saved in folder-templates.json. Only creates folders that are missing - never deletes.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#body{flex:1 1 auto;display:flex;min-height:0;padding:0 14px 10px}
+#left{flex:1 1 50%;display:flex;flex-direction:column;margin-right:12px}
+#right{flex:1 1 50%;overflow:auto}
+#tpl{flex:1 1 auto;width:100%;font-family:Consolas,'Lucida Console',monospace;font-size:.95em;resize:none}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+.tree div{padding:2px 0;white-space:nowrap}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><span class="lbl big">Template</span>
+    <select id="pick" style="width:240px;margin:0 8px 6px 0"></select>
+    <button class="btn small" id="bTpl">Template &#9662;</button>
+    <span class="lbl muted">One folder per line. Use \ for sub-folders, e.g. <b>01 WIP\Architecture</b>. <b>{PROJECT}</b> = the project name.</span>
+  </div>
+  <div class="step">
+    <span class="num">2</span><span class="lbl big">Where</span>
+    <button class="btn" id="bWhere">&#128194; Parent folder...</button><span class="path" id="whereLbl"></span>
+    <span class="lbl">Project folder name:</span><input type="text" id="proj" style="width:220px;margin:0 8px 6px 0" placeholder="e.g. 5013 Tower 1">
+  </div>
+  <div id="body">
+    <div id="left"><textarea id="tpl" spellcheck="false"></textarea></div>
+    <div id="right"><div class="big" style="margin-bottom:6px">Preview <span class="muted" id="pvCount"></span></div><div class="tree" id="preview"></div></div>
+  </div>
+  <div class="step bar" style="border-top-width:1px;border-top-style:solid">
+    <span class="num">3</span><button class="btn primary" id="bMake">&#10133; Create the folders</button>
+    <span class="lbl muted" id="sum">Only missing folders are made. Nothing is deleted or moved.</span>
+  </div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, store, parent = "";
+var DEFAULT = [
+  "01 WIP\\Architecture", "01 WIP\\Structure", "01 WIP\\MEP", "01 WIP\\Coordination\\Clash reports", "01 WIP\\Coordination\\Federated models",
+  "02 SHARED\\Models", "02 SHARED\\Drawings", "03 PUBLISHED\\Drawings\\PDF", "03 PUBLISHED\\Drawings\\DWG", "03 PUBLISHED\\Models", "03 PUBLISHED\\Printed sheets",
+  "04 ARCHIVE\\Superseded", "05 INCOMING\\From client", "05 INCOMING\\From consultants", "06 OUTGOING\\Transmittals",
+  "07 ADMIN\\Meetings", "07 ADMIN\\Correspondence", "07 ADMIN\\Programme", "08 STANDARDS\\BEP", "08 STANDARDS\\Templates", "08 STANDARDS\\Families"].join("\r\n");
+function FILE() { return LT.dataPath("folder-templates.json"); }
+function load() { store = LT.readJson(FILE(), null) || {}; if (!store.templates || !store.templates.length) store.templates = [{ name: "ISO 19650 style (starter)", text: DEFAULT }]; store.last = store.last || 0; parent = store.parent || ""; }
+function save() { try { LT.saveJson(FILE(), store); } catch (e) { alert("Couldn't save the templates."); } }
+function cur() { return store.templates[Math.min(store.last, store.templates.length - 1)]; }
+function fillPick() { var h = ""; for (var i = 0; i < store.templates.length; i++) h += '<option value="' + i + '"' + (i == store.last ? " selected" : "") + ">" + esc(store.templates[i].name) + "</option>"; $("pick").innerHTML = h; $("tpl").value = cur().text; }
+
+/* the folder list from the text: tidy, {PROJECT} filled in, parents added */
+function folders() {
+  var p = LT.safeName(LT.trim($("proj").value)) || "Project", lines = $("tpl").value.split(/\r?\n/), out = [], seen = {};
+  for (var i = 0; i < lines.length; i++) {
+    var l = LT.trim(lines[i]).replace(/\//g, "\\").replace(/^\\+|\\+$/g, "").replace(/\\{2,}/g, "\\"); if (!l || l.charAt(0) == "#") continue;
+    l = l.replace(/\{PROJECT\}/gi, p);
+    var parts = l.split("\\"), acc = "";
+    for (var k = 0; k < parts.length; k++) { var nm = LT.safeName(parts[k]); if (!nm) continue; acc = acc ? acc + "\\" + nm : nm; if (!seen[acc.toLowerCase()]) { seen[acc.toLowerCase()] = 1; out.push(acc); } }
+  }
+  return out;
+}
+function root() { return parent ? parent + "\\" + (LT.safeName(LT.trim($("proj").value)) || "Project") : ""; }
+function preview() {
+  var f = folders(), r = root(), h = "", nNew = 0, nHave = 0;
+  $("whereLbl").innerHTML = parent ? esc(parent) : '<span class="muted">not picked</span>';
+  if (r) { var ex = fso.FolderExists(r); h += '<div class="' + (ex ? "muted" : "ok") + '"><b>' + esc(r) + "</b>" + (ex ? " (already there)" : " (new)") + "</div>"; if (ex) nHave++; else nNew++; }
+  for (var i = 0; i < f.length; i++) {
+    var depth = f[i].split("\\").length - 1, name = f[i].substring(f[i].lastIndexOf("\\") + 1), have = r && fso.FolderExists(r + "\\" + f[i]);
+    if (r) { if (have) nHave++; else nNew++; }
+    h += '<div style="padding-left:' + (16 + depth * 18) + 'px" class="' + (have ? "muted" : "") + '">&#128193; ' + esc(name) + (have ? " &#10003;" : "") + "</div>";
+  }
+  $("preview").innerHTML = h || '<div class="muted">Type folders on the left, one per line.</div>';
+  $("pvCount").innerHTML = r ? "&middot; " + nNew + " to make" + (nHave ? ", " + nHave + " already there" : "") : "&middot; " + f.length + " folders";
+  $("bMake").disabled = !r || !nNew;
+}
+function make() {
+  var r = root(); if (!r) { alert("Pick the parent folder and type the project folder name."); return; }
+  var f = folders(), todo = [r]; for (var i = 0; i < f.length; i++) todo.push(r + "\\" + f[i]);
+  var made = 0, errs = [];
+  for (var k = 0; k < todo.length; k++) { if (fso.FolderExists(todo[k])) continue; try { LT.mkdirs(todo[k]); made++; } catch (e) { errs.push(todo[k] + ": " + (e.message || e)); } }
+  cur().text = $("tpl").value; store.parent = parent; save();
+  preview();
+  alert("Made " + made + " folder(s)." + (errs.length ? "\n\nCouldn't make (" + errs.length + "):\n" + errs.slice(0, 10).join("\n") : ""));
+  if (made) { try { LT.open(r); } catch (e) { } }
+}
+function tplMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Save changes to this template", fn: function () { cur().text = $("tpl").value; save(); LT.toast("Template saved"); } },
+    { label: "Save as a new template...", fn: function () { var n = prompt("Name for the new template:", cur().name + " (copy)"); if (!n) return; store.templates.push({ name: LT.trim(n), text: $("tpl").value }); store.last = store.templates.length - 1; save(); fillPick(); preview(); } },
+    { label: "Rename...", fn: function () { var n = prompt("New name:", cur().name); if (n) { cur().name = LT.trim(n); save(); fillPick(); } } },
+    { label: "Copy the folders of an existing project...", fn: copyFrom },
+    "-",
+    { label: "Delete this template", fn: function () { if (store.templates.length < 2) { alert("Keep at least one template."); return; } if (!confirm('Delete the template "' + cur().name + '"?')) return; store.templates.splice(store.last, 1); store.last = 0; save(); fillPick(); preview(); } }]);
+}
+/* reads the folder tree (folders only, no files) of a project you already have */
+function copyFrom() {
+  var src = LT.pickFolder("Pick an existing project folder to copy its folder structure"); if (!src) return;
+  var out = [], walk = function (dir, rel, depth) { if (depth > 6 || out.length > 400) return; var e = new Enumerator(fso.GetFolder(dir).SubFolders);
+    for (; !e.atEnd(); e.moveNext()) { var sf = e.item(); if (sf.Attributes & 6) continue; var r = rel ? rel + "\\" + sf.Name : "" + sf.Name; out.push(r); walk("" + sf.Path, r, depth + 1); } };
+  try { walk(src, "", 0); } catch (e) { alert("Couldn't read that folder."); return; }
+  if (!out.length) { alert("That folder has no sub-folders."); return; }
+  $("tpl").value = out.join("\r\n"); preview();
+  LT.toast(out.length + " folders copied - Template > Save as a new template to keep them");
+}
+$("pick").onchange = function () { store.last = +this.value; save(); fillPick(); preview(); };
+$("bTpl").onclick = function (e) { var r = this.getBoundingClientRect(); tplMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("bWhere").onclick = function () { var f = LT.pickFolder("Pick where the project folder should go"); if (f) { parent = f; store.parent = f; save(); preview(); } };
+$("proj").onkeyup = preview; $("tpl").onkeyup = preview;
+$("bMake").onclick = make;
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#right{background:{panel};border:{bw}px solid {line};border-radius:{r}px;padding:10px}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); fillPick(); preview(); };
+look(); load(); fillPick(); preview(); LT.tabKeys();
+</script>
+</body>
+</html>

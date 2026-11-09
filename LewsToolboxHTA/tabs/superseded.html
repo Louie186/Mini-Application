@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Superseded</title>
+<meta name="lt-order" content="9">
+<meta name="lt-icon" content="&#128452;">
+<meta name="lt-desc" content="Tidies your printed sheets: keeps the latest revision of each drawing and moves the older ones into a Superseded folder.">
+<!--
+  Lew's Toolbox - Superseded tidy-up (printed sheets): keeps the latest revision of each drawing and moves the
+  older revisions into a "Superseded" folder. Preview first, never overwrites, never deletes, Undo last run.
+  Revision order: by letter group (default T < P < C, changeable), then number. Data: superseded.json.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+tr.grp td{font-weight:bold}
+td.cb{width:30px;text-align:center}
+.right{float:right}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Printed sheets folder...</button><span class="path big" id="folderLbl"></span>
+    <label class="lbl"><input type="checkbox" id="subs" style="height:auto"> include subfolders</label>
+    <span class="lbl">File types:</span><input type="text" id="types" style="width:110px;margin:0 8px 6px 0" value="pdf">
+    <button class="btn small" id="bOpt">Options &#9662;</button>
+  </div>
+  <div class="step">
+    <span class="num">2</span><button class="btn" id="bLook">&#128269; Find old revisions</button>
+    <span class="lbl big" id="sum"></span>
+  </div>
+  <div id="res"></div>
+  <div class="step bar" style="border-top-width:1px;border-top-style:solid">
+    <span class="num">3</span><span class="lbl">Move the ticked old revisions to:</span>
+    <select id="where" style="width:250px;margin:0 8px 6px 0"><option value="next">a "Superseded" folder next to them</option><option value="central">one central folder...</option></select>
+    <span class="path muted" id="centralLbl"></span>
+    <button class="btn primary" id="bRun">&#9654; Preview and move...</button>
+    <span class="right"><button class="btn small" id="bUndo">&#8630; Undo last move</button></span>
+  </div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg, groups = [], busy = false;
+var REV = /^([A-Z]{1,2})?(\d{1,3})$/i;
+function FILE() { return LT.dataPath("superseded.json"); }
+function load() { cfg = LT.readJson(FILE(), null) || {}; cfg.folder = cfg.folder || ""; cfg.order = cfg.order || "T, P, C"; cfg.central = cfg.central || ""; cfg.subName = cfg.subName || "Superseded"; cfg.runs = cfg.runs || []; if (cfg.types) $("types").value = cfg.types; $("subs").checked = !!cfg.subs; $("where").value = cfg.where || "next"; }
+function save() { try { LT.saveJson(FILE(), cfg); } catch (e) { } }
+function splitRev(stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return null; }
+/* larger = newer: letter group by the order in Options, then the number */
+function revKey(rev) { var m = REV.exec(rev), order = cfg.order.toUpperCase().split(/[\s,>]+/), g = m[1] ? order.indexOf(m[1].toUpperCase()) : -1; return (g < 0 ? (m[1] ? 50 : 0) : g + 1) * 10000 + parseInt(m[2], 10); }
+function paths() {
+  $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
+  $("centralLbl").innerHTML = $("where").value == "central" ? (cfg.central ? esc(cfg.central) : "not picked") : "";
+  $("bUndo").disabled = !lastRun();
+}
+function scan(dir, deep, types, out) {
+  try { var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
+    for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name, i = n.lastIndexOf("."), ext = i > 0 ? n.substring(i + 1).toLowerCase() : "";
+      if (f.Attributes & 6) continue; if (types.length && types.indexOf(ext) < 0) continue;
+      out.push({ full: "" + f.Path, dir: dir, name: n, stem: i > 0 ? n.substring(0, i) : n, ext: ext, date: new Date(f.DateLastModified) }); }
+    if (deep) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) { var sf = d.item(); if (sf.Attributes & 6 || ("" + sf.Name).toLowerCase() == cfg.subName.toLowerCase()) continue; scan("" + sf.Path, true, types, out); } }
+  } catch (x) { }
+}
+function find() {
+  if (!cfg.folder || !fso.FolderExists(cfg.folder)) { alert("Pick the printed sheets folder first."); return; }
+  cfg.types = $("types").value; cfg.subs = $("subs").checked; save();
+  var types = LT.trim(cfg.types.toLowerCase()).split(/[\s,;.]+/); if (!types[0]) types = [];
+  var files = []; scan(cfg.folder, cfg.subs, types, files);
+  var by = {}, keys = [], noRev = 0;
+  for (var i = 0; i < files.length; i++) { var s = splitRev(files[i].stem); if (!s) { noRev++; continue; } files[i].rev = s.rev; files[i].key = revKey(s.rev);
+    var k = (files[i].dir + "|" + s.base + "|" + files[i].ext).toLowerCase(); if (!by[k]) { by[k] = { base: s.base, ext: files[i].ext, files: [] }; keys.push(k); } by[k].files.push(files[i]); }
+  groups = [];
+  for (var j = 0; j < keys.length; j++) { var g = by[keys[j]]; if (g.files.length < 2) continue;
+    g.files.sort(function (a, b) { return b.key - a.key || b.date - a.date; });
+    for (var m = 0; m < g.files.length; m++) g.files[m].move = m > 0;
+    groups.push(g); }
+  groups.sort(function (a, b) { return a.base.toLowerCase() < b.base.toLowerCase() ? -1 : 1; });
+  var old = 0; for (var q = 0; q < groups.length; q++) old += groups[q].files.length - 1;
+  $("sum").innerHTML = files.length + " sheets checked &middot; " + (old ? '<span class="warn">' + old + " old revision(s) of " + groups.length + " drawing(s)</span>" : '<span class="ok">no old revisions &ndash; tidy already</span>') + (noRev ? ' &middot; <span class="muted">' + noRev + " without a revision in the name (left alone)</span>" : "");
+  render();
+}
+function render() {
+  if (!groups.length) { $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick the folder with your printed sheets, then <b>Find old revisions</b>.<br>For each drawing the latest revision stays; older ones are ticked to move. Untick any you want to keep.</div>'; $("bRun").disabled = true; return; }
+  var h = ['<table class="grid"><tr><th></th><th>Drawing</th><th>Revision</th><th>File</th><th>What happens</th></tr>'], n = 0;
+  for (var i = 0; i < groups.length; i++) { var g = groups[i];
+    for (var j = 0; j < g.files.length; j++) { var f = g.files[j]; if (f.move) n++;
+      h.push("<tr" + (j == 0 ? ' class="grp"' : "") + '><td class="cb">' + (j == 0 ? "" : '<input type="checkbox" data-g="' + i + '" data-f="' + j + '" style="height:auto"' + (f.move ? " checked" : "") + ">") + "</td><td>" + (j == 0 ? esc(g.base) : "") + "</td><td>" + esc(f.rev) + "</td><td>" + esc(f.name) +
+        '</td><td class="' + (j == 0 ? "ok" : f.move ? "warn" : "muted") + '">' + (j == 0 ? "&#10004; latest &ndash; stays" : f.move ? "&#10140; moves to " + esc(cfg.subName) : "stays (unticked)") + "</td></tr>"); } }
+  h.push("</table>");
+  $("res").innerHTML = h.join(""); $("bRun").disabled = !n;
+}
+function targetDir(f) { return $("where").value == "central" ? cfg.central : f.dir + "\\" + cfg.subName; }
+function run() {
+  if ($("where").value == "central" && !cfg.central) { alert("Pick the central folder (Options ▾ > Central folder)."); return; }
+  var todo = []; for (var i = 0; i < groups.length; i++) for (var j = 1; j < groups[i].files.length; j++) if (groups[i].files[j].move) todo.push(groups[i].files[j]);
+  if (!todo.length) return;
+  var sample = []; for (var s = 0; s < Math.min(8, todo.length); s++) sample.push("  " + todo[s].name);
+  if (!confirm("MOVE " + todo.length + " old revision(s) to " + ($("where").value == "central" ? cfg.central : 'a "' + cfg.subName + '" folder next to them') + ":\n\n" + sample.join("\n") + (todo.length > 8 ? "\n  … and " + (todo.length - 8) + " more" : "") + "\n\nThe latest revision of each drawing stays. Nothing is overwritten or deleted. You can Undo.\n\nGo ahead?")) return;
+  var run = { when: LT.today() + " " + new Date().toTimeString().substring(0, 5), ops: [] }, errs = [];
+  for (var k = 0; k < todo.length; k++) { var f = todo[k], d = targetDir(f), to = d + "\\" + f.name;
+    try { LT.mkdirs(d); if (fso.FileExists(to)) throw new Error("already in " + cfg.subName + " - left where it is"); fso.MoveFile(f.full, to); run.ops.push({ from: f.full, to: to }); } catch (e) { errs.push(f.name + ": " + (e.message || e)); } }
+  if (run.ops.length) { cfg.runs.push(run); while (cfg.runs.length > 20) cfg.runs.shift(); save();
+    try { var t = [["Time", "From", "To"]]; for (var o = 0; o < run.ops.length; o++) t.push([run.when, run.ops[o].from, run.ops[o].to]); LT.writeCsv(LT.exportsDir() + "\\Superseded_" + LT.stamp() + ".csv", t); } catch (e) { } }
+  alert("Moved: " + run.ops.length + (errs.length ? "\n\nNot moved (" + errs.length + "):\n" + errs.slice(0, 12).join("\n") : "") + "\n\nUse  Undo last move  to put them back.");
+  find(); paths();
+}
+function lastRun() { for (var i = cfg.runs.length - 1; i >= 0; i--) if (!cfg.runs[i].undone) return cfg.runs[i]; return null; }
+function undo() {
+  var r = lastRun(); if (!r) { alert("Nothing to undo."); return; }
+  if (!confirm("Put back the " + r.ops.length + " sheet(s) moved on " + r.when + "?")) return;
+  var done = 0, skip = [];
+  for (var i = r.ops.length - 1; i >= 0; i--) { var o = r.ops[i];
+    try { if (!fso.FileExists(o.to)) { skip.push(fso.GetFileName(o.to) + ": not there any more"); continue; } if (fso.FileExists(o.from)) { skip.push(fso.GetFileName(o.from) + ": a file with that name is back - kept"); continue; } fso.MoveFile(o.to, o.from); done++; } catch (e) { skip.push(fso.GetFileName(o.to) + ": " + (e.message || e)); } }
+  r.undone = true; save();
+  alert("Put back: " + done + (skip.length ? "\n\nLeft as they are (" + skip.length + "):\n" + skip.slice(0, 12).join("\n") : "")); find(); paths();
+}
+function optMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Revision order (now: " + esc(cfg.order) + ")...", fn: function () { var v = prompt("Revision letters from OLDEST to NEWEST, with commas.\nWithin the same letter, the higher number is newer.\ne.g.  T, P, C   or   A, B, C   or   P, C, AB", cfg.order); if (v) { cfg.order = LT.trim(v); save(); if (groups.length) find(); } } },
+    { label: 'Name of the folder next to them (now: "' + esc(cfg.subName) + '")...', fn: function () { var v = prompt("Folder name for old revisions:", cfg.subName); if (v && LT.safeName(v)) { cfg.subName = LT.safeName(v); save(); render(); } } },
+    { label: "Central folder" + (cfg.central ? " (now: " + esc(cfg.central) + ")" : "") + "...", fn: function () { var f = LT.pickFolder("Pick the central folder for old revisions"); if (f) { cfg.central = f; save(); $("where").value = "central"; paths(); render(); } } }]);
+}
+$("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder with your printed sheets"); if (f) { cfg.folder = f; save(); paths(); find(); } };
+$("bLook").onclick = find; $("bRun").onclick = run; $("bUndo").onclick = undo;
+$("bOpt").onclick = function (e) { var r = this.getBoundingClientRect(); optMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("where").onchange = function () { cfg.where = this.value; save(); if (this.value == "central" && !cfg.central) { var f = LT.pickFolder("Pick the central folder for old revisions"); if (f) { cfg.central = f; save(); } else { this.value = "next"; } } paths(); render(); };
+$("res").onclick = function (e) { var t = e.target || e.srcElement, g = t.getAttribute && t.getAttribute("data-g"); if (g != null) { groups[+g].files[+t.getAttribute("data-f")].move = t.checked; render(); } };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{background:{panel}}", "tr.grp td{border-top:{bw}px solid {line}}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); paths(); };
+look(); load(); paths(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

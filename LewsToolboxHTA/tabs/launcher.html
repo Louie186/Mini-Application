@@ -1,0 +1,1293 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Launcher</title>
+<meta name="lt-order" content="1">
+<meta name="lt-icon" content="&#128640;">
+<meta name="lt-desc" content="Open your apps, files, folders and websites in one click (your QuickLaunch). Copy a path, press Ctrl+V to add it.">
+<!-- MADE BY tools/build_launcher.py FROM src/QuickLaunch.template.hta - change that file, not this one. -->
+<!--
+  QuickLaunch - one-click launcher for apps, files, folders and websites.
+  Plug and play: put this file in any normal folder and double-click it.
+  Your list is saved next to it in "QuickLaunch-data".
+-->
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{-ms-user-select:none;user-select:none;cursor:default}
+input{-ms-user-select:text;user-select:text}
+#app{height:100%;display:flex;flex-direction:column}
+#top,#groups,#status,#warn{flex:none}
+#view{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;min-height:0;position:relative}
+
+/* header */
+#top{display:flex;align-items:center;flex-wrap:nowrap;padding:8px 12px}
+#logo{width:24px;height:24px;margin-right:8px;image-rendering:pixelated;-ms-interpolation-mode:nearest-neighbor}
+#brand{font-weight:bold;font-size:15px;margin-right:14px;white-space:nowrap}
+#cur{display:none;font-style:normal}
+#q{flex:1 1 160px;min-width:70px;max-width:420px;height:30px;padding:0 10px;font:inherit;outline:none;margin-right:8px}
+.sp{flex:1 1 0px}
+.btn{height:30px;padding:0 12px;margin-left:6px;font:inherit;font-weight:bold;cursor:pointer;white-space:nowrap;outline:none;overflow:visible}
+.btn.ic{padding:0 9px;min-width:32px}
+.seg{display:inline-block;white-space:nowrap;margin-left:6px}
+.seg .btn{margin-left:0}
+.seg .btn+.btn{margin-left:-1px}
+
+/* group chips */
+#groups{padding:8px 12px 2px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;-ms-overflow-style:none}
+.chip{display:inline-block;padding:4px 11px;margin:0 6px 6px 0;font-weight:bold;cursor:pointer;font-size:.92em}
+.chip .n{opacity:.6;font-weight:normal;margin-left:5px}
+
+#warn{display:none;padding:8px 12px;font-weight:bold;background:#b13e53;color:#fff}
+#warn .x{float:right;cursor:pointer;padding:0 4px;margin-left:10px}
+
+/* list view */
+.lhead,.row{display:flex;align-items:center;padding:0 12px}
+.lhead{height:28px;font-size:.78em;font-weight:bold;text-transform:uppercase;letter-spacing:.5px}
+.lhead div{cursor:pointer}
+.lhead .c-ic,.lhead .c-more{cursor:default}
+.row{cursor:pointer;position:relative}
+.c-ic{flex:none;width:34px}
+.c-name{flex:2 1 0px;min-width:0;padding-right:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:bold}
+.c-desc{flex:3 1 0px;min-width:0;padding-right:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-from{flex:none;width:150px;padding-right:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-date{flex:none;width:96px;padding-right:12px;white-space:nowrap}
+.c-grp{flex:none;width:110px;padding-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c-more{flex:none;width:30px;text-align:center}
+.gtag{display:inline-block;max-width:100%;padding:2px 8px;font-size:.85em;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.warnTxt{font-weight:normal;font-size:.8em;margin-left:8px;color:#e05545}
+.row.miss .ico{opacity:.4}
+.more{display:inline-block;width:24px;height:24px;line-height:22px;text-align:center;cursor:pointer;font-weight:bold;letter-spacing:-1px;visibility:hidden}
+.row:hover .more,.tile:hover .more{visibility:visible}
+@media (max-width:980px){ .c-grp{display:none} }
+@media (max-width:780px){ .c-desc{display:none} }
+@media (max-width:600px){ .c-from{display:none} }
+@media (max-width:430px){ .c-date{display:none} }
+
+/* icon view - tile width is recalculated on resize so tiles always fill the window */
+.grid{padding:12px 0 12px 12px}
+/* every tile is the same size: name gets exactly 2 lines, description exactly 1 */
+.tile{float:left;margin:0 6px 6px 0;padding:8px 4px 6px;text-align:center;cursor:pointer;position:relative;overflow:hidden}
+.tile .t-nm{font-weight:bold;line-height:1.25em;height:2.5em;overflow:hidden;word-wrap:break-word;margin-top:5px}
+.tile .t-ds{font-size:.8em;line-height:1.3em;height:1.3em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile .more{position:absolute;top:3px;right:3px}
+.tile.miss .ico{opacity:.4}
+.tile .mdot{position:absolute;top:8px;left:8px;width:9px;height:9px;border-radius:50%;background:#e05545}
+.clear{clear:both}
+/* grouped view: a heading per group */
+.sec{display:flex;align-items:center;margin:0 12px;padding:12px 0 5px;font-weight:bold;font-size:.8em;text-transform:uppercase;letter-spacing:.6px;cursor:pointer}
+.sec .arw{display:inline-block;width:14px}
+.sec .n{font-weight:normal;opacity:.65;margin-left:7px}
+.secbody .grid{padding-top:8px;padding-bottom:4px}
+
+/* icons: a coloured file-type badge, with the real icon on top when we have one */
+.ico{position:relative;display:inline-block;vertical-align:middle;overflow:hidden}
+.ico .bdg{display:block;width:100%;height:100%;text-align:center;color:#fff;font-weight:bold;font-family:'Segoe UI',Arial,sans-serif;letter-spacing:0}
+.ico img{position:absolute;left:0;top:0;width:100%;height:100%}
+
+/* empty + welcome */
+.empty{padding:40px 20px;text-align:center;line-height:1.6}
+.welcome{max-width:560px;margin:24px auto;padding:22px 24px;line-height:1.5}
+.welcome h2{font-size:1.35em;margin-bottom:4px}
+.welcome .step{margin-top:16px}
+.welcome .step b.num{display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;margin-right:8px}
+.welcome .btn{margin:8px 6px 0 0}
+
+/* status bar */
+#status{display:flex;padding:5px 12px;font-size:.8em;white-space:nowrap}
+#status .l{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}
+#status .r{flex:none;margin-left:12px}
+@media (max-width:640px){ #status .r{display:none} #brand{display:none} }
+@media (max-width:470px){ #top{flex-wrap:wrap} #q{order:9;flex:1 1 100%;max-width:none;margin:8px 0 0} }
+@media (max-width:900px){ .lbl{display:none} }
+
+/* dialogs */
+.ov{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:20;background:rgba(0,0,0,.45)}
+.card{width:440px;max-width:94%;margin:7vh auto 0;padding:18px 20px;max-height:86vh;overflow-y:auto}
+.card h3{font-size:1.15em;margin-bottom:12px}
+.fld{margin-bottom:10px}
+.fld label{display:block;font-size:.78em;font-weight:bold;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.fld input,.fld select{width:100%;height:32px;padding:0 9px;font:inherit;outline:none}
+.fld .inrow{display:flex}
+.fld .inrow input{flex:1 1 auto;width:auto;min-width:0}
+.fld .hint{font-size:.8em;margin-top:4px}
+.two{display:flex}
+.two .fld{flex:1 1 0px;min-width:0}
+.two .fld+.fld{margin-left:10px}
+.acts{display:flex;margin-top:14px}
+.acts .btn:first-child{margin-left:0}
+.themes .btn,.sizes .btn{margin:0 6px 6px 0}
+.sw{display:inline-block;width:10px;height:10px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.35)}
+
+/* menu + toast */
+#menu{display:none;position:fixed;z-index:30;min-width:200px;padding:4px}
+#menu .mi{padding:7px 12px;cursor:pointer;white-space:nowrap}
+#menu .mi.danger{color:#e05545}
+#menu .sep{height:1px;margin:4px 6px;opacity:.5}
+#toast{position:fixed;left:50%;bottom:34px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;
+  transform:translateX(-50%);-ms-transform:translateX(-50%);display:none;box-shadow:0 6px 20px rgba(0,0,0,.3)}
+/* clock + timer */
+#top .btn,#top .seg,#logo,#brand{flex:none}
+#clock{flex:none;height:30px;line-height:26px;padding:0 10px;margin-left:6px;cursor:pointer;white-space:nowrap}
+#clkT{font-size:1.1em}
+#clkD{margin-left:8px;font-size:.82em}
+#clock.done{animation:blink .8s steps(1) infinite}
+@media (max-width:820px){ #clkD{display:none} }
+#tpanel{display:none;position:fixed;z-index:30;width:290px;padding:12px}
+#tpanel .chip{margin-bottom:0}
+#tBig{font:bold 2.3em Consolas,'Lucida Console',monospace;text-align:center;margin:12px 0}
+#tpanel .btn{margin:0 6px 0 0}
+#tTM .inrow{display:flex;margin-top:8px}
+#tTM .inrow input{flex:1 1 auto;min-width:0;height:30px;padding:0 8px;font:inherit;outline:none;margin-right:6px}
+#tTM .inrow .btn:last-child{margin-right:0}
+#tmPre .chip{margin:0 5px 5px 0;padding:3px 9px}
+#swLaps{margin-top:8px;font:12px Consolas,monospace;max-height:110px;overflow-y:auto}
+#swLaps div{padding:2px 0}
+@keyframes blink{0%{opacity:1}50%{opacity:0}100%{opacity:1}}
+#logo,#brand{display:none}
+</style>
+<style id="themeCss"></style>
+<style id="fitCss"></style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <img id="logo" src="data:image/png;base64," alt="">
+    <span id="brand">QuickLaunch<i id="cur">_</i></span>
+    <input type="text" id="q" placeholder="Search... (or just start typing)">
+    <span class="sp"></span>
+    <span id="clock" title="Click for stopwatch and timer"><b id="clkT">--:--</b><span id="clkD"></span></span>
+    <button class="btn primary" id="bAdd" title="Add an app, file, folder or website (Ctrl+N)">+ Add</button>
+    <span class="seg"><button class="btn ic" id="bList" title="List view">&#9776;</button><button class="btn ic" id="bGrid" title="Icon view">&#9638;</button></span>
+    <button class="btn" id="bSecs" title="Show everything in one list, or in sections per group">Groups</button>
+    <button class="btn" id="bExport" title="Import / export: PDF, CSV, bulk edit in Excel">&#8645;<span class="lbl"> Import/Export</span> &#9662;</button>
+    <button class="btn ic" id="bSet" title="Look and settings">&#9881;</button>
+  </div>
+  <div id="warn"></div>
+  <div id="groups"></div>
+  <div id="view"></div>
+  <div id="status"><span class="l" id="stL"></span><span class="r">Click = open &middot; Right-click = more &middot; Ctrl+V = add a copied path</span></div>
+</div>
+
+<!-- Add / edit -->
+<div class="ov" id="dlgItem"><div class="card">
+  <h3 id="dTitle">Add item</h3>
+  <div class="fld"><label>Location - file, folder, program or web link</label>
+    <div class="inrow"><input type="text" id="fPath" placeholder="Paste a path or link, or use Browse">
+      <button class="btn" id="bBrowse">File...</button><button class="btn" id="bFolder">Folder...</button></div>
+    <div class="hint muted" id="fKind">Tip: in File Explorer, Shift + right-click a file &rarr; "Copy as path"</div>
+  </div>
+  <div class="fld"><label>Name</label><input type="text" id="fName" placeholder="Filled in for you"></div>
+  <div class="fld"><label>Description</label><input type="text" id="fDesc" placeholder="e.g. Stage 4 coordination model"></div>
+  <div class="two">
+    <div class="fld"><label>From (who or where)</label><input type="text" id="fFrom" list="fromList" placeholder="e.g. Sarah - Architect"></div>
+    <div class="fld"><label>Date</label><input type="text" id="fDate" placeholder="YYYY-MM-DD"></div>
+  </div>
+  <div class="fld"><label>Group</label><select id="fGroup"></select></div>
+  <div class="acts">
+    <button class="btn" id="bDel" style="color:#e05545">Delete</button>
+    <span class="sp"></span>
+    <button class="btn" id="bCancel">Cancel</button>
+    <button class="btn primary" id="bSave">Save</button>
+  </div>
+</div></div>
+<datalist id="fromList"></datalist>
+
+<!-- Settings -->
+<div class="ov" id="dlgSet"><div class="card">
+  <h3>Look and settings</h3>
+  <div class="fld"><label>Theme</label><div class="themes" id="themeBtns"></div></div>
+  <div class="fld"><label>Size</label><div class="sizes" id="sizeBtns"></div></div>
+  <div class="fld"><label>Buttons</label><div class="sizes" id="bstBtns"></div>
+    <div class="hint muted">Clean = no borders until you point at them. Auto = clean, but boxed on retro themes.</div></div>
+  <div class="fld"><label>Your data</label>
+    <button class="btn" id="bData" style="margin-left:0">Open data folder</button>
+    <button class="btn" id="bImpCsv">Import CSV / Excel...</button>
+    <button class="btn" id="bImpOld" style="display:none">Import old QuickLaunch</button>
+    <div class="hint muted" id="dataPath"></div>
+  </div>
+  <div class="fld" style="display:none"><label>Taskbar</label>
+    <button class="btn" id="bPin" style="margin-left:0">Make taskbar shortcut (fixes the icon)</button>
+    <div class="hint muted">Puts a QuickLaunch shortcut with the right icon on your Desktop, ready to pin.</div>
+  </div>
+  <div class="acts"><span class="sp"></span><button class="btn primary" id="bSetClose">Done</button></div>
+</div></div>
+
+<div id="menu"></div>
+<div id="tpanel">
+  <div><span class="chip" data-tt="sw">&#9201; Stopwatch</span><span class="chip" data-tt="tm">&#9203; Timer</span></div>
+  <div id="tBig">00:00.0</div>
+  <div id="tSW">
+    <button class="btn primary" id="swGo">Start</button><button class="btn" id="swLap">Lap</button><button class="btn" id="swReset">Reset</button>
+    <div id="swLaps"></div>
+  </div>
+  <div id="tTM">
+    <div id="tmPre"></div>
+    <div class="inrow"><input type="text" id="tmMin" placeholder="Minutes (e.g. 20 or 1:30)"><button class="btn primary" id="tmGo">Start</button><button class="btn" id="tmReset">Reset</button></div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script src="../core/lt-core.js"></script>
+<script>
+/* Lew's Toolbox: the list lives in the Toolbox data folder, or next to QuickLaunch.hta if picked in Settings */
+(function () { var s = LT.settings(); window.QL_DIR = s.launcherHome || LT.dataDir(); window.QL_SELF = LT.pathFromUrl(location.href); })();
+function ltSync() { var s = LT.settings(); if (store) { store.theme = s.theme; store.size = s.size; } }
+</script>
+<script>
+/* ================================================================
+   QuickLaunch  -  plain JavaScript (ES5) so it runs in Windows' built-in HTA engine
+   ================================================================ */
+var ICO_B64="";
+
+/* ---------- Windows helpers ---------- */
+var fso=new ActiveXObject("Scripting.FileSystemObject");
+var wsh=new ActiveXObject("WScript.Shell");
+function shApp(){ return new ActiveXObject("Shell.Application"); }
+
+function scriptDir(){
+  var h=location.href.replace(/[?#].*$/,"").replace(/^file:/i,"");
+  h=decodeURIComponent(h);
+  if(/^\/\/\//.test(h)) h=h.substring(3); else if(/^\/\//.test(h)) h="\\\\"+h.substring(2);
+  h=h.replace(/\//g,"\\");
+  return h.substring(0,h.lastIndexOf("\\"));
+}
+function scriptPath(){
+  var h=decodeURIComponent(location.href.replace(/[?#].*$/,"").replace(/^file:/i,""));
+  if(/^\/\/\//.test(h)) h=h.substring(3); else if(/^\/\//.test(h)) h="\\\\"+h.substring(2);
+  return h.replace(/\//g,"\\");
+}
+var DIR=window.QL_DIR||scriptDir(), SELF=window.QL_SELF||scriptPath();
+var DATA=DIR+"\\QuickLaunch-data", FILE=DATA+"\\library.json", BAK=DATA+"\\library.backup.json";
+var ICONS=DATA+"\\icons", EXPORTS=DATA+"\\exports", OLDFILE=DATA+"\\shortcuts.json";
+
+/* Files are written with the File System Object only - it works on every Windows PC.
+   (Some work PCs block "ADODB.Stream", which is why lists couldn't be saved in an earlier version.) */
+function writeText(p,t){ var f=fso.CreateTextFile(p,true,true); f.Write(t); f.Close(); }   // Unicode text
+function looksText(t){ var n=Math.min(t.length,400), ok=0; for(var i=0;i<n;i++){ var c=t.charCodeAt(i); if(c==9||c==10||c==13||(c>=32&&c<0x3000)) ok++; } return !n||ok>=n*0.9; }
+function readText(p){
+  var f=fso.OpenTextFile(p,1,false,-1), t=f.AtEndOfStream?"":f.ReadAll(); f.Close();      // try Unicode first
+  if(looksText(t)) return t.replace(/^\uFEFF/,"");
+  try{ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.LoadFromFile(p); var u=s.ReadText(); s.Close(); return u.replace(/^\uFEFF/,""); }catch(e){}
+  f=fso.OpenTextFile(p,1,false,0); t=f.AtEndOfStream?"":f.ReadAll(); f.Close();         // plain ANSI
+  return t.replace(/^\u00ef\u00bb\u00bf/,"");
+}
+/* CSV for Excel: UTF-8 if the PC allows it, otherwise plain ANSI */
+function writeCsv(p,t){
+  try{ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.WriteText(t); s.SaveToFile(p,2); s.Close(); return; }catch(e){}
+  var f=fso.CreateTextFile(p,true,false); f.Write(t.replace(/[^\u0000-\u00ff]/g,"?")); f.Close();
+}
+/* binary file from base64 (used for the app icon) - tries two ways */
+function writeB64(p,b64){
+  try{ var x=new ActiveXObject("MSXML2.DOMDocument"); var el=x.createElement("b"); el.dataType="bin.base64"; el.text=b64;
+    var s=new ActiveXObject("ADODB.Stream"); s.Type=1; s.Open(); s.Write(el.nodeTypedValue); s.SaveToFile(p,2); s.Close(); return; }catch(e){}
+  var ps=DATA+"\\make-icon.ps1";
+  writeText(ps,"[IO.File]::WriteAllBytes('"+p.replace(/'/g,"''")+"',[Convert]::FromBase64String('"+b64+"'))\r\n");
+  runPS(ps);
+}
+/* Run a PowerShell script hidden. Reads the script text and runs it, which works on PCs where
+   running .ps1 files is blocked by policy. */
+function runPS(path){
+  wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "iex ([IO.File]::ReadAllText(\''+path.replace(/'/g,"''")+'\'))"',0,false);
+}
+/* Windows only finds the window/taskbar icon if the HTA points to it with a FULL path,
+   so QuickLaunch writes that path into itself (once, or again if the folder moves). */
+function fixHtaIcon(){
+  try{
+    var ico=DIR+"\\QuickLaunch.ico"; if(!fso.FileExists(ico)||!fso.FileExists(SELF)||!/\.hta$/i.test(SELF)) return;
+    var f=fso.OpenTextFile(SELF,1,false,0), t=f.ReadAll(); f.Close();
+    var re=/(<hta:application[^>]*?\sicon=")([^"]*)(")/i, m=re.exec(t);
+    if(!m||m[2]==ico||t.indexOf("QuickLaunch")<0) return;
+    var nt=t.replace(re,"$1"+ico.replace(/\$/g,"$$$$")+"$3"), tmp=SELF+".new";
+    var w=fso.CreateTextFile(tmp,true,false); w.Write(nt); w.Close();
+    fso.CopyFile(tmp,SELF,true); fso.DeleteFile(tmp);
+  }catch(e){}
+}
+/* A proper Windows shortcut (with our icon) - this is what should be pinned to the taskbar.
+   Pinning the .hta itself makes Windows show the plain mshta icon. */
+function makeShortcut(where){
+  var ico=DIR+"\\QuickLaunch.ico", lnk=where+"\\QuickLaunch.lnk";
+  var sc=wsh.CreateShortcut(lnk);
+  sc.TargetPath=wsh.ExpandEnvironmentStrings("%WINDIR%")+"\\System32\\mshta.exe";
+  sc.Arguments='"'+SELF+'"'; sc.WorkingDirectory=DIR; sc.Description="QuickLaunch - one-click launcher";
+  if(fso.FileExists(ico)) sc.IconLocation=ico+",0";
+  sc.Save(); return lnk;
+}
+function shortcutForTaskbar(){
+  try{
+    var desk=wsh.SpecialFolders("Desktop"), lnk=makeShortcut(desk); makeShortcut(DIR);
+    wsh.Run('explorer.exe /select,"'+lnk+'"',1,false);
+    alert("A QuickLaunch shortcut with the right icon is now on your Desktop (it's selected).\n\n"
+      +"1. Unpin the old QuickLaunch from the taskbar (right-click it > Unpin).\n"
+      +"2. Right-click the new shortcut > Pin to taskbar\n    (Windows 11: right-click > Show more options > Pin to taskbar).\n"
+      +"3. Close QuickLaunch and open it from the new pin.");
+  }catch(e){ alert("Couldn't make the shortcut:\n"+(e.message||e)); }
+}
+/* JSON is built in; this is a safety net in case Windows runs the page in an old mode */
+var J=window.JSON||{parse:function(t){ return eval("("+t+")"); },stringify:function(o){
+  if(o===null||o===undefined) return "null"; var t=typeof o;
+  if(t=="number"||t=="boolean") return ""+o;
+  if(t=="string") return '"'+o.replace(/\\/g,"\\\\").replace(/"/g,'\\"').replace(/\r/g,"\\r").replace(/\n/g,"\\n").replace(/\t/g,"\\t")+'"';
+  var a=[]; if(o instanceof Array){ for(var i=0;i<o.length;i++) a.push(J.stringify(o[i])); return "["+a.join(",")+"]"; }
+  for(var k in o) if(o.hasOwnProperty(k)) a.push(J.stringify(k)+":"+J.stringify(o[k])); return "{"+a.join(",")+"}"; }};
+function mkdir(p){ if(!fso.FolderExists(p)) fso.CreateFolder(p); }
+function exists(p){ try{ return fso.FileExists(p)||fso.FolderExists(p); }catch(e){ return false; } }
+function fileUrl(p){
+  var u=p.replace(/\\/g,"/");
+  u=(/^\/\//.test(u))?("file:"+u):("file:///"+u);
+  return encodeURI(u).replace(/#/g,"%23");
+}
+
+/* ---------- small helpers ---------- */
+function $(id){ return document.getElementById(id); }
+function esc(s){ return (""+(s==null?"":s)).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function trim(s){ return (""+(s==null?"":s)).replace(/^\s+|\s+$/g,""); }
+function now(){ return (new Date()).getTime(); }
+function pad(n){ return n<10?"0"+n:""+n; }
+function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); }
+var MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmtDate(iso){ var m=/^(\d{4})-(\d\d)-(\d\d)$/.exec(iso||""); if(!m) return iso||""; return parseInt(m[3],10)+" "+MON[parseInt(m[2],10)-1]+" "+m[1]; }
+function fmtTime(ms){ if(!ms) return "never"; var d=new Date(ms); return d.getDate()+" "+MON[d.getMonth()]+" "+d.getFullYear()+" "+pad(d.getHours())+":"+pad(d.getMinutes()); }
+/* accepts 2026-11-06, 6/11/2026, 6.11.26, 6 Nov 2026 */
+function parseDate(s){
+  s=trim(s); if(!s) return "";
+  var m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(s); if(m) return m[1]+"-"+pad(+m[2])+"-"+pad(+m[3]);
+  s=s.replace(/\s+\d{1,2}:\d\d(:\d\d)?(\s*[AP]M)?$/i,""); // Excel may add a time
+  m=/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(s); if(m) return m[1]+"-"+pad(+m[2])+"-"+pad(+m[3]);
+  m=/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})$/.exec(s);
+  if(m){ var y=+m[3], a1=+m[1], a2=+m[2], dd, mm; if(y<100) y+=2000;
+    if(a1>12){ dd=a1; mm=a2; } else if(a2>12){ mm=a1; dd=a2; } else if(monthFirst()){ mm=a1; dd=a2; } else { dd=a1; mm=a2; }
+    return y+"-"+pad(mm)+"-"+pad(dd); }
+  m=/^(\d{1,2})\s+([a-z]{3})[a-z]*\.?\s+(\d{4})$/i.exec(s);
+  if(m){ for(var i=0;i<12;i++) if(MON[i].toLowerCase()==m[2].toLowerCase()) return m[3]+"-"+pad(i+1)+"-"+pad(+m[1]); }
+  return null;
+}
+var _mf=null;
+function monthFirst(){ if(_mf===null){ _mf=false; try{ _mf=/^\s*M/i.test(wsh.RegRead("HKCU\\Control Panel\\International\\sShortDate")); }catch(e){} } return _mf; }
+function cleanPath(t){
+  t=trim((""+(t||"")).split(/[\r\n]+/)[0]);
+  if(t.length>1&&t.charAt(0)=='"'&&t.charAt(t.length-1)=='"') t=trim(t.substring(1,t.length-1));
+  if(/^file:\/\//i.test(t)){ try{ t=decodeURIComponent(t); }catch(e){} t=t.replace(/^file:\/\/\//i,"").replace(/^file:\/\//i,"\\\\").replace(/\//g,"\\"); }
+  return t;
+}
+
+/* ---------- what kind of thing is it? ---------- */
+var KINDS=[
+  [/^(xls|xlsx|xlsm|xlsb|csv)$/,"XLS","#1f7a47","Excel file"],
+  [/^(doc|docx|rtf)$/,"DOC","#2b579a","Word file"],
+  [/^(ppt|pptx)$/,"PPT","#c43e1c","PowerPoint file"],
+  [/^pdf$/,"PDF","#c4302b","PDF"],
+  [/^(dwg|dxf|dwf|dwfx)$/,"DWG","#b8562a","CAD drawing"],
+  [/^(rvt|rfa|rte|rft)$/,"RVT","#1b5fa8","Revit file"],
+  [/^(nwd|nwf|nwc)$/,"NWD","#2e7d6b","Navisworks file"],
+  [/^ifc$/,"IFC","#6a4fb3","IFC model"],
+  [/^(png|jpg|jpeg|gif|bmp|tif|tiff|webp)$/,"IMG","#2a8f9b","Image"],
+  [/^(zip|7z|rar)$/,"ZIP","#7a6a3a","Archive"],
+  [/^(txt|md|log|ini|json|xml)$/,"TXT","#5b6577","Text file"],
+  [/^(msg|eml)$/,"MSG","#0f6cbd","Email"],
+  [/^(mp4|mov|avi|wmv)$/,"VID","#8a3ea8","Video"]
+];
+function extOf(p){ var m=/\.([a-z0-9\-]{1,10})$/i.exec(p||""); return m?m[1].toLowerCase():""; }
+function detect(p){
+  if(/^(https?:\/\/|www\.|mailto:)/i.test(p)) return "web";
+  if(/^[a-z][a-z0-9+.\-]{2,}:/i.test(p)) return "web"; // teams:, ms-excel:, etc.
+  if(exists(p)&&fso.FolderExists(p)) return "folder";
+  if(/\.(exe|lnk|bat|cmd|appref-ms|msc|url|vbs|ps1|hta)$/i.test(p)) return "app";
+  if(/[\\\/]$/.test(p)||!extOf(p)) return exists(p)?"file":"folder";
+  return "file";
+}
+function kindOf(it){
+  if(it.type=="web") return {t:"WEB",c:"#2f6fed",n:"Website"};
+  if(it.type=="folder") return {t:"DIR",c:"#c99a2e",n:"Folder"};
+  if(it.type=="app") return {t:"APP",c:"#4a5568",n:"Program"};
+  var e=extOf(it.path);
+  for(var i=0;i<KINDS.length;i++) if(KINDS[i][0].test(e)) return {t:KINDS[i][1],c:KINDS[i][2],n:KINDS[i][3]};
+  return {t:(e?e.substring(0,3).toUpperCase():"FILE"),c:"#5b6577",n:(e?e.toUpperCase()+" file":"File")};
+}
+var HOSTS=[[/sharepoint\.com/i,"SharePoint"],[/teams\.microsoft|^teams:/i,"Teams"],[/onedrive|1drv\.ms/i,"OneDrive"],
+  [/acc\.autodesk|autodesk360|bim360|b360/i,"Autodesk Docs"],[/drive\.google|docs\.google/i,"Google Drive"],[/dropbox/i,"Dropbox"]];
+function guessName(p,type){
+  if(type=="web"){
+    var m=/^(?:[a-z]+:\/\/)?([^\/?#]+)([^?#]*)/i.exec(p), host=m?m[1].replace(/^www\./i,""):p, segs=(m?m[2]:"").split("/"), last="";
+    for(var i=segs.length-1;i>=0;i--) if(segs[i]){ last=segs[i]; break; }
+    try{ last=decodeURIComponent(last); }catch(e){}
+    if(/\.[a-z0-9]{2,5}$/i.test(last)) return last.replace(/\.[^.]+$/,"");
+    for(var k=0;k<HOSTS.length;k++) if(HOSTS[k][0].test(p)) return HOSTS[k][1];
+    return host;
+  }
+  var n=p.replace(/[\\\/]+$/,"").replace(/^.*[\\\/]/,"");
+  if(type!="folder") n=n.replace(/\.[^.]+$/,"");
+  return n||p;
+}
+
+/* ---------- data ---------- */
+var store={v:1,theme:"retro",size:"normal",view:"list",sections:false,closed:{},sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
+var group="All", missing={}, editId=null, canSave=true, saveFailed=false;
+
+function load(){
+  try{ mkdir(DATA); }catch(e){ canSave=false; showWarn("QuickLaunch can't create its data folder here ("+(e.message||e)+"): "+DATA); }
+  try{
+    if(fso.FileExists(FILE)){ store=J.parse(readText(FILE)); }
+  }catch(e){
+    try{ if(fso.FileExists(BAK)){ store=J.parse(readText(BAK)); alert("Your list file was damaged, so the backup copy was loaded."); } }catch(e2){}
+  }
+  var d={v:1,theme:"retro",size:"normal",view:"list",sections:false,closed:{},sort:{k:"name",d:1},groups:[],items:[],win:null,welcomed:false};
+  for(var k in d) if(d.hasOwnProperty(k)&&store[k]===undefined) store[k]=d[k];
+  for(var i=0;i<store.items.length;i++){ var it=store.items[i];
+    it.desc=it.desc||""; it.from=it.from||""; it.date=it.date||""; it.group=it.group||""; it.opened=it.opened||0; it.last=it.last||0; it.icon=it.icon||""; }
+}
+function save(){
+  try{
+    mkdir(DATA);
+    if(fso.FileExists(FILE)) fso.CopyFile(FILE,BAK,true);
+    writeText(FILE,J.stringify(store));
+    canSave=true; if(saveFailed){ saveFailed=false; hideWarn(); }
+  }catch(e){ saveFailed=true; showWarn("Your list couldn't be saved ("+(e.message||e)+"). File: "+FILE); }
+}
+function byId(id){ for(var i=0;i<store.items.length;i++) if(store.items[i].id==id) return store.items[i]; return null; }
+function newId(){ return "i"+now().toString(36)+Math.floor(Math.random()*1e4).toString(36); }
+
+/* ---------- look (themes + sizes) ---------- */
+var THEMES={
+  light:{name:"Light",bg:"#f4f5f8",panel:"#ffffff",hover:"#eaf0fb",text:"#1d2330",muted:"#6b7385",line:"#dde2ea",accent:"#2f6fed",accText:"#ffffff",chip:"#e9ecf2",
+    font:"'Segoe UI',Tahoma,sans-serif",r:8,bw:1,shadow:"0 1px 2px rgba(20,30,50,.07)",big:"0 16px 40px rgba(20,30,50,.25)"},
+  dark:{name:"Dark",bg:"#16181d",panel:"#1f2229",hover:"#2a2f3a",text:"#e8eaef",muted:"#9097a6",line:"#30343e",accent:"#5b9dff",accText:"#0b1220",chip:"#282c35",
+    font:"'Segoe UI',Tahoma,sans-serif",r:8,bw:1,shadow:"none",big:"0 16px 40px rgba(0,0,0,.5)"},
+  blueprint:{name:"Blueprint",bg:"#0d2a4c",panel:"#12365f",hover:"#1a4679",text:"#e6f0ff",muted:"#9fb9dd",line:"#2b5a8f",accent:"#ffd166",accText:"#0d2a4c",chip:"#173f6d",
+    font:"'Segoe UI',Tahoma,sans-serif",r:4,bw:1,shadow:"none",big:"0 16px 40px rgba(0,0,0,.45)",grid:1},
+  retro:{name:"Retro 8-bit",bg:"#1a1c2c",panel:"#29366f",hover:"#3b5dc9",text:"#f4f4f4",muted:"#94b0c2",line:"#0b0c16",accent:"#ffcd75",accText:"#1a1c2c",chip:"#333c57",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #0b0c16",big:"6px 6px 0 #0b0c16",retro:1},
+  gameboy:{name:"Retro Grey",bg:"#d6d2c8",panel:"#e8e5de",hover:"#f6f4ef",text:"#23233a",muted:"#6b6b7d",line:"#4a4a5e",accent:"#8b1c62",accText:"#ffffff",chip:"#cbc6ba",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #4a4a5e",big:"6px 6px 0 #4a4a5e",retro:1,badge:"#3c3c55",badgeText:"#e8e5de"},
+  console:{name:"Retro Console",bg:"#dfe7f2",panel:"#c9d6ea",hover:"#f0f5fc",text:"#141b33",muted:"#5a6a90",line:"#1b2a6b",accent:"#1b2a6b",accText:"#f0f5fc",chip:"#d3deef",
+    font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #1b2a6b",big:"6px 6px 0 #1b2a6b",retro:1}
+};
+var SIZES={
+  compact:{name:"Compact",fs:12,row:30,ic:18,tile:78,tic:28},
+  normal:{name:"Normal",fs:13,row:36,ic:22,tile:90,tic:34},
+  large:{name:"Large",fs:15,row:44,ic:28,tile:112,tic:44}
+};
+var CSS=[
+ "body{background:{bg};color:{text};font-family:{font};font-size:{fs}px}",
+ "#top{background:{panel};border-bottom:{bw}px solid {line}}",
+ "#q,.fld input,.fld select{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}",
+ "#q:focus,.fld input:focus,.fld select:focus{border-color:{accent}}",
+ ".fld select option{background:{panel};color:{text}}",
+ ".btn{background:{panel};color:{text};border:{bw}px solid {line};border-radius:{r}px}",
+ ".btn:hover{background:{hover}}",
+ ".btn.primary{background:{accent};color:{accText};border-color:{accent}}",
+ ".btn.on{background:{hover};border-color:{accent}}",
+ ".chip{background:{chip};color:{muted};border-radius:{rc}px}",
+ ".chip:hover{color:{text}}",
+ ".chip.on{background:{accent};color:{accText}}",
+ ".lhead{color:{muted};border-bottom:{bw}px solid {line}}",
+ ".row{height:{row}px;border-bottom:1px solid {lineSoft}}",
+ ".row:hover{background:{hover}}",
+ ".c-from,.c-date,.c-desc,.muted,.tile .t-ds,.empty{color:{muted}}",
+ ".row:hover .c-desc,.row:hover .c-from,.row:hover .c-date{color:{text}}",
+ ".gtag{background:{chip};color:{muted};border-radius:{rc}px}",
+ ".sec{color:{muted};border-bottom:{bw}px solid {line}}.sec:hover{color:{text}}",
+ ".more{border-radius:{r}px;color:{muted}}",
+ ".more:hover{background:{accent};color:{accText}}",
+ ".tile{background:transparent;border:0;border-radius:{r2}px;box-shadow:none}",
+ ".tile:hover{background:{hover}}",
+ ".row .ico{width:{ic}px;height:{ic}px;border-radius:{ri}px}",
+ ".row .ico .bdg{font-size:{icf}px;line-height:{ic}px}",
+ ".tile .ico{width:{tic}px;height:{tic}px;border-radius:{rti}px}",
+ ".tile .ico .bdg{font-size:{ticf}px;line-height:{tic}px}",
+ "#status{background:{panel};color:{muted};border-top:{bw}px solid {line}}",
+ ".card,.welcome{background:{panel};border:{bw}px solid {line};border-radius:{r2}px;box-shadow:{big}}",
+ ".welcome b.num{background:{accent};color:{accText};border-radius:{rc}px}",
+ ".fld label{color:{muted}}",
+ "#menu{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}",
+ "#menu .mi{border-radius:{r}px}",
+ "#menu .mi:hover{background:{accent};color:{accText}}",
+ "#menu .sep{background:{line}}",
+ "#toast{background:{accent};color:{accText};border-radius:{r}px}",
+ "#clock{border:{bw}px solid transparent;border-radius:{r}px}#clock:hover{background:{hover};border-color:{line}}#clkD{color:{muted}}",
+ "#clock.run,#clock.done{color:{accent};border-color:{accent}}",
+ "#tpanel{background:{panel};border:{bw}px solid {line};border-radius:{r2}px;box-shadow:{big}}",
+ "#tTM .inrow input{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}",
+ "#swLaps{color:{muted}}",
+ "::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:{line}}"
+];
+var CSS_RETRO=[
+ "#cur{display:inline;animation:blink 1s steps(1) infinite}",
+ "#brand,.chip,.btn,.lhead,.fld label,.card h3,.welcome h2{text-transform:uppercase;letter-spacing:1px}",
+ "#top .btn{letter-spacing:.3px;padding:0 9px}",
+ ".btn,.chip.on{box-shadow:{shadow}}",
+ ".btn:active,.tile:active{box-shadow:none;transform:translate(2px,2px);-ms-transform:translate(2px,2px)}",
+ ".row:hover{background:{hover};color:{text}}",
+ ".ico img{image-rendering:pixelated;-ms-interpolation-mode:nearest-neighbor}",
+ "#view{background-image:repeating-linear-gradient(0deg,rgba(0,0,0,.07) 0px,rgba(0,0,0,.07) 1px,transparent 1px,transparent 3px)}",
+ "#toast{box-shadow:{shadow}}",
+ ".warnTxt{color:#b13e53}"
+];
+/* "Clean" buttons: plain text, the box only shows on hover - like the clock */
+var CSS_CLEAN=[
+ ".btn,.chip,.chip.on,.btn.on,.btn.primary{border-color:transparent;box-shadow:none}",
+ ".btn,.chip{background:transparent}",
+ ".btn:hover,.chip:hover{background:{hover};border-color:{line};color:{text}}",
+ ".btn.on{background:{chip}}",
+ ".btn.primary{background:transparent;color:{accent}}",
+ ".btn.primary:hover{background:{accent};border-color:{accent};color:{accText}}",
+ ".chip.on{background:{chip};color:{accent}}",
+ ".seg .btn+.btn{margin-left:2px}"
+];
+var CSS_GRID=[
+ "#view{background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:22px 22px}"
+];
+function setCss(el,css){ if(el.styleSheet&&typeof el.styleSheet.cssText=="string") el.styleSheet.cssText=css; else el.textContent=css; }
+function applyLook(){
+  var t=THEMES[store.theme]||THEMES.retro, z=SIZES[store.size]||SIZES.normal, v={};
+  for(var a in t) v[a]=t[a]; for(var b in z) v[b]=z[b];
+  v.rc=t.r?99:0; v.r2=t.r?t.r+2:0; v.ri=t.r?4:0; v.rti=t.r?8:0;
+  v.icf=Math.round(z.ic*0.36); v.ticf=Math.round(z.tic*0.3);
+  v.lineSoft=t.retro?"rgba(0,0,0,.25)":t.line;
+  var rules=CSS.slice(0); if(t.retro) rules=rules.concat(CSS_RETRO); if(t.grid) rules=rules.concat(CSS_GRID);
+  if(t.badge) rules.push(".ico .bdg{background:{badge} !important;color:{badgeText} !important}");
+  var bs=store.btnStyle||"auto"; if(bs=="clean"||(bs=="auto"&&!t.retro)) rules=rules.concat(CSS_CLEAN);
+  setCss($("themeCss"),rules.join("\n").replace(/\{(\w+)\}/g,function(m,k){ return v[k]!==undefined?v[k]:m; }));
+  fitTiles();
+}
+/* icon view: work out how many tiles fit, then stretch them to fill the row exactly */
+function fitTiles(){
+  var z=SIZES[store.size]||SIZES.normal, gap=6, avail=$("view").clientWidth-12-1; // 12 = left padding
+  var cols=Math.max(1,Math.floor(avail/(z.tile+gap)));
+  var w=Math.floor(avail/cols)-gap;
+  setCss($("fitCss"),".tile{width:"+w+"px}");
+}
+
+/* ---------- rendering ---------- */
+var visible=[];
+function matches(it,q){
+  if(!q) return true;
+  var hay=(it.name+" "+it.desc+" "+it.from+" "+it.group+" "+it.path+" "+kindOf(it).n+" "+fmtDate(it.date)).toLowerCase(), w=q.split(/\s+/);
+  for(var i=0;i<w.length;i++) if(w[i]&&hay.indexOf(w[i])<0) return false;
+  return true;
+}
+function currentList(){
+  var q=trim($("q").value).toLowerCase(), out=[];
+  for(var i=0;i<store.items.length;i++){ var it=store.items[i];
+    if(group!="All"&&it.group!=group) continue; if(!matches(it,q)) continue; out.push(it); }
+  var k=store.sort.k, d=store.sort.d;
+  out.sort(function(a,b){
+    var x,y;
+    if(k=="date"){ x=a.date||""; y=b.date||""; } else if(k=="opened"){ x=a.last; y=b.last; }
+    else { x=(""+(a[k]||"")).toLowerCase(); y=(""+(b[k]||"")).toLowerCase(); }
+    if(x==y){ x=a.name.toLowerCase(); y=b.name.toLowerCase(); return x<y?-1:(x>y?1:0); }
+    if(x==="") return 1; if(y==="") return -1;   // blanks always last
+    return (x<y?-1:1)*d;
+  });
+  return out;
+}
+function iconSrc(it){
+  if(it.type=="web"){ var m=/^(?:[a-z]+:\/\/)?([^\/?#:]+)/i.exec(it.path); if(m&&/^(https?:|www\.)/i.test(it.path)) return "https://www.google.com/s2/favicons?sz=64&domain="+m[1]; return ""; }
+  if(it.icon){ try{ if(fso.FileExists(DATA+"\\"+it.icon)) return fileUrl(DATA+"\\"+it.icon); }catch(e){} }
+  return "";
+}
+function iconHtml(it){
+  var k=kindOf(it), s=iconSrc(it);
+  return '<span class="ico"><span class="bdg" style="background:'+k.c+'">'+k.t+'</span>'+(s?'<img src="'+esc(s)+'" alt="" onerror="this.style.display=\'none\'">':'')+'</span>';
+}
+function tipOf(it){
+  return it.name+(it.desc?"\n"+it.desc:"")+"\n\nFrom: "+(it.from||"-")+"\nDate: "+(fmtDate(it.date)||"-")+
+    "\nOpened: "+it.opened+" time"+(it.opened==1?"":"s")+(it.last?" (last "+fmtTime(it.last)+")":"")+"\n"+it.path+(missing[it.id]?"\n\n!! NOT FOUND - right-click > Edit to fix the location":"");
+}
+function sortMark(k){ return store.sort.k==k?(store.sort.d>0?" &#9650;":" &#9660;"):""; }
+function render(){
+  renderGroups();
+  visible=currentList();
+  var h="", q=trim($("q").value);
+  if(!store.items.length){ h=welcomeHtml(); }
+  else if(!visible.length){ h='<div class="empty">'+(q?'Nothing matches "<b>'+esc(q)+'</b>".<br>Press Esc to clear the search.':'This group is empty.<br>Click <b>+ Add</b> to put something in it.')+'</div>'; }
+  else {
+    if(store.view=="list") h=listHeadHtml();
+    if(store.sections&&group=="All"){
+      // one section per group, in tab order, then the ungrouped ones
+      var names=store.groups.slice(0); names.push("");
+      for(var gi=0;gi<names.length;gi++){ var gn=names[gi], part=[];
+        for(var v=0;v<visible.length;v++) if(visible[v].group==gn) part.push(visible[v]);
+        if(!part.length) continue;
+        var shut=!!store.closed[gn||"(none)"];
+        h+='<div class="sec" data-sec="'+esc(gn||"(none)")+'"><span class="arw">'+(shut?'&#9656;':'&#9662;')+'</span>'+esc(gn||"No group")+'<span class="n">'+part.length+'</span></div>';
+        if(!shut) h+='<div class="secbody">'+itemsHtml(part)+'</div>';
+      }
+    } else h+=itemsHtml(visible);
+  }
+  $("view").innerHTML=h; if(store.view=="grid") fitTiles();
+  $("bList").className="btn ic"+(store.view=="list"?" on":""); $("bGrid").className="btn ic"+(store.view=="grid"?" on":"");
+  $("bSecs").className="btn"+(store.sections?" on":""); $("bSecs").innerHTML=store.sections?"&#9636;<span class=\"lbl\"> Grouped</span>":"&#9776;<span class=\"lbl\"> All in one</span>";
+  $("bSecs").title=store.sections?"Showing sections per group - click for one list":"Showing one list - click for sections per group";
+  var n=store.items.length, mc=0; for(var x in missing) if(missing.hasOwnProperty(x)) mc++;
+  $("stL").innerHTML=esc(n+" item"+(n==1?"":"s")+(visible.length!=n?" ("+visible.length+" shown)":"")+(mc?" \u00b7 "+mc+" not found":"")+" \u00b7 saved in "+DATA);
+  fillFromList();
+}
+function tileHtml(it){ var ms=!!missing[it.id];
+  return '<div class="tile'+(ms?' miss':'')+'" data-id="'+it.id+'" title="'+esc(tipOf(it))+'">'+(ms?'<span class="mdot"></span>':'')
+    +'<span class="more" data-more="1">&middot;&middot;&middot;</span>'+iconHtml(it)
+    +'<div class="t-nm">'+esc(it.name)+'</div><div class="t-ds">'+esc(it.desc||it.from||kindOf(it).n)+'</div></div>'; }
+function rowHtml(r){ var m2=!!missing[r.id];
+  return '<div class="row'+(m2?' miss':'')+'" data-id="'+r.id+'" title="'+esc(tipOf(r))+'"><div class="c-ic">'+iconHtml(r)+'</div>'
+    +'<div class="c-name">'+esc(r.name)+(m2?'<span class="warnTxt">not found</span>':'')+'</div>'
+    +'<div class="c-desc">'+esc(r.desc)+'</div><div class="c-from">'+esc(r.from)+'</div><div class="c-date">'+esc(fmtDate(r.date))+'</div>'
+    +'<div class="c-grp">'+(r.group?'<span class="gtag">'+esc(r.group)+'</span>':'')+'</div>'
+    +'<div class="c-more"><span class="more" data-more="1">&middot;&middot;&middot;</span></div></div>'; }
+function itemsHtml(list){
+  var h="", i;
+  if(store.view=="grid"){ h='<div class="grid">'; for(i=0;i<list.length;i++) h+=tileHtml(list[i]); return h+'<div class="clear"></div></div>'; }
+  for(i=0;i<list.length;i++) h+=rowHtml(list[i]); return h;
+}
+function listHeadHtml(){
+  return '<div class="lhead"><div class="c-ic"></div><div class="c-name" data-sort="name">Name'+sortMark("name")+'</div><div class="c-desc" data-sort="desc">Description'+sortMark("desc")+'</div>'
+   +'<div class="c-from" data-sort="from">From'+sortMark("from")+'</div><div class="c-date" data-sort="date">Date'+sortMark("date")+'</div>'
+   +'<div class="c-grp" data-sort="group">Group'+sortMark("group")+'</div><div class="c-more"></div></div>'; }
+function renderGroups(){
+  var counts={}, h="";
+  for(var i=0;i<store.items.length;i++){ var g=store.items[i].group; counts[g]=(counts[g]||0)+1; }
+  h+='<span class="chip'+(group=="All"?" on":"")+'" data-g="All">All<span class="n">'+store.items.length+'</span></span>';
+  for(var j=0;j<store.groups.length;j++){ var gg=store.groups[j];
+    h+='<span class="chip'+(group==gg?" on":"")+'" data-g="'+esc(gg)+'" title="Right-click to rename or delete">'+esc(gg)+'<span class="n">'+(counts[gg]||0)+'</span></span>'; }
+  h+='<span class="chip" id="addGroup" title="Make a new group">+ Group</span>';
+  $("groups").innerHTML=h;
+}
+function welcomeHtml(){
+  var tb=""; for(var k in THEMES) tb+='<button class="btn'+(store.theme==k?" on":"")+'" data-theme="'+k+'"><span class="sw" style="background:'+THEMES[k].bg+'"></span>'+THEMES[k].name+'</button>';
+  var old=oldCount();
+  return '<div class="welcome"><h2>Welcome to QuickLaunch</h2><div class="muted">Open your apps, files, folders and websites in one click.</div>'
+   +'<div class="step"><b class="num">1</b><b>Pick a look</b> (change it any time with &#9881;)<br>'+tb+'</div>'
+   +'<div class="step"><b class="num">2</b><b>Add your first item</b><br><span class="muted">Copy a file path or web link, then press <b>Ctrl+V</b> here - or click:</span><br>'
+   +'<button class="btn primary" data-do="add">+ Add item</button></div>'
+   +(old?'<div class="step"><b class="num">3</b><b>Bring your old list across</b><br><span class="muted">Found '+old+' shortcut'+(old==1?'':'s')+' from your previous QuickLaunch in this folder.</span><br><button class="btn" data-do="importOld">Import them</button></div>':'')
+   +'</div>';
+}
+function fillFromList(){ var seen={}, h=""; for(var i=0;i<store.items.length;i++){ var f=store.items[i].from, l=f.toLowerCase(); if(f&&!seen[l]){ seen[l]=1; h+='<option value="'+esc(f)+'">'; } } $("fromList").innerHTML=h; }
+
+/* ---------- opening things ---------- */
+function openItem(it){
+  try{
+    if(it.type=="web"){ var u=it.path; if(/^www\./i.test(u)) u="https://"+u; shApp().ShellExecute(u,"","","open",1); }
+    else shApp().ShellExecute(it.path,"",it.path.replace(/[\\\/][^\\\/]*$/,""),"open",1);
+    toast("Opening "+it.name);
+    window.setTimeout(function(){ // after it has started: update the log, and flag it if Windows couldn't find it
+      it.opened++; it.last=now(); save();
+      if(it.type!="web"){ var ok=exists(it.path); if(ok!=!missing[it.id]){ if(ok) delete missing[it.id]; else missing[it.id]=1; render(); } }
+    },300);
+  }catch(e){
+    try{ wsh.Run('explorer.exe "'+it.path+'"',1,false); it.opened++; it.last=now(); save(); }
+    catch(e2){ toast("Couldn't open "+it.name); }
+  }
+}
+function openLocation(it){ try{ wsh.Run('explorer.exe /select,"'+it.path+'"',1,false); }catch(e){ toast("Couldn't open the folder"); } }
+function copyText(t,msg){ try{ window.clipboardData.setData("Text",t); toast(msg); }catch(e){ prompt("Copy this:",t); } }
+
+/* ---------- missing-file check (one at a time so slow network drives don't freeze the window) ---------- */
+function checkAll(){
+  var list=store.items.slice(0), i=0, changed=false;
+  function step(){
+    if(i>=list.length){ if(changed) render(); return; }
+    var it=list[i++];
+    if(it.type!="web"){ var was=!!missing[it.id], ok=exists(it.path); if(ok) delete missing[it.id]; else missing[it.id]=1; if(was==ok) changed=true; }
+    window.setTimeout(step,10);
+  }
+  step();
+}
+
+/* ---------- background helper ----------
+   Checking files (slow on network drives) and grabbing real icons both happen in ONE hidden
+   PowerShell run, so the window opens straight away. If PowerShell is blocked we fall back to checkAll(). */
+var bgTimer=null, bgAgain=false;
+function background(withChecks){
+  if(!canSave) { if(withChecks) window.setTimeout(checkAll,3000); return; }
+  if(bgTimer){ bgAgain=true; return; }
+  var q=function(x){ return "'"+(""+x).replace(/'/g,"''")+"'"; }, jobs=[], ps="", st=DATA+"\\status.txt", dn=DATA+"\\helper.done";
+  for(var i=0;i<store.items.length;i++){ var it=store.items[i];
+    if(it.type=="web"||it.type=="folder"||it.iconFail==it.path) continue;
+    if(it.icon&&fso.FileExists(DATA+"\\"+it.icon)) continue;
+    jobs.push({it:it,rel:"icons\\"+it.id+".png"}); }
+  if(!withChecks&&!jobs.length) return;
+  try{
+    mkdir(ICONS); try{ fso.DeleteFile(st); }catch(e){} try{ fso.DeleteFile(dn); }catch(e){}
+    if(withChecks){
+      ps+="$c=@()\r\n";
+      for(var c=0;c<store.items.length;c++){ var ci=store.items[c]; if(ci.type!="web") ps+="$c+=,@("+q(ci.id)+","+q(ci.path)+")\r\n"; }
+      ps+="$o=@(); foreach($x in $c){ $o+=($x[0]+'|'+[int](Test-Path -LiteralPath $x[1])) }\r\n"
+        +"[IO.File]::WriteAllLines("+q(st+".tmp")+",[string[]]$o,[Text.Encoding]::Unicode); Move-Item -Force "+q(st+".tmp")+" "+q(st)+"\r\n";
+    }
+    if(jobs.length){
+      ps+="Add-Type -AssemblyName System.Drawing\r\n$j=@()\r\n";
+      for(var k=0;k<jobs.length;k++) ps+="$j+=,@("+q(jobs[k].it.path)+","+q(DATA+"\\"+jobs[k].rel)+")\r\n";
+      ps+="foreach($x in $j){ try{ $p=$x[0]; if($p -like '*.lnk'){ try{ $t=(New-Object -ComObject WScript.Shell).CreateShortcut($p).TargetPath; if($t -and (Test-Path -LiteralPath $t)){ $p=$t } }catch{} }\r\n"
+        +"  if(Test-Path -LiteralPath $p){ $i=[System.Drawing.Icon]::ExtractAssociatedIcon($p); if($i){ $tmp=$x[1]+'.tmp'; $i.ToBitmap().Save($tmp,[System.Drawing.Imaging.ImageFormat]::Png); Move-Item -Force $tmp $x[1] } } }catch{} }\r\n";
+    }
+    ps+="[IO.File]::WriteAllText("+q(dn)+",'1')\r\n";
+    var script=DATA+"\\helper.ps1"; writeText(script,ps);
+    runPS(script);
+  }catch(e){ if(withChecks) window.setTimeout(checkAll,3000); return; }
+  var tries=0, gotStatus=!withChecks;
+  bgTimer=window.setInterval(function(){
+    var changed=false, finished=false;
+    try{
+      if(!gotStatus&&fso.FileExists(st)){ gotStatus=true;
+        var lines=readText(st).split(/\r?\n/);
+        for(var l=0;l<lines.length;l++){ var m=/^(.+)\|([01])$/.exec(trim(lines[l])); if(!m) continue;
+          var was=!!missing[m[1]]; if(m[2]=="1") delete missing[m[1]]; else missing[m[1]]=1; if(was!=(m[2]=="0")) changed=true; }
+        try{ fso.DeleteFile(st); }catch(e){} }
+      for(var n=0;n<jobs.length;n++){ var jb=jobs[n]; if(!jb.done&&fso.FileExists(DATA+"\\"+jb.rel)){ jb.it.icon=jb.rel; jb.done=true; changed=true; } }
+      finished=fso.FileExists(dn);
+    }catch(e){}
+    if(changed) render();
+    if(finished||++tries>40){
+      window.clearInterval(bgTimer); bgTimer=null;
+      for(var f=0;f<jobs.length;f++) if(!jobs[f].done&&!missing[jobs[f].it.id]) jobs[f].it.iconFail=jobs[f].it.path; // don't retry every start
+      save(); try{ fso.DeleteFile(dn); }catch(e){}
+      if(!gotStatus) checkAll(); // PowerShell didn't run - check the slow way
+      if(bgAgain){ bgAgain=false; background(false); }
+    }
+  },600);
+}
+function fetchIcons(){ background(false); }
+
+/* ---------- add / edit ---------- */
+var nameTouched=false;
+function fillGroupSelect(sel){
+  var h='<option value="">(no group)</option>';
+  for(var i=0;i<store.groups.length;i++) h+='<option value="'+esc(store.groups[i])+'">'+esc(store.groups[i])+'</option>';
+  h+='<option value="__new">+ New group...</option>';
+  $("fGroup").innerHTML=h; $("fGroup").value=sel||"";
+}
+function openAdd(pre){
+  editId=null; nameTouched=false;
+  $("dTitle").innerHTML="Add item"; $("bDel").style.display="none";
+  $("fPath").value=cleanPath(pre||""); $("fName").value=""; $("fDesc").value=""; $("fFrom").value=""; $("fDate").value=todayISO();
+  fillGroupSelect(group!="All"?group:"");
+  showDlg("dlgItem"); pathChanged();
+  window.setTimeout(function(){ try{ (pre?$("fDesc"):$("fPath")).focus(); }catch(e){} },30);
+}
+function openEdit(it){
+  editId=it.id; nameTouched=true;
+  $("dTitle").innerHTML="Edit item"; $("bDel").style.display="";
+  $("fPath").value=it.path; $("fName").value=it.name; $("fDesc").value=it.desc; $("fFrom").value=it.from; $("fDate").value=it.date;
+  fillGroupSelect(it.group); showDlg("dlgItem"); pathChanged();
+  window.setTimeout(function(){ try{ $("fName").focus(); }catch(e){} },30);
+}
+function pathChanged(){
+  var p=cleanPath($("fPath").value), el=$("fKind");
+  if(!p){ el.innerHTML='Tip: in File Explorer, Shift + right-click a file &rarr; "Copy as path"'; return; }
+  var type=detect(p), k=kindOf({type:type,path:p}), ok=(type=="web")||exists(p);
+  el.innerHTML='<span class="ico" style="width:16px;height:16px;margin-right:6px"><span class="bdg" style="background:'+k.c+';font-size:6px;line-height:16px">'+k.t+'</span></span>'
+    +esc(k.n)+(ok?'':' &middot; <b style="color:#e05545">can\'t find this right now</b>');
+  if(!nameTouched) $("fName").value=guessName(p,type);
+}
+function saveItem(){
+  var p=cleanPath($("fPath").value);
+  if(!p){ alert("Please paste or browse to a location first."); $("fPath").focus(); return; }
+  var type=detect(p), name=trim($("fName").value)||guessName(p,type), date=parseDate($("fDate").value);
+  if(date===null){ alert("Please type the date like 2026-11-06 (or leave it empty)."); $("fDate").focus(); return; }
+  var g=$("fGroup").value; if(g=="__new") g="";
+  var it;
+  if(editId){
+    it=byId(editId); if(!it) return;
+    if(it.path!=p){ if(it.icon){ try{ fso.DeleteFile(DATA+"\\"+it.icon); }catch(e){} } it.icon=""; it.iconFail=""; delete missing[it.id]; }
+  } else { it={id:newId(),opened:0,last:0,icon:"",created:now()}; store.items.push(it); }
+  it.path=p; it.type=type; it.name=name; it.desc=trim($("fDesc").value); it.from=trim($("fFrom").value); it.date=date; it.group=g;
+  if(type!="web"){ if(exists(p)) delete missing[it.id]; else missing[it.id]=1; }
+  save(); hideDlgs(); render(); fetchIcons();
+  toast(editId?"Saved":"Added "+name);
+}
+function deleteItem(it){
+  if(!confirm('Remove "'+it.name+'" from QuickLaunch?\n(The real file is not touched.)')) return;
+  var a=[]; for(var i=0;i<store.items.length;i++) if(store.items[i].id!=it.id) a.push(store.items[i]); store.items=a;
+  if(it.icon){ try{ fso.DeleteFile(DATA+"\\"+it.icon); }catch(e){} }
+  save(); hideDlgs(); render(); toast("Removed "+it.name);
+}
+function duplicateItem(it){
+  var c={}; for(var k in it) if(it.hasOwnProperty(k)) c[k]=it[k];
+  c.id=newId(); c.name=it.name+" (copy)"; c.opened=0; c.last=0; c.icon=""; c.created=now();
+  store.items.push(c); save(); render(); fetchIcons(); openEdit(c);
+}
+function pickFile(cb){
+  var inp=document.createElement("input"); inp.type="file"; inp.style.display="none"; document.body.appendChild(inp);
+  inp.onchange=function(){ var v=inp.value; try{ document.body.removeChild(inp); }catch(e){} if(v) cb(v); };
+  inp.click();
+}
+function pickFolder(cb){ try{ var f=shApp().BrowseForFolder(0,"Pick a folder",0x51); if(f) cb(f.Self.Path); }catch(e){ toast("Please paste the folder path instead"); } }
+
+/* ---------- groups ---------- */
+function addGroup(n){
+  n=trim(n||""); if(!n) return "";
+  if(n.toLowerCase()=="all"){ alert('"All" is already used.'); return ""; }
+  for(var i=0;i<store.groups.length;i++) if(store.groups[i].toLowerCase()==n.toLowerCase()) return store.groups[i];
+  store.groups.push(n); save(); return n;
+}
+function renameGroup(g){
+  var n=trim(prompt("Rename group:",g)||""); if(!n||n==g) return;
+  for(var i=0;i<store.groups.length;i++){ if(store.groups[i].toLowerCase()==n.toLowerCase()&&store.groups[i]!=g){ alert("That group already exists."); return; } }
+  for(var j=0;j<store.groups.length;j++) if(store.groups[j]==g) store.groups[j]=n;
+  for(var k=0;k<store.items.length;k++) if(store.items[k].group==g) store.items[k].group=n;
+  if(group==g) group=n; save(); render();
+}
+function deleteGroup(g){
+  if(!confirm('Delete the group "'+g+'"?\nIts items stay in QuickLaunch (under All).')) return;
+  var a=[]; for(var i=0;i<store.groups.length;i++) if(store.groups[i]!=g) a.push(store.groups[i]); store.groups=a;
+  for(var k=0;k<store.items.length;k++) if(store.items[k].group==g) store.items[k].group="";
+  if(group==g) group="All"; save(); render();
+}
+function moveGroup(g,dir){
+  var i=-1; for(var k=0;k<store.groups.length;k++) if(store.groups[k]==g) i=k;
+  var j=i+dir; if(i<0||j<0||j>=store.groups.length) return;
+  var t=store.groups[i]; store.groups[i]=store.groups[j]; store.groups[j]=t; save(); render();
+}
+
+/* ---------- export ---------- */
+function csvCell(v){ v=(v==null)?"":(""+v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function exportName(ext){
+  var n="QuickLaunch list"+(group!="All"?" - "+group:"")+" - "+todayISO();
+  n=n.replace(/[\\\/:*?"<>|]/g,"-");
+  var p=EXPORTS+"\\"+n+"."+ext, i=2;
+  while(fso.FileExists(p)){ try{ fso.DeleteFile(p); break; }catch(e){ p=EXPORTS+"\\"+n+" ("+(i++)+")."+ext; } } // file open in Excel? use a new name
+  return p;
+}
+function exportCSV(){
+  var list=currentList(); if(!list.length){ toast("Nothing to export"); return; }
+  try{
+    mkdir(DATA); mkdir(EXPORTS);
+    var rows=[["Name","Type","Description","From","Date","Group","Location","Times opened","Last opened"]];
+    for(var i=0;i<list.length;i++){ var it=list[i]; rows.push([it.name,kindOf(it).n,it.desc,it.from,it.date,it.group,it.path,it.opened,it.last?fmtTime(it.last):""]); }
+    var out=[]; for(var r=0;r<rows.length;r++){ var c=[]; for(var k=0;k<rows[r].length;k++) c.push(csvCell(rows[r][k])); out.push(c.join(",")); }
+    var p=exportName("csv"); writeCsv(p,out.join("\r\n"));
+    toast("Saved CSV with "+list.length+" item"+(list.length==1?"":"s")); openLocation({path:p});
+  }catch(e){ alert("Couldn't save the CSV:\n"+e.message); }
+}
+function reportHtml(list){
+  var q=trim($("q").value), sub=[list.length+" item"+(list.length==1?"":"s"), "Group: "+(group=="All"?"All":group)];
+  if(q) sub.push('Search: "'+q+'"');
+  var h='<!DOCTYPE html><html><head><meta charset="utf-8"><title>QuickLaunch list</title><style>'
+   +'@page{size:A4 landscape;margin:12mm}body{font-family:Segoe UI,Arial,sans-serif;color:#1d2330;font-size:9.5pt;margin:0}'
+   +'h1{font-size:17pt;margin:0 0 2px}.sub{color:#6b7385;margin-bottom:12px}table{width:100%;border-collapse:collapse}'
+   +'th{text-align:left;font-size:8pt;text-transform:uppercase;letter-spacing:.5px;color:#fff;background:#29366f;padding:6px 7px}'
+   +'td{padding:6px 7px;border-bottom:1px solid #dde2ea;vertical-align:top}tr:nth-child(even) td{background:#f4f6fa}'
+   +'td.n{color:#6b7385;width:22px}td.nm{font-weight:bold}td.loc{color:#4a5568;font-size:8pt;word-break:break-all;width:30%}'
+   +'.k{display:inline-block;padding:1px 5px;color:#fff;font-size:7pt;font-weight:bold;margin-right:5px;border-radius:2px}'
+   +'.foot{margin-top:10px;color:#9097a6;font-size:7.5pt}</style></head><body>'
+   +'<h1>QuickLaunch list</h1><div class="sub">Exported '+esc(fmtDate(todayISO()))+' &middot; '+esc(sub.join(" \u00b7 "))+'</div>'
+   +'<table><tr><th>#</th><th>Name</th><th>Description</th><th>From</th><th>Date</th><th>Location</th></tr>';
+  for(var i=0;i<list.length;i++){ var it=list[i], k=kindOf(it);
+    h+='<tr><td class="n">'+(i+1)+'</td><td class="nm"><span class="k" style="background:'+k.c+'">'+k.t+'</span>'+esc(it.name)+'</td><td>'+esc(it.desc)
+      +'</td><td>'+esc(it.from)+'</td><td style="white-space:nowrap">'+esc(fmtDate(it.date))+'</td><td class="loc">'+esc(it.path)+'</td></tr>'; }
+  return h+'</table><div class="foot">Made with QuickLaunch</div></body></html>';
+}
+function findBrowser(){
+  var c=["%ProgramFiles(x86)%\\Microsoft\\Edge\\Application\\msedge.exe","%ProgramFiles%\\Microsoft\\Edge\\Application\\msedge.exe",
+         "%LocalAppData%\\Microsoft\\Edge\\Application\\msedge.exe","%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe",
+         "%ProgramFiles(x86)%\\Google\\Chrome\\Application\\chrome.exe","%LocalAppData%\\Google\\Chrome\\Application\\chrome.exe"];
+  for(var i=0;i<c.length;i++){ try{ var p=wsh.ExpandEnvironmentStrings(c[i]); if(fso.FileExists(p)) return p; }catch(e){} }
+  return "";
+}
+function exportPDF(){
+  var list=currentList(); if(!list.length){ toast("Nothing to export"); return; }
+  toast("Making the PDF...");
+  window.setTimeout(function(){
+    try{
+      mkdir(DATA); mkdir(EXPORTS);
+      var pdf=exportName("pdf"), html=pdf.replace(/\.pdf$/,".html"); writeText(html,reportHtml(list));
+      var br=findBrowser();
+      if(br){
+        var prof=wsh.ExpandEnvironmentStrings("%TEMP%")+"\\QuickLaunch-pdf";
+        wsh.Run('"'+br+'" --headless --disable-gpu --no-first-run --no-pdf-header-footer --print-to-pdf-no-header --user-data-dir="'+prof+'" --print-to-pdf="'+pdf+'" "'+fileUrl(html)+'"',0,true);
+      }
+      if(fso.FileExists(pdf)){ try{ fso.DeleteFile(html); }catch(e){} shApp().ShellExecute(pdf,"","","open",1); toast("PDF saved with "+list.length+" item"+(list.length==1?"":"s")); }
+      else { shApp().ShellExecute(html,"","","open",1); alert("Your list has opened in the browser.\nPress Ctrl+P and choose \"Save as PDF\"."); }
+    }catch(e){ alert("Couldn't make the PDF:\n"+e.message); }
+  },60);
+}
+
+/* ---------- import ---------- */
+function parseCSV(t){
+  var rows=[], row=[], cur="", q=false, c, i;
+  t=t.replace(/\r\n?/g,"\n");
+  for(i=0;i<t.length;i++){ c=t.charAt(i);
+    if(q){ if(c=='"'){ if(t.charAt(i+1)=='"'){ cur+='"'; i++; } else q=false; } else cur+=c; }
+    else if(c=='"') q=true; else if(c==','){ row.push(cur); cur=""; } else if(c=='\n'){ row.push(cur); rows.push(row); row=[]; cur=""; } else cur+=c; }
+  if(cur!==""||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function addImported(o){
+  var path=cleanPath(o.path); if(!path) return false;
+  for(var i=0;i<store.items.length;i++) if(store.items[i].path.toLowerCase()==path.toLowerCase()&&store.items[i].name==o.name) return false; // already have it
+  var type=o.type||detect(path), g=o.group&&o.group.toLowerCase()!="all"?addGroup(o.group):"";
+  store.items.push({id:newId(),path:path,type:type,name:trim(o.name)||guessName(path,type),desc:trim(o.desc||""),from:trim(o.from||""),
+    date:parseDate(o.date||"")||"",group:g,opened:0,last:0,icon:"",created:now()});
+  return true;
+}
+/* ---- Bulk edit: your whole list as a spreadsheet, edited in Excel, then applied back ---- */
+var BULK=DATA+"\\QuickLaunch bulk edit.csv";
+function bulkEdit(){
+  if(!store.items.length){ toast("Add something first"); return; }
+  try{
+    mkdir(DATA);
+    var rows=[["Name","Location","Group","Description","From","Date","ID (do not change)"]];
+    var all=store.items.slice(0); all.sort(function(a,b){ var x=(a.group||"~")+"|"+a.name.toLowerCase(), y=(b.group||"~")+"|"+b.name.toLowerCase(); return x<y?-1:(x>y?1:0); });
+    for(var i=0;i<all.length;i++){ var it=all[i]; rows.push([it.name,it.path,it.group,it.desc,it.from,it.date,it.id]); }
+    for(var e=0;e<3;e++) rows.push(["","","","","","",""]); // room for new rows (optional)
+    var out=[]; for(var r=0;r<rows.length;r++){ var c=[]; for(var k=0;k<rows[r].length;k++) c.push(csvCell(rows[r][k])); out.push(c.join(",")); }
+    try{ writeCsv(BULK,out.join("\r\n")); }catch(e1){ alert("The bulk edit file is still open in Excel.\nClose it in Excel, then try again."); return; }
+    shApp().ShellExecute(BULK,"","","open",1);
+    alert("Your list is opening in Excel.\n\n1. Change names, groups, descriptions, From, dates - or add new rows (Name + Location).\n"
+      +"2. Delete a row to remove that item.\n3. Save (Ctrl+S, keep the CSV format) and close Excel.\n4. Back here: Import/Export > Apply bulk edit changes.");
+  }catch(e){ alert("Couldn't start the bulk edit:\n"+(e.message||e)); }
+}
+function applyBulk(){
+  if(!fso.FileExists(BULK)){ toast("No bulk edit file yet - use Bulk edit in Excel first"); return; }
+  importFrom(BULK);
+}
+function importFile(){ pickFile(function(p){ importFrom(p); }); }
+/* read an Excel workbook (first sheet) through Excel itself */
+function cellText(x){ if(x==null) return ""; if(typeof x=="date"){ var d=new Date(x); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); } return ""+x; }
+function readExcel(p){
+  var xl=null, wb=null, out=[];
+  try{
+    xl=new ActiveXObject("Excel.Application"); xl.Visible=false; xl.DisplayAlerts=false;
+    wb=xl.Workbooks.Open(p,0,true);
+    var ur=wb.Worksheets(1).UsedRange, nr=ur.Rows.Count, nc=ur.Columns.Count, v=ur.Value;
+    if(nr==1&&nc==1) out=[[cellText(v)]];
+    else { var a=new VBArray(v).toArray();
+      for(var r=0;r<nr;r++){ var row=[]; for(var c=0;c<nc;c++) row.push(cellText(a[c*nr+r])); out.push(row); } }
+  } finally { try{ if(wb) wb.Close(false); }catch(e){} try{ if(xl) xl.Quit(); }catch(e){} }
+  return out;
+}
+function importFrom(p){
+  var rows;
+  try{
+    if(/\.xls[xmb]?$/i.test(p)){ toast("Reading the Excel file..."); rows=readExcel(p); }
+    else rows=parseCSV(readText(p));
+  }catch(e){
+    alert(/\.xls/i.test(p)?"Couldn't read that Excel file ("+(e.message||e)+").\nTip: in Excel use File > Save As > CSV, then import the CSV."
+      :"Couldn't read that file ("+(e.message||e)+").\nIf it's open in Excel, close it and try again."); return;
+  }
+  // find the header row (first row that has a Location/Path column)
+  var hr=-1, col={};
+  for(var r=0;r<Math.min(rows.length,10)&&hr<0;r++){ var c2={};
+    for(var i=0;i<rows[r].length;i++){ var h=trim(rows[r][i]).toLowerCase();
+      if(/^id\b/.test(h)) c2.id=i; else if(/^(name|title)$/.test(h)) c2.name=i;
+      else if(/^(location|path|target|link|url|file|address)$/.test(h)) c2.path=i;
+      else if(/^(description|notes|desc|note)$/.test(h)) c2.desc=i; else if(/^(from|shared by|shared_by|source|sender|who)$/.test(h)) c2.from=i;
+      else if(/^(date|date added|added|received)$/.test(h)) c2.date=i; else if(/^(group|category)$/.test(h)) c2.group=i; }
+    if(c2.path!==undefined){ hr=r; col=c2; } }
+  if(hr<0){ alert("Couldn't find a Location column.\nThe first row needs headings like: Name, Location, Group, Description, From, Date."); return; }
+  var objs=[];
+  for(var r2=hr+1;r2<rows.length;r2++){ var x=rows[r2]; if(!x) continue;
+    var o={}; for(var k in col) if(col.hasOwnProperty(k)) o[k]=trim(x[col[k]]==null?"":x[col[k]]);
+    if(!o.path&&!o.name&&!o.id) continue; objs.push(o); }
+  applyRows(objs,col);
+}
+function findByPath(p){ p=p.toLowerCase(); for(var i=0;i<store.items.length;i++) if(store.items[i].path.toLowerCase()==p) return store.items[i]; return null; }
+function applyRows(objs,col){
+  var seen={}, upd=0, add=0, same=0, bad=0;
+  for(var i=0;i<objs.length;i++){ var o=objs[i], path=o.path?cleanPath(o.path):"";
+    var it=(o.id&&byId(o.id))||(path&&findByPath(path))||null;
+    if(it&&seen[it.id]) it=null; // same item twice in the file - treat the second as new
+    if(!it){
+      if(!path){ bad++; continue; }
+      var type=detect(path);
+      it={id:newId(),path:path,type:type,name:o.name||guessName(path,type),desc:"",from:"",date:todayISO(),group:"",opened:0,last:0,icon:"",created:now()};
+      store.items.push(it); add++; seen[it.id]=1;
+      if(o.desc!==undefined) it.desc=o.desc; if(o.from!==undefined) it.from=o.from;
+      if(o.date){ var d0=parseDate(o.date); if(d0) it.date=d0; }
+      if(o.group&&o.group.toLowerCase()!="all") it.group=addGroup(o.group);
+      continue;
+    }
+    seen[it.id]=1; var before=J.stringify(it);
+    if(o.name) it.name=o.name;
+    if(path&&path!=it.path){ it.path=path; it.type=detect(path); if(it.icon){ try{ fso.DeleteFile(DATA+"\\"+it.icon); }catch(e){} } it.icon=""; it.iconFail=""; }
+    if(col.group!==undefined) it.group=(o.group&&o.group.toLowerCase()!="all")?addGroup(o.group):"";
+    if(col.desc!==undefined) it.desc=o.desc; if(col.from!==undefined) it.from=o.from;
+    if(col.date!==undefined){ var d1=parseDate(o.date); if(d1!==null) it.date=d1; }
+    if(J.stringify(it)!=before) upd++; else same++;
+  }
+  var removed=0;
+  if(col.id!==undefined){ // file came from Bulk edit: rows that were deleted can be removed too
+    var gone=[]; for(var g=0;g<store.items.length;g++) if(!seen[store.items[g].id]) gone.push(store.items[g]);
+    if(gone.length){ var names=[]; for(var n=0;n<gone.length&&n<8;n++) names.push("  - "+gone[n].name);
+      if(confirm(gone.length+" item"+(gone.length==1?" is":"s are")+" no longer in the file:\n"+names.join("\n")+(gone.length>8?"\n  ...":"")+"\n\nRemove "+(gone.length==1?"it":"them")+" from QuickLaunch too?")){
+        var keep=[]; for(var q=0;q<store.items.length;q++) if(seen[store.items[q].id]) keep.push(store.items[q]); store.items=keep; removed=gone.length; } }
+  }
+  save(); render(); background(true);
+  var msg=[]; if(add) msg.push(add+" added"); if(upd) msg.push(upd+" updated"); if(removed) msg.push(removed+" removed"); if(!msg.length) msg.push("no changes");
+  toast("Import done: "+msg.join(", ")+(bad?" ("+bad+" rows without a Location skipped)":""));
+}
+function readOld(){
+  try{
+    if(!fso.FileExists(OLDFILE)) return null;
+    var f=fso.OpenTextFile(OLDFILE,1,false,-1), t=f.AtEndOfStream?"":f.ReadAll(); f.Close();
+    var o; try{ o=J.parse(t); }catch(e){ o=eval("("+t+")"); }
+    return (o&&o.shortcuts)?o.shortcuts:null;
+  }catch(e){ return null; }
+}
+function oldCount(){ var o=readOld(); if(!o) return 0; var n=0; for(var i=0;i<o.length;i++) if(o[i].type!="action") n++; return n; }
+function importOld(){
+  var o=readOld(); if(!o){ toast("No old QuickLaunch list found here"); return; }
+  var n=0, skipped=0;
+  for(var i=0;i<o.length;i++){ var s=o[i];
+    if(s.type=="action"){ skipped++; continue; }
+    var d=s.added?new Date(s.added):null;
+    if(addImported({path:s.target,name:s.name,desc:s.notes||"",from:s.from||"",group:s.group||"",type:s.type=="url"?"web":(s.type=="folder"?"folder":""),
+      date:d?(d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())):""})) n++; }
+  save(); hideDlgs(); render(); checkAll(); fetchIcons();
+  toast("Imported "+n+" item"+(n==1?"":"s")+(skipped?" ("+skipped+" multi-step actions skipped)":""));
+}
+
+/* ---------- menus, dialogs, toast ---------- */
+var menuActs=[];
+function showMenu(x,y,items){
+  menuActs=[]; var h="";
+  for(var i=0;i<items.length;i++){ var m=items[i];
+    if(m=="-"){ h+='<div class="sep"></div>'; continue; }
+    menuActs.push(m.fn); h+='<div class="mi'+(m.danger?' danger':'')+'" data-mi="'+(menuActs.length-1)+'">'+m.label+'</div>'; }
+  var el=$("menu"); el.innerHTML=h; el.style.display="block";
+  var W=document.documentElement.clientWidth, H=document.documentElement.clientHeight;
+  el.style.left=Math.max(4,Math.min(x,W-el.offsetWidth-6))+"px"; el.style.top=Math.max(4,Math.min(y,H-el.offsetHeight-6))+"px";
+}
+function hideMenu(){ $("menu").style.display="none"; }
+function itemMenu(it,x,y){
+  var m=[{label:"&#9654;&nbsp; Open",fn:function(){ openItem(it); }}];
+  if(it.type!="web") m.push({label:"&#128193;&nbsp; Open file location",fn:function(){ openLocation(it); }});
+  m.push({label:"&#128203;&nbsp; Copy "+(it.type=="web"?"link":"path"),fn:function(){ copyText(it.path,"Copied"); }});
+  m.push("-");
+  m.push({label:"&#9998;&nbsp; Edit...",fn:function(){ openEdit(it); }});
+  m.push({label:"&#10697;&nbsp; Duplicate",fn:function(){ duplicateItem(it); }});
+  m.push({label:"&#128194;&nbsp; Move to group...",fn:function(){ moveMenu(it,x,y); }});
+  m.push("-");
+  m.push({label:"&#10005;&nbsp; Remove",danger:1,fn:function(){ deleteItem(it); }});
+  showMenu(x,y,m);
+}
+function moveMenu(it,x,y){
+  var m=[], mk=function(g){ return function(){ it.group=g; save(); render(); toast(g?"Moved to "+g:"Removed from its group"); }; };
+  for(var i=0;i<store.groups.length;i++){ var g=store.groups[i]; m.push({label:(it.group==g?"&#10004;":"&nbsp;&nbsp;&nbsp;")+"&nbsp; "+esc(g),fn:mk(g)}); }
+  if(store.groups.length) m.push("-");
+  m.push({label:"&#10133;&nbsp; New group...",fn:function(){ var n=addGroup(prompt("Name for the new group:")||""); if(n) mk(n)(); }});
+  if(it.group) m.push({label:"&#10005;&nbsp; No group",fn:mk("")});
+  showMenu(x,y,m);
+}
+function showDlg(id){ hideMenu(); $(id).style.display="block"; }
+function hideDlgs(){ $("dlgItem").style.display="none"; $("dlgSet").style.display="none"; }
+function dlgOpen(){ return $("dlgItem").style.display=="block"||$("dlgSet").style.display=="block"; }
+var toastT=null;
+function toast(msg){ var t=$("toast"); t.innerHTML=esc(msg); t.style.display="block"; if(toastT) window.clearTimeout(toastT); toastT=window.setTimeout(function(){ t.style.display="none"; },2200); }
+function showWarn(msg){ var w=$("warn"); w.innerHTML='<span class="x" title="Hide">&#10005;</span>'+esc(msg); w.style.display="block"; }
+function hideWarn(){ $("warn").style.display="none"; }
+function openSettings(){
+  var tb=""; for(var k in THEMES) tb+='<button class="btn'+(store.theme==k?" on":"")+'" data-theme="'+k+'"><span class="sw" style="background:'+THEMES[k].bg+'"></span>'+THEMES[k].name+'</button>';
+  $("themeBtns").innerHTML=tb;
+  var sb=""; for(var s in SIZES) sb+='<button class="btn'+(store.size==s?" on":"")+'" data-size="'+s+'">'+SIZES[s].name+'</button>';
+  $("sizeBtns").innerHTML=sb;
+  var BST={auto:"Auto",clean:"Clean (borderless)",boxed:"Boxed"}, bb="", cur=store.btnStyle||"auto";
+  for(var bk in BST) bb+='<button class="btn'+(cur==bk?" on":"")+'" data-bst="'+bk+'">'+BST[bk]+'</button>';
+  $("bstBtns").innerHTML=bb;
+  var oc=oldCount(); $("bImpOld").style.display=oc?"":"none"; $("bImpOld").innerHTML="Import old QuickLaunch ("+oc+")";
+  $("dataPath").innerHTML="Saved in: "+esc(DATA)+"<br>A backup copy is kept automatically.";
+  showDlg("dlgSet");
+}
+function setTheme(k){ store.theme=k; save(); applyLook(); if(dlgOpen()) openSettings(); else render(); }
+function setSize(k){ store.size=k; save(); applyLook(); openSettings(); render(); }
+function setView(v){ store.view=v; save(); render(); }
+
+/* ---------- clock, stopwatch, timer ---------- */
+var DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+var sw={on:false,t0:0,acc:0,laps:[]}, tm={on:false,end:0,left:0,done:false}, tTab="sw", tickT=null;
+function swTime(){ return sw.acc+(sw.on?now()-sw.t0:0); }
+function tmTime(){ return tm.on?Math.max(0,tm.end-now()):tm.left; }
+function fmtDur(ms,tenths){
+  if(!tenths) ms=Math.ceil(ms/1000)*1000;
+  var s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor(s/60)%60, x=s%60;
+  return (h?h+":"+pad(m):pad(m))+":"+pad(x)+(tenths?"."+Math.floor(ms%1000/100):"");
+}
+function clockNow(){ var d=new Date(), h=d.getHours(), ap=h<12?"AM":"PM"; h=h%12||12; return {t:h+":"+pad(d.getMinutes())+" "+ap, d:DAYS[d.getDay()]+" "+d.getDate()+" "+MON[d.getMonth()]}; }
+function updateClock(){
+  var c=$("clock"), n=clockNow(), t=n.t, d=n.d, cls="";
+  if(tm.done){ t="TIME UP"; cls="done"; d=n.t; }
+  else if(tm.on||tm.left>0){ t="\u23f3 "+fmtDur(tmTime()); cls=tm.on?"run":""; d=n.t; }
+  else if(sw.on||sw.acc>0){ t="\u23f1 "+fmtDur(swTime(),true); cls=sw.on?"run":""; d=n.t; }
+  $("clkT").innerHTML=esc(t); $("clkD").innerHTML=esc(d); c.className=cls;
+}
+function tick(){
+  if(tm.on&&tmTime()<=0){ tm.on=false; tm.left=0; tm.done=true; timeUp(); }
+  updateClock(); if(panelOpen()) updatePanel();
+  if(!sw.on&&!tm.on&&tickT){ window.clearInterval(tickT); tickT=null; }
+}
+function ensureTick(){ if(!tickT) tickT=window.setInterval(tick,100); tick(); }
+function timeUp(){
+  try{ var w=wsh.ExpandEnvironmentStrings("%WINDIR%")+"\\Media\\", snd=["Alarm01.wav","Windows Notify System Generic.wav","chimes.wav"], f="";
+    for(var i=0;i<snd.length;i++) if(fso.FileExists(w+snd[i])){ f=w+snd[i]; break; }
+    if(f) wsh.Run('powershell.exe -NoProfile -WindowStyle Hidden -Command "(New-Object Media.SoundPlayer \''+f+'\').PlaySync()"',0,false);
+  }catch(e){}
+  toast("Time's up!"); try{ window.focus(); }catch(e){}
+}
+function panelOpen(){ return $("tpanel").style.display=="block"; }
+function openPanel(){
+  if(tm.done){ tm.done=false; updateClock(); }
+  var p=$("tpanel"), r=$("clock").getBoundingClientRect();
+  if(tm.on||tm.left>0) tTab="tm"; else if(sw.on||sw.acc>0) tTab="sw";
+  p.style.display="block"; hideMenu();
+  p.style.left=Math.max(4,Math.min(r.right-p.offsetWidth,document.documentElement.clientWidth-p.offsetWidth-6))+"px"; p.style.top=(r.bottom+6)+"px";
+  updatePanel();
+}
+function hidePanel(){ $("tpanel").style.display="none"; }
+var PRESETS=[1,5,10,15,25,30,45,60];
+function updatePanel(){
+  var chips=$("tpanel").getElementsByTagName("span");
+  for(var i=0;i<chips.length;i++){ var tt=chips[i].getAttribute("data-tt"); if(tt) chips[i].className="chip"+(tt==tTab?" on":""); }
+  $("tSW").style.display=tTab=="sw"?"block":"none"; $("tTM").style.display=tTab=="tm"?"block":"none";
+  if(tTab=="sw"){
+    $("tBig").innerHTML=fmtDur(swTime(),true);
+    $("swGo").innerHTML=sw.on?"Pause":(sw.acc?"Resume":"Start");
+    var h=""; for(var j=sw.laps.length-1;j>=0&&j>=sw.laps.length-6;j--) h+="<div>Lap "+(j+1)+" &nbsp; "+fmtDur(sw.laps[j],true)+"</div>";
+    $("swLaps").innerHTML=h;
+  } else {
+    $("tBig").innerHTML=tm.done?"TIME UP":fmtDur(tmTime());
+    $("tmGo").innerHTML=tm.on?"Pause":(tm.left>0?"Resume":"Start");
+    if(!$("tmPre").innerHTML){ var c=""; for(var k=0;k<PRESETS.length;k++) c+='<span class="chip" data-pre="'+PRESETS[k]+'">'+PRESETS[k]+' min</span>'; $("tmPre").innerHTML=c; }
+  }
+}
+function swToggle(){ if(sw.on){ sw.acc+=now()-sw.t0; sw.on=false; } else { sw.t0=now(); sw.on=true; } ensureTick(); }
+function swLap(){ if(sw.on||sw.acc){ sw.laps.push(swTime()); updatePanel(); } }
+function swReset(){ sw={on:false,t0:0,acc:0,laps:[]}; ensureTick(); }
+function parseMinutes(v){
+  v=trim(v); var m=/^(\d+):(\d{1,2})$/.exec(v); if(m) return (+m[1]*60+ +m[2])*1000;
+  var n=parseFloat(v.replace(",",".")); return (n>0)?Math.round(n*60000):0;
+}
+function tmStart(ms){ tm={on:true,end:now()+ms,left:0,done:false}; tTab="tm"; ensureTick(); }
+function tmToggle(){
+  if(tm.on){ tm.left=tmTime(); tm.on=false; ensureTick(); return; }
+  if(tm.left>0){ tmStart(tm.left); return; }
+  var ms=parseMinutes($("tmMin").value); if(!ms){ $("tmMin").focus(); toast("Type how many minutes, or pick one"); return; }
+  tmStart(ms);
+}
+function tmReset(){ tm={on:false,end:0,left:0,done:false}; ensureTick(); }
+
+/* ---------- events ---------- */
+function up(el,attr){ while(el&&el.getAttribute){ if(el.getAttribute(attr)!=null) return el; el=el.parentNode; } return null; }
+function wire(){
+  $("bAdd").onclick=function(){ openAdd(""); };
+  $("bList").onclick=function(){ setView("list"); };
+  $("bGrid").onclick=function(){ setView("grid"); };
+  $("bSecs").onclick=function(){ store.sections=!store.sections; if(store.sections&&group!="All") group="All"; save(); render(); };
+  $("bSet").onclick=openSettings;
+  $("clock").onclick=function(e){ if(panelOpen()) hidePanel(); else openPanel(); e.stopPropagation(); };
+  $("tpanel").onclick=function(e){ var t=e.target||e.srcElement, tt=up(t,"data-tt"), pr=up(t,"data-pre");
+    if(tt){ tTab=tt.getAttribute("data-tt"); updatePanel(); return; }
+    if(pr){ tmStart(+pr.getAttribute("data-pre")*60000); $("tmMin").value=""; return; } };
+  $("swGo").onclick=swToggle; $("swLap").onclick=swLap; $("swReset").onclick=swReset;
+  $("tmGo").onclick=tmToggle; $("tmReset").onclick=tmReset;
+  $("bExport").onclick=function(e){ var r=this.getBoundingClientRect(), n=currentList().length;
+    var m=[{label:"&#128196;&nbsp; Export as PDF ("+n+" shown)",fn:exportPDF},{label:"&#128202;&nbsp; Export as CSV ("+n+" shown)",fn:exportCSV},"-",
+      {label:"&#9998;&nbsp; Bulk edit in Excel (all "+store.items.length+")",fn:bulkEdit}];
+    if(fso.FileExists(BULK)) m.push({label:"&#10004;&nbsp; Apply bulk edit changes",fn:applyBulk});
+    m.push("-"); m.push({label:"&#8679;&nbsp; Import from CSV / Excel file...",fn:importFile});
+    showMenu(Math.max(4,r.right-260),r.bottom+4,m);
+    e.stopPropagation(); };
+  $("bCancel").onclick=hideDlgs; $("bSave").onclick=saveItem; $("bSetClose").onclick=hideDlgs;
+  $("bDel").onclick=function(){ var it=byId(editId); if(it) deleteItem(it); };
+  $("bBrowse").onclick=function(){ pickFile(function(p){ $("fPath").value=p; pathChanged(); }); };
+  $("bFolder").onclick=function(){ pickFolder(function(p){ $("fPath").value=p; pathChanged(); }); };
+  $("bData").onclick=function(){ try{ mkdir(DATA); wsh.Run('explorer.exe "'+DATA+'"',1,false); }catch(e){} };
+  $("bImpCsv").onclick=function(){ hideDlgs(); importFile(); };
+  $("bImpOld").onclick=importOld;
+  $("bPin").onclick=function(){ hideDlgs(); shortcutForTaskbar(); };
+  $("fPath").oninput=pathChanged; $("fPath").onchange=pathChanged; $("fPath").onpaste=function(){ window.setTimeout(pathChanged,10); };
+  $("fName").oninput=function(){ nameTouched=!!trim($("fName").value); };
+  $("fGroup").onchange=function(){ if(this.value=="__new"){ var n=addGroup(prompt("Name for the new group:")||""); fillGroupSelect(n); } };
+  $("q").oninput=render;
+
+  $("view").onclick=function(e){
+    var t=e.target||e.srcElement, sortEl=up(t,"data-sort"), th=up(t,"data-theme"), act=up(t,"data-do");
+    if(sortEl){ var k=sortEl.getAttribute("data-sort"); if(store.sort.k==k) store.sort.d=-store.sort.d; else store.sort={k:k,d:(k=="date"?-1:1)}; save(); render(); return; }
+    if(th){ setTheme(th.getAttribute("data-theme")); return; }
+    var sec=up(t,"data-sec"); if(sec){ var sk=sec.getAttribute("data-sec"); if(store.closed[sk]) delete store.closed[sk]; else store.closed[sk]=1; save(); render(); return; }
+    if(act){ var a=act.getAttribute("data-do"); if(a=="add") openAdd(""); else if(a=="importOld") importOld(); return; }
+    var row=up(t,"data-id"); if(!row) return; var it=byId(row.getAttribute("data-id")); if(!it) return;
+    if(up(t,"data-more")){ var r=up(t,"data-more").getBoundingClientRect(); itemMenu(it,r.left-150,r.bottom+2); e.stopPropagation(); return; }
+    openItem(it);
+  };
+  $("view").oncontextmenu=function(e){ var row=up(e.target||e.srcElement,"data-id"); if(row){ var it=byId(row.getAttribute("data-id")); if(it) itemMenu(it,e.clientX,e.clientY); } e.preventDefault(); return false; };
+  $("view").onscroll=hideMenu;
+  $("groups").onclick=function(e){ var t=e.target||e.srcElement;
+    var ag=t; while(ag&&ag.id!="addGroup") ag=ag.parentNode;
+    if(ag){ var n=addGroup(prompt("Name for the new group:")||""); if(n){ group=n; render(); } return; }
+    var c=up(t,"data-g"); if(c){ group=c.getAttribute("data-g"); render(); } };
+  $("groups").oncontextmenu=function(e){ var c=up(e.target||e.srcElement,"data-g"); e.preventDefault();
+    if(c&&c.getAttribute("data-g")!="All"){ var g=c.getAttribute("data-g");
+      showMenu(e.clientX,e.clientY,[{label:"&#9998;&nbsp; Rename group",fn:function(){ renameGroup(g); }},{label:"&#9664;&nbsp; Move left",fn:function(){ moveGroup(g,-1); }},
+        {label:"&#9654;&nbsp; Move right",fn:function(){ moveGroup(g,1); }},"-",{label:"&#10005;&nbsp; Delete group",danger:1,fn:function(){ deleteGroup(g); }}]); }
+    return false; };
+  $("dlgSet").onclick=function(e){ var t=e.target||e.srcElement, th=up(t,"data-theme"), sz=up(t,"data-size"), bst=up(t,"data-bst");
+    if(th) setTheme(th.getAttribute("data-theme")); else if(sz) setSize(sz.getAttribute("data-size"));
+    else if(bst){ store.btnStyle=bst.getAttribute("data-bst"); save(); applyLook(); openSettings(); } else if(t==this) hideDlgs(); };
+  $("dlgItem").onclick=function(e){ if((e.target||e.srcElement)==this) hideDlgs(); };
+  $("menu").onclick=function(e){ var m=up(e.target||e.srcElement,"data-mi"); if(!m) return; var fn=menuActs[+m.getAttribute("data-mi")]; hideMenu(); if(fn) fn(); e.stopPropagation(); };
+  document.onmousedown=function(e){ var m=$("menu"), tp=$("tpanel"), ck=$("clock"), t=e.target||e.srcElement, inM=false, inP=false;
+    while(t){ if(t==m) inM=true; if(t==tp||t==ck) inP=true; t=t.parentNode; }
+    if(!inM) hideMenu(); if(!inP) hidePanel(); };
+  document.oncontextmenu=function(e){ var tag=((e.target||{}).tagName||"").toUpperCase(); if(tag!="INPUT"){ e.preventDefault(); return false; } };
+
+  document.onkeydown=function(e){
+    var k=e.keyCode, ae=document.activeElement, tag=(ae&&ae.tagName||"").toUpperCase(), inF=(tag=="INPUT"||tag=="SELECT");
+    if(k==13&&ae==$("tmMin")){ tmToggle(); return; }
+    if(k==27&&panelOpen()){ hidePanel(); return; }
+    if(k==27){ if($("menu").style.display=="block") hideMenu(); else if(dlgOpen()) hideDlgs(); else if($("q").value){ $("q").value=""; render(); } try{ $("q").blur(); }catch(x){} return; }
+    if(dlgOpen()){ if(k==13&&$("dlgItem").style.display=="block"&&tag!="SELECT"){ e.preventDefault(); saveItem(); } return; }
+    if(e.ctrlKey&&k==86&&!inF){ var c=""; try{ c=window.clipboardData.getData("Text")||""; }catch(x){}
+      if(c){ e.preventDefault(); openAdd(c); } else { openAdd(""); } return; }
+    if(e.ctrlKey&&k==78){ e.preventDefault(); openAdd(""); return; }
+    if(e.ctrlKey&&k==70){ e.preventDefault(); $("q").focus(); return; }
+    if(k==13&&ae==$("q")){ if(visible[0]) openItem(visible[0]); return; }
+    if(!inF&&!e.ctrlKey&&!e.altKey&&((k>=65&&k<=90)||(k>=48&&k<=57))) $("q").focus();
+  };
+  var rt=null;
+  window.onresize=function(){ hideMenu(); fitTiles(); if(rt) window.clearTimeout(rt);
+    rt=window.setTimeout(function(){ store.win={w:document.documentElement.clientWidth,h:document.documentElement.clientHeight}; save(); },600); };
+}
+
+/* ---------- start ---------- */
+function sizeWindow(){
+  try{
+    var w=store.win?store.win.w:980, h=store.win?store.win.h:640;
+    w=Math.min(Math.max(w,320),screen.availWidth); h=Math.min(Math.max(h,260),screen.availHeight);
+    window.resizeTo(w,h);
+    var dw=w-document.documentElement.clientWidth, dh=h-document.documentElement.clientHeight;
+    if(dw>0||dh>0) window.resizeTo(w+dw,h+dh);
+    if(!store.win) window.moveTo(Math.max(0,(screen.availWidth-w-dw)/2),Math.max(0,(screen.availHeight-h-dh)/2));
+  }catch(e){}
+}
+(function start(){
+  load(); ltSync();
+  if(/\\Temp\\|\.zip\\/i.test(DIR)) showWarn("You're running QuickLaunch from inside a zip or temporary folder. Copy QuickLaunch.hta to a normal folder first, or your list won't be saved.");
+  $("warn").onclick=function(e){ if(up(e.target||e.srcElement,"title")) hideWarn(); };
+  wire(); applyLook(); render(); updateClock();
+  window.setInterval(function(){ if(!tickT) updateClock(); },1000);
+  window.setTimeout(function(){ background(true); },1500);
+})();
+</script>
+<script>
+/* Lew's Toolbox: theme / size changes go both ways, Ctrl+1..9 switches tabs */
+(function () {
+  var st = setTheme, sz = setSize;
+  setTheme = function (k) { st(k); var s = LT.settings(); s.theme = k; LT.saveSettings(s); if (LT.main()) LT.main().themeChanged(window); };
+  setSize = function (k) { sz(k); var s = LT.settings(); s.size = k; LT.saveSettings(s); if (LT.main()) LT.main().themeChanged(window); };
+  window.ltTheme = function () { ltSync(); save(); applyLook(); render(); };
+  window.ltReload = function () { location.reload(); };
+  window.ltShown = function () { try { $("q").focus(); } catch (e) { } };
+  /* right-click a folder > Open in Bulk Files */
+  var im = itemMenu;
+  itemMenu = function (it, x, y) {
+    var sm = showMenu;
+    if (it.type == "folder" && LT.main()) showMenu = function (x2, y2, m) { showMenu = sm; m.splice(3, 0, { label: "&#128221;&nbsp; Open in Bulk Files", fn: function () { LT.main().send("files", "open-folder", it.path); } }); sm(x2, y2, m); };
+    try { im(it, x, y); } finally { showMenu = sm; }
+  };
+  LT.tabKeys();
+})();
+</script>
+</body>
+</html>

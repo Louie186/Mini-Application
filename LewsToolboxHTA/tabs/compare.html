@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>What Changed</title>
+<meta name="lt-order" content="7">
+<meta name="lt-icon" content="&#128260;">
+<meta name="lt-desc" content="Compares the last submission with this one: what is new, revised (P01 to P02), removed, or changed without a new revision.">
+<!--
+  Lew's Toolbox - What changed: compares two submissions (folders, or lists in Excel / CSV) drawing by drawing:
+  New, Removed, Revised (P01 -> P02), Unchanged, and "same revision but the file changed".
+  Remembers the last two picks in compare.json.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:440px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+.side{display:inline-block;width:90px}
+#cards span{display:inline-block;margin:0 16px 6px 0;font-weight:bold;cursor:pointer}
+.right{float:right}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><span class="lbl big side">Before</span>
+    <button class="btn" data-pick="a" data-k="folder">&#128194; Folder...</button><button class="btn" data-pick="a" data-k="list">&#128196; List...</button><span class="path" id="aLbl"></span>
+  </div>
+  <div class="step">
+    <span class="num">2</span><span class="lbl big side">Now</span>
+    <button class="btn" data-pick="b" data-k="folder">&#128194; Folder...</button><button class="btn" data-pick="b" data-k="list">&#128196; List...</button><span class="path" id="bLbl"></span>
+  </div>
+  <div class="step bar">
+    <span class="num">3</span><button class="btn primary" id="bRun">&#9654; Compare</button>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
+    <span class="lbl">Only:</span><input type="text" id="only" style="width:110px;margin:0 8px 6px 0" placeholder="e.g. pdf">
+    <span class="right"><button class="btn" id="bCopy">&#128203; Copy summary</button><button class="btn" id="bCsv">Export (CSV)</button></span>
+    <div id="cards"></div>
+  </div>
+  <div id="res"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg, result = null, filter = "changes";
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
+function FILE() { return LT.dataPath("compare.json"); }
+function load() { cfg = LT.readJson(FILE(), null) || {}; cfg.a = cfg.a || null; cfg.b = cfg.b || null; }
+function save() { try { LT.saveJson(FILE(), cfg); } catch (e) { } }
+function label(s) { return s ? (s.kind == "folder" ? "&#128194; " : "&#128196; ") + esc(s.path) : '<span class="muted">not picked</span>'; }
+function paths() { $("aLbl").innerHTML = label(cfg.a); $("bLbl").innerHTML = label(cfg.b); }
+function split(stem) { stem = LT.trim(stem); var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i).toUpperCase(), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem.toUpperCase(), rev: "" }; }
+
+/* everything in one side, by drawing number: { base: { rev, types[], files[], size } } */
+function read(side, only) {
+  var out = {};
+  var add = function (stem, ext, extra) { var s = split(stem), d = out[s.base] = out[s.base] || { base: s.base, revs: {}, types: [], items: [] };
+    d.revs[s.rev] = 1; if (ext && d.types.indexOf(ext) < 0) d.types.push(ext); d.items.push(extra); };
+  if (side.kind == "folder") {
+    var walk = function (dir) { try { var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
+      for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name, i = n.lastIndexOf("."), ext = i > 0 ? n.substring(i + 1).toLowerCase() : "";
+        if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$/i.test(n)) continue; if (only.length && only.indexOf(ext) < 0) continue;
+        add(i > 0 ? n.substring(0, i) : n, ext, { name: n, full: "" + f.Path, size: f.Size }); }
+      if ($("subs").checked) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) if (!(d.item().Attributes & 6)) walk("" + d.item().Path); } } catch (x) { } };
+    walk(side.path);
+  } else {
+    var L = LT.readList(side.path), t = L.table, head = L.headRow, col = L.numCol >= 0 ? L.numCol : 0;
+    var revCol = head >= 0 ? LT.col(t[head], ["revision", "rev", "rev."]) : -1, titleCol = head >= 0 ? LT.col(t[head], ["title", "description", "drawing title"]) : col + 1;
+    for (var k = head + 1; k < t.length; k++) { var v = LT.cell(t[k], col); if (!v || LT.isCategory(v, LT.cell(t[k], revCol))) continue; var m = /\.([a-z0-9]{2,4})$/i.exec(v), ext = m && !REV.test(m[1]) ? m[1].toLowerCase() : "";
+      if (ext) v = v.substring(0, v.length - m[0].length);
+      var rv = LT.cell(t[k], revCol); if (rv && !split(v).rev) v = v + "-" + rv;
+      add(v, ext, { name: LT.cell(t[k], col), title: LT.cell(t[k], titleCol) }); }
+  }
+  return out;
+}
+function revOf(d) { var r = []; for (var k in d.revs) if (d.revs.hasOwnProperty(k)) r.push(k || "(none)"); return r.sort().join(", "); }
+function compare() {
+  if (!cfg.a || !cfg.b) { alert("Pick both: what it was BEFORE, and what it is NOW (a folder or a list each)."); return; }
+  var only = LT.trim($("only").value.toLowerCase()).split(/[\s,;.]+/); if (!only[0]) only = [];
+  var A, B; try { A = read(cfg.a, only); B = read(cfg.b, only); } catch (e) { alert("Couldn't read one of them - is a list open in Excel?\n\n" + (e.message || e)); return; }
+  var rows = [], keys = {}, k;
+  for (k in A) if (A.hasOwnProperty(k)) keys[k] = 1; for (k in B) if (B.hasOwnProperty(k)) keys[k] = 1;
+  for (k in keys) { if (!keys.hasOwnProperty(k)) continue; var a = A[k], b = B[k], row = { base: k, before: a ? revOf(a) : "", now: b ? revOf(b) : "", note: "", title: "" };
+    var t = (b || a).items; for (var q = 0; q < t.length; q++) if (t[q].title) { row.title = t[q].title; break; }
+    if (!a) row.st = "New"; else if (!b) row.st = "Removed";
+    else if (row.before != row.now) row.st = "Revised";
+    else { row.st = "Unchanged";
+      if (cfg.a.kind == "folder" && cfg.b.kind == "folder") { var sa = {}, ch = []; for (var i = 0; i < a.items.length; i++) sa[a.items[i].name.toLowerCase()] = a.items[i].size;
+        for (var j = 0; j < b.items.length; j++) { var nm = b.items[j].name.toLowerCase(); if (sa[nm] != null && sa[nm] != b.items[j].size) ch.push(b.items[j].name); }
+        if (ch.length) { row.st = "Same rev, file changed"; row.note = "Different file size: " + ch.join(", ") + " – was it re-issued without a new revision?"; } } }
+    if (a && b) { var ta = a.types.join(","), tb = b.types.join(","); if (ta != tb && row.st != "Revised") row.note = (row.note ? row.note + " · " : "") + "File types were " + (ta || "none") + ", now " + (tb || "none"); }
+    rows.push(row); }
+  rows.sort(function (x, y) { return x.base < y.base ? -1 : 1; });
+  result = rows; cfg.only = $("only").value; save(); filter = "changes"; render();
+}
+function count(st) { var n = 0; for (var i = 0; i < result.length; i++) if (result[i].st == st) n++; return n; }
+function render() {
+  if (!result) { $("cards").innerHTML = ""; $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick what it was <b>before</b> (last submission folder, or its list) and what it is <b>now</b>, then <b>Compare</b>.<br>Drawings are matched by number, so a new revision shows as <b>Revised</b> (P01 &rarr; P02).</div>'; return; }
+  var c = { New: count("New"), Revised: count("Revised"), Removed: count("Removed"), Unchanged: count("Unchanged"), Same: count("Same rev, file changed") };
+  $("cards").innerHTML = '<span data-f="changes" class="' + (filter == "changes" ? "" : "muted") + '">All changes ' + (c.New + c.Revised + c.Removed + c.Same) + '</span><span data-f="New" class="ok">&#10133; New ' + c.New + '</span><span data-f="Revised" class="warn">&#8635; Revised ' + c.Revised + '</span><span data-f="Removed" class="bad">&#10006; Removed ' + c.Removed + "</span>" +
+    (c.Same ? '<span data-f="Same rev, file changed" class="bad">&#9888; Same rev, file changed ' + c.Same + "</span>" : "") + '<span data-f="Unchanged" class="muted">Unchanged ' + c.Unchanged + '</span><span data-f="all" class="muted">Show all ' + result.length + "</span>";
+  var h = ['<table class="grid"><tr><th>Drawing</th><th>Title</th><th>Before</th><th>Now</th><th>Change</th><th>Note</th></tr>'], n = 0;
+  for (var i = 0; i < result.length; i++) { var r = result[i];
+    if (filter == "changes" && r.st == "Unchanged") continue; if (filter != "changes" && filter != "all" && r.st != filter) continue; n++;
+    var cls = r.st == "New" ? "ok" : r.st == "Revised" ? "warn" : r.st == "Unchanged" ? "muted" : "bad";
+    h.push("<tr><td><b>" + esc(r.base) + "</b></td><td>" + esc(r.title) + "</td><td>" + esc(r.before) + "</td><td><b>" + esc(r.now) + '</b></td><td class="' + cls + '" style="font-weight:bold;white-space:nowrap">' + esc(r.st) + '</td><td class="muted">' + esc(r.note) + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = n ? h.join("") : '<div class="muted" style="padding:24px">Nothing here.</div>';
+}
+function summary() {
+  if (!result) return "";
+  var s = "Changes since last issue – " + LT.today() + "\r\nBefore: " + cfg.a.path + "\r\nNow: " + cfg.b.path + "\r\n", sts = ["New", "Revised", "Removed", "Same rev, file changed"];
+  for (var i = 0; i < sts.length; i++) { var l = []; for (var j = 0; j < result.length; j++) if (result[j].st == sts[i]) l.push(result[j]); if (!l.length) continue;
+    s += "\r\n" + sts[i].toUpperCase() + " (" + l.length + ")\r\n"; for (var k = 0; k < l.length; k++) s += "  • " + l[k].base + (l[k].title ? " – " + l[k].title : "") + (sts[i] == "Revised" ? "  " + l[k].before + " → " + l[k].now : sts[i] == "New" ? "  " + l[k].now : "") + "\r\n"; }
+  return s + "\r\nUnchanged: " + count("Unchanged") + "\r\n";
+}
+$("app").onclick = function (e) {
+  var t = e.target || e.srcElement, p = LT.up(t, "data-pick"), f = LT.up(t, "data-f");
+  if (p) { var side = p.getAttribute("data-pick"), kind = p.getAttribute("data-k");
+    if (kind == "folder") { var d = LT.pickFolder(side == "a" ? "Pick the BEFORE folder (last submission)" : "Pick the NOW folder (this submission)"); if (d) { cfg[side] = { kind: "folder", path: d }; save(); paths(); } }
+    else LT.pickFile(function (fp) { cfg[side] = { kind: "list", path: fp }; save(); paths(); }); }
+  else if (f) { filter = f.getAttribute("data-f"); render(); }
+};
+$("bRun").onclick = compare;
+$("bCopy").onclick = function () { if (!result) { alert("Compare first."); return; } if (LT.copyText(summary())) LT.toast("Summary copied - paste it into an email or Teams"); };
+$("bCsv").onclick = function () { if (!result) { alert("Compare first."); return; } var t = [["Drawing", "Title", "Before", "Now", "Change", "Note"]]; for (var i = 0; i < result.length; i++) { var r = result[i]; t.push([r.base, r.title, r.before, r.now, r.st, r.note]); }
+  var f = LT.exportsDir() + "\\WhatChanged_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f); };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{background:{panel}}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); paths(); };
+look(); load(); if (cfg.only) $("only").value = cfg.only; paths(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Delegate</title>
+<meta name="lt-order" content="4">
+<meta name="lt-icon" content="&#128203;">
+<meta name="lt-desc" content="Give tasks to your team. Sends each person an Excel sheet or an HTML task pack, then loads their replies back so you see who has done what.">
+<!--
+  Lew's Toolbox - Delegate: make tasks (with checklist items), assign people, send each person an Excel task sheet
+  and/or an HTML task pack, load their filled-in files / replies back and see the status.
+  Same file formats as Lew's Tracker (web app), so files and replies work in both.
+  Excel files are made and read through Excel itself. The task-pack page is core\taskpack-runtime.js.
+  Data: delegate.json. Writes delegate-feed.json so the Tracker shows "Waiting on <name>".
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+#top,#views,#filters{flex:none}
+#main{flex:1 1 auto;overflow:auto;min-height:0}
+.lbl{display:inline-block;margin:0 6px 6px 0;vertical-align:middle}
+tr.task td{font-weight:bold}
+td.it{padding-left:28px}
+#dlg .card{width:860px}
+#items input,#items select{width:100%;height:26px}
+#items td{padding:2px 3px}
+#send .card{width:520px}
+#whoList{max-height:170px;overflow-y:auto;padding:4px 0}
+#whoList label,#send label{display:block;margin:3px 0}
+#paste textarea{width:100%;height:260px}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div id="top" class="bar">
+    <button class="btn primary" id="bNew">+ New task</button>
+    <button class="btn" id="bSend">&#128228; Send to people...</button>
+    <button class="btn" id="bLoad">&#11014; Load replies...</button>
+    <button class="btn" id="bPaste">&#128203; Paste reply...</button>
+    <button class="btn" id="bMore">More &#9662;</button>
+  </div>
+  <div id="views" class="bar2"></div>
+  <div id="filters" class="bar2">
+    <span class="lbl">Person:</span><select id="person" style="width:160px;margin:0 8px 6px 0"></select>
+    <input type="text" id="search" placeholder="Search" style="width:170px;margin:0 8px 6px 0">
+    <label class="lbl"><input type="checkbox" id="hideDone" checked style="height:auto"> Hide completed</label>
+    <span class="lbl muted" id="hint"></span>
+  </div>
+  <div id="main"></div>
+</div>
+
+<!-- edit a task -->
+<div class="ov" id="dlg"><div class="card">
+  <h3 id="dTitle">Task</h3>
+  <div class="row2">
+    <div class="fld" style="flex:0 0 110px"><label>ID</label><input type="text" id="eCode" placeholder="auto"></div>
+    <div class="fld"><label>Task</label><input type="text" id="eTitle"></div>
+  </div>
+  <div class="row2">
+    <div class="fld"><label>Group</label><input type="text" id="eGroup"></div>
+    <div class="fld"><label>Project</label><input type="text" id="eProj"></div>
+    <div class="fld"><label>Assigned to (comma between names)</label><input type="text" id="eWho" list="pplList"></div>
+  </div>
+  <div class="row2">
+    <div class="fld"><label>Due (click to pick, or type dd/mm/yyyy)</label><input type="text" id="eDue"></div>
+    <div class="fld"><label>Status (when there are no items)</label><select id="eStat"><option>Not started</option><option>In progress</option><option>Completed</option></select></div>
+  </div>
+  <div class="fld"><label>Notes</label><input type="text" id="eNotes"></div>
+  <div class="fld"><label>Checklist items (optional) &ndash; empty Assigned to / Due = same as the task</label>
+    <table class="grid" id="items"></table>
+    <button class="btn small" id="eAddRow" style="margin-top:6px">+ Item</button>
+    <button class="btn small" id="ePasteRows" style="margin-top:6px">+ Paste items (one per line)...</button>
+  </div>
+  <div class="acts"><button class="btn" id="eDel">Delete task</button><span class="sp"></span><button class="btn" id="eCancel">Cancel</button><button class="btn primary" id="eOk">Save</button></div>
+</div></div>
+<datalist id="pplList"></datalist>
+
+<!-- send -->
+<div class="ov" id="send"><div class="card">
+  <h3 id="sTitle">Send tasks to people</h3>
+  <div class="muted">Who gets a file? Each person gets only their own tasks.</div>
+  <div id="whoList"></div>
+  <label><input type="checkbox" id="sAll" style="height:auto"> Also one file with everything (for a group / the whole team)</label>
+  <div class="h">File types</div>
+  <label><input type="checkbox" id="sXl" checked style="height:auto"> Excel task sheet (.xlsx) &ndash; yellow boxes to fill in, drop-down status</label>
+  <label><input type="checkbox" id="sPk" checked style="height:auto"> HTML task pack (.html) &ndash; opens in any browser, phone friendly, sends a reply</label>
+  <label><input type="checkbox" id="sSi" style="height:auto"> Simple Excel table (.xlsx) &ndash; plain rows</label>
+  <div class="muted" style="margin-top:8px">Files get today's date and time in their name, in a new folder under exports\Delegate. Then attach them to an email / Teams.</div>
+  <div class="acts"><span class="sp"></span><button class="btn" id="sCancel">Cancel</button><button class="btn primary" id="sOk">Make the files</button></div>
+</div></div>
+
+<!-- paste a reply -->
+<div class="ov" id="paste"><div class="card">
+  <h3>Paste reply</h3>
+  <div class="muted" style="margin-bottom:6px">Paste the whole reply message from the HTML task pack (email / Teams):</div>
+  <textarea id="pText"></textarea>
+  <div class="acts"><span class="sp"></span><button class="btn" id="pCancel">Cancel</button><button class="btn primary" id="pOk">Load</button></div>
+</div></div>
+
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso;
+var ST = ["Not started", "In progress", "Completed"], MARK = "LTUPDATE1:";
+var data, web = [], view = "list", rowMap = [], editing = null, sendPool = null;
+function FILE() { return LT.dataPath("delegate.json"); }
+
+/* ---------- data ---------- */
+function load() {
+  data = LT.readJson(FILE(), null) || {};
+  data.tasks = data.tasks || []; data.seq = data.seq || 0; data.project = data.project || ""; data.issued = data.issued || []; data.imports = data.imports || [];
+  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; t.subs = t.subs || []; t.history = t.history || []; if (ST.indexOf(t.status) < 0) t.status = "Not started"; for (var j = 0; j < t.subs.length; j++) if (ST.indexOf(t.subs[j].status) < 0) t.subs[j].status = "Not started"; }
+  loadWeb();
+}
+function save() { try { LT.saveJson(FILE(), data); writeFeed(); } catch (e) { alert("Delegate data couldn't be saved to:\n" + FILE()); } }
+function names(s) { var a = ("" + (s || "")).split(/\s*(?:,|;|&|\/|\band\b)\s*/i), out = []; for (var i = 0; i < a.length; i++) if (LT.trim(a[i])) out.push(LT.trim(a[i])); return out; }
+function has(who, p) { var n = names(who); for (var i = 0; i < n.length; i++) if (n[i].toLowerCase() == p.toLowerCase()) return true; return false; }
+function statusOf(t) {
+  if (!t.subs.length) return t.status;
+  var done = 0, ns = 0; for (var i = 0; i < t.subs.length; i++) { if (t.subs[i].status == "Completed") done++; if (t.subs[i].status == "Not started") ns++; }
+  return done == t.subs.length ? "Completed" : ns == t.subs.length ? "Not started" : "In progress";
+}
+function progress(t) {
+  if (!t.subs.length) return t.status == "Completed" ? 1 : t.status == "In progress" ? 0.5 : 0;
+  var s = 0; for (var i = 0; i < t.subs.length; i++) s += t.subs[i].status == "Completed" ? 1 : t.subs[i].status == "In progress" ? 0.5 : 0;
+  return s / t.subs.length;
+}
+function norm(v) {
+  var t = LT.trim(v).toLowerCase();
+  if (t == "done" || t == "yes" || t == "complete" || t == "completed") return "Completed";
+  if (t == "in progress" || t == "wip" || t == "started" || t == "doing") return "In progress";
+  if (t == "no" || t == "not started" || t == "not yet" || t == "to do") return "Not started";
+  return LT.trim(v);
+}
+function D(s) { return LT.parseIso(s); }
+function todayD() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function late(due, st) { var d = D(due); return d && d < todayD() && st != "Completed"; }
+function stampNow() { var d = new Date(); return d.getDate() + " " + LT.MON[d.getMonth()] + " " + LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes()); }
+function nextCode() { var c; do { data.seq++; c = "T" + (data.seq < 10 ? "00" : data.seq < 100 ? "0" : "") + data.seq; } while (findTask(c)); return c; }
+function findTask(code) { for (var i = 0; i < data.tasks.length; i++) if (data.tasks[i].code.toLowerCase() == ("" + code).toLowerCase()) return data.tasks[i]; return null; }
+function nextSub(t) { var max = 0; for (var i = 0; i < t.subs.length; i++) { var p = t.subs[i].code.split("."), n = parseInt(p[p.length - 1], 10); if (n > max) max = n; } return t.code + "." + (max + 1); }
+function people() { var s = {}, out = []; for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i], n = names(t.who); for (var j = 0; j < t.subs.length; j++) n = n.concat(names(t.subs[j].who)); for (var k = 0; k < n.length; k++) if (!s[n[k].toLowerCase()]) { s[n[k].toLowerCase()] = 1; out.push(n[k]); } } return out.sort(); }
+function parseDate(s) {
+  s = LT.trim(s); if (!s) return "";
+  var m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s); if (m) return LT.iso(new Date(+m[1], +m[2] - 1, +m[3]));
+  m = /^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?$/.exec(s);
+  if (m) { var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : todayD().getFullYear(); return LT.iso(new Date(y, +m[2] - 1, +m[1])); }
+  return null;
+}
+function dmy(iso) { var d = D(iso); return d ? LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear() : ""; }
+function copy(o) { return JSON.parse(JSON.stringify(o)); }
+
+/* for the Tracker tab: one line per open task, "waiting on" its people */
+function writeFeed() {
+  var feed = [];
+  for (var i = 0; i < data.tasks.length; i++) {
+    var t = data.tasks[i], st = statusOf(t); if (st == "Completed") continue;
+    var who = [], dues = [], seen = {};
+    if (!t.subs.length) { who = names(t.who); if (t.due) dues.push(t.due); }
+    else for (var j = 0; j < t.subs.length; j++) { var s = t.subs[j]; if (s.status == "Completed") continue; who = who.concat(names(s.who || t.who)); if (s.due || t.due) dues.push(s.due || t.due); }
+    var w2 = []; for (var k = 0; k < who.length; k++) if (!seen[who[k].toLowerCase()]) { seen[who[k].toLowerCase()] = 1; w2.push(who[k]); }
+    if (!w2.length) continue;
+    dues.sort(); var done = 0; for (var d = 0; d < t.subs.length; d++) if (t.subs[d].status == "Completed") done++;
+    feed.push({ id: t.id, title: t.code + " " + t.title + (t.subs.length ? "  (" + done + "/" + t.subs.length + " done)" : ""), who: w2.join(", "), due: dues[0] || "", status: st, project: t.project || "" });
+  }
+  LT.saveJson(LT.dataPath("delegate-feed.json"), feed);
+}
+
+/* ---------- Lew's Tracker (web app): Delegation.json = { keys: { "lt_delegate_v1...": {groups, tasks} } } ---------- */
+function loadWeb() {
+  web = [];
+  var f = LT.settings().trackerFolder; if (!f) return;
+  try {
+    var root = LT.readJson(f + "\\Delegation.json", null); if (!root) return;
+    var keys = root.keys || root;
+    for (var k in keys) {
+      if (!keys.hasOwnProperty(k) || k.indexOf("lt_delegate_v1") != 0 || /_ui/.test(k)) continue;
+      var d = keys[k]; if (typeof d == "string") { try { d = JSON.parse(d); } catch (e) { continue; } }
+      if (!d || !d.tasks) continue;
+      var groups = {}; for (var g = 0; g < (d.groups || []).length; g++) groups[d.groups[g].id] = d.groups[g].name;
+      var proj = k.substring("lt_delegate_v1".length).replace(/^[:_ ]+/, "");
+      for (var i = 0; i < d.tasks.length; i++) {
+        var t = d.tasks[i], w = { id: t.id, code: t.code || "", title: t.title || "", group: groups[t.group] || "", project: proj, who: t.assignees || "", due: t.due || "", status: norm(t.status), notes: t.notes || "", subs: [], history: [], fromWeb: true };
+        if (ST.indexOf(w.status) < 0) w.status = "Not started";
+        for (var j = 0; j < (t.subs || []).length; j++) { var s = t.subs[j], st = norm(s.status); w.subs.push({ id: s.id, code: s.code || "", title: s.title || "", who: s.assignees || "", due: s.due || "", status: ST.indexOf(st) < 0 ? "Not started" : st, notes: s.notes || "" }); }
+        web.push(w);
+      }
+    }
+  } catch (e) { }
+}
+
+/* ---------- render ---------- */
+function render() {
+  var keep = $("person").value, ppl = people(), h = '<option value="">Everyone</option>', dl = "";
+  for (var i = 0; i < ppl.length; i++) { h += "<option" + (ppl[i] == keep ? " selected" : "") + ">" + esc(ppl[i]) + "</option>"; dl += '<option value="' + esc(ppl[i]) + '">'; }
+  $("person").innerHTML = h; $("pplList").innerHTML = dl;
+  var open = 0, nLate = 0;
+  for (var j = 0; j < data.tasks.length; j++) { var t = data.tasks[j]; if (statusOf(t) != "Completed") open++; if (!t.subs.length) { if (late(t.due, t.status)) nLate++; } else for (var k = 0; k < t.subs.length; k++) if (late(t.subs[k].due || t.due, t.subs[k].status)) nLate++; }
+  h = '<button class="btn' + (view == "list" ? " on" : "") + '" data-v="list">&#9776; Tasks &nbsp;' + open + '</button><button class="btn' + (view == "team" ? " on" : "") + '" data-v="team">&#128101; Team</button>';
+  if (LT.settings().trackerFolder) h += '<button class="btn' + (view == "web" ? " on" : "") + '" data-v="web">&#127760; Lew\'s Tracker &nbsp;' + web.length + "</button>";
+  if (nLate) h += '<span class="lbl bad" style="font-weight:bold">' + nLate + " late</span>";
+  if (data.imports.length) { var li = data.imports[data.imports.length - 1]; h += '<span class="lbl muted">Last reply: ' + esc(li.from) + ", " + esc(li.when) + "</span>"; }
+  $("views").innerHTML = h;
+  if (view == "team") team(); else list(view == "web" ? web : data.tasks);
+}
+function match(t, who, words) {
+  if (who) { var ok = has(t.who, who); for (var i = 0; i < t.subs.length && !ok; i++) if (has(t.subs[i].who, who)) ok = true; if (!ok) return false; }
+  if (!words.length) return true;
+  var hay = (t.code + " " + t.title + " " + t.group + " " + t.notes + " " + t.who).toLowerCase();
+  for (var j = 0; j < t.subs.length; j++) hay += " " + (t.subs[j].code + " " + t.subs[j].title + " " + t.subs[j].notes + " " + t.subs[j].who).toLowerCase();
+  for (var k = 0; k < words.length; k++) if (hay.indexOf(words[k]) < 0) return false;
+  return true;
+}
+function list(tasks) {
+  rowMap = [];
+  var who = $("person").value, words = LT.trim($("search").value.toLowerCase()).split(/\s+/); if (!words[0]) words = [];
+  var sorted = tasks.slice(0).sort(function (a, b) { var x = statusOf(a) == "Completed", y = statusOf(b) == "Completed"; if (x != y) return x ? 1 : -1; return a.code.toLowerCase() < b.code.toLowerCase() ? -1 : 1; });
+  var h = ['<table class="grid"><tr><th>ID</th><th>Task / item</th><th>Group</th><th>Assigned to</th><th>Due</th><th>Status</th><th>Progress</th><th>Notes</th><th>Last update</th></tr>'];
+  for (var i = 0; i < sorted.length; i++) {
+    var t = sorted[i], st = statusOf(t);
+    if ($("hideDone").checked && st == "Completed") continue;
+    if (!match(t, who, words)) continue;
+    var whole = !who || has(t.who, who);
+    rowMap.push({ t: t, s: null });
+    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td>' + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + "</td><td>" + esc(t.title) + "</td><td>" + esc(t.group) + "</td><td>" + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
+    for (var j = 0; j < t.subs.length; j++) {
+      var s = t.subs[j]; if (!whole && !has(s.who, who)) continue;
+      rowMap.push({ t: t, s: s });
+      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.status == "Completed" ? ' class="muted"' : "") + "><td>" + esc(s.code) + '</td><td class="it">&#8627; ' + esc(s.title) + "</td><td></td><td>" + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
+    }
+  }
+  h.push("</table>");
+  $("main").innerHTML = rowMap.length ? h.join("") : '<div class="muted" style="padding:30px">' + (view == "web" ? "No tasks in Lew's Tracker's Delegation.json." : data.tasks.length ? "Nothing matches." : "No tasks yet &ndash; click + New task.") + "</div>";
+  $("hint").innerHTML = view == "web" ? "Read-only copy of Lew's Tracker. More &#9662; &gt; Copy Lew's Tracker tasks into the Toolbox to work on them here." : rowMap.length ? "Double-click = edit &middot; right-click = status, send, history&hellip;" : "";
+}
+function dueCell(due, st) { return "<td" + (late(due, st) ? ' class="bad"' : "") + ">" + esc(LT.fmtDate(due)) + (late(due, st) ? " &nbsp;late" : "") + "</td>"; }
+function stCell(st) { return '<td class="' + (st == "Completed" ? "ok" : st == "In progress" ? "warn" : "") + '">' + st + "</td>"; }
+function team() {
+  rowMap = [];
+  var ws = todayD(); ws = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - ((ws.getDay() + 6) % 7));
+  var w1 = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 7), w2 = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 14);
+  var h = ['<table class="grid"><tr><th>Person</th><th>Open items</th><th>Late</th><th>Due this week</th><th>Due next week</th><th>Done</th><th>Load</th></tr>'], ppl = people();
+  for (var p = 0; p < ppl.length; p++) {
+    var items = [];
+    for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i];
+      if (!t.subs.length) { if (has(t.who, ppl[p])) items.push([t.due, t.status]); }
+      else for (var j = 0; j < t.subs.length; j++) if (has(t.subs[j].who || t.who, ppl[p])) items.push([t.subs[j].due || t.due, t.subs[j].status]); }
+    var open = 0, lt = 0, tw = 0, nw = 0;
+    for (var k = 0; k < items.length; k++) { if (items[k][1] == "Completed") continue; open++; var d = D(items[k][0]); if (late(items[k][0], items[k][1])) lt++; if (d && d >= todayD() && d < w1) tw++; if (d && d >= w1 && d < w2) nw++; }
+    var load = lt ? "&#9888; Behind (" + lt + " late)" : open >= 10 || tw >= 6 ? "Busy" : open <= 3 ? "Has room" : "OK";
+    rowMap.push({ person: ppl[p] });
+    h.push('<tr data-r="' + (rowMap.length - 1) + '"><td><b>' + esc(ppl[p]) + "</b></td><td>" + open + '</td><td class="bad">' + (lt || "") + "</td><td>" + tw + "</td><td>" + nw + "</td><td>" + (items.length - open) + '</td><td class="' + (lt ? "bad" : load == "Has room" ? "ok" : load == "Busy" ? "warn" : "") + '">' + load + "</td></tr>");
+  }
+  h.push("</table>");
+  $("main").innerHTML = ppl.length ? h.join("") : '<div class="muted" style="padding:30px">No one is assigned yet.</div>';
+  $("hint").innerHTML = "Double-click a person to see their tasks";
+}
+
+/* ---------- row menu ---------- */
+function rowMenu(t, s, x, y) {
+  var m = [{ label: "<b>Edit task...</b>", fn: function () { edit(t); } }];
+  if (s || !t.subs.length) for (var i = 0; i < ST.length; i++) (function (v) {
+    m.push({ label: "Status: " + v, on: (s ? s.status : t.status) == v, fn: function () { var st = stampNow() + " · me"; if (s) { s.status = v; s.updated = st; s.doneOn = v == "Completed" ? LT.today() : ""; } else { t.status = v; t.doneOn = v == "Completed" ? LT.today() : ""; } t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); save(); render(); } });
+  })(ST[i]);
+  m.push("-", { label: "&#128228; Send this task...", fn: function () { openSend(t); } },
+    { label: "History", fn: function () { alert(t.history.length ? t.history.slice(-30).join("\n") : "No history yet."); } },
+    { label: "Duplicate", fn: function () { var c = copy(t); c.id = LT.uid("t"); c.code = nextCode(); c.status = "Not started"; c.updated = ""; c.history = [stampNow() + "  Copied from " + t.code]; for (var k = 0; k < c.subs.length; k++) { c.subs[k].id = LT.uid("s"); c.subs[k].code = c.code + "." + (k + 1); c.subs[k].status = "Not started"; c.subs[k].updated = ""; } data.tasks.push(c); save(); render(); } },
+    { label: "Delete task", fn: function () { if (confirm("Delete " + t.code + ' "' + t.title + '" and its items?')) { data.tasks.splice(data.tasks.indexOf(t), 1); save(); render(); } } });
+  LT.menu(x, y, m);
+}
+function moreMenu(x, y) {
+  var m = [{ label: "Export all tasks &rarr; Excel (CSV)", fn: exportCsv }, { label: "Open the folder with sent files", fn: function () { LT.mkdirs(sentRoot()); LT.open(sentRoot()); } }, { label: "Sent and received log", fn: showLog }, "-",
+    { label: "Default project name...", fn: function () { var p = prompt("Project name used on new tasks and sheets:", data.project); if (p != null) { data.project = LT.trim(p); save(); } } }];
+  if (LT.settings().trackerFolder) m.push({ label: "Copy Lew's Tracker tasks into the Toolbox...", fn: copyWeb }); else m.push({ label: "Link Lew's Tracker (Settings)", fn: function () { if (LT.main()) LT.main().show("settings"); } });
+  LT.menu(x, y, m);
+}
+
+/* ---------- edit ---------- */
+function itemRow(s) {
+  var o = ""; for (var i = 0; i < ST.length; i++) o += "<option" + (s.status == ST[i] ? " selected" : "") + ">" + ST[i] + "</option>";
+  return '<tr><td style="width:70px"><input type="text" value="' + esc(s.code || "") + '" disabled></td><td><input type="text" class="iT" value="' + esc(s.title) + '"></td><td style="width:120px"><input type="text" class="iW" value="' + esc(s.who || "") + '" list="pplList"></td>' +
+    '<td style="width:100px"><input type="text" class="iD" value="' + esc(dmy(s.due)) + '" placeholder="dd/mm/yyyy"></td><td style="width:120px"><select class="iS">' + o + '</select></td><td><input type="text" class="iN" value="' + esc(s.notes || "") + '"></td><td style="width:26px"><button class="btn small" data-rm="1" title="Remove item" style="margin:0">&#10005;</button></td></tr>';
+}
+function itemsHead() { return "<tr><th>ID</th><th>Item</th><th>Assigned to</th><th>Due</th><th>Status</th><th>Notes</th><th></th></tr>"; }
+function edit(t) {
+  if (t && t.fromWeb) return;
+  editing = t; var w = t || { code: "", title: "", group: "", project: data.project, who: $("person").value, due: "", status: "Not started", notes: "", subs: [] };
+  $("dTitle").innerHTML = t ? "Edit " + esc(t.code) : "New task";
+  $("eCode").value = t ? w.code : ""; $("eTitle").value = w.title; $("eGroup").value = w.group || ""; $("eProj").value = w.project || ""; $("eWho").value = w.who || "";
+  $("eDue").value = dmy(w.due); $("eStat").value = w.status; $("eNotes").value = w.notes || "";
+  var h = itemsHead(); for (var i = 0; i < w.subs.length; i++) h += itemRow(w.subs[i]);
+  $("items").innerHTML = h; $("eDel").style.display = t ? "" : "none";
+  $("dlg").style.display = "block"; $("eTitle").focus();
+}
+function addItemRows(list) { var tb = $("items"); for (var i = 0; i < list.length; i++) tb.insertAdjacentHTML("beforeend", itemRow(list[i])); }
+function saveEdit() {
+  var title = LT.trim($("eTitle").value), code = LT.trim($("eCode").value);
+  if (!title) { alert("Type what the task is."); return; }
+  var other = code && findTask(code); if (other && other !== editing) { alert("ID " + code + " is already used by another task."); return; }
+  var due = parseDate($("eDue").value); if (due === null) { alert("The task's due date isn't clear - use dd/mm/yyyy."); return; }
+  var rows = $("items").getElementsByTagName("tr"), subs = [], bad = [];
+  var old = {}; if (editing) for (var o = 0; o < editing.subs.length; o++) old[editing.subs[o].code] = editing.subs[o];
+  for (var i = 1; i < rows.length; i++) {
+    var r = rows[i], q = function (c) { return r.getElementsByClassName ? r.getElementsByClassName(c)[0] : r.querySelector("." + c); };
+    var it = LT.trim(q("iT").value); if (!it) continue;
+    var sd = parseDate(q("iD").value); if (sd === null) { bad.push(it + ': "' + q("iD").value + '"'); continue; }
+    var sc = r.getElementsByTagName("input")[0].value, s = (sc && old[sc]) ? old[sc] : { id: LT.uid("s"), code: "", updated: "" };
+    s.title = it; s.who = LT.trim(q("iW").value); s.due = sd; s.status = q("iS").value; s.notes = LT.trim(q("iN").value);
+    s.doneOn = s.status == "Completed" ? (s.doneOn || LT.today()) : "";
+    subs.push(s);
+  }
+  if (bad.length) { alert("These dates aren't clear - use dd/mm/yyyy:\n" + bad.join("\n")); return; }
+  var t = editing ? copy(editing) : { id: LT.uid("t"), created: LT.today(), history: [] };
+  t.code = code || (editing ? editing.code : nextCode()); t.title = title; t.group = LT.trim($("eGroup").value); t.project = LT.trim($("eProj").value); t.who = LT.trim($("eWho").value);
+  t.due = due; t.notes = LT.trim($("eNotes").value);
+  var keep = []; for (var k = 0; k < subs.length; k++) if (subs[k].code && subs[k].code.indexOf(t.code + ".") == 0) keep.push(subs[k]);
+  t.subs = keep; for (var n = 0; n < subs.length; n++) if (!(subs[n].code && subs[n].code.indexOf(t.code + ".") == 0)) { subs[n].code = nextSub(t); t.subs.push(subs[n]); }
+  t.subs.sort(function (a, b) { return subs.indexOf(a) - subs.indexOf(b); });
+  if (!t.subs.length) { t.status = $("eStat").value; t.doneOn = t.status == "Completed" ? (t.doneOn || LT.today()) : ""; }
+  t.updated = stampNow() + " · me"; t.history = t.history || []; t.history.push(stampNow() + (editing ? "  Edited" : "  Created"));
+  if (editing) data.tasks[data.tasks.indexOf(editing)] = t; else data.tasks.push(t);
+  $("dlg").style.display = "none"; save(); render();
+}
+
+/* ---------- send ---------- */
+function sentRoot() { return LT.exportsDir() + "\\Delegate"; }
+function planFor(pool, who) {
+  var out = [];
+  for (var i = 0; i < pool.length; i++) { var t = pool[i];
+    if (!who || has(t.who, who)) { out.push(t); continue; }
+    var mine = []; for (var j = 0; j < t.subs.length; j++) if (has(t.subs[j].who, who)) mine.push(t.subs[j]);
+    if (mine.length) { var c = copy(t); c.subs = copy(mine); out.push(c); } }
+  return out;
+}
+function openSend(only) {
+  var pool = []; if (only) pool = [only]; else for (var i = 0; i < data.tasks.length; i++) if (statusOf(data.tasks[i]) != "Completed") pool.push(data.tasks[i]);
+  if (!pool.length) { alert(data.tasks.length ? "All tasks are completed - nothing to send." : "Make a task first (+ New task)."); return; }
+  sendPool = pool;
+  var seen = {}, ppl = [];
+  for (var p = 0; p < pool.length; p++) { var n = names(pool[p].who); for (var s = 0; s < pool[p].subs.length; s++) n = n.concat(names(pool[p].subs[s].who)); for (var k = 0; k < n.length; k++) if (!seen[n[k].toLowerCase()]) { seen[n[k].toLowerCase()] = 1; ppl.push(n[k]); } }
+  ppl.sort();
+  var h = ""; for (var q = 0; q < ppl.length; q++) h += '<label><input type="checkbox" class="sw" value="' + esc(ppl[q]) + '" checked style="height:auto"> ' + esc(ppl[q]) + "</label>";
+  $("whoList").innerHTML = h || '<div class="muted">No one is assigned yet &ndash; one file with everything will be made.</div>';
+  $("sAll").checked = !ppl.length;
+  $("sTitle").innerHTML = only ? "Send " + esc(only.code) + " " + esc(only.title) : "Send " + pool.length + " open task(s)";
+  $("send").style.display = "block";
+}
+function doSend() {
+  var boxes = $("whoList").getElementsByTagName("input"), ppl = [];
+  for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) ppl.push(boxes[i].value);
+  var xl = $("sXl").checked, pk = $("sPk").checked, si = $("sSi").checked;
+  if (!xl && !pk && !si) { alert("Tick at least one file type."); return; }
+  if (!ppl.length && !$("sAll").checked) { alert("Tick at least one person, or “One file with everything”."); return; }
+  $("send").style.display = "none";
+  makeFiles(sendPool, ppl, $("sAll").checked, xl, pk, si);
+}
+function makeFiles(pool, ppl, everyone, xl, pk, si) {
+  var stamp = LT.stamp(), folder = sentRoot() + "\\" + stamp, project = data.project || "Tasks", by = LT.settings().userName || "", made = [], errors = [];
+  for (var p = 0; p < pool.length; p++) if (pool[p].project) { project = pool[p].project; break; }
+  var targets = ppl.slice(0); if (everyone || !targets.length) targets.push(null);
+  LT.mkdirs(folder);
+  for (var i = 0; i < targets.length; i++) {
+    var who = targets[i], plan = planFor(pool, who); if (!plan.length) continue;
+    var label = who || "Everyone", exportId = LT.uid("x"), base = folder + "\\Tasks_" + LT.safeName(label).replace(/ /g, "_") + "_" + LT.safeName(project).replace(/ /g, "_") + "_" + stamp;
+    if (xl) { try { buildPlan(base + ".xlsx", plan, project, by, label, exportId); made.push(base + ".xlsx"); } catch (e) { errors.push("Excel sheet for " + label + ": " + (e.message || e)); } }
+    if (si) { try { buildSimple(base + "_simple.xlsx", plan, project, by, label); made.push(base + "_simple.xlsx"); } catch (e) { errors.push("Simple Excel for " + label + ": " + (e.message || e)); } }
+    if (pk) { try { buildPack(base + ".html", plan, project, by, label, who || "", exportId); made.push(base + ".html"); } catch (e) { errors.push("Task pack for " + label + ": " + (e.message || e)); } }
+    var codes = []; for (var c = 0; c < plan.length; c++) codes.push(plan[c].code);
+    data.issued.push({ exportId: exportId, when: LT.today() + " " + stampNow().split(" ")[2], to: label, folder: folder, codes: codes });
+    for (var t = 0; t < pool.length; t++) for (var c2 = 0; c2 < codes.length; c2++) if (pool[t].code == codes[c2]) pool[t].history.push(stampNow() + "  Sent to " + label);
+  }
+  save(); render();
+  if (errors.length) alert("Some files couldn't be made:\n" + errors.join("\n") + (/Automation|ActiveX|Excel/i.test(errors.join(" ")) ? "\n\nExcel files need Microsoft Excel on this PC. The HTML task pack works without it." : ""));
+  if (!made.length) return null;
+  try { LT.open(folder); } catch (e) { }
+  var nm = []; for (var m = 0; m < made.length; m++) nm.push(fso.GetFileName(made[m]));
+  alert("Made " + made.length + " file(s):\n" + nm.join("\n") + "\n\nThe folder is open – attach the files to an email or Teams message.\n\nWhen they reply:\n• Excel: they save and send the file back → Load replies\n• HTML pack: they press Save reply and send you the .txt (or paste the text) → Load replies / Paste reply");
+  return folder;
+}
+
+/* ---------- Excel task plan (same look as the web app), made through Excel ---------- */
+function rgb(hex) { hex = hex.replace("#", ""); return parseInt(hex.substring(0, 2), 16) + parseInt(hex.substring(2, 4), 16) * 256 + parseInt(hex.substring(4, 6), 16) * 65536; }
+var C = { title: rgb("3D2B56"), sub: rgb("5B3E7E"), head: rgb("D9E1F2"), row: rgb("FBFBFD"), line: rgb("D0D7E2"), fill: rgb("FFF2CC"), ink: rgb("1F2430"), muted: rgb("6B7280"), white: rgb("FFFFFF"), red: rgb("C0392B"), ok: rgb("2E8B57") };
+function withExcel(fn) {
+  var xl = null, wb = null;
+  try {
+    xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false; try { xl.ScreenUpdating = false; } catch (e) { }
+    wb = xl.Workbooks.Add();
+    return fn(xl, wb);
+  } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+}
+function sheets(wb, n) { while (wb.Worksheets.Count < n) wb.Worksheets.Add(); while (wb.Worksheets.Count > n) wb.Worksheets(wb.Worksheets.Count).Delete(); }
+function putDate(cell, iso) { var d = D(iso); if (!d) return; cell.Formula = "=DATE(" + d.getFullYear() + "," + (d.getMonth() + 1) + "," + d.getDate() + ")"; cell.Value2 = cell.Value2; cell.NumberFormat = "dd mmm yyyy"; }
+function box(rg) { try { rg.Borders.LineStyle = 1; rg.Borders.Color = C.line; } catch (e) { } }
+function buildPlan(path, tasks, project, by, label, exportId) {
+  withExcel(function (xl, wb) {
+    sheets(wb, 3);
+    var ws = wb.Worksheets(1), g = wb.Worksheets(2), meta = wb.Worksheets(3), H = 5;
+    ws.Name = "Tasks"; g.Name = "Guide"; meta.Name = "_lt";
+    var W = [8, 46, 18, 18, 13, 14, 10, 44], head = ["ID", "Task / Checklist item", "Group", "Assignee", "Target date", "Status", "Progress", "Notes"];
+    for (var i = 0; i < W.length; i++) ws.Columns(i + 1).ColumnWidth = W[i];
+    ws.Range("A1:H1").Merge(); var t1 = ws.Range("A1");
+    t1.Value = "TASK PLAN   |   " + project; t1.Font.Bold = true; t1.Font.Size = 14; t1.Font.Color = C.white; ws.Range("A1:H1").Interior.Color = C.title; ws.Rows(1).RowHeight = 26; t1.VerticalAlignment = -4108;
+    var d = new Date();
+    ws.Range("A2").Value = "Issued by: " + (by || "—") + "     Issued: " + LT.DAYS[d.getDay()] + " " + LT.pad(d.getDate()) + " " + LT.MON[d.getMonth()] + " " + d.getFullYear() + "     For: " + label; ws.Range("A2").Font.Color = C.muted;
+    ws.Range("A3").Value = "Update the YELLOW boxes (Status, Notes).  To ADD: insert a row in a group (ID empty) = new item;  use a NEW block at the bottom = new task.  Then send the file back.";
+    ws.Range("A3").Font.Italic = true; ws.Range("A3").Font.Color = C.sub;
+    for (var h = 0; h < head.length; h++) { var hc = ws.Cells(H, h + 1); hc.Value = head[h]; hc.Font.Bold = true; hc.Font.Color = C.white; hc.Interior.Color = C.sub; }
+    box(ws.Range("A" + H + ":H" + H)); ws.Rows(H).RowHeight = 22;
+    var r = H + 1, status = [], groups = [];
+    var style = function (row, isTask) { var rg = ws.Range("A" + row + ":H" + row); rg.Interior.Color = isTask ? C.head : C.row; rg.Font.Color = C.ink; rg.VerticalAlignment = -4160; if (isTask) ws.Range("A" + row + ":B" + row).Font.Bold = true; box(rg); ws.Cells(row, 2).WrapText = true; ws.Cells(row, 8).WrapText = true; ws.Cells(row, 7).NumberFormat = "0%"; if (!isTask) ws.Cells(row, 2).IndentLevel = 2; };
+    var yellow = function (row, col) { ws.Cells(row, col).Interior.Color = C.fill; };
+    var pct = function (row) { return '=IF(F' + row + '="Completed",1,IF(F' + row + '="In progress",0.5,0))'; };
+    for (var k = 0; k < tasks.length; k++) {
+      var t = tasks[k], tr = r;
+      style(tr, true);
+      ws.Cells(tr, 1).Value = t.code; ws.Cells(tr, 2).Value = t.title; ws.Cells(tr, 3).Value = t.group || ""; ws.Cells(tr, 4).Value = t.who || ""; putDate(ws.Cells(tr, 5), t.due); ws.Cells(tr, 8).Value = t.notes || "";
+      if (t.subs.length) {
+        var rng = "F" + (tr + 1) + ":F" + (tr + t.subs.length), n = t.subs.length;
+        ws.Cells(tr, 7).Formula = '=IFERROR((COUNTIF(' + rng + ',"Completed")+COUNTIF(' + rng + ',"In progress")/2)/' + n + ',0)';
+        ws.Cells(tr, 6).Formula = '=IF(COUNTIF(' + rng + ',"Completed")=' + n + ',"Completed",IF(COUNTIF(' + rng + ',"Not started")=' + n + ',"Not started","In progress"))';
+        ws.Cells(tr, 6).Font.Italic = true; ws.Cells(tr, 6).Font.Color = C.muted; yellow(tr, 8);
+      } else { ws.Cells(tr, 6).Value = ST.indexOf(t.status) >= 0 ? t.status : "Not started"; ws.Cells(tr, 7).Formula = pct(tr); yellow(tr, 6); yellow(tr, 8); status.push("F" + tr); }
+      r++;
+      var g0 = r;
+      for (var s = 0; s < t.subs.length; s++) {
+        var sb = t.subs[s]; style(r, false);
+        ws.Cells(r, 1).Value = sb.code; ws.Cells(r, 2).Value = sb.title; ws.Cells(r, 4).Value = sb.who || ""; putDate(ws.Cells(r, 5), sb.due || t.due);
+        ws.Cells(r, 6).Value = ST.indexOf(sb.status) >= 0 ? sb.status : "Not started"; ws.Cells(r, 7).Formula = pct(r); ws.Cells(r, 8).Value = sb.notes || "";
+        yellow(r, 6); yellow(r, 8); status.push("F" + r); r++;
+      }
+      if (r > g0) groups.push(g0 + ":" + (r - 1));
+    }
+    ws.Cells(r, 1).Value = "ADD NEW TASKS BELOW — type a task name next to NEW, its items in the rows under it. Empty blocks are ignored on import.";
+    ws.Cells(r, 1).Font.Italic = true; ws.Cells(r, 1).Font.Size = 9; ws.Cells(r, 1).Font.Color = C.sub; r++;
+    for (var b = 0; b < 3; b++) {
+      style(r, true); ws.Cells(r, 1).Value = "NEW"; var cs = [2, 3, 4, 5, 6, 8]; for (var c = 0; c < cs.length; c++) yellow(r, cs[c]); status.push("F" + r); r++;
+      var b0 = r; for (var j = 0; j < 5; j++) { style(r, false); var cs2 = [2, 4, 5, 6, 8]; for (var c3 = 0; c3 < cs2.length; c3++) yellow(r, cs2[c3]); ws.Cells(r, 5).NumberFormat = "dd mmm yyyy"; status.push("F" + r); r++; }
+      groups.push(b0 + ":" + (r - 1));
+    }
+    var LAST = Math.max(r - 1, H + 1);
+    try { ws.Outline.SummaryRow = 0; } catch (e) { }
+    for (var gi = 0; gi < groups.length; gi++) { try { ws.Rows(groups[gi]).Group(); } catch (e) { } }
+    for (var si = 0; si < status.length; si += 30) {
+      try { var dv = ws.Range(status.slice(si, si + 30).join(",")).Validation; dv.Delete(); dv.Add(3, 1, 1, ST.join(",")); dv.ErrorTitle = "Status"; dv.ErrorMessage = "Pick Not started, In progress or Completed"; } catch (e) { }
+    }
+    try { ws.Range("A" + H + ":H" + LAST).AutoFilter(); } catch (e) { }
+    try {
+      var body = ws.Range("A" + (H + 1) + ":H" + LAST), f1 = body.FormatConditions.Add(2, 0, '=AND($E' + (H + 1) + '<>"",$E' + (H + 1) + '<TODAY(),$F' + (H + 1) + '<>"Completed")');
+      f1.Font.Color = C.red; f1.Font.Bold = true;
+      var f2 = body.FormatConditions.Add(2, 1, '=$F' + (H + 1) + '="Completed"'); f2.Font.Color = C.ok;
+    } catch (e) { }
+    var F = "F" + (H + 1) + ":F" + LAST, E = "E" + (H + 1) + ":E" + LAST;
+    ws.Range("F2").Value = "Done"; ws.Range("G2").Formula = '=COUNTIF(' + F + ',"Completed")&" / "&COUNTA(' + F + ')';
+    ws.Range("F3").Value = "Overdue"; ws.Range("G3").Formula = '=COUNTIFS(' + E + ',"<"&TODAY(),' + F + ',"<>Completed")'; ws.Range("G3").Font.Color = C.red;
+    ws.Range("F2:F3").Font.Bold = true; ws.Range("F2:F3").HorizontalAlignment = -4152; ws.Range("G2:G3").Font.Bold = true; ws.Range("G2:G3").HorizontalAlignment = -4108;
+    try { ws.Tab.Color = C.sub; } catch (e) { }
+    try { ws.Activate(); var win = wb.Windows(1); win.DisplayGridlines = false; win.SplitRow = H; win.SplitColumn = 0; win.FreezePanes = true; } catch (e) { }
+    // Guide
+    g.Columns(1).ColumnWidth = 96; g.Range("A1").Value = "HOW TO USE THIS FILE"; g.Range("A1").Font.Bold = true; g.Range("A1").Font.Size = 14; g.Range("A1").Font.Color = C.white; g.Range("A1").Interior.Color = C.title;
+    var guide = ["", "1.  Go to the Tasks sheet and find your name under Assignee.", "2.  Change Status with the drop-down: Not started / In progress / Completed.", "3.  Write your updates in Notes.",
+      "4.  Only the YELLOW boxes are for you. Progress and the main task status fill in by themselves.", "5.  Use + / − on the left to open or close sub-rows.", "6.  Save and send the file back. Please keep the IDs and the file name as they are.",
+      "", "ADDING MORE IN THE SAME FILE", "•  New sub-item:  right-click a row inside the task's group → Insert.  Leave ID EMPTY.  Type the item name (Assignee, Target date, Status optional).",
+      "•  New task:  use an empty NEW block at the bottom (already grouped with + / −).  Type the task name next to NEW and its items in the rows under it.",
+      "   Need more?  Copy a whole NEW block (task row + its rows) and paste it below.  Or type NEW in the ID of any new row.", "", "Red text = overdue.   Green text = completed.", "", "Made with Lew's Toolbox — Delegate."];
+    for (var q = 0; q < guide.length; q++) g.Cells(q + 2, 1).Value = guide[q];
+    // hidden: where this file came from (same as the web app)
+    meta.Range("A1").Value = "lt-planner"; meta.Range("B1").Value = 2; meta.Range("A2").Value = "toolbox"; meta.Range("A3").Value = exportId;
+    meta.Range("A4").Value = "'" + new Date().toISOString(); meta.Range("A5").Value = project;
+    meta.Visible = 2;
+    ws.Activate(); ws.Range("A1").Select();
+    if (fso.FileExists(path)) fso.DeleteFile(path);
+    wb.SaveAs(path, 51);
+  });
+}
+function buildSimple(path, tasks, project, by, label) {
+  withExcel(function (xl, wb) {
+    sheets(wb, 1);
+    var ws = wb.Worksheets(1), head = ["ID", "Task", "Item", "Assigned to", "Due date", "Status", "Notes"], W = [9, 40, 40, 18, 13, 14, 44];
+    ws.Name = "Tasks";
+    var d = new Date();
+    ws.Range("A1").Value = "Tasks for " + label + "  —  " + project + "  —  from " + by + ", " + d.getDate() + " " + LT.MON[d.getMonth()] + " " + d.getFullYear(); ws.Range("A1").Font.Bold = true; ws.Range("A1").Font.Size = 13;
+    for (var i = 0; i < head.length; i++) { ws.Columns(i + 1).ColumnWidth = W[i]; var c = ws.Cells(3, i + 1); c.Value = head[i]; c.Font.Bold = true; c.Interior.Color = rgb("E7E9EF"); }
+    var r = 4;
+    for (var k = 0; k < tasks.length; k++) {
+      var t = tasks[k];
+      ws.Cells(r, 1).Value = t.code; ws.Cells(r, 2).Value = t.title; ws.Cells(r, 4).Value = t.who || ""; putDate(ws.Cells(r, 5), t.due); ws.Cells(r, 6).Value = t.subs.length ? "" : t.status; ws.Cells(r, 7).Value = t.notes || "";
+      ws.Range("A" + r + ":C" + r).Font.Bold = true; r++;
+      for (var s = 0; s < t.subs.length; s++) { var sb = t.subs[s]; ws.Cells(r, 1).Value = sb.code; ws.Cells(r, 3).Value = sb.title; ws.Cells(r, 4).Value = sb.who || ""; putDate(ws.Cells(r, 5), sb.due || t.due); ws.Cells(r, 6).Value = sb.status; ws.Cells(r, 7).Value = sb.notes || ""; r++; }
+    }
+    box(ws.Range("A3:G" + Math.max(3, r - 1)));
+    if (fso.FileExists(path)) fso.DeleteFile(path);
+    wb.SaveAs(path, 51);
+  });
+}
+
+/* ---------- HTML task pack (same as the web app) ---------- */
+function runtime() { return LT.readText(LT.appDir() + "\\core\\taskpack-runtime.js"); }
+function utf8(s) { return unescape(encodeURIComponent(s)); }
+function scramble(text, key) { var u = utf8(text), out = []; for (var i = 0; i < u.length; i++) out.push(String.fromCharCode(u.charCodeAt(i) ^ key.charCodeAt(i % key.length))); return window.btoa(out.join("")); }
+function randKey() { var s = ""; while (s.length < 24) { var c = String.fromCharCode(33 + Math.floor(Math.random() * 90)); if (c != '"' && c != "\\" && c != "<" && c != ">") s += c; } return s; }
+function ascii(s) { return ("" + s).replace(/[^\x20-\x7e]/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
+function buildPack(path, tasks, project, by, label, person, exportId) {
+  var list = [];
+  for (var i = 0; i < tasks.length; i++) { var t = tasks[i], subs = [];
+    for (var j = 0; j < t.subs.length; j++) subs.push({ code: t.subs[j].code, title: t.subs[j].title, due: t.subs[j].due || t.due || "", status: t.subs[j].status, notes: t.subs[j].notes || "" });
+    list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", subs: subs }); }
+  var pack = { id: exportId, projectId: "toolbox", project: project, by: by, at: LT.today(), label: label, person: person, MARK: MARK, tasks: list };
+  var src = runtime(); src = src.substring(src.indexOf("{") + 1, src.lastIndexOf("}"));
+  var key = randKey(), blob = scramble(src + "\u0000" + JSON.stringify(pack), key);
+  var html = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    "<title>Tasks &#8212; " + ascii(esc(label)) + "</title></head><body>" +
+    '<div id="app" style="font:16px system-ui;padding:24px">Opening your tasks&#8230;</div>' +
+    '<noscript><p style="font:16px system-ui;padding:24px">Please open this file in Chrome or Edge.</p></noscript>' +
+    "<script>(function(k,d){try{var b=atob(d),u=new Uint8Array(b.length);for(var i=0;i<b.length;i++)u[i]=b.charCodeAt(i)^k.charCodeAt(i%k.length);" +
+    'var s=new TextDecoder().decode(u),j=s.indexOf("\\u0000");new Function("P",s.slice(0,j))(JSON.parse(s.slice(j+1)));}' +
+    'catch(e){document.getElementById("app").textContent="This file could not open. Please use Chrome or Edge, or ask for a new file.";}})(' +
+    '"' + key + '","' + blob + '");</scr' + "ipt></body></html>";
+  var f = fso.CreateTextFile(path, true, false); f.Write(html); f.Close();   // plain ASCII - opens the same everywhere
+}
+
+/* ---------- reading what comes back ---------- */
+function parseReply(text) {
+  var i = ("" + text).indexOf(MARK);
+  if (i < 0) throw new Error("This is not a Task Pack reply (no update code found).");
+  var code = text.substring(i + MARK.length).replace(/[^A-Za-z0-9+\/=]/g, ""), j;
+  try { j = JSON.parse(decodeURIComponent(escape(window.atob(code)))); } catch (e) { throw new Error("The update code is damaged - ask them to send the reply file instead of copying it."); }
+  if (!j || j.kind != "lt-taskpack-reply" || !j.rows) throw new Error("This is not a Task Pack reply.");
+  var rep = { exportId: j.pack || "", project: j.project || "", message: j.message || "", from: j.name || j.person || j.label || "", rows: [] };
+  for (var r = 0; r < j.rows.length && r < 5000; r++) { var x = j.rows[r];
+    rep.rows.push({ id: "" + (x.id || ""), title: "" + (x.title || ""), who: "", group: "", due: /^\d{4}-\d{2}-\d{2}$/.test(x.due || "") ? x.due : "", status: norm(x.status || ""), notes: x.notes == null ? null : "" + x.notes, derived: !!x.derived }); }
+  return rep;
+}
+function readExcelReply(p) {
+  var rep = { file: fso.GetFileName(p), exportId: "", project: "", message: "", from: "", rows: [] };
+  var meta = LT.readExcel(p, "_lt"); if (meta) { rep.exportId = meta[2] && meta[2][0] ? meta[2][0] : ""; rep.project = meta[4] && meta[4][0] ? meta[4][0] : ""; }
+  var rows = LT.readExcel(p, "Tasks") || LT.readExcel(p, "Checklist generator") || LT.readExcel(p);
+  var head = -1, col = {};
+  for (var r = 0; r < Math.min(20, rows.length) && head < 0; r++) {
+    var f = {};
+    for (var c = 0; c < rows[r].length; c++) { var t = LT.trim(rows[r][c]).toLowerCase(); if (!t) continue;
+      if (t == "website id") { if (f.wid == null) f.wid = c; } else if (t == "id" || t == "task id") { if (f.id == null) f.id = c; } else if (/^status/.test(t)) { if (f.st == null) f.st = c; }
+      else if (/^notes?$/.test(t)) { if (f.no == null) f.no = c; } else if (/^(subtask|item)/.test(t)) { if (f.sub == null) f.sub = c; } else if (/^task/.test(t)) { if (f.ti == null) f.ti = c; }
+      else if (/^group/.test(t)) { if (f.gr == null) f.gr = c; } else if (/^(assignee|assigned)/.test(t)) { if (f.who == null) f.who = c; } else if (/^(target date|due)/.test(t)) { if (f.due == null) f.due = c; } }
+    if (f.id != null && f.st != null) { head = r; col = f; }
+  }
+  if (head < 0) throw new Error("Could not find the header row (ID … Status … Notes) in " + rep.file + ".");
+  var g = function (row, i) { return i == null ? "" : LT.cell(row, i); };
+  for (var k = head + 1; k < rows.length; k++) {
+    var R = rows[k], id = g(R, col.id);
+    if (col.wid != null) { var w = g(R, col.wid); id = w || (id ? "NEW" : ""); }
+    var title = (g(R, col.sub) || g(R, col.ti)).replace(/^↳\s*/, "");
+    if (!id && !title) continue; if (/^ADD NEW TASKS/i.test(id)) continue;
+    var due = g(R, col.due);
+    rep.rows.push({ id: id, title: title, group: g(R, col.gr), who: g(R, col.who), due: /^\d{4}-\d{2}-\d{2}/.test(due) ? due.substring(0, 10) : (parseDate(due) || ""), status: norm(g(R, col.st)), notes: col.no == null ? null : g(R, col.no), derived: false });
+  }
+  return rep;
+}
+function readFile(p) {
+  if (/\.(xlsx|xlsm|xls)$/i.test(p)) return readExcelReply(p);
+  var r = parseReply(LT.readText(p)); r.file = fso.GetFileName(p); return r;
+}
+function loadReplies() {
+  LT.pickFile(function (p) {
+    var reps = [], errs = [];
+    try { reps.push(readFile(p)); } catch (e) { errs.push(fso.GetFileName(p) + ": " + (/Excel|Automation/i.test("" + (e.message || e)) ? "Excel files need Microsoft Excel on this PC" : (e.message || e))); }
+    if (errs.length) alert("Couldn't read:\n" + errs.join("\n") + "\n\nIf it's open in Excel, close it and try again.");
+    if (reps.length) applyReplies(reps);
+  });
+}
+function whoFromIssue(id) { for (var i = 0; i < data.issued.length; i++) if (data.issued[i].exportId == id && id) return data.issued[i].to; return null; }
+
+/* works out what changed, shows it, applies it after OK */
+function applyReplies(reps) {
+  var ch = [], nf = [], msgs = [];
+  for (var r = 0; r < reps.length; r++) (function (rep) {
+    var from = rep.from || whoFromIssue(rep.exportId) || (rep.file || "").replace(/\.\w+$/, ""), st = stampNow() + " · " + from, cur = null, newT = null, before = ch.length;
+    if (rep.message) msgs.push("✉ " + from + ": " + rep.message);
+    for (var i = 0; i < rep.rows.length; i++) (function (row) {
+      var id = LT.trim(row.id), t = id ? findTask(id) : null, s = null;
+      if (!t && id && id.toUpperCase() != "NEW") {
+        for (var k = 0; k < data.tasks.length && !s; k++) for (var m = 0; m < data.tasks[k].subs.length; m++) if (data.tasks[k].subs[m].code.toLowerCase() == id.toLowerCase()) { s = data.tasks[k].subs[m]; t = data.tasks[k]; break; }
+        if (!s) { nf.push(from + ": " + id + " " + row.title); return; }
+      }
+      if (t) {
+        cur = t; newT = null;
+        var canSt = s || (!t.subs.length && !row.derived), oldSt = s ? s.status : t.status, oldNo = s ? s.notes : t.notes, label = s ? s.code + " " + s.title : t.code + " " + t.title;
+        if (canSt && ST.indexOf(row.status) >= 0 && row.status != oldSt) { var v = row.status;
+          ch.push({ text: label + ":  " + oldSt + " → " + v + "   (" + from + ")", run: function () { if (s) { s.status = v; s.updated = st; s.doneOn = v == "Completed" ? LT.today() : ""; } else { t.status = v; t.doneOn = v == "Completed" ? LT.today() : ""; } t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); } }); }
+        if (row.notes != null && LT.trim(row.notes) != LT.trim(oldNo || "")) { var nv = LT.trim(row.notes);
+          ch.push({ text: label + ':  notes → "' + (nv.length > 60 ? nv.substring(0, 60) + "…" : nv) + '"   (' + from + ")", run: function () { if (s) { s.notes = nv; s.updated = st; } else t.notes = nv; t.updated = st; } }); }
+        return;
+      }
+      if (!row.title) return;
+      if (id.toUpperCase() == "NEW") {
+        for (var q = 0; q < data.tasks.length; q++) if (data.tasks[q].title.toLowerCase() == row.title.toLowerCase()) { cur = data.tasks[q]; newT = null; return; }
+        var nt = { id: LT.uid("t"), code: "", title: row.title, group: row.group, who: row.who || (from == "Everyone" ? "" : from), due: row.due, status: ST.indexOf(row.status) >= 0 ? row.status : "Not started", notes: LT.trim(row.notes || ""), project: rep.project || data.project, created: LT.today(), updated: st, subs: [], history: [] };
+        newT = nt; cur = null;
+        ch.push({ text: "NEW TASK: " + nt.title + "   (" + from + ")", run: function () { nt.code = nextCode(); nt.history.push(st + "  Added from a reply"); for (var z = 0; z < nt.subs.length; z++) nt.subs[z].code = nt.code + "." + (z + 1); data.tasks.push(nt); } });
+        return;
+      }
+      var spec = { id: LT.uid("s"), code: "", title: row.title, who: row.who, due: row.due, status: ST.indexOf(row.status) >= 0 ? row.status : "Not started", notes: LT.trim(row.notes || ""), updated: st };
+      if (newT) { newT.subs.push(spec); return; }
+      if (!cur) { nf.push(from + ': "' + row.title + '" (no task above it)'); return; }
+      for (var y = 0; y < cur.subs.length; y++) if (cur.subs[y].title.toLowerCase() == row.title.toLowerCase()) return;     // already added before
+      var ct = cur;
+      ch.push({ text: "NEW ITEM in " + ct.code + ": " + row.title + "   (" + from + ")", run: function () { spec.code = nextSub(ct); ct.subs.push(spec); ct.updated = st; ct.history.push(st + "  Item added: " + spec.title); } });
+    })(rep.rows[i]);
+    var n = ch.length - before;
+    ch.push({ text: null, run: function () { data.imports.push({ when: LT.today() + " " + stampNow().split(" ")[2], from: from, file: rep.file || "pasted reply", changes: n }); } });
+  })(reps[r]);
+  var real = []; for (var c = 0; c < ch.length; c++) if (ch[c].text) real.push(ch[c]);
+  if (!real.length) {
+    alert("No changes in " + (reps.length == 1 ? "this reply" : "these replies") + "." + (nf.length ? "\n\nNot found here (" + nf.length + "):\n" + nf.slice(0, 10).join("\n") : "") + (msgs.length ? "\n\n" + msgs.join("\n") : ""));
+    for (var a = 0; a < ch.length; a++) ch[a].run(); save(); render(); return 0;
+  }
+  var lines = []; for (var l = 0; l < Math.min(25, real.length); l++) lines.push("• " + real[l].text);
+  if (!confirm(real.length + " change(s):\n\n" + lines.join("\n") + (real.length > 25 ? "\n… and " + (real.length - 25) + " more" : "") +
+    (nf.length ? "\n\nNot found here (skipped, " + nf.length + "):\n" + nf.slice(0, 8).join("\n") : "") + (msgs.length ? "\n\n" + msgs.join("\n") : "") + "\n\nApply these changes?")) return 0;
+  for (var b = 0; b < ch.length; b++) ch[b].run();
+  save(); render();
+  return real.length;
+}
+
+/* ---------- other ---------- */
+function exportCsv() {
+  var rows = [["ID", "Task", "Item", "Group", "Project", "Assigned to", "Due", "Status", "Notes", "Last update"]];
+  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; rows.push([t.code, t.title, "", t.group, t.project, t.who, t.due, statusOf(t), t.notes, t.updated]);
+    for (var j = 0; j < t.subs.length; j++) { var s = t.subs[j]; rows.push([s.code, "", s.title, "", "", s.who, s.due || t.due, s.status, s.notes, s.updated]); } }
+  var f = LT.exportsDir() + "\\Delegate_all_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f);
+}
+function showLog() {
+  var s = "SENT (last 15)\n";
+  for (var i = data.issued.length - 1; i >= 0 && i >= data.issued.length - 15; i--) { var x = data.issued[i]; s += "  " + x.when + "  → " + x.to + "  (" + x.codes.slice(0, 6).join(", ") + (x.codes.length > 6 ? "…" : "") + ")\n"; }
+  s += "\nRECEIVED (last 15)\n";
+  for (var j = data.imports.length - 1; j >= 0 && j >= data.imports.length - 15; j--) { var y = data.imports[j]; s += "  " + y.when + "  ← " + y.from + "  " + y.changes + " change(s)  [" + y.file + "]\n"; }
+  alert(s);
+}
+function copyWeb() {
+  loadWeb(); if (!web.length) { alert("No tasks found in Lew's Tracker's Delegation.json."); return; }
+  var have = {}; for (var i = 0; i < data.tasks.length; i++) have[(data.tasks[i].title + "|" + data.tasks[i].project).toLowerCase()] = 1;
+  var todo = []; for (var j = 0; j < web.length; j++) if (!have[(web[j].title + "|" + web[j].project).toLowerCase()]) todo.push(web[j]);
+  if (!todo.length) { alert("All of Lew's Tracker's tasks are already in the Toolbox."); return; }
+  if (!confirm("Copy " + todo.length + " task(s) from Lew's Tracker into the Toolbox?\n\nThey become Toolbox tasks (the web app is not changed). Same-name tasks already here are skipped.")) return;
+  for (var k = 0; k < todo.length; k++) {
+    var c = copy(todo[k]); delete c.fromWeb; c.id = LT.uid("t");
+    if (!c.code || findTask(c.code)) { var old = c.code; c.code = nextCode(); for (var s = 0; s < c.subs.length; s++) c.subs[s].code = c.code + "." + (s + 1); if (old) c.notes = LT.trim(c.notes + "\n(was " + old + " in Lew's Tracker)"); }
+    c.history = [stampNow() + "  Copied from Lew's Tracker"]; data.tasks.push(c);
+  }
+  view = "list"; save(); render();
+}
+
+/* ---------- events ---------- */
+function look() { LT.applyLook(["tr.task td{background:{chip}}", "#items th{padding:3px}"]); }
+$("bNew").onclick = function () { edit(null); };
+$("bSend").onclick = function () { openSend(null); };
+$("bLoad").onclick = loadReplies;
+$("bPaste").onclick = function () { $("pText").value = ""; $("paste").style.display = "block"; $("pText").focus(); };
+$("bMore").onclick = function (e) { var r = this.getBoundingClientRect(); moreMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("views").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { view = b.getAttribute("data-v"); if (view == "web") loadWeb(); render(); } };
+$("person").onchange = render; $("search").onkeyup = render; $("hideDone").onclick = render;
+$("main").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "data-r"); if (!r) return; var m = rowMap[+r.getAttribute("data-r")];
+  if (m.person) { view = "list"; $("person").value = m.person; render(); var opts = $("person").options; for (var i = 0; i < opts.length; i++) if (opts[i].text == m.person) $("person").selectedIndex = i; render(); return; }
+  if (!m.t.fromWeb) edit(m.t); };
+$("main").oncontextmenu = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-r"); if (r) { var m = rowMap[+r.getAttribute("data-r")]; if (m.t && !m.t.fromWeb) rowMenu(m.t, m.s, e.clientX, e.clientY); } return false; };
+$("eOk").onclick = saveEdit; $("eCancel").onclick = function () { $("dlg").style.display = "none"; };
+$("eDel").onclick = function () { if (editing && confirm("Delete " + editing.code + ' "' + editing.title + '" and its items?')) { data.tasks.splice(data.tasks.indexOf(editing), 1); $("dlg").style.display = "none"; save(); render(); } };
+$("eAddRow").onclick = function () { addItemRows([{ title: "", status: "Not started" }]); };
+$("ePasteRows").onclick = function () { var t = prompt("Paste items (one per line - separate lines with  ;  if pasting into this box):", ""); if (!t) return; var ls = t.split(/\r?\n|;/), add = []; for (var i = 0; i < ls.length; i++) if (LT.trim(ls[i])) { var p = ls[i].split("\t"); add.push({ title: LT.trim(p[0]), who: LT.trim(p[1] || ""), due: parseDate(p[2] || "") || "", status: "Not started" }); } addItemRows(add); };
+$("items").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-rm"); if (b) { var tr = b.parentNode.parentNode; tr.parentNode.removeChild(tr); } };
+$("sOk").onclick = doSend; $("sCancel").onclick = function () { $("send").style.display = "none"; };
+$("pCancel").onclick = function () { $("paste").style.display = "none"; };
+$("pOk").onclick = function () { var t = $("pText").value; if (!LT.trim(t)) return; try { var r = parseReply(t); r.file = "pasted reply"; $("paste").style.display = "none"; applyReplies([r]); } catch (e) { alert("That isn't a task pack reply.\n\n" + (e.message || e)); } };
+document.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 27) { $("dlg").style.display = "none"; $("send").style.display = "none"; $("paste").style.display = "none"; } };
+
+/* called by the main window */
+window.ltTheme = function () { look(); render(); };
+window.ltReload = function () { load(); render(); };
+window.ltShown = function () { loadWeb(); render(); };
+look(); load(); render(); LT.tabKeys(); LT.datePicker(function (i) { return i.id == "eDue" || /(^| )iD( |$)/.test(i.className); });
+</script>
+</body>
+</html>

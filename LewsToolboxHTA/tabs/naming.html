@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Naming Checker</title>
+<meta name="lt-order" content="6">
+<meta name="lt-icon" content="&#127991;">
+<meta name="lt-desc" content="Checks that every file name follows your naming rule (e.g. ISO 19650) and tells you which part of a name is wrong.">
+<!--
+  Lew's Toolbox - Naming checker: checks every file name in a folder against your naming rule
+  (e.g. ISO 19650: Project-Originator-Volume-Level-Type-Role-Number-Revision) and says which part is wrong.
+  Rules are saved in naming.json. "Fix in Bulk Files" hands the folder over.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#ruleBox{display:none;padding:0 14px 8px}
+#parts input,#parts select{height:26px;width:100%}
+#parts td{padding:2px 4px}
+.ex{font-family:Consolas,monospace}
+.pt{display:inline-block;padding:1px 4px;margin-right:1px;border-radius:3px}
+.right{float:right}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><span class="lbl big">Naming rule</span>
+    <select id="pick" style="width:230px;margin:0 8px 6px 0"></select>
+    <span class="lbl ex" id="example"></span>
+    <button class="btn small" id="bEdit">&#9998; Change the rule</button>
+    <button class="btn small" id="bRule">Rule &#9662;</button>
+  </div>
+  <div id="ruleBox">
+    <div class="muted" style="margin-bottom:6px">Each part of the name, in order. <b>Must be</b>: any text / exactly N letters / exactly N digits / one of a list (codes with commas). Separator between parts: <input type="text" id="sep" style="width:40px;height:24px"> &nbsp; <label><input type="checkbox" id="revOpt" style="height:auto"> last part (revision) may be left off</label></div>
+    <table class="grid" id="parts"></table>
+    <button class="btn small" id="bAddPart" style="margin-top:6px">+ Part</button>
+    <button class="btn small" id="bFromEx" style="margin-top:6px">Set up from an example name...</button>
+    <button class="btn small primary" id="bSaveRule" style="margin-top:6px">Save rule</button>
+  </div>
+  <div class="step">
+    <span class="num">2</span><button class="btn" id="bFolder">&#128194; Folder...</button><span class="path big" id="folderLbl"></span>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
+    <span class="lbl">Only:</span><input type="text" id="only" style="width:120px;margin:0 8px 6px 0" placeholder="e.g. pdf, dwg">
+  </div>
+  <div class="step bar">
+    <span class="num">3</span><button class="btn primary" id="bRun">&#9654; Check names</button>
+    <span class="lbl">Show:</span><select id="show" style="width:150px;height:26px;margin:0 8px 6px 0"><option value="bad" selected>Problems only</option><option value="all">Everything</option></select>
+    <span class="lbl big" id="sum"></span>
+    <span class="right"><button class="btn" id="bCsv">Export (CSV)</button><button class="btn" id="bFix">Fix names in Bulk Files</button></span>
+  </div>
+  <div id="res"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, store, folder = "", results = null;
+var TYPES = "AF,BQ,CA,CM,CO,CP,CR,DB,DR,FN,HS,IE,M2,M3,MI,MR,MS,PP,PR,RD,RI,RP,SA,SH,SN,SP,SU,VS";
+var ROLES = "A,B,C,D,E,F,G,H,I,K,L,M,P,Q,R,S,T,W,X,Y,Z";
+var STARTER = { name: "ISO 19650 (starter)", sep: "-", revOptional: true, parts: [
+  { name: "Project", kind: "any", val: "" }, { name: "Originator", kind: "any", val: "" }, { name: "Volume / zone", kind: "any", val: "" }, { name: "Level", kind: "any", val: "" },
+  { name: "Type", kind: "list", val: TYPES }, { name: "Role", kind: "list", val: ROLES }, { name: "Number", kind: "digits", val: "5" }, { name: "Revision", kind: "rev", val: "" }] };
+function FILE() { return LT.dataPath("naming.json"); }
+function load() { store = LT.readJson(FILE(), null) || {}; if (!store.rules || !store.rules.length) store.rules = [JSON.parse(JSON.stringify(STARTER))]; store.last = store.last || 0; folder = store.folder || ""; }
+function save() { try { LT.saveJson(FILE(), store); } catch (e) { alert("Couldn't save the naming rule."); } }
+function rule() { return store.rules[Math.min(store.last, store.rules.length - 1)]; }
+function exampleOf(r) { var ex = { any: "XXX", letters: "ABC", digits: "00001", list: "", rev: "P01" }, out = [];
+  for (var i = 0; i < r.parts.length; i++) { var p = r.parts[i], v = p.kind == "list" ? (p.val.split(",")[0] || "?") : p.kind == "digits" ? new Array(+p.val + 1).join("0").replace(/0$/, "1") : p.kind == "letters" ? new Array(+p.val + 1).join("A") : ex[p.kind];
+    out.push('<span class="pt" title="' + esc(p.name) + '">' + esc(LT.trim(v)) + "</span>"); }
+  return out.join(esc(r.sep)); }
+function fillPick() { var h = ""; for (var i = 0; i < store.rules.length; i++) h += '<option value="' + i + '"' + (i == store.last ? " selected" : "") + ">" + esc(store.rules[i].name) + "</option>"; $("pick").innerHTML = h; $("example").innerHTML = exampleOf(rule()); }
+
+/* ---------- edit the rule ---------- */
+var KINDS = [["any", "any text"], ["letters", "exactly N letters"], ["digits", "exactly N digits"], ["list", "one of a list"], ["rev", "a revision (P01, C02, T1...)"]];
+function partRow(p) { var o = ""; for (var i = 0; i < KINDS.length; i++) o += '<option value="' + KINDS[i][0] + '"' + (p.kind == KINDS[i][0] ? " selected" : "") + ">" + KINDS[i][1] + "</option>";
+  return '<tr><td style="width:170px"><input type="text" class="pN" value="' + esc(p.name) + '"></td><td style="width:200px"><select class="pK">' + o + '</select></td><td><input type="text" class="pV" value="' + esc(p.val || "") + '" placeholder="N, or codes with commas"></td><td style="width:90px"><button class="btn small" data-up="1" style="margin:0">&#9650;</button><button class="btn small" data-rm="1" style="margin:0 0 0 2px">&#10005;</button></td></tr>'; }
+function showRule() { var r = rule(), h = "<tr><th>Part</th><th>Must be</th><th>N / allowed codes</th><th></th></tr>"; for (var i = 0; i < r.parts.length; i++) h += partRow(r.parts[i]); $("parts").innerHTML = h; $("sep").value = r.sep; $("revOpt").checked = !!r.revOptional; }
+function readRule() {
+  var trs = $("parts").getElementsByTagName("tr"), parts = [];
+  for (var i = 1; i < trs.length; i++) { var g = function (c) { return trs[i].getElementsByClassName(c)[0]; }; var n = LT.trim(g("pN").value); if (!n) continue; parts.push({ name: n, kind: g("pK").value, val: LT.trim(g("pV").value).toUpperCase().replace(/\s*,\s*/g, ",") }); }
+  for (var k = 0; k < parts.length; k++) if ((parts[k].kind == "digits" || parts[k].kind == "letters") && !(parseInt(parts[k].val, 10) > 0)) { alert('"' + parts[k].name + '": type how many characters (N).'); return null; }
+  return parts;
+}
+function fromExample() {
+  var ex = prompt("Paste one correct file name (without .pdf), e.g.\n5013-KEO-T1-ZZ-DR-A-10101-P01", ""); if (!ex) return;
+  ex = LT.trim(ex).replace(/\.[a-z0-9]{2,4}$/i, ""); var sep = /-/.test(ex) ? "-" : /_/.test(ex) ? "_" : "-", bits = ex.split(sep), r = rule(), names = ["Project", "Originator", "Volume / zone", "Level", "Type", "Role", "Number", "Revision"];
+  r.sep = sep; r.parts = [];
+  for (var i = 0; i < bits.length; i++) { var b = bits[i], last = i == bits.length - 1, kind = "any", val = "";
+    if (last && /^([A-Z]{1,2}\d{1,3}|\d{2})$/i.test(b)) kind = "rev"; else if (/^\d+$/.test(b)) { kind = "digits"; val = "" + b.length; }
+    else if (bits.length == 8 && i == 4) { kind = "list"; val = TYPES; } else if (bits.length == 8 && i == 5) { kind = "list"; val = ROLES; }
+    r.parts.push({ name: bits.length == 8 ? names[i] : (kind == "rev" ? "Revision" : "Part " + (i + 1)), kind: kind, val: val }); }
+  showRule(); LT.toast("Check the parts, then Save rule");
+}
+
+/* ---------- check one name ---------- */
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/;
+function checkName(stem, r) {
+  var bits = stem.split(r.sep), parts = r.parts, probs = [], n = parts.length;
+  var hasRev = parts.length && parts[n - 1].kind == "rev";
+  if (bits.length == n - 1 && hasRev && r.revOptional) { parts = parts.slice(0, n - 1); n--; }
+  if (bits.length != n) return ["Has " + bits.length + " parts, the rule has " + parts.length + (hasRev && r.revOptional ? " (or " + (parts.length - 1) + " without revision)" : "") + ' - separator "' + r.sep + '"'];
+  for (var i = 0; i < n; i++) { var p = parts[i], b = bits[i];
+    if (!b) { probs.push(p.name + " is empty"); continue; }
+    if (b != b.toUpperCase() && p.kind != "any") probs.push(p.name + ' "' + b + '" should be UPPER CASE');
+    var B = b.toUpperCase();
+    if (p.kind == "letters" && !new RegExp("^[A-Z]{" + p.val + "}$").test(B)) probs.push(p.name + ' "' + b + '" must be ' + p.val + " letters");
+    else if (p.kind == "digits" && !new RegExp("^\\d{" + p.val + "}$").test(B)) probs.push(p.name + ' "' + b + '" must be ' + p.val + " digits");
+    else if (p.kind == "list" && ("," + p.val + ",").indexOf("," + B + ",") < 0) probs.push(p.name + ' "' + b + '" is not an allowed code' + (p.val.length < 60 ? " (" + p.val.replace(/,/g, ", ") + ")" : ""));
+    else if (p.kind == "rev" && !REV.test(B)) probs.push(p.name + ' "' + b + '" doesn\'t look like a revision (P01, C02...)');
+    else if (p.kind == "any" && /\s/.test(b)) probs.push(p.name + ' "' + b + '" has a space'); }
+  return probs;
+}
+function scan(dir, deep, only, out) {
+  try { var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
+    for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name, i = n.lastIndexOf("."), ext = i > 0 ? n.substring(i + 1).toLowerCase() : "";
+      if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$/i.test(n)) continue; if (only.length && only.indexOf(ext) < 0) continue;
+      out.push({ full: "" + f.Path, rel: dir.length > folder.length ? dir.substring(folder.length + 1) + "\\" + n : n, name: n, stem: i > 0 ? n.substring(0, i) : n }); }
+    if (deep) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) { var sf = d.item(); if (!(sf.Attributes & 6)) scan("" + sf.Path, true, only, out); } }
+  } catch (x) { }
+}
+function run() {
+  if (!folder || !fso.FolderExists(folder)) { alert("Pick the folder to check first."); return; }
+  var only = LT.trim($("only").value.toLowerCase()).split(/[\s,;.]+/); if (!only[0]) only = [];
+  var files = []; scan(folder, $("subs").checked, only, files);
+  var r = rule(), bad = 0;
+  for (var i = 0; i < files.length; i++) { files[i].probs = checkName(files[i].stem, r); if (files[i].probs.length) bad++; }
+  results = files;
+  $("sum").innerHTML = files.length ? (bad ? '<span class="bad">&#10006; ' + bad + " of " + files.length + " names have problems</span>" : '<span class="ok">&#10004; All ' + files.length + " names follow the rule</span>") : "No files found.";
+  render();
+}
+function render() {
+  if (!results) { $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick a folder and click <b>Check names</b>.<br>Change the rule with <b>&#9998; Change the rule</b> (or Rule &#9662; &gt; Set up from an example name).</div>'; return; }
+  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th><th>Result</th><th>What\'s wrong</th></tr>'], n = 0;
+  for (var i = 0; i < results.length; i++) { var f = results[i]; if (!all && !f.probs.length) continue; n++;
+    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + '</td><td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted">' + esc(f.probs.join(" · ")) + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = n ? h.join("") : '<div class="ok big" style="padding:24px">&#10004; Nothing wrong.</div>';
+}
+function exportCsv() { if (!results) { alert("Run a check first."); return; } var t = [["File", "Result", "What's wrong"]]; for (var i = 0; i < results.length; i++) t.push([results[i].rel, results[i].probs.length ? "Wrong" : "OK", results[i].probs.join(" / ")]);
+  var f = LT.exportsDir() + "\\NamingCheck_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f); }
+
+$("pick").onchange = function () { store.last = +this.value; save(); fillPick(); if ($("ruleBox").style.display == "block") showRule(); if (results) run(); };
+$("bEdit").onclick = function () { var b = $("ruleBox"); if (b.style.display == "block") { b.style.display = "none"; return; } showRule(); b.style.display = "block"; };
+$("bRule").onclick = function (e) { var rc = this.getBoundingClientRect(); LT.menu(rc.left, rc.bottom + 2, [
+  { label: "Set up from an example name...", fn: function () { showRule(); $("ruleBox").style.display = "block"; fromExample(); } },
+  { label: "New rule...", fn: function () { var n = prompt("Name for the new rule:", "My project rule"); if (!n) return; var c = JSON.parse(JSON.stringify(rule())); c.name = LT.trim(n); store.rules.push(c); store.last = store.rules.length - 1; save(); fillPick(); showRule(); $("ruleBox").style.display = "block"; } },
+  { label: "Rename...", fn: function () { var n = prompt("New name:", rule().name); if (n) { rule().name = LT.trim(n); save(); fillPick(); } } },
+  "-", { label: "Delete this rule", fn: function () { if (store.rules.length < 2) { alert("Keep at least one rule."); return; } if (confirm('Delete "' + rule().name + '"?')) { store.rules.splice(store.last, 1); store.last = 0; save(); fillPick(); } } }]); (e || window.event).cancelBubble = true; };
+$("bAddPart").onclick = function () { $("parts").insertAdjacentHTML("beforeend", partRow({ name: "", kind: "any", val: "" })); };
+$("bFromEx").onclick = fromExample;
+$("bSaveRule").onclick = function () { var p = readRule(); if (!p) return; if (!p.length) { alert("Add at least one part."); return; } var r = rule(); r.parts = p; r.sep = $("sep").value || "-"; r.revOptional = $("revOpt").checked; save(); fillPick(); $("ruleBox").style.display = "none"; LT.toast("Rule saved"); if (results) run(); };
+$("parts").onclick = function (e) { var t = e.target || e.srcElement, rm = LT.up(t, "data-rm"), upb = LT.up(t, "data-up"), tr = LT.up(t, "data-rm") || upb; if (!tr) return; var row = tr.parentNode.parentNode;
+  if (rm) row.parentNode.removeChild(row); else if (upb && row.previousSibling && row.previousSibling.previousSibling) row.parentNode.insertBefore(row, row.previousSibling); };
+$("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder to check"); if (f) { folder = f; store.folder = f; save(); $("folderLbl").innerHTML = esc(f); } };
+$("bRun").onclick = run; $("show").onchange = render; $("bCsv").onclick = exportCsv;
+$("bFix").onclick = function () { if (folder && LT.main()) LT.main().send("files", "open-folder", folder); else alert("Pick the folder first."); };
+$("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-f"); if (tr) try { LT.showInFolder(results[+tr.getAttribute("data-f")].full); } catch (x) { } };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", ".pt{background:{chip}}", "#ruleBox{background:{bg}}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); fillPick(); };
+window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { folder = value; store.folder = value; save(); $("folderLbl").innerHTML = esc(value); run(); } };
+look(); load(); fillPick(); $("folderLbl").innerHTML = folder ? esc(folder) : '<span class="muted">not picked</span>'; render(); LT.tabKeys();
+</script>
+</body>
+</html>

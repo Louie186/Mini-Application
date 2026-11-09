@@ -92,11 +92,15 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
    - **Sheet:** it picks the sheet with drawing numbers in Column A (else the one with the most numbers); change it with the **Sheet** picker
    - Works **with or without a heading row** (no heading: Column A = numbers, Column B = description)
    - Rows like **"Residential"** or **"Enlarged drawings"** are read as **category titles**, not drawings – the results show each drawing's category
+   - **Tower, Typology, Model** columns (optional): found from the headings, or – with no heading row – from what the cells look like (`Tower 1` / `T1`, `1BRA`, `21000`)
+   - A list with only the **number part** (e.g. `10110`) matches any file with that number in its name
    - It guesses the columns; change them if needed:
    - **File name / number** (with or without revision / ending), **Revision**, **File types** (e.g. `pdf, dwg`)
    - **More ▾**: Folder column, Title column, file types every row needs (when the list has no types column)
 3. **▶ Check** – every list row gets: ✔ Found · ✖ Missing · ✖ Wrong revision · ✖ Missing file type · ⚠ Wrong folder · ⚠ Listed twice · ⚠ Found with a note (case differs, empty file, old revision also there)
    - ➕ files in the folder that aren't on the list, and a **count by file type** (found / needed)
+   - Each drawing shows the **file types found** (e.g. `dwg, pdf`) and its Tower / Typology / Model
+   - **Tower / Typology filters**, and **Show ▾ > Summary by tower / typology**: drawings, found, missing, wrong revision, file types and model per group (also in the copied summary and the Excel report)
 - **Show:** problems only, missing, wrong revision, files not on the list… Double-click a row to open its folder
 - **Report ▾:** Excel report (through Excel, or CSV if Excel isn't there), copy summary for email / Teams, other notes
 - **Fix names in Bulk Files** opens the folder in Bulk Files. Folder, list and columns are remembered

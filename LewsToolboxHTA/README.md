@@ -110,7 +110,9 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **To check**: tick rows (click, Shift+click) → **✔ Accept the guesses** or **Set Tower / Typology…**; double-click a row to edit one; right-click for more
 - **Not for a typology ( - )** for general drawings
 
-**Views:** In the MIDP · Changes in the last MIDP · To check · Removed from the MIDP · Everything. Filters: Section, Tower, Typology, search
+**Views:** In the MIDP · Changes in the last MIDP · To check · Removed from the MIDP · Everything
+- **Filter:** Section ▾, Tower ▾, Typology ▾ – tick one or more; type in the box to narrow the list (e.g. `enlarged` → **Tick all shown**). The search box looks in number, title and section. **✕ Clear filters**. Export follows the filters
+- **Column widths:** drag the edge of a heading (all but Drawing); double-click the edge = back to normal. Remembered on this PC
 - **Export ▾:** Excel with Number, Description, Tower, Typology, Model (like the generated list), or with revision / section / status; copy the MIDP changes for email / Teams
 - **History ▾:** every MIDP loaded, with its changes
 - **Submission Check** and **Folder Contents** look drawings up here (Folder Contents: Reference list ▾ → Drawing Register)

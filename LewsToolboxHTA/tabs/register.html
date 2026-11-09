@@ -36,6 +36,14 @@
 textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
 .small{font-size:.88em}
 #impPrev td{font-size:.85em;padding:3px 6px}
+#res table.grid{table-layout:fixed}
+#res td{overflow:hidden;word-wrap:break-word}
+#res td.nw{white-space:nowrap;text-overflow:ellipsis}
+.rz{position:absolute;right:-3px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:2}
+#pick{display:none;position:fixed;z-index:30;width:360px;padding:8px}
+#pkList{max-height:300px;overflow-y:auto;margin:6px 0}
+#pkList label{display:block;padding:3px 4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pkList .n{float:right;margin-left:8px}
 </style>
 <script src="../core/lt-core.js"></script>
 </head>
@@ -49,10 +57,8 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   </div>
   <div class="step bar" id="filters">
     <span id="views"></span><br>
-    <span class="lbl">Section:</span><select id="fCat" style="width:200px;height:26px;margin:0 8px 6px 0"></select>
-    <span class="lbl">Tower:</span><select id="fTower" style="width:90px;height:26px;margin:0 8px 6px 0"></select>
-    <span class="lbl">Typology:</span><select id="fTypo" style="width:130px;height:26px;margin:0 8px 6px 0"></select>
-    <input type="text" id="search" placeholder="Search number / title" style="width:180px;margin:0 8px 6px 0">
+    <span class="lbl">Filter:</span><button class="btn small fb" data-f="cat" id="fbCat"></button><button class="btn small fb" data-f="tower" id="fbTower"></button><button class="btn small fb" data-f="typo" id="fbTypo"></button>
+    <input type="text" id="search" placeholder="Search number / title / section" style="width:220px;margin:0 8px 6px 0"><button class="btn small" id="fClear" style="display:none">&#10005; Clear filters</button>
   </div>
   <div id="sum" class="muted"></div>
   <div id="tickBar"><span class="lbl big" id="tickN"></span><button class="btn small primary" id="bSet">Set Tower / Typology...</button><button class="btn small" id="bAccept">&#10004; Accept the guesses</button><button class="btn small" id="bUntick">Clear ticks</button></div>
@@ -66,6 +72,11 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
     <button class="btn primary" id="bFirst">+ Make a project...</button>
   </div>
 </div>
+
+<!-- filter: tick one or more values -->
+<div id="pick"><input type="text" id="pkQ" placeholder="Type to narrow the list (e.g. enlarged)" style="width:100%">
+  <div id="pkList"></div>
+  <button class="btn small" id="pkAll">Tick all shown</button><button class="btn small" id="pkNone">Untick all</button><button class="btn small primary" id="pkDone" style="float:right">Done</button></div>
 
 <!-- MIDP changes before they are saved -->
 <div class="ov" id="ovLoad"><div class="card" style="width:640px">
@@ -161,7 +172,7 @@ function loadAll() {
 }
 function find(id) { for (var i = 0; i < IX.projects.length; i++) if (IX.projects[i].id == id) return IX.projects[i]; return null; }
 function openProject(id) {
-  pid = id; P = null; ticked = {}; lastTick = -1;
+  pid = id; P = null; ticked = {}; lastTick = -1; F = { cat: {}, tower: {}, typo: {} };
   if (id) { P = LT.readJson(LT.registerFile(id), null); if (!P) P = blank(find(id).name); var b = blank(""); for (var k in b) if (P[k] === undefined) P[k] = b[k]; IX.current = id; saveIx(); }
   var h = ""; for (var i = 0; i < IX.projects.length; i++) h += '<option value="' + esc(IX.projects[i].id) + '"' + (IX.projects[i].id == id ? " selected" : "") + ">" + esc(IX.projects[i].name) + "</option>";
   $("proj").innerHTML = h;
@@ -324,18 +335,30 @@ function counts() {
   for (var k in D) if (D.hasOwnProperty(k)) { var d = D[k], s = stat(k, d); n.all++; if (!s.gone) n.midp++; else n.gone++; if (P.changes[k]) n.changes++; if (s.check) n.check++; }
   return n;
 }
+/* filters: for Section / Tower / Typology, the values ticked (none ticked = all) */
+var F = { cat: {}, tower: {}, typo: {} }, FN = { cat: "Section", tower: "Tower", typo: "Typology" }, pickKey = "";
 function fillFilters() {
-  var D = P.drawings, cs = {}, tw = {}, ty = {}, A = [], B = [], C = [];
-  for (var k in D) if (D.hasOwnProperty(k)) { var d = D[k]; if (d.cat && !cs[d.cat]) { cs[d.cat] = 1; A.push(d.cat); } if (d.tower && !tw[d.tower]) { tw[d.tower] = 1; B.push(d.tower); } if (d.typo && !ty[d.typo]) { ty[d.typo] = 1; C.push(d.typo); } }
-  B.sort(); C.sort();
-  var o = function (l, keep) { var h = '<option value="">All</option>'; for (var i = 0; i < l.length; i++) h += "<option" + (l[i] == keep ? " selected" : "") + ">" + esc(l[i]) + "</option>"; return h; };
-  $("fCat").innerHTML = o(A, $("fCat").value); $("fTower").innerHTML = o(B, $("fTower").value); $("fTypo").innerHTML = o(C, $("fTypo").value);
+  var bs = { cat: "fbCat", tower: "fbTower", typo: "fbTypo" }, any = false;
+  for (var f in bs) if (bs.hasOwnProperty(f)) { var n = keys(F[f]).length; if (n) any = true; $(bs[f]).innerHTML = FN[f] + ": " + (n == 0 ? "All" : n == 1 ? esc(keys(F[f])[0]) : n + " ticked") + " &#9662;"; $(bs[f]).className = "btn small fb" + (n ? " on" : ""); }
+  $("fClear").style.display = any || LT.trim($("search").value) ? "" : "none";
 }
+function values(f) { var D = P.drawings, c = {}, a = []; for (var k in D) if (D.hasOwnProperty(k)) { var v = D[k][f] || "(empty)"; if (view != "all" && view != "gone" && D[k].inMidp === false) continue; if (!c[v]) { c[v] = 0; a.push(v); } c[v]++; } if (f != "cat") a.sort(); return { list: a, count: c }; }
+function pickShow(f, btn) {
+  pickKey = f; $("pkQ").value = ""; pickList(); var p = $("pick"), r = btn.getBoundingClientRect(); p.style.display = "block";
+  p.style.left = Math.max(4, Math.min(r.left, document.documentElement.clientWidth - p.offsetWidth - 4)) + "px"; p.style.top = (r.bottom + 2) + "px"; try { $("pkQ").focus(); } catch (e) { }
+}
+function pickList() {
+  var V = values(pickKey), q = LT.trim($("pkQ").value).toLowerCase(), h = "", words = q.split(/\s+/);
+  for (var i = 0; i < V.list.length; i++) { var v = V.list[i], lv = v.toLowerCase(), ok = true; for (var w = 0; w < words.length; w++) if (words[w] && lv.indexOf(words[w]) < 0) ok = false; if (!ok) continue;
+    h += '<label title="' + esc(v) + '"><span class="n muted">' + V.count[v] + '</span><input type="checkbox" style="height:auto" data-pv="' + esc(v) + '"' + (F[pickKey][v] ? " checked" : "") + "> " + esc(v) + "</label>"; }
+  $("pkList").innerHTML = h || '<div class="muted">Nothing matches.</div>';
+}
+function pickHide() { $("pick").style.display = "none"; pickKey = ""; }
 function pass(k, d, s) {
   if (view == "midp" && s.gone) return false; if (view == "changes" && !P.changes[k]) return false; if (view == "check" && !s.check) return false; if (view == "gone" && !s.gone) return false;
-  var c = $("fCat").value, t = $("fTower").value, y = $("fTypo").value, q = LT.trim($("search").value).toLowerCase();
-  if (c && d.cat != c) return false; if (t && d.tower != t) return false; if (y && d.typo != y) return false;
-  if (q && (d.num + " " + d.title).toLowerCase().indexOf(q) < 0) return false;
+  var q = LT.trim($("search").value).toLowerCase();
+  for (var f in F) if (F.hasOwnProperty(f) && keys(F[f]).length && !F[f][d[f] || "(empty)"]) return false;
+  if (q) { var all = (d.num + " " + d.title + " " + (d.cat || "")).toLowerCase(), ws = q.split(/\s+/); for (var w = 0; w < ws.length; w++) if (ws[w] && all.indexOf(ws[w]) < 0) return false; }
   return true;
 }
 function order(D) { var a = [], seen = {}, o = P.order || []; for (var i = 0; i < o.length; i++) if (D[o[i]] && !seen[o[i]]) { seen[o[i]] = 1; a.push(o[i]); }
@@ -347,7 +370,11 @@ function render() {
   $("views").innerHTML = vh;
   $("sum").innerHTML = P.last ? "Last MIDP: <b>" + esc(P.last.file) + "</b> &middot; loaded " + esc(P.last.date) + " &middot; " + P.last.count + " drawings" + (P.history[0] ? " &middot; " + P.history[0].nw + " new, " + P.history[0].gone + " removed, " + P.history[0].chg + " titles changed" : "") + (n.check ? ' &middot; <span class="warn">' + n.check + " to check</span>" : "") + (P.models.length ? "" : ' &middot; <span class="muted">no models table yet (Setup)</span>')
     : (n.all ? n.all + " drawings imported. Load the MIDP next." : "Load the MIDP, or Setup &gt; import the list you already have.");
-  var D = P.drawings, ks = order(D), h = ['<table class="grid"><tr><th class="tk"><input type="checkbox" id="tkAll" style="height:auto" title="Tick all shown"></th><th>Drawing</th><th>Rev</th><th>Title</th><th>Section</th><th>Tower</th><th>Typology</th><th>Model</th><th>Note</th></tr>'];
+  var D = P.drawings, ks = order(D), W = colW(), longest = 10;
+  for (var z = 0; z < ks.length; z++) if (D[ks[z]].num.length > longest) longest = D[ks[z]].num.length;
+  var fs = LT.themeVars().fs || 13, wNo = Math.round(longest * fs * 0.66) + 22, tot = 34 + wNo, cg = '<colgroup><col style="width:34px"><col style="width:' + wNo + 'px">', th = "";
+  for (var c = 0; c < COLS.length; c++) { var cc = COLS[c]; tot += W[cc[0]]; cg += '<col data-c="' + cc[0] + '" style="width:' + W[cc[0]] + 'px">'; th += "<th>" + cc[1] + '<span class="rz" data-rz="' + cc[0] + '" title="Drag to change the width (double-click = back to normal)"></span></th>'; }
+  var h = ['<table class="grid" id="tbl" style="width:' + tot + 'px">' + cg + '</colgroup><tr><th class="tk"><input type="checkbox" id="tkAll" style="height:auto" title="Tick all shown"></th><th>Drawing</th>' + th + "</tr>"];
   shown = []; var max = 2000;
   for (var i = 0; i < ks.length; i++) { var k = ks[i], d = D[k], s = stat(k, d); if (!pass(k, d, s)) continue; shown.push(k); if (shown.length > max) continue;
     var gcls = d.ok ? "" : ' class="warn g"', note = [];
@@ -356,7 +383,7 @@ function render() {
     if (s.gone) note.push('<span class="tag bad">REMOVED</span>');
     if (!d.typo && !s.gone) note.push('<span class="bad">set Tower / Typology</span>');
     else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
-    h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + "</td><td>" + esc(d.rev || "") + "</td><td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + gcls + ' style="white-space:nowrap">' + esc(d.tower) + "</td><td" + gcls + ' style="white-space:nowrap">' + esc(d.typo) + '</td><td style="white-space:nowrap">' + esc(modelOf(d)) + "</td><td>" + note.join(" ") + "</td></tr>"); }
+    h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td><td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + esc(modelOf(d)) + "</td><td>" + note.join(" ") + "</td></tr>"); }
   h.push("</table>");
   if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
@@ -519,7 +546,33 @@ $("iSheet").onchange = function () { try { imp.L = imp.kind == "models" ? readMo
 var iMap = { iNum: "name", iTitle: "title", iTower: "tower", iTypo: "typo", iModel: "model" };
 for (var im in iMap) if (iMap.hasOwnProperty(im)) (function (id, key) { $(id).onchange = function () { imp.c[key] = this.value; impPrev(); }; })(im, iMap[im]);
 $("views").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-v"); if (c) { view = c.getAttribute("data-v"); render(); } };
-$("fCat").onchange = render; $("fTower").onchange = render; $("fTypo").onchange = render; $("search").onkeyup = render;
+$("filters").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-f"); if (!b) return; var f = b.getAttribute("data-f"); if (pickKey == f) { pickHide(); return; } pickShow(f, b); (e || window.event).cancelBubble = true; };
+$("search").onkeyup = function () { fillFilters(); render(); };
+$("fClear").onclick = function () { F = { cat: {}, tower: {}, typo: {} }; $("search").value = ""; fillFilters(); render(); };
+$("pkQ").onkeyup = pickList;
+$("pkList").onclick = function (e) { var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-pv") == null) return; var v = t.getAttribute("data-pv"); if (t.checked) F[pickKey][v] = 1; else delete F[pickKey][v]; fillFilters(); render(); };
+$("pkAll").onclick = function () { var c = $("pkList").getElementsByTagName("input"); for (var i = 0; i < c.length; i++) F[pickKey][c[i].getAttribute("data-pv")] = 1; pickList(); fillFilters(); render(); };
+$("pkNone").onclick = function () { F[pickKey] = {}; pickList(); fillFilters(); render(); };
+$("pkDone").onclick = pickHide;
+(function () { var h = function (e) { e = e || window.event; if (!pickKey) return; var t = e.target || e.srcElement; while (t) { if (t.id == "pick" || (t.getAttribute && t.getAttribute("data-f"))) return; t = t.parentNode; } pickHide(); };
+  if (document.attachEvent) document.attachEvent("onmousedown", h); else document.addEventListener("mousedown", h, false); })();
+/* column widths: drag the edge of a heading (not Drawing); remembered on this PC */
+var COLS = [["rev", "Rev", 60], ["title", "Title", 360], ["cat", "Section", 200], ["tower", "Tower", 70], ["typo", "Typology", 120], ["model", "Model", 250], ["note", "Note", 200]], drag = null;
+function colW() { var s = LT.settings(), w = s.regCols || {}, o = {}; for (var i = 0; i < COLS.length; i++) o[COLS[i][0]] = w[COLS[i][0]] || COLS[i][2]; return o; }
+function saveColW(o) { var s = LT.settings(); s.regCols = o; LT.saveSettings(s); }
+$("res").onmousedown = function (e) {
+  e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || !t.getAttribute("data-rz")) return;
+  var c = t.getAttribute("data-rz"), W = colW(), cols = $("tbl").getElementsByTagName("col"), col = null; for (var i = 0; i < cols.length; i++) if (cols[i].getAttribute("data-c") == c) col = cols[i];
+  drag = { c: c, x: e.clientX, w: W[c], W: W, col: col, tw: $("tbl").offsetWidth };
+  if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
+};
+(function () {
+  var mv = function (e) { if (!drag) return; e = e || window.event; var w = Math.max(36, drag.w + e.clientX - drag.x); drag.col.style.width = w + "px"; $("tbl").style.width = (drag.tw + w - drag.w) + "px"; drag.now = w; if (e.preventDefault) e.preventDefault(); e.returnValue = false; };
+  var upf = function () { if (!drag) return; if (drag.now) { drag.W[drag.c] = drag.now; saveColW(drag.W); } drag = null; };
+  if (document.attachEvent) { document.attachEvent("onmousemove", mv); document.attachEvent("onmouseup", upf); } else { document.addEventListener("mousemove", mv, false); document.addEventListener("mouseup", upf, false); }
+})();
+$("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.getAttribute && t.getAttribute("data-rz")) { var W = colW(); for (var i = 0; i < COLS.length; i++) if (COLS[i][0] == t.getAttribute("data-rz")) W[COLS[i][0]] = COLS[i][2]; saveColW(W); render(); return; }
+  var tr = LT.up(t, "data-k"); if (tr) edit([tr.getAttribute("data-k")]); };
 $("res").onclick = function (e) {
   e = e || window.event; var t = e.target || e.srcElement;
   if (t.id == "tkAll") { ticked = {}; if (t.checked) for (var i = 0; i < shown.length; i++) ticked[shown[i]] = 1; render(); return; }
@@ -530,7 +583,6 @@ $("res").onclick = function (e) {
   else { if (on) ticked[k] = 1; else delete ticked[k]; }
   lastTick = pos; render();
 };
-$("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-k"); if (tr) edit([tr.getAttribute("data-k")]); };
 $("res").oncontextmenu = function (e) {
   e = e || window.event; var tr = LT.up(e.target || e.srcElement, "data-k"); if (!tr) return true; var k = tr.getAttribute("data-k"), ks = ticked[k] ? keys(ticked) : [k];
   LT.menu(e.clientX, e.clientY, [{ label: "Set Tower / Typology..." + (ks.length > 1 ? " (" + ks.length + ")" : ""), fn: function () { edit(ks); } },
@@ -540,7 +592,7 @@ $("res").oncontextmenu = function (e) {
   if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
 };
 $("bSet").onclick = function () { edit(keys(ticked)); }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
-function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}"]); }
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
 window.ltTheme = look; window.ltReload = loadAll; window.ltShown = function () { if (P) render(); };
 look(); loadAll(); LT.tabKeys();
 </script>

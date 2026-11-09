@@ -73,6 +73,33 @@ module.exports = async ({ page, out }) => {
   ok(ex.length == 1, 'Excel export saved: ' + (ex[0] || '').split('\\').pop());
   await f.evaluate(() => { view = 'all'; render(); });
   await page.screenshot({ path: out + '/j_reg_all.png' });
+  // filter: tick sections, type to narrow
+  await f.evaluate(() => { view = 'midp'; render(); });
+  await f.click('#fbCat'); await page.waitForTimeout(100);
+  ok(await f.evaluate(() => document.getElementById('pick').style.display == 'block' && document.querySelectorAll('#pkList input').length == 2), 'Section filter opens with a tick-list (2 sections)');
+  await f.fill('#pkQ', 'apart'); await f.evaluate(() => pickList()); await page.screenshot({ path: out + '/j_reg_pick.png' });
+  ok(await f.evaluate(() => document.querySelectorAll('#pkList input').length == 1), 'typing narrows the list');
+  await f.click('#pkAll'); await f.click('#pkDone');
+  const fc = await f.evaluate(() => [shown.length, shown.every(k => P.drawings[k].cat == 'APARTMENTS'), document.getElementById('fbCat').innerText].join(' '));
+  ok(/^\d+ true Section: APARTMENTS/.test(fc) && !/^0 /.test(fc), 'only the ticked section shows: ' + fc);
+  await f.click('#fbTypo'); await f.evaluate(() => { F.typo['1BRB'] = 1; F.typo['2BRC'] = 1; fillFilters(); render(); pickHide(); });
+  ok(await f.evaluate(() => shown.length == 4 && /2 ticked/.test(document.getElementById('fbTypo').innerText)), 'two typologies ticked at once: 4 drawings');
+  await f.fill('#search', 'sectional'); await f.evaluate(() => { fillFilters(); render(); });
+  ok(await f.evaluate(() => shown.length == 2), 'search adds on top of the filters');
+  await page.screenshot({ path: out + '/j_reg_filter.png' });
+  await f.click('#fClear');
+  ok(await f.evaluate(() => shown.length == counts().midp && document.getElementById('fClear').style.display == 'none'), 'Clear filters shows everything again');
+  // column width: drag the Title edge
+  const box = await f.evaluate(() => { const r = document.querySelector('.rz[data-rz="title"]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  const fr = await (await f.frameElement()).boundingBox();
+  await page.mouse.move(fr.x + box[0], fr.y + box[1]); await page.mouse.down(); await page.mouse.move(fr.x + box[0] - 150, fr.y + box[1], { steps: 5 }); await page.mouse.up();
+  const w1 = await f.evaluate(() => colW().title);
+  ok(w1 == 210, 'dragging the Title edge makes it narrower and remembers it: ' + w1);
+  await f.evaluate(() => render());
+  ok(await f.evaluate(() => document.querySelector('col[data-c="title"]').style.width == '210px'), 'width kept after redrawing');
+  await f.dblclick('.rz[data-rz="title"]');
+  ok(await f.evaluate(() => colW().title == 360), 'double-click the edge = back to normal');
+  ok(await f.evaluate(() => !document.querySelector('.rz[data-rz="no"]') && document.querySelectorAll('.rz').length == 7), 'Drawing column has no drag edge; the 7 others do');
   // other tabs use it
   await page.click('.nb[data-k="contents"]'); await page.waitForTimeout(300);
   const c = page.frame({ url: /contents\.html/ });

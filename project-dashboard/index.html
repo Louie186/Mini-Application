@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sitewise – Project Dashboard</title>
+<style>
+:root{
+  --bg:#080b0f; --panel:#0f141a; --panel2:#141b23; --line:#1d2630; --text:#e7edf3; --muted:#7d8b99;
+  --accent:#3f86a8; --accent2:#5fa8c9; --accent-ink:#fff; --good:#4cc38a; --warn:#e5a94b; --bad:#e5645b;
+  --hatch:#1a232d; --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+:root[data-theme=light]{
+  --bg:#eef2f5; --panel:#fff; --panel2:#f5f8fa; --line:#dde4ea; --text:#12202c; --muted:#6a7885;
+  --accent:#2f7aa0; --accent2:#2f7aa0; --hatch:#e3eaf0; --shadow:0 10px 30px rgba(20,40,60,.1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+.ic{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* layout: sidebar + main. Sidebar width animates between full and rail */
+.frame{height:100%;display:grid;grid-template-columns:var(--side,232px) 1fr;gap:0;transition:grid-template-columns .6s cubic-bezier(.16,1,.3,1)}
+.frame.is-rail{--side:68px}
+.side{background:var(--panel);border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.logo{display:flex;align-items:center;gap:10px;height:36px;padding:0 6px;font-weight:700;font-size:16px;white-space:nowrap}
+.logo i{width:26px;height:26px;border-radius:8px;background:var(--accent);display:grid;place-items:center;color:#fff;flex:none}
+.grp{margin:22px 8px 8px;font-size:11px;letter-spacing:.12em;color:var(--muted);white-space:nowrap}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:12px;height:38px;padding:0 10px;border-radius:10px;color:var(--muted);cursor:pointer;white-space:nowrap;position:relative;text-decoration:none}
+.nav a:hover{background:var(--panel2);color:var(--text)}
+.nav a.on{color:var(--text);background:var(--panel2)}
+.nav a.on::before{content:"";position:absolute;left:-12px;top:8px;bottom:8px;width:3px;border-radius:0 3px 3px 0;background:var(--accent2)}
+.nav .badge{margin-left:auto;min-width:20px;height:20px;border-radius:10px;background:var(--accent);color:#fff;font-size:11px;display:grid;place-items:center;padding:0 6px}
+.lbl,.badge{transition:opacity .25s}
+.is-rail .lbl,.is-rail .badge,.is-rail .grp{opacity:0}
+.spacer{flex:1}
+
+.main{display:flex;flex-direction:column;min-width:0;height:100%}
+.top{display:flex;align-items:center;gap:12px;padding:14px 24px;border-bottom:1px solid var(--line);flex:none}
+.search{flex:1;max-width:380px;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--muted)}
+.search input{flex:1;background:none;border:0;outline:0;color:var(--text);min-width:0}
+.search kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+.iconbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:var(--muted);border:1px solid var(--line);background:var(--panel)}
+.iconbtn:hover{color:var(--text)}
+.user{display:flex;align-items:center;gap:10px;margin-left:6px}
+.avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--accent),#1c3b4c);display:grid;place-items:center;font-weight:700;font-size:12px;color:#fff;flex:none}
+.user small{display:block;color:var(--muted);font-size:11px}
+.user b{font-size:13px}
+.content{flex:1;overflow:auto;padding:24px}
+.page{display:none;animation:in .45s cubic-bezier(.16,1,.3,1)}
+.page.on{display:block}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+h1{font-size:26px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin-top:2px}
+.btns{display:flex;gap:8px}
+.btn{height:38px;padding:0 16px;border-radius:19px;border:1px solid var(--line);font-weight:600;background:var(--panel)}
+.btn:hover{border-color:var(--muted)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.pri:hover{background:var(--accent2)}
+
+/* stat cards */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;position:relative}
+.stat.hero{background:linear-gradient(160deg,var(--accent),#25566e);border-color:transparent;color:#fff}
+.stat .t{font-size:13px;color:var(--muted)}.stat.hero .t{color:#e3f1f8}
+.stat .n{font-size:40px;font-weight:700;letter-spacing:-.03em;margin:6px 0}
+.stat .d{font-size:12px;color:var(--muted)}.stat.hero .d{color:#d4e8f2}
+.stat .go{position:absolute;top:14px;right:14px;width:28px;height:28px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted)}
+.stat.hero .go{background:#fff;color:#25566e;border:0}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;background:rgba(76,195,138,.15);color:var(--good);font-size:11px;margin-right:6px}
+.stat.hero .pill{background:rgba(255,255,255,.2);color:#fff}
+
+.cols{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}
+.card h3{font-size:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.card h3 .btn{height:28px;padding:0 12px;font-size:12px}
+.bars{display:flex;align-items:flex-end;gap:10px;height:170px;padding-top:24px}
+.bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end;position:relative}
+.bar i{width:100%;border-radius:20px;background:repeating-linear-gradient(135deg,var(--hatch) 0 4px,transparent 4px 8px),var(--panel2);border:1px solid var(--line);transform-origin:bottom;animation:grow .8s cubic-bezier(.16,1,.3,1) both}
+.bar.hi i{background:var(--accent2);border-color:var(--accent2)}
+.bar span{font-size:11px;color:var(--muted)}
+.bar em{position:absolute;top:-4px;font-style:normal;font-size:11px;background:var(--panel2);border:1px solid var(--line);padding:1px 7px;border-radius:8px;display:none}
+.bar.hi em{display:block}
+@keyframes grow{from{transform:scaleY(.1);opacity:0}}
+.remind b{font-size:20px;display:block;line-height:1.2;margin:6px 0}
+.remind p{color:var(--muted);font-size:12px;margin-bottom:14px}
+.list{list-style:none;display:flex;flex-direction:column;gap:12px}
+.list li{display:flex;gap:10px;align-items:flex-start}
+.dot{width:26px;height:26px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;color:var(--accent2);flex:none}
+.list b{font-size:13px;display:block}.list small{color:var(--muted);font-size:11px}
+
+/* tasks board */
+.tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px}
+.tabs button{padding:6px 12px;border-radius:9px;color:var(--muted);font-weight:600;font-size:13px}
+.tabs button.on{background:var(--accent);color:#fff}
+.board{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:14px;overflow-x:auto;padding-bottom:8px}
+.col{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;min-height:300px;transition:border-color .2s}
+.col.over{border-color:var(--accent2)}
+.col h4{display:flex;justify-content:space-between;font-size:13px;margin:2px 4px 12px}
+.col h4 span{color:var(--muted)}
+.task{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;cursor:grab;animation:in .35s both}
+.task:active{cursor:grabbing}
+.task b{font-size:13px;display:block}
+.task small{color:var(--muted);font-size:11px;display:block;margin:3px 0 8px}
+.meta{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.tag{font-size:10px;padding:2px 8px;border-radius:9px;font-weight:700}
+.tag.High{background:rgba(229,100,91,.15);color:var(--bad)}.tag.Med{background:rgba(229,169,75,.15);color:var(--warn)}.tag.Low{background:rgba(76,195,138,.15);color:var(--good)}
+.mv{display:flex;gap:2px}
+.mv button{width:24px;height:24px;border-radius:7px;color:var(--muted);display:grid;place-items:center}
+.mv button:hover{background:var(--line);color:var(--text)}
+.mv button:disabled{opacity:.25;cursor:default}
+
+/* projects */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.proj{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;transition:transform .2s,border-color .2s;animation:in .4s both}
+.proj:hover{transform:translateY(-3px);border-color:var(--accent)}
+.proj .row{display:flex;justify-content:space-between;align-items:center}
+.st{font-size:11px;font-weight:700;padding:2px 9px;border-radius:9px}
+.st.Running{background:rgba(63,134,168,.2);color:var(--accent2)}.st.Pending{background:rgba(229,169,75,.15);color:var(--warn)}.st.Ended{background:rgba(76,195,138,.15);color:var(--good)}
+.proj b{font-size:15px}.proj small{color:var(--muted)}
+.prog{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent2);border-radius:3px;transition:width .8s cubic-bezier(.16,1,.3,1)}
+
+/* team */
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.person{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;text-align:center}
+.person .avatar{width:54px;height:54px;margin:0 auto 10px;font-size:16px}
+.person small{color:var(--muted)}
+
+/* toast + modal */
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,30px);background:var(--text);color:var(--bg);padding:10px 12px 10px 16px;border-radius:12px;display:flex;gap:16px;align-items:center;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.35s cubic-bezier(.16,1,.3,1);z-index:50}
+.toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.toast button{font-weight:700;padding:4px 12px;border-radius:8px;background:rgba(127,127,127,.25)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;place-items:center;z-index:40;padding:16px}
+.modal.on{display:grid}
+.modal form{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;width:min(380px,100%);display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
+.modal label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.modal input,.modal select{height:38px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);padding:0 10px;color:var(--text)}
+.empty{color:var(--muted);padding:30px;text-align:center}
+
+@media (max-width:980px){.stats{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}.user div{display:none}}
+@media (max-width:640px){.frame,.frame.is-rail{--side:60px}.lbl,.badge,.grp{display:none}.top{padding:10px 12px}.content{padding:14px}.search kbd{display:none}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+ <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></symbol>
+ <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+ <symbol id="i-check" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 12l3 3 5-6"/></symbol>
+ <symbol id="i-team" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/></symbol>
+ <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></symbol>
+ <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+ <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10z"/></symbol>
+ <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></symbol>
+ <symbol id="i-l" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></symbol>
+ <symbol id="i-r" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
+ <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+</defs></svg>
+
+<div class="frame" id="frame">
+  <aside class="side" id="side">
+    <div class="logo"><i><svg class="ic"><use href="#i-home"/></svg></i><span class="lbl">Sitewise</span></div>
+    <div class="grp">MENU</div>
+    <nav class="nav" id="nav">
+      <a data-p="dash" class="on"><svg class="ic"><use href="#i-home"/></svg><span class="lbl">Dashboard</span></a>
+      <a data-p="projects"><svg class="ic"><use href="#i-folder"/></svg><span class="lbl">Projects</span><span class="badge" id="bProj">0</span></a>
+      <a data-p="tasks"><svg class="ic"><use href="#i-check"/></svg><span class="lbl">Tasks</span><span class="badge" id="bTask">0</span></a>
+      <a data-p="team"><svg class="ic"><use href="#i-team"/></svg><span class="lbl">Team</span></a>
+    </nav>
+    <div class="spacer"></div>
+  </aside>
+
+  <section class="main">
+    <header class="top">
+      <button class="iconbtn" id="rail" title="Collapse / expand menu" aria-label="Toggle menu"><svg class="ic"><use href="#i-panel"/></svg></button>
+      <label class="search"><svg class="ic"><use href="#i-search"/></svg><input id="q" placeholder="Search projects or tasks"><kbd>/</kbd></label>
+      <span style="flex:1"></span>
+      <button class="iconbtn" id="theme" title="Light / dark" aria-label="Toggle theme"><svg class="ic"><use href="#i-moon"/></svg></button>
+      <div class="user"><span class="avatar">LO</span><div><b>Lew</b><small>BIM Technician</small></div></div>
+    </header>
+
+    <div class="content">
+      <!-- Dashboard -->
+      <div class="page on" id="p-dash">
+        <div class="head"><div><h1>Dashboard</h1><p class="sub">Plan, track and deliver every job.</p></div>
+          <div class="btns"><button class="btn pri" data-new="project">+ Add project</button><button class="btn" id="exp">Export data</button></div></div>
+        <div class="stats" id="stats"></div>
+        <div class="cols">
+          <div class="card"><h3>Hours this week <span class="sub" id="hrs"></span></h3><div class="bars" id="bars"></div></div>
+          <div class="card remind"><h3>Reminders</h3><b>Model coordination meeting</b><p>Today · 2:00 PM · Video call</p><button class="btn pri" id="meet">Start meeting</button></div>
+          <div class="card"><h3>Active tasks <button class="btn" data-new="task">+ New</button></h3><ul class="list" id="recent"></ul></div>
+        </div>
+      </div>
+
+      <!-- Projects -->
+      <div class="page" id="p-projects">
+        <div class="head"><div><h1>Projects</h1><p class="sub" id="pSub"></p></div><div class="btns"><button class="btn pri" data-new="project">+ New project</button></div></div>
+        <div class="tools"><div class="tabs" id="pTabs"></div></div>
+        <div class="pgrid" id="pgrid"></div>
+      </div>
+
+      <!-- Tasks -->
+      <div class="page" id="p-tasks">
+        <div class="head"><div><h1>Tasks</h1><p class="sub" id="tSub"></p></div><div class="btns"><button class="btn pri" data-new="task">+ New task</button></div></div>
+        <div class="board" id="board"></div>
+      </div>
+
+      <!-- Team -->
+      <div class="page" id="p-team">
+        <div class="head"><div><h1>Team</h1><p class="sub">Who's on what.</p></div></div>
+        <div class="people" id="people"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="toast" id="toast"><span id="tmsg"></span><button id="undo">Undo</button></div>
+<div class="modal" id="modal"><form id="form"></form></div>
+
+<script>
+(function(){
+var ST=['To do','In progress','Checking','Done'];
+var PS=['Running','Pending','Ended'];
+var seed={
+ projects:[
+  {id:1,name:'Tower A – Revit model',client:'Northgate Dev.',status:'Running',pct:64},
+  {id:2,name:'Clash detection – Level 3',client:'Harbour Group',status:'Running',pct:40},
+  {id:3,name:'Warehouse as-built survey',client:'Eastline Ltd.',status:'Pending',pct:10},
+  {id:4,name:'Hospital MEP coordination',client:'City Health',status:'Running',pct:78},
+  {id:5,name:'School extension – IFC export',client:'Council Works',status:'Ended',pct:100},
+  {id:6,name:'Car park structure',client:'Northgate Dev.',status:'Pending',pct:5}],
+ tasks:[
+  {id:1,t:'Update level 3 ductwork',p:'Tower A – Revit model',pr:'High',s:0},
+  {id:2,t:'Run clash report',p:'Clash detection – Level 3',pr:'High',s:1},
+  {id:3,t:'Issue IFC to consultants',p:'School extension – IFC export',pr:'Med',s:3},
+  {id:4,t:'Check sheet naming',p:'Hospital MEP coordination',pr:'Low',s:2},
+  {id:5,t:'Point cloud registration',p:'Warehouse as-built survey',pr:'Med',s:0},
+  {id:6,t:'Weekly model audit',p:'Tower A – Revit model',pr:'Med',s:1},
+  {id:7,t:'Family clean-up',p:'Hospital MEP coordination',pr:'Low',s:3}],
+ hours:[5,7,9,6,8,3,1],
+ team:[['Lew O.','BIM Technician'],['Ana R.','Architect'],['Sam K.','MEP Engineer'],['Priya N.','Structural Engineer'],['Tom B.','Site Surveyor']]
+};
+var D;
+try{D=JSON.parse(localStorage.getItem('sitewise-data'))}catch(e){}
+if(!D||!D.tasks)D=JSON.parse(JSON.stringify(seed));
+function save(){try{localStorage.setItem('sitewise-data',JSON.stringify(D))}catch(e){}}
+var $=function(s){return document.querySelector(s)};
+var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})};
+var page='dash',pFilter='All',query='';
+var icon=function(n){return '<svg class="ic"><use href="#i-'+n+'"/></svg>'};
+
+/* ---------- sidebar rail (animated by CSS grid width) ---------- */
+$('#rail').onclick=function(){var f=$('#frame');f.classList.toggle('is-rail');try{localStorage.setItem('sitewise-rail',f.classList.contains('is-rail')?'1':'')}catch(e){}};
+try{if(localStorage.getItem('sitewise-rail'))$('#frame').classList.add('is-rail')}catch(e){}
+
+/* ---------- theme ---------- */
+function setTheme(t){document.documentElement.setAttribute('data-theme',t);try{localStorage.setItem('sitewise-theme',t)}catch(e){}}
+try{var th=localStorage.getItem('sitewise-theme');if(th)setTheme(th)}catch(e){}
+$('#theme').onclick=function(){setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark')};
+
+/* ---------- navigation ---------- */
+function go(p){page=p;
+ [].forEach.call(document.querySelectorAll('.page'),function(e){e.classList.toggle('on',e.id==='p-'+p)});
+ [].forEach.call(document.querySelectorAll('#nav a'),function(e){e.classList.toggle('on',e.dataset.p===p)});
+ render()}
+$('#nav').onclick=function(e){var a=e.target.closest('a');if(a)go(a.dataset.p)};
+$('.stats,#stats')&&0;
+
+/* ---------- search ---------- */
+$('#q').oninput=function(){query=this.value.toLowerCase();if(page==='dash')go('projects');else render()};
+document.addEventListener('keydown',function(e){
+ if((e.key==='/'&&document.activeElement.tagName!=='INPUT')||((e.ctrlKey||e.metaKey)&&e.key==='k')){e.preventDefault();$('#q').focus()}
+ if(e.key==='Escape'){$('#q').value='';query='';$('#modal').classList.remove('on');render()}});
+
+/* ---------- toast with undo ---------- */
+var undoFn=null,tt;
+function toast(msg,fn){$('#tmsg').textContent=msg;undoFn=fn||null;$('#undo').style.display=fn?'':'none';$('#toast').classList.add('on');clearTimeout(tt);tt=setTimeout(function(){$('#toast').classList.remove('on')},4000)}
+$('#undo').onclick=function(){if(undoFn)undoFn();undoFn=null;$('#toast').classList.remove('on')};
+
+/* ---------- renderers ---------- */
+function counts(){var c={Running:0,Pending:0,Ended:0};D.projects.forEach(function(p){c[p.status]++});return c}
+function renderDash(){
+ var c=counts(),n=D.projects.length;
+ var cards=[['Total projects',n,'hero','Across all clients'],['Ended projects',c.Ended,'','Delivered'],['Running projects',c.Running,'','In progress now'],['Pending projects',c.Pending,'','Waiting to start']];
+ $('#stats').innerHTML=cards.map(function(k){return '<div class="stat '+k[2]+'"><div class="t">'+k[0]+'</div><div class="n">'+k[1]+'</div><div class="d">'+k[3]+'</div><span class="go">'+icon('up')+'</span></div>'}).join('');
+ var m=Math.max.apply(null,D.hours),tot=D.hours.reduce(function(a,b){return a+b},0),day=['M','T','W','T','F','S','S'];
+ $('#hrs').textContent=tot+' h logged';
+ $('#bars').innerHTML=D.hours.map(function(h,i){return '<div class="bar'+(h===m?' hi':'')+'"><em>'+h+'h</em><i style="height:'+Math.max(8,h/m*100)+'%;animation-delay:'+i*60+'ms"></i><span>'+day[i]+'</span></div>'}).join('');
+ var act=D.tasks.filter(function(t){return t.s<3}).slice(0,5);
+ $('#recent').innerHTML=act.length?act.map(function(t){return '<li><span class="dot">'+icon('clock')+'</span><div><b>'+esc(t.t)+'</b><small>'+esc(t.p)+' · '+ST[t.s]+'</small></div></li>'}).join(''):'<li class="empty">All caught up</li>';
+}
+function renderProjects(){
+ var tabs=['All'].concat(PS);
+ $('#pTabs').innerHTML=tabs.map(function(t){return '<button class="'+(t===pFilter?'on':'')+'" data-f="'+t+'">'+t+'</button>'}).join('');
+ var list=D.projects.filter(function(p){return(pFilter==='All'||p.status===pFilter)&&(!query||(p.name+p.client).toLowerCase().indexOf(query)>-1)});
+ $('#pSub').textContent=list.length+' of '+D.projects.length+' projects';
+ $('#pgrid').innerHTML=list.length?list.map(function(p,i){var open=D.tasks.filter(function(t){return t.p===p.name&&t.s<3}).length;
+  return '<div class="proj" style="animation-delay:'+i*40+'ms"><div class="row"><span class="st '+p.status+'">'+p.status+'</span><small>'+open+' open</small></div><b>'+esc(p.name)+'</b><small>'+esc(p.client)+'</small><div class="prog"><i style="width:'+p.pct+'%"></i></div><small>'+p.pct+'% complete</small></div>'}).join(''):'<div class="empty">No projects match.</div>';
+}
+function card(t){var l=t.s>0,r=t.s<3;
+ return '<div class="task" draggable="true" data-id="'+t.id+'"><b>'+esc(t.t)+'</b><small>'+esc(t.p)+'</small><div class="meta"><span class="tag '+t.pr+'">'+t.pr+'</span><span class="mv"><button data-mv="-1" '+(l?'':'disabled')+' aria-label="Move back">'+icon('l')+'</button><button data-mv="1" '+(r?'':'disabled')+' aria-label="Move forward">'+icon('r')+'</button></span></div></div>'}
+function renderTasks(){
+ var vis=D.tasks.filter(function(t){return !query||(t.t+t.p).toLowerCase().indexOf(query)>-1});
+ $('#tSub').textContent=D.tasks.filter(function(t){return t.s<3}).length+' open tasks · drag cards or use the arrows';
+ $('#board').innerHTML=ST.map(function(s,i){var items=vis.filter(function(t){return t.s===i});
+  return '<div class="col" data-s="'+i+'"><h4>'+s+' <span>'+items.length+'</span></h4>'+items.map(card).join('')+'</div>'}).join('');
+}
+function renderTeam(){
+ $('#people').innerHTML=D.team.map(function(p){var ini=p[0].split(' ').map(function(w){return w[0]}).join('');
+  var n=D.tasks.filter(function(t){return t.s<3}).length;return '<div class="person"><div class="avatar">'+ini+'</div><b>'+esc(p[0])+'</b><br><small>'+esc(p[1])+'</small></div>'}).join('');
+}
+function render(){
+ $('#bProj').textContent=D.projects.length;
+ $('#bTask').textContent=D.tasks.filter(function(t){return t.s<3}).length;
+ if(page==='dash')renderDash();else if(page==='projects')renderProjects();else if(page==='tasks')renderTasks();else renderTeam();
+}
+
+/* ---------- interactions ---------- */
+$('#pTabs').onclick=function(e){var b=e.target.closest('button');if(b){pFilter=b.dataset.f;renderProjects()}};
+function moveTask(id,to){var t=D.tasks.filter(function(x){return x.id==id})[0];if(!t||to<0||to>3||t.s===to)return;
+ var from=t.s;t.s=to;save();render();
+ toast('Moved to '+ST[to].toLowerCase(),function(){t.s=from;save();render()})}
+$('#board').onclick=function(e){var b=e.target.closest('[data-mv]');if(!b||b.disabled)return;var c=b.closest('.task');var t=D.tasks.filter(function(x){return x.id==c.dataset.id})[0];moveTask(t.id,t.s+Number(b.dataset.mv))};
+var dragId=null;
+$('#board').addEventListener('dragstart',function(e){var c=e.target.closest('.task');if(!c)return;dragId=c.dataset.id;try{e.dataTransfer.setData('text/plain',dragId)}catch(x){}});
+$('#board').addEventListener('dragover',function(e){var c=e.target.closest('.col');if(c){e.preventDefault();[].forEach.call(document.querySelectorAll('.col'),function(x){x.classList.toggle('over',x===c)})}});
+$('#board').addEventListener('drop',function(e){var c=e.target.closest('.col');e.preventDefault();if(c&&dragId)moveTask(dragId,Number(c.dataset.s));dragId=null});
+$('#board').addEventListener('dragend',function(){[].forEach.call(document.querySelectorAll('.col'),function(x){x.classList.remove('over')})});
+
+$('#meet').onclick=function(){toast('Opening meeting…')};
+$('#exp').onclick=function(){var rows=[['Task','Project','Priority','Status']].concat(D.tasks.map(function(t){return[t.t,t.p,t.pr,ST[t.s]]}));
+ var csv=rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(',')}).join('\n');
+ var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='sitewise-tasks.csv';a.click();toast('Exported tasks.csv')};
+
+/* ---------- add forms ---------- */
+document.addEventListener('click',function(e){var b=e.target.closest('[data-new]');if(b)openForm(b.dataset.new)});
+$('#modal').onclick=function(e){if(e.target.id==='modal')$('#modal').classList.remove('on')};
+function openForm(kind){
+ var f=$('#form');
+ if(kind==='project'){f.innerHTML='<b>New project</b><label>Name<input name="a" required></label><label>Client<input name="b"></label><label>Status<select name="c">'+PS.map(function(s){return'<option>'+s+'</option>'}).join('')+'</select></label><div class="btns"><button type="button" class="btn" id="cx">Cancel</button><button class="btn pri">Add</button></div>'}
+ else{f.innerHTML='<b>New task</b><label>Task<input name="a" required></label><label>Project<select name="b">'+D.projects.map(function(p){return'<option>'+esc(p.name)+'</option>'}).join('')+'</select></label><label>Priority<select name="c"><option>High</option><option selected>Med</option><option>Low</option></select></label><div class="btns"><button type="button" class="btn" id="cx">Cancel</button><button class="btn pri">Add</button></div>'}
+ f.dataset.kind=kind;$('#modal').classList.add('on');f.a.focus();$('#cx').onclick=function(){$('#modal').classList.remove('on')}}
+$('#form').onsubmit=function(e){e.preventDefault();var f=this,id=Date.now();
+ if(f.dataset.kind==='project'){D.projects.unshift({id:id,name:f.a.value.trim(),client:f.b.value.trim()||'—',status:f.c.value,pct:f.c.value==='Ended'?100:0});toast('Project added')}
+ else{D.tasks.unshift({id:id,t:f.a.value.trim(),p:f.b.value,pr:f.c.value,s:0});toast('Task added')}
+ save();$('#modal').classList.remove('on');render()};
+
+render();
+})();
+</script>
+</body>
+</html>

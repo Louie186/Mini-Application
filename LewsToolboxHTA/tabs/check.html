@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Submission Check</title>
+<meta name="lt-order" content="5">
+<meta name="lt-icon" content="&#9989;">
+<meta name="lt-desc" content="Before you send a submission: checks the folder against your drawing list - what is missing, wrong revision, missing PDF / DWG, and files that are not on the list.">
+<!--
+  Lew's Toolbox - Submission Check: compares a submission folder (and its subfolders) with your list (Excel / CSV).
+  Checks: file count, each listed file found / missing / wrong revision / missing file type / wrong folder / listed twice,
+  files not on the list, empty files, upper/lower case differences.
+  Remembers the folder, list and columns in check.json.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#cols select{width:150px;height:26px;margin:0 10px 6px 0}
+#cols .lbl{margin-right:4px}
+#sum{flex:none;padding:8px 14px}
+#types{font-size:.92em}
+#types span{margin-right:14px}
+.right{float:right}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Submission folder...</button><span class="path big" id="folderLbl"></span>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
+  </div>
+  <div class="step">
+    <span class="num">2</span><button class="btn" id="bList">&#128196; My list (Excel / CSV)...</button><span class="path big" id="listLbl"></span>
+    <div id="cols" style="margin-left:32px">
+      <span id="sheetBox"><span class="lbl">Sheet:</span><select id="cSheet"></select></span>
+      <span class="lbl">File name / number:</span><select id="cName"></select>
+      <span class="lbl">Revision:</span><select id="cRev"></select>
+      <span class="lbl">File types:</span><select id="cFmt"></select>
+      <button class="btn small" id="bMoreCols">More &#9662;</button><br>
+      <span class="lbl">Tower:</span><select id="cTower"></select>
+      <span class="lbl">Typology:</span><select id="cTypo"></select>
+      <span class="lbl">Model:</span><select id="cModel"></select>
+    </div>
+  </div>
+  <div class="step bar">
+    <span class="num">3</span><button class="btn primary" id="bRun">&#9654; Check</button>
+    <span class="lbl">Show:</span><select id="show" style="width:225px;height:26px;margin:0 8px 6px 0"><option value="all">Everything</option><option value="bad" selected>Problems only</option><option value="miss">Missing</option><option value="rev">Wrong revision</option><option value="extra">Files not on the list</option><option value="ok">OK only</option><option value="groups">Summary by tower / typology</option></select>
+    <span id="fBox" style="display:none"><span class="lbl">Tower:</span><select id="fTower" style="width:120px;height:26px;margin:0 8px 6px 0"></select><span class="lbl">Typology:</span><select id="fTypo" style="width:120px;height:26px;margin:0 8px 6px 0"></select></span>
+    <span class="right"><button class="btn" id="bReport">Report &#9662;</button><button class="btn" id="bFix" title="Open the folder in Bulk Files to fix names">Fix names in Bulk Files</button></span>
+  </div>
+  <div id="sum"><div id="sumTxt" class="muted">Pick the submission folder and your list, then &#9654; Check.</div><div id="types"></div></div>
+  <div id="res"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso;
+var cfg, table = null, head = [], headRow = 0, sheets = [], last = null, shown = [];
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
+var NAME_WORDS = ["file name", "filename", "drawing number", "drawing no", "drawing no.", "dwg no", "dwg number", "document number", "document no", "doc no", "doc number", "number", "name", "file", "deliverable"];
+function CFG() { return LT.dataPath("check.json"); }
+function loadCfg() { cfg = LT.readJson(CFG(), null) || {}; var d = { folder: "", list: "", formats: "", subs: true, colName: "", colRev: "", colFmt: "", colFolder: "", colTitle: "", colTower: "", colTypo: "", colModel: "" }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
+function saveCfg() { try { LT.saveJson(CFG(), cfg); } catch (e) { } }
+function up(s) { return LT.trim(s).toUpperCase(); }
+function exts(s) { var a = ("" + (s || "")).split(/[\s,;\/+&]+/), o = []; for (var i = 0; i < a.length; i++) { var x = LT.trim(a[i]).replace(/^\./, "").toLowerCase(); if (x && o.indexOf(x) < 0) o.push(x); } return o; }
+/* "5013-KEO-ZZ-DR-A-10101-P02" -> base "5013-KEO-ZZ-DR-A-10101", rev "P02" */
+function splitRev(stem) {
+  var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")), seps = (stem.match(/[-_]/g) || []).length;
+  if (i > 0 && seps >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1) };
+  return { base: stem, rev: "" };
+}
+
+/* ---------- step 1 + 2 ---------- */
+function showPaths() {
+  $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
+  $("listLbl").innerHTML = cfg.list ? esc(fso.GetFileName(cfg.list)) + (table ? ' <span class="muted">(' + Math.max(0, table.length - headRow - 1) + " rows)</span>" : "") : '<span class="muted">not picked</span>';
+  $("subs").checked = cfg.subs;
+  $("cols").style.display = table ? "" : "none";
+}
+function pickFolder() { var f = LT.pickFolder("Pick the submission folder"); if (f) { cfg.folder = f; saveCfg(); showPaths(); } }
+function pickList() { LT.pickFile(function (p) { try { readList(p, true); cfg.list = p; saveCfg(); showPaths(); } catch (e) { alert("Couldn't read that list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); } }); }
+/* reads the list and guesses which columns are which (the person can change them) */
+function readList(p, guess) {
+  var L = LT.readList(p, guess ? "" : cfg.sheet);
+  sheets = L.sheets; cfg.sheet = L.sheet; table = L.table; headRow = L.headRow; head = L.head;
+  var c = LT.listColumns(L, { name: cfg.colName, title: cfg.colTitle, rev: cfg.colRev, fmt: cfg.colFmt, folder: cfg.colFolder, tower: cfg.colTower, typo: cfg.colTypo, model: cfg.colModel }, guess);
+  cfg.colName = c.name; cfg.colTitle = c.title; cfg.colRev = c.rev; cfg.colFmt = c.fmt; cfg.colFolder = c.folder; cfg.colTower = c.tower; cfg.colTypo = c.typo; cfg.colModel = c.model;
+  fillCols();
+}
+function fillCols() {
+  var so = ""; for (var i = 0; i < sheets.length; i++) so += "<option" + (sheets[i] == cfg.sheet ? " selected" : "") + ">" + esc(sheets[i]) + "</option>";
+  $("cSheet").innerHTML = so; $("sheetBox").style.display = sheets.length > 1 ? "" : "none";
+  var opts = function (sel, none) { var h = none ? '<option value="">(none)</option>' : ""; for (var i = 0; i < head.length; i++) h += "<option" + (head[i] == sel ? " selected" : "") + ">" + esc(head[i]) + "</option>"; return h; };
+  $("cName").innerHTML = opts(cfg.colName, false); $("cRev").innerHTML = opts(cfg.colRev, true); $("cFmt").innerHTML = opts(cfg.colFmt, true);
+  $("cTower").innerHTML = opts(cfg.colTower, true); $("cTypo").innerHTML = opts(cfg.colTypo, true); $("cModel").innerHTML = opts(cfg.colModel, true);
+}
+function moreCols(x, y) {
+  var pick = function (key, label) { return function () { var a = ["(none)"].concat(head), list = ""; for (var i = 0; i < a.length; i++) list += "\n  " + i + "  =  " + a[i];
+    var v = prompt("Which column is the " + label + "? Type its number:" + list, "" + Math.max(0, head.indexOf(cfg[key]) + 1)); if (v == null) return; var n = parseInt(v, 10); if (n >= 0 && n < a.length) { cfg[key] = n ? a[n] : ""; saveCfg(); } }; };
+  LT.menu(x, y, [
+    { label: "Folder column" + (cfg.colFolder ? ": " + esc(cfg.colFolder) : " (none)") + "...", fn: pick("colFolder", "folder") },
+    { label: "Title column" + (cfg.colTitle ? ": " + esc(cfg.colTitle) : " (none)") + "...", fn: pick("colTitle", "title") },
+    { label: "File types for every row" + (cfg.formats ? ": " + esc(cfg.formats) : "") + "...", fn: function () { var v = prompt("When the list has no File types column: which types does every row need?\ne.g.  pdf   or   pdf, dwg      (empty = any type is fine)", cfg.formats); if (v != null) { cfg.formats = LT.trim(v); saveCfg(); } } }]);
+}
+
+/* ---------- step 3: the check ---------- */
+function scan(dir, root, deep, out) {
+  try {
+    var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
+    for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name;
+      if (f.Attributes & 6) continue; if (/^~\$/.test(n) || /^(thumbs\.db|desktop\.ini)$/i.test(n)) continue;
+      var rel = dir.length > root.length ? dir.substring(root.length).replace(/^\\+/, "") : "", i = n.lastIndexOf(".");
+      out.push({ full: "" + f.Path, folder: rel, rel: rel ? rel + "\\" + n : n, name: n, stem: i > 0 ? n.substring(0, i) : n, ext: i > 0 ? n.substring(i + 1).toLowerCase() : "", size: f.Size, used: false }); }
+    if (deep) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) { var sf = d.item(); if (sf.Attributes & 6) continue; scan("" + sf.Path, root, true, out); } }
+  } catch (x) { }
+}
+function check(rows, files, defFormats) {
+  var res = { rows: rows, files: files, extra: [], notes: [], types: {} }, defF = exts(defFormats), byStem = {}, byBase = {}, seenEntries = {};
+  var bySeq = {};
+  for (var i = 0; i < files.length; i++) { var f = files[i], s = up(f.stem), b = splitRev(s).base; (byStem[s] = byStem[s] || []).push(f); (byBase[b] = byBase[b] || []).push(f);
+    var segs = s.split(/[-_ .]+/), seen = {}; for (var g = 0; g < segs.length; g++) if (/^\d{3,}$/.test(segs[g]) && !seen[segs[g]]) { seen[segs[g]] = 1; (bySeq[segs[g]] = bySeq[segs[g]] || []).push(f); } }
+  for (var r = 0; r < rows.length; r++) {
+    var row = rows[r], entry = LT.trim(row.entry), entryExt = "", m = /\.([A-Za-z][A-Za-z0-9]{1,3})$/.exec(entry);
+    if (m && !REV.test(m[1])) { entryExt = m[1].toLowerCase(); entry = entry.substring(0, entry.length - m[0].length); }
+    var need = exts(row.formats); if (!need.length) need = entryExt ? [entryExt] : defF;
+    var sr = splitRev(up(entry)), bas = sr.base, revIn = sr.rev, want = up(row.rev), shortNo = /^\d{3,}$/.test(entry);
+    var wantStem = want && !revIn ? null : up(entry);
+    var key = shortNo ? "#" + entry + "|" + want : wantStem || (bas + "|" + want);
+    if (seenEntries[key]) { row.status = "Listed twice"; row.note = "Same as row " + seenEntries[key]; row.lv = 1; row.files = []; continue; }
+    seenEntries[key] = row.no;
+    row.note = want && revIn && want != revIn ? "List name has " + revIn + " but Rev column says " + want + ". " : "";
+    var exact = [], other = [];
+    if (shortNo) {        // only the number is on the list (e.g. 10110): any file with that number in its name
+      var cand = bySeq[entry] || [];
+      for (var cc = 0; cc < cand.length; cc++) { if (!want || splitRev(up(cand[cc].stem)).rev == want) exact.push(cand[cc]); else other.push(cand[cc]); }
+    }
+    else if (wantStem) exact = (byStem[wantStem] || []).slice(0);
+    else { var c = [bas + "-" + want, bas + "_" + want, bas + want, bas]; for (var k = 0; k < c.length; k++) { var l = byStem[c[k]] || []; for (var q = 0; q < l.length; q++) if (exact.indexOf(l[q]) < 0) exact.push(l[q]); } }
+    if (!shortNo) { var sb = byBase[bas] || []; for (var o = 0; o < sb.length; o++) if (exact.indexOf(sb[o]) < 0) other.push(sb[o]); }
+    for (var u = 0; u < exact.length; u++) exact[u].used = true; for (var u2 = 0; u2 < other.length; u2++) other[u2].used = true;
+    row.files = exact.concat(other); row.exact = exact;
+    row.found = []; for (var ft = 0; ft < exact.length; ft++) if (row.found.indexOf(exact[ft].ext) < 0) row.found.push(exact[ft].ext); row.found.sort();
+    var hits = [], missing = [];
+    for (var h = 0; h < exact.length; h++) if (!need.length || need.indexOf(exact[h].ext) >= 0) hits.push(exact[h]);
+    for (var n = 0; n < need.length; n++) { var got = false; for (var e2 = 0; e2 < exact.length; e2++) if (exact[e2].ext == need[n]) got = true; if (!got) missing.push(need[n]);
+      var tc = res.types[need[n]] = res.types[need[n]] || [0, 0]; tc[0]++; if (got) tc[1]++; }
+    if (!exact.length && other.length) { var revs = []; for (var v = 0; v < other.length; v++) { var rv = splitRev(up(other[v].stem)).rev || "(no rev)"; if (revs.indexOf(rv) < 0) revs.push(rv); }
+      row.status = "Wrong revision"; row.lv = 2; row.note += "Expected " + (want || revIn || "(no rev)") + ", found " + revs.join(", "); continue; }
+    if (!exact.length) { row.status = "Missing"; row.lv = 2; row.note += need.length ? "Need: " + need.join(", ") : ""; continue; }
+    if (missing.length) { var have = []; for (var hv = 0; hv < exact.length; hv++) if (have.indexOf(exact[hv].ext) < 0) have.push(exact[hv].ext);
+      row.status = "Missing file type"; row.lv = 2; row.note += "Missing: " + missing.join(", ") + "  (have: " + have.join(", ") + ")"; continue; }
+    if (LT.trim(row.folder)) { var wf = LT.trim(row.folder).replace(/^[\\\/]+|[\\\/]+$/g, "").replace(/\//g, "\\").toLowerCase(), wrong = null;
+      for (var w = 0; w < hits.length; w++) { var hf = hits[w].folder.toLowerCase(); if (hf.slice(-wf.length) != wf && hf.indexOf(wf) != 0) wrong = hits[w]; }
+      if (wrong) { row.status = "Wrong folder"; row.lv = 1; row.note += 'Expected in "' + row.folder + '", found in "' + (wrong.folder || "(top folder)") + '"'; continue; } }
+    var notes = [];
+    for (var cs = 0; cs < hits.length && !shortNo; cs++) if (hits[cs].stem.indexOf(entry) != 0) { notes.push("Upper/lower case differs from the list: " + hits[cs].name); break; }
+    var names = {}; for (var dn = 0; dn < hits.length; dn++) { var nk = hits[dn].name.toLowerCase(); names[nk] = (names[nk] || 0) + 1; if (names[nk] == 2) notes.push("Same file in 2+ folders"); }
+    for (var z = 0; z < hits.length; z++) if (hits[z].size == 0) { notes.push("Empty file (0 KB): " + hits[z].name); break; }
+    if (other.length) notes.push("Also an old/other revision: " + other[0].name);
+    row.status = "Found"; row.lv = notes.length ? 1 : 0; row.note += notes.join(".  ");
+  }
+  for (var x = 0; x < files.length; x++) { if (!files[x].used) res.extra.push(files[x]); var t = res.types[files[x].ext] = res.types[files[x].ext] || [0, 0]; }
+  for (var tk in res.types) if (res.types.hasOwnProperty(tk)) { var cnt = 0; for (var y = 0; y < files.length; y++) if (files[y].ext == tk) cnt++; res.types[tk][1] = cnt; }
+  for (var en = 0; en < files.length; en++) { if (files[en].size == 0 && !files[en].used) res.notes.push("Empty file (0 KB): " + files[en].rel); if (files[en].full.length >= 250) res.notes.push("Path nearly too long (" + files[en].full.length + " characters): " + files[en].rel); }
+  return res;
+}
+function runCheck() {
+  if (!cfg.folder || !fso.FolderExists(cfg.folder)) { alert("Pick the submission folder first."); return; }
+  if (!cfg.list || !fso.FileExists(cfg.list)) { alert("Pick your list first (Excel or CSV)."); return; }
+  try { readList(cfg.list, false); } catch (e) { alert("Couldn't read the list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return; }
+  showPaths();
+  var col = function (name) { return name ? head.indexOf(name) : -1; }, iN = col(cfg.colName), iR = col(cfg.colRev), iF = col(cfg.colFmt), iD = col(cfg.colFolder), iT = col(cfg.colTitle),
+    iTw = col(cfg.colTower), iTy = col(cfg.colTypo), iM = col(cfg.colModel);
+  if (iN < 0) { alert("Choose which column has the file name / number."); return; }
+  var rows = [], cat = "";
+  for (var r = headRow + 1; r < table.length; r++) { var e = LT.cell(table[r], iN); if (!e) continue;
+    // anything else on the row? (formula leftovers like 0, - or #N/A don't count)
+    var rest = "", others = [iR, iF, iD, iT, iTw, iTy, iM];
+    for (var o = 0; o < others.length; o++) { var ov = LT.cell(table[r], others[o]); if (!LT.isBlankish(ov)) rest += ov; }
+    if (LT.isCategory(e, rest)) { cat = e; continue; }       // a title like "Residential" - the rows under it belong to it
+    rows.push({ no: r + 1, cat: cat, entry: e, rev: LT.cell(table[r], iR), formats: LT.cell(table[r], iF), folder: LT.cell(table[r], iD), title: LT.cell(table[r], iT), tower: LT.cell(table[r], iTw), typo: LT.cell(table[r], iTy), model: LT.cell(table[r], iM), status: "", note: "", lv: 0, files: [], found: [] }); }
+  if (!rows.length) { alert('No rows found under the heading "' + cfg.colName + '".'); return; }
+  /* Tower / Typology / Model the list doesn't have come from the Drawing Register (when there is one) */
+  regUsed = 0; var REG = null; try { REG = LT.register(); } catch (x) { }
+  if (REG) for (var g = 0; g < rows.length; g++) { var rw = rows[g]; if (!LT.isBlankish(rw.tower) || !LT.isBlankish(rw.typo)) continue; var f = REG.find(rw.entry); if (!f) continue;
+    rw.tower = f.tower; rw.typo = f.typo; if (LT.isBlankish(rw.model)) rw.model = f.model; if (!rw.title) rw.title = f.title; if (!rw.cat) rw.cat = f.cat; regUsed++; }
+  var files = []; scan(cfg.folder, cfg.folder, cfg.subs, files);
+  last = check(rows, files, cfg.formats);
+  fillFilters(); summary(); render();
+}
+function count(st) { var n = 0; for (var i = 0; i < last.rows.length; i++) if (last.rows[i].status == st) n++; return n; }
+function summary() {
+  var found = count("Found"), miss = count("Missing"), rev = count("Wrong revision"), type = count("Missing file type"), fold = count("Wrong folder"), warn = 0;
+  for (var i = 0; i < last.rows.length; i++) if (last.rows[i].status == "Found" && last.rows[i].lv == 1) warn++;
+  var ok = !miss && !rev && !type && !fold && !last.extra.length;
+  $("sumTxt").className = "big " + (ok ? "ok" : "bad");
+  $("sumTxt").innerHTML = (ok ? "&#9989; All good &ndash; " : "&#9888; ") + last.rows.length + " on the list &middot; " + found + " found" + (warn ? " (" + warn + " with a note)" : "") +
+    (miss ? " &middot; " + miss + " MISSING" : "") + (rev ? " &middot; " + rev + " wrong revision" : "") + (type ? " &middot; " + type + " missing a file type" : "") + (fold ? " &middot; " + fold + " in the wrong folder" : "") +
+    " &middot; " + last.extra.length + " not on the list &middot; " + last.files.length + " files in the folder" + (regUsed ? ' &middot; <span class="muted" style="font-weight:normal">Tower / Typology for ' + regUsed + " from the Drawing Register</span>" : "");
+  var h = "<b>Count by file type:</b> &nbsp;", keys = []; for (var k in last.types) if (last.types.hasOwnProperty(k)) keys.push(k); keys.sort();
+  for (var j = 0; j < keys.length; j++) { var t = last.types[keys[j]], need = t[0] > 0;
+    h += '<span class="' + (need ? (t[1] >= t[0] ? "ok" : "bad") : "") + '">.' + esc(keys[j] || "(none)") + " " + t[1] + (need ? " / " + t[0] + " needed" : "") + "</span>"; }
+  $("types").innerHTML = h;
+  if (!ok && $("show").value == "ok") $("show").value = "bad";
+}
+var regUsed = 0;
+function extras() { return { tower: !!cfg.colTower || regUsed > 0, typo: !!cfg.colTypo || regUsed > 0, model: !!cfg.colModel || regUsed > 0 }; }
+/* Tower / Typology filters, filled after each check */
+function fillFilters() {
+  var ex = extras(), tw = {}, ty = {}, a = [], b = [];
+  for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i]; if (r.tower && !tw[r.tower]) { tw[r.tower] = 1; a.push(r.tower); } if (r.typo && !ty[r.typo]) { ty[r.typo] = 1; b.push(r.typo); } }
+  a.sort(); b.sort();
+  var o = function (list, keep) { var h = '<option value="">All</option>'; for (var k = 0; k < list.length; k++) h += "<option" + (list[k] == keep ? " selected" : "") + ">" + esc(list[k]) + "</option>"; return h; };
+  $("fTower").innerHTML = o(a, $("fTower").value); $("fTypo").innerHTML = o(b, $("fTypo").value);
+  $("fBox").style.display = a.length || b.length ? "" : "none";
+}
+function passFilter(r) { var t = $("fTower").value, y = $("fTypo").value; return (!t || r.tower == t) && (!y || r.typo == y); }
+function render() {
+  if (!last) { $("res").innerHTML = ""; return; }
+  var mode = $("show").value, ex = extras();
+  if (mode == "groups") { groups(); return; }
+  var h = ['<table class="grid"><tr><th>Row</th><th>Category</th><th>On the list</th><th>Title</th>' + (ex.tower ? "<th>Tower</th>" : "") + (ex.typo ? "<th>Typology</th>" : "") + (ex.model ? "<th>Model</th>" : "") + '<th>Rev</th><th>File types found</th><th>Result</th><th>Found in folder</th><th>Note</th></tr>'];
+  shown = [];
+  if (mode != "extra") for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i];
+    if (!passFilter(r)) continue;
+    if (mode == "bad" && r.lv == 0) continue; if (mode == "miss" && r.status != "Missing" && r.status != "Missing file type") continue; if (mode == "rev" && r.status != "Wrong revision") continue; if (mode == "ok" && r.lv != 0) continue;
+    var fl = []; for (var f = 0; f < r.files.length && f < 3; f++) fl.push(esc(r.files[f].rel)); if (r.files.length > 3) fl.push("&hellip;");
+    shown.push(r);
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td>' + r.no + '</td><td class="muted">' + esc(r.cat || "") + "</td><td><b>" + esc(r.entry) + "</b></td><td>" + esc(r.title) + "</td>" +
+      (ex.tower ? "<td>" + esc(r.tower) + "</td>" : "") + (ex.typo ? "<td>" + esc(r.typo) + "</td>" : "") + (ex.model ? "<td>" + esc(r.model) + "</td>" : "") + "<td>" + esc(r.rev) + "</td><td><b>" + esc((r.found || []).join(", ")) + "</b>" +
+      ((r.formats || cfg.formats) ? '<div class="muted" style="font-size:.85em">needs ' + esc(r.formats || cfg.formats) + "</div>" : "") +
+      '</td><td class="' + (r.lv == 0 ? "ok" : r.lv == 1 ? "warn" : "bad") + '" style="font-weight:bold;white-space:nowrap">' + (r.lv == 0 ? "&#10004; " : r.lv == 1 ? "&#9888; " : "&#10006; ") + r.status + "</td><td>" + fl.join("<br>") + '</td><td class="muted">' + esc(r.note) + "</td></tr>"); }
+  var pad = 3 + (ex.tower ? 1 : 0) + (ex.typo ? 1 : 0) + (ex.model ? 1 : 0), blanks = ""; for (var p = 0; p < pad + 1; p++) blanks += "<td></td>";
+  if ((mode == "all" || mode == "bad" || mode == "extra") && !$("fTower").value && !$("fTypo").value) for (var x = 0; x < last.extra.length; x++) { var e = last.extra[x]; shown.push(e);
+    h.push('<tr data-s="' + (shown.length - 1) + '">' + blanks + "<td><b>" + esc(e.ext) + '</b></td><td class="warn" style="font-weight:bold;white-space:nowrap">&#10133; Not on the list</td><td>' + esc(e.rel) + '</td><td class="muted">' + (e.size == 0 ? "Empty file (0 KB)" : "") + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+}
+/* one line per tower + typology: how many drawings, found, missing, wrong revision, file types, models */
+function groupRows() {
+  var g = {}, keys = [];
+  for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i]; if (!passFilter(r)) continue; var k = (r.tower || "") + "|" + (r.typo || "");
+    if (!g[k]) { g[k] = { tower: r.tower || "", typo: r.typo || "", n: 0, found: 0, miss: 0, rev: 0, other: 0, types: {}, models: [] }; keys.push(k); }
+    var x = g[k]; x.n++;
+    if (r.status == "Found" || r.status == "Wrong folder") x.found++; else if (r.status == "Missing" || r.status == "Missing file type") x.miss++; else if (r.status == "Wrong revision") x.rev++; else x.other++;
+    for (var t = 0; t < (r.found || []).length; t++) x.types[r.found[t]] = (x.types[r.found[t]] || 0) + 1;
+    if (r.model && x.models.indexOf(r.model) < 0) x.models.push(r.model); }
+  keys.sort(); var out = []; for (var j = 0; j < keys.length; j++) out.push(g[keys[j]]); return out;
+}
+function typesText(t) { var a = []; for (var k in t) if (t.hasOwnProperty(k)) a.push(k + " " + t[k]); return a.sort().join(", "); }
+function groups() {
+  var gs = groupRows(), h = ['<table class="grid"><tr><th>Tower</th><th>Typology</th><th>Model</th><th>Drawings</th><th>Found</th><th>Missing</th><th>Wrong revision</th><th>File types found</th></tr>'];
+  shown = [];
+  for (var i = 0; i < gs.length; i++) { var x = gs[i], all = x.found == x.n;
+    h.push("<tr><td><b>" + esc(x.tower || "&ndash;") + "</b></td><td><b>" + esc(x.typo || "&ndash;") + "</b></td><td>" + esc(x.models.join(", ")) + "</td><td>" + x.n + '</td><td class="' + (all ? "ok" : "") + '" style="font-weight:bold">' + x.found + (all ? " &#10004;" : "") +
+      '</td><td class="' + (x.miss ? "bad" : "muted") + '" style="font-weight:bold">' + (x.miss || "") + '</td><td class="' + (x.rev ? "bad" : "muted") + '" style="font-weight:bold">' + (x.rev || "") + "</td><td>" + esc(typesText(x.types)) + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = gs.length ? h.join("") + (extras().tower || extras().typo ? "" : '<div class="muted" style="padding:12px">Pick the Tower / Typology columns in step 2 to group the drawings.</div>') : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+}
+
+/* ---------- report ---------- */
+function summaryText() {
+  var s = "Submission check – " + LT.today() + "\r\nFolder: " + cfg.folder + "\r\nList: " + fso.GetFileName(cfg.list) + "\r\n\r\nOn the list: " + last.rows.length + "   Found: " + count("Found") + "   Files in folder: " + last.files.length + "\r\n";
+  var sts = ["Missing", "Missing file type", "Wrong revision", "Wrong folder", "Listed twice"];
+  for (var i = 0; i < sts.length; i++) { var l = []; for (var j = 0; j < last.rows.length; j++) if (last.rows[j].status == sts[i]) l.push(last.rows[j]);
+    if (!l.length) continue; s += "\r\n" + sts[i].toUpperCase() + " (" + l.length + ")\r\n"; for (var k = 0; k < l.length; k++) s += "  • " + l[k].entry + (l[k].note ? " – " + l[k].note : "") + "\r\n"; }
+  if (extras().tower || extras().typo) { var gs = groupRows(); s += "\r\nBY TOWER / TYPOLOGY\r\n";
+    for (var gi = 0; gi < gs.length; gi++) { var x2 = gs[gi]; s += "  \u2022 " + [x2.tower, x2.typo].filter(Boolean).join(" \u00B7 ") + ": " + x2.found + " of " + x2.n + " found" + (x2.miss ? ", " + x2.miss + " missing" : "") + (x2.rev ? ", " + x2.rev + " wrong revision" : "") + (x2.models.length ? "  (model " + x2.models.join(", ") + ")" : "") + "\r\n"; } }
+  if (last.extra.length) { s += "\r\nNOT ON THE LIST (" + last.extra.length + ")\r\n"; for (var x = 0; x < last.extra.length; x++) s += "  • " + last.extra[x].rel + "\r\n"; }
+  return s;
+}
+function reportRows() {
+  var t = [["Row", "Category", "On the list", "Title", "Rev", "File types found", "Result", "Found in folder", "Note", "Tower", "Typology", "Model"]];
+  for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i], fl = []; for (var f = 0; f < r.files.length; f++) fl.push(r.files[f].rel); t.push([r.no, r.cat || "", r.entry, r.title, r.rev, (r.found || []).join(", "), r.status, fl.join("\n"), r.note, r.tower || "", r.typo || "", r.model || ""]); }
+  for (var x = 0; x < last.extra.length; x++) t.push(["", "", "", "", "", last.extra[x].ext, "Not on the list", last.extra[x].rel, last.extra[x].size == 0 ? "Empty file (0 KB)" : "", "", "", ""]);
+  return t;
+}
+function excelReport() {
+  if (!last) { alert("Run a check first."); return; }
+  var base = LT.exportsDir() + "\\SubmissionCheck_" + LT.safeName(fso.GetFileName(cfg.folder)).replace(/ /g, "_") + "_" + LT.stamp(), rows = reportRows();
+  LT.mkdirs(LT.exportsDir());
+  var xl = null, wb = null;
+  try {
+    xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
+    wb = xl.Workbooks.Add(); while (wb.Worksheets.Count < 2) wb.Worksheets.Add(); while (wb.Worksheets.Count > 2) wb.Worksheets(wb.Worksheets.Count).Delete();
+    var s1 = wb.Worksheets(1), s2 = wb.Worksheets(2); s1.Name = "Summary"; s2.Name = "Checklist";
+    var lines = summaryText().split("\r\n");
+    s1.Columns(1).ColumnWidth = 110; for (var i = 0; i < lines.length; i++) s1.Cells(i + 1, 1).Value = lines[i];
+    s1.Cells(1, 1).Font.Bold = true; s1.Cells(1, 1).Font.Size = 14;
+    var W = [7, 18, 40, 34, 7, 12, 18, 50, 50, 12, 12, 12];
+    for (var r = 0; r < rows.length; r++) for (var c = 0; c < rows[r].length; c++) { var cell = s2.Cells(r + 1, c + 1); if (c == 2 || c == 4) cell.NumberFormat = "@"; cell.Value = rows[r][c]; }
+    for (var w = 0; w < W.length; w++) s2.Columns(w + 1).ColumnWidth = W[w];
+    var hd = s2.Range("A1:L1"); hd.Font.Bold = true; hd.Interior.Color = 0x7E3E5B; hd.Font.Color = 0xFFFFFF;
+    for (var k = 1; k < rows.length; k++) { var res = s2.Cells(k + 1, 7), st = rows[k][6]; res.Font.Bold = true; res.Font.Color = st == "Found" ? 0x578B2E : /Wrong folder|Listed twice|Not on/.test(st) ? 0x0065A8 : 0x2B39C0; }
+    try { s2.Range("A1:L" + rows.length).AutoFilter(); } catch (e) { }
+    s1.Activate();
+    wb.SaveAs(base + ".xlsx", 51);
+    LT.open(base + ".xlsx"); return base + ".xlsx";
+  } catch (e) {
+    try { LT.writeCsv(base + ".csv", rows); LT.open(base + ".csv"); LT.toast("Excel isn't available - saved as CSV instead"); return base + ".csv"; } catch (e2) { alert("Couldn't make the report:\n" + (e.message || e)); return null; }
+  } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+}
+function reportMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Excel report", fn: excelReport },
+    { label: "&#128232; Make a transmittal (the found files)", fn: function () { if (!last) { alert("Run a check first."); return; } var p = [];
+      for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i]; if (r.status != "Found" && r.status != "Wrong folder") continue; for (var k = 0; k < (r.exact || []).length; k++) p.push(r.exact[k].full); }
+      if (!p.length) { alert("No found files to issue."); return; } if (LT.main()) LT.main().send("transmittal", "add-files", JSON.stringify(p)); } },
+    { label: "&#128203; Copy summary (for email / Teams)", fn: function () { if (!last) { alert("Run a check first."); return; } if (LT.copyText(summaryText())) LT.toast("Summary copied"); } },
+    { label: "Other notes (empty files, long paths)", fn: function () { alert(!last ? "Run a check first." : last.notes.length ? last.notes.slice(0, 40).join("\n") : "Nothing else to report."); } }]);
+}
+
+/* ---------- events ---------- */
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}"]); }
+function under(btn, fn) { return function (e) { var r = btn.getBoundingClientRect(); fn(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; }; }
+$("bFolder").onclick = pickFolder; $("bList").onclick = pickList; $("bRun").onclick = runCheck;
+$("subs").onclick = function () { cfg.subs = this.checked; saveCfg(); };
+$("cName").onchange = function () { cfg.colName = this.value; saveCfg(); };
+$("cSheet").onchange = function () { cfg.sheet = this.value; cfg.colName = cfg.colRev = cfg.colFmt = cfg.colFolder = cfg.colTitle = cfg.colTower = cfg.colTypo = cfg.colModel = ""; try { readList(cfg.list, false); } catch (e) { alert("Couldn't read that sheet."); } saveCfg(); showPaths(); };
+$("cRev").onchange = function () { cfg.colRev = this.value; saveCfg(); };
+$("cFmt").onchange = function () { cfg.colFmt = this.value; saveCfg(); };
+$("cTower").onchange = function () { cfg.colTower = this.value; saveCfg(); };
+$("cTypo").onchange = function () { cfg.colTypo = this.value; saveCfg(); };
+$("cModel").onchange = function () { cfg.colModel = this.value; saveCfg(); };
+$("fTower").onchange = render; $("fTypo").onchange = render;
+$("bMoreCols").onclick = under($("bMoreCols"), moreCols);
+$("show").onchange = render;
+$("bReport").onclick = under($("bReport"), reportMenu);
+$("bFix").onclick = function () { if (cfg.folder && LT.main()) LT.main().send("files", "open-folder", cfg.folder); else alert("Pick the submission folder first."); };
+$("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-s"); if (!tr) return; var o = shown[+tr.getAttribute("data-s")]; try { if (o.full) LT.showInFolder(o.full); else if (o.files && o.files.length) LT.showInFolder(o.files[0].full); else LT.open(cfg.folder); } catch (x) { } };
+
+/* called by the main window */
+window.ltTheme = function () { look(); };
+window.ltReload = function () { loadCfg(); table = null; showPaths(); };
+window.ltReceive = function (what, value) { if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); } };
+look(); loadCfg();
+if (cfg.list && fso.FileExists(cfg.list)) { try { if (!/\.(xlsx|xlsm|xls)$/i.test(cfg.list)) readList(cfg.list, false); } catch (e) { } }
+showPaths(); LT.tabKeys();
+</script>
+</body>
+</html>

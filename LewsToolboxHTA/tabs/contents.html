@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Folder Contents</title>
+<meta name="lt-order" content="6">
+<meta name="lt-icon" content="&#128269;">
+<meta name="lt-desc" content="Pick a folder and see every drawing in it once, with its revisions, the file types it has (pdf, dwg, rvt...), and its Tower / Typology / Model from your reference list.">
+<!--
+  Lew's Toolbox - Folder Contents: the folder comes first. Every drawing in it (and its subfolders) is shown once,
+  with its revisions, file types and folders, plus Description / Tower / Typology / Model looked up in a reference list
+  (the Submission Check list, another Excel / CSV, or none). Settings: contents.json.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#cols select{width:130px;height:26px;margin:0 10px 6px 0}
+#sum{flex:none;padding:8px 14px}
+#types span{margin-right:14px;cursor:pointer}
+.ty{display:inline-block;padding:1px 6px;margin:0 3px 2px 0;font-size:.85em;font-weight:bold}
+.right{float:right}
+#ask .card{width:460px}
+#ask .btn{display:block;width:100%;text-align:left;margin:0 0 8px;height:auto;padding:9px 12px;white-space:normal}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Folder...</button><span class="path big" id="folderLbl"></span>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
+    <button class="btn small" id="bRescan">&#8635; Read again</button>
+  </div>
+  <div class="step">
+    <span class="num">2</span><button class="btn" id="bRef">&#128196; Reference list &#9662;</button><span class="path big" id="refLbl"></span>
+    <div id="cols" style="margin-left:32px;display:none">
+      <span id="sheetBox"><span class="lbl">Sheet:</span><select id="cSheet"></select></span>
+      <span class="lbl">Number:</span><select id="cName"></select>
+      <span class="lbl">Description:</span><select id="cTitle"></select><br>
+      <span class="lbl">Tower:</span><select id="cTower"></select>
+      <span class="lbl">Typology:</span><select id="cTypo"></select>
+      <span class="lbl">Model:</span><select id="cModel"></select>
+    </div>
+  </div>
+  <div class="step bar">
+    <span class="num">3</span><span class="lbl">Show:</span>
+    <select id="show" style="width:220px;height:26px;margin:0 8px 6px 0"><option value="all">Every drawing</option><option value="noref">Not in the reference list</option><option value="multi">More than one revision here</option><option value="groups">Summary by tower / typology</option><option value="other">Other files (not drawings)</option></select>
+    <span id="fBox"><span class="lbl">Tower:</span><select id="fTower" style="width:110px;height:26px;margin:0 8px 6px 0"></select><span class="lbl">Typology:</span><select id="fTypo" style="width:110px;height:26px;margin:0 8px 6px 0"></select></span>
+    <span class="lbl">File type:</span><select id="fType" style="width:90px;height:26px;margin:0 8px 6px 0"></select>
+    <input type="text" id="search" placeholder="Search" style="width:150px;margin:0 8px 6px 0">
+    <span class="right"><button class="btn" id="bExport">Export &#9662;</button></span>
+  </div>
+  <div id="sum"><div id="sumTxt" class="muted">Pick a folder to see what's inside.</div><div id="types"></div></div>
+  <div id="res"></div>
+</div>
+
+<!-- which reference? -->
+<div class="ov" id="ask"><div class="card">
+  <h3>Which list should give the Tower / Typology / Model?</h3>
+  <button class="btn primary" id="aReg">&#128216; My Drawing Register<div class="muted" id="aRegName" style="font-weight:normal;font-size:.9em"></div></button>
+  <button class="btn" id="aCheck">&#9989; The list I use in Submission Check<div class="muted" id="aCheckName" style="font-weight:normal;font-size:.9em"></div></button>
+  <button class="btn" id="aPick">&#128196; Another Excel / CSV list...</button>
+  <button class="btn" id="aNone">None &ndash; just show the drawings and their file types</button>
+</div></div>
+
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg, list = null, refMap = null, result = null, shown = [];
+var regUsed = 0;
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
+function FILE() { return LT.dataPath("contents.json"); }
+function load() { cfg = LT.readJson(FILE(), null) || {}; var d = { folder: "", subs: true, ref: "", refKind: "", sheet: "", cols: {} }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
+function save() { try { LT.saveJson(FILE(), cfg); } catch (e) { } }
+function up(s) { return LT.trim(s).toUpperCase(); }
+function splitRev(stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; }
+function numbers(s) { var seg = up(s).split(/[-_ .]+/), o = []; for (var i = 0; i < seg.length; i++) if (/^\d{3,}$/.test(seg[i])) o.push(seg[i]); return o; }
+/* the drawing number inside a file name: the whole name, or a part of it like "5013-...-10100-T1 - Title" / "20261101_5013-...-10100-T1" */
+function drawNo(stem) {
+  var nd = LT.trim(stem).replace(/^\d{6,8}[_-](?=\w)/, "");       // a date in front, e.g. 20261101_
+  if (LT.isDocNo(nd)) return nd;
+  var parts = LT.trim(stem).split(/\s+/);
+  for (var i = 0; i < parts.length; i++) { var p = parts[i].replace(/^[\[(]+|[\])]+$/g, "").replace(/^\d{6,8}[_-](?=\w)/, ""); if (LT.isDocNo(p)) return p; }
+  var m = /[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+){3,}/.exec(stem); return m && LT.isDocNo(m[0]) ? m[0].replace(/^\d{6,8}[_-](?=\w)/, "") : "";
+}
+function checkList() { var c = LT.readJson(LT.dataPath("check.json"), null); return c && c.list && fso.FileExists(c.list) ? c : null; }
+
+/* ---------- step 1: the folder ---------- */
+function paths() {
+  $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
+  $("refLbl").innerHTML = cfg.refKind == "register" ? (refMap && refMap.reg ? esc(refMap.reg.name) + ' <span class="muted">(Drawing Register)</span>' : '<span class="muted">Drawing Register</span>') : cfg.refKind == "none" ? '<span class="muted">none &ndash; drawings and file types only</span>' : cfg.ref ? esc(fso.GetFileName(cfg.ref)) + (cfg.refKind == "check" ? ' <span class="muted">(Submission Check list)</span>' : "") + (list ? ' <span class="muted">&middot; ' + list.sheet + "</span>" : "") : '<span class="muted">not picked</span>';
+  $("subs").checked = cfg.subs;
+}
+function pickFolder() { var f = LT.pickFolder("Pick the folder with the drawings"); if (!f) return; cfg.folder = f; save(); paths(); if (!cfg.refKind) askRef(); else run(); }
+function reg() { try { return LT.register(); } catch (e) { return null; } }
+function askRef() { var R = reg(); $("aReg").style.display = R ? "" : "none"; $("aRegName").innerHTML = R ? esc(R.name) + " &middot; " + R.count() + " drawings" : ""; var c = checkList(); $("aCheck").style.display = c ? "" : "none"; $("aCheckName").innerHTML = c ? esc(fso.GetFileName(c.list)) : ""; $("ask").style.display = "block"; }
+
+/* ---------- step 2: the reference list ---------- */
+function useRef(kind, path) {
+  $("ask").style.display = "none";
+  cfg.refKind = kind; cfg.ref = path || "";
+  if (kind == "check") { var c = checkList(); cfg.ref = c.list; cfg.sheet = c.sheet || ""; cfg.cols = { name: c.colName, title: c.colTitle, tower: c.colTower, typo: c.colTypo, model: c.colModel }; }
+  else if (kind == "file") { cfg.sheet = ""; cfg.cols = {}; }
+  list = null; refMap = null; save(); paths(); if (cfg.folder) run();
+}
+function readRef(guess) {
+  refMap = null; list = null;
+  if (cfg.refKind == "register") { $("cols").style.display = "none"; var R = reg(); if (!R) { alert("There's no Drawing Register yet - make one in the Drawing Register tab, or pick another list."); return true; } refMap = { reg: R, n: R.count() }; return true; }
+  if (cfg.refKind == "none" || !cfg.ref) { $("cols").style.display = "none"; return true; }
+  if (!fso.FileExists(cfg.ref)) { alert("The reference list isn't there any more:\n" + cfg.ref); return false; }
+  try { list = LT.readList(cfg.ref, guess ? "" : cfg.sheet); } catch (e) { alert("Couldn't read the reference list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return false; }
+  cfg.sheet = list.sheet;
+  var c = LT.listColumns(list, cfg.cols, guess || !cfg.cols.name); cfg.cols = c; save();
+  fillCols();
+  /* look-up: full number (without revision) and the number part, e.g. 10110 */
+  var ix = function (n) { return n ? list.head.indexOf(n) : -1; }, iN = ix(c.name), iT = ix(c.title), iTw = ix(c.tower), iTy = ix(c.typo), iM = ix(c.model);
+  refMap = { byBase: {}, bySeq: {}, seqCount: {}, n: 0 };
+  for (var r = list.headRow + 1; r < list.table.length; r++) {
+    var row = list.table[r], e = LT.cell(row, iN); if (!e) continue;
+    var info = { number: e, title: LT.cell(row, iT), tower: LT.isBlankish(LT.cell(row, iTw)) ? "" : LT.cell(row, iTw), typo: LT.isBlankish(LT.cell(row, iTy)) ? "" : LT.cell(row, iTy), model: LT.isBlankish(LT.cell(row, iM)) ? "" : LT.cell(row, iM) };
+    if (LT.isCategory(e, info.title + info.tower + info.typo + info.model)) continue;
+    var b = up(splitRev(e.replace(/\.[a-z0-9]{2,4}$/i, "")).base); refMap.byBase[b] = info; refMap.n++;
+    var ns = numbers(e); for (var k = 0; k < ns.length; k++) { refMap.bySeq[ns[k]] = info; refMap.seqCount[ns[k]] = (refMap.seqCount[ns[k]] || 0) + 1; }
+  }
+  return true;
+}
+function fillCols() {
+  var o = function (sel, none) { var h = none ? '<option value="">(none)</option>' : ""; for (var i = 0; i < list.head.length; i++) h += "<option" + (list.head[i] == sel ? " selected" : "") + ">" + esc(list.head[i]) + "</option>"; return h; };
+  var so = ""; for (var s = 0; s < list.sheets.length; s++) so += "<option" + (list.sheets[s] == list.sheet ? " selected" : "") + ">" + esc(list.sheets[s]) + "</option>";
+  $("cSheet").innerHTML = so; $("sheetBox").style.display = list.sheets.length > 1 ? "" : "none";
+  $("cName").innerHTML = o(cfg.cols.name, false); $("cTitle").innerHTML = o(cfg.cols.title, true); $("cTower").innerHTML = o(cfg.cols.tower, true); $("cTypo").innerHTML = o(cfg.cols.typo, true); $("cModel").innerHTML = o(cfg.cols.model, true);
+  $("cols").style.display = "";
+}
+function lookup(base) {
+  if (!refMap) return null;
+  if (refMap.reg) return refMap.reg.find(base);
+  var hit = refMap.byBase[up(base)]; if (hit) return hit;
+  var ns = numbers(base); for (var i = ns.length - 1; i >= 0; i--) if (refMap.bySeq[ns[i]] && refMap.seqCount[ns[i]] == 1) return refMap.bySeq[ns[i]];
+  return null;
+}
+
+/* ---------- step 3: read the folder ---------- */
+function scan(dir, root, deep, out) {
+  try { var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
+    for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name, i = n.lastIndexOf(".");
+      if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$/i.test(n)) continue;
+      out.push({ full: "" + f.Path, folder: dir.length > root.length ? dir.substring(root.length + 1) : "", name: n, stem: i > 0 ? n.substring(0, i) : n, ext: i > 0 ? n.substring(i + 1).toLowerCase() : "", size: f.Size }); }
+    if (deep) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) if (!(d.item().Attributes & 6)) scan("" + d.item().Path, root, true, out); }
+  } catch (x) { }
+}
+function run(guess) {
+  if (!cfg.folder || !fso.FolderExists(cfg.folder)) { alert("Pick the folder first."); return; }
+  if (!readRef(guess)) return; paths();
+  var files = []; scan(cfg.folder, cfg.folder, cfg.subs, files);
+  var draw = {}, keys = [], other = [], types = {};
+  for (var i = 0; i < files.length; i++) { var f = files[i]; types[f.ext] = (types[f.ext] || 0) + 1;
+    var dn = drawNo(f.stem); if (!dn) { other.push(f); continue; }
+    var s = splitRev(dn), k = up(s.base);
+    if (!draw[k]) { draw[k] = { base: s.base, revs: [], types: {}, folders: [], files: [], ref: null }; keys.push(k); }
+    var d = draw[k]; if (s.rev && d.revs.indexOf(s.rev) < 0) d.revs.push(s.rev); d.types[f.ext] = (d.types[f.ext] || 0) + 1; if (d.folders.indexOf(f.folder) < 0) d.folders.push(f.folder); d.files.push(f); }
+  keys.sort();
+  var R = cfg.refKind == "register" ? null : reg(); regUsed = 0;
+  var rows = []; for (var j = 0; j < keys.length; j++) { var x = draw[keys[j]]; x.revs.sort(); x.ref = lookup(x.base);
+    /* Tower / Typology / Model the reference list doesn't have come from the Drawing Register */
+    if (R && (!x.ref || (!x.ref.tower && !x.ref.typo && !x.ref.model))) { var g = R.find(x.base); if (g) { x.ref = x.ref ? { number: x.ref.number, title: x.ref.title || g.title, tower: g.tower, typo: g.typo, model: g.model } : g; x.fromReg = 1; regUsed++; } }
+    rows.push(x); }
+  result = { rows: rows, other: other, files: files, types: types };
+  fillFilters(); summary(); render();
+}
+function typeList(t) { var a = []; for (var k in t) if (t.hasOwnProperty(k)) a.push(k); return a.sort(); }
+function fillFilters() {
+  var tw = {}, ty = {}, a = [], b = [];
+  for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i].ref; if (!r) continue; if (r.tower && !tw[r.tower]) { tw[r.tower] = 1; a.push(r.tower); } if (r.typo && !ty[r.typo]) { ty[r.typo] = 1; b.push(r.typo); } }
+  a.sort(); b.sort();
+  var o = function (l, keep) { var h = '<option value="">All</option>'; for (var k = 0; k < l.length; k++) h += "<option" + (l[k] == keep ? " selected" : "") + ">" + esc(l[k]) + "</option>"; return h; };
+  $("fTower").innerHTML = o(a, $("fTower").value); $("fTypo").innerHTML = o(b, $("fTypo").value); $("fBox").style.display = a.length || b.length ? "" : "none";
+  $("fType").innerHTML = o(typeList(result.types), $("fType").value);
+}
+function summary() {
+  var n = result.rows.length, noref = 0, multi = 0; for (var i = 0; i < n; i++) { if (refMap && !result.rows[i].ref) noref++; if (result.rows[i].revs.length > 1) multi++; }
+  $("sumTxt").className = "big";
+  $("sumTxt").innerHTML = n + " drawing(s) &middot; " + result.files.length + " file(s)" + (refMap ? " &middot; " + (n - noref) + " found in the reference" + (noref ? ' &middot; <span class="bad">' + noref + " not in the reference</span>" : "") : "") +
+    (regUsed ? ' &middot; <span class="muted" style="font-weight:normal">Tower / Typology for ' + regUsed + " from the Drawing Register</span>" : "") + (multi ? ' &middot; <span class="warn">' + multi + " with more than one revision</span>" : "") + (result.other.length ? " &middot; " + result.other.length + " other file(s)" : "");
+  var h = "<b>File types:</b> &nbsp;", t = typeList(result.types); for (var j = 0; j < t.length; j++) h += '<span data-t="' + esc(t[j]) + '" title="Show only these">.' + esc(t[j] || "(none)") + " " + result.types[t[j]] + "</span>";
+  $("types").innerHTML = h;
+}
+function pass(r) {
+  var t = $("fTower").value, y = $("fTypo").value, ft = $("fType").value, q = LT.trim($("search").value).toLowerCase();
+  if (t && (!r.ref || r.ref.tower != t)) return false; if (y && (!r.ref || r.ref.typo != y)) return false; if (ft && !r.types[ft]) return false;
+  if (q && (r.base + " " + (r.ref ? r.ref.title + " " + r.ref.tower + " " + r.ref.typo + " " + r.ref.model : "")).toLowerCase().indexOf(q) < 0) return false;
+  return true;
+}
+function badge(t) { var a = typeList(t), h = ""; for (var i = 0; i < a.length; i++) h += '<span class="ty">' + esc(a[i]) + (t[a[i]] > 1 ? " &times;" + t[a[i]] : "") + "</span>"; return h; }
+function render() {
+  if (!result) { $("res").innerHTML = ""; return; }
+  var mode = $("show").value; shown = [];
+  if (mode == "groups") { groups(); return; }
+  if (mode == "other") { var o = ['<table class="grid"><tr><th>File</th><th>Folder</th><th>Type</th></tr>'];
+    for (var k = 0; k < result.other.length; k++) { var f = result.other[k]; if ($("fType").value && f.ext != $("fType").value) continue; shown.push({ files: [f] }); o.push('<tr data-s="' + (shown.length - 1) + '"><td>' + esc(f.name) + '</td><td class="muted">' + esc(f.folder || "(top)") + "</td><td>" + esc(f.ext) + "</td></tr>"); }
+    $("res").innerHTML = shown.length ? o.join("") + "</table>" : '<div class="muted" style="padding:24px">No other files.</div>'; return; }
+  var ref = !!refMap || regUsed > 0, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower</th><th>Typology</th><th>Model</th>" : "") + "<th>Folder</th><th>Note</th></tr>"];
+  for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i];
+    if (!pass(r)) continue; if (mode == "noref" && (!refMap || r.ref)) continue; if (mode == "multi" && r.revs.length < 2) continue;
+    shown.push(r); var note = [];
+    if (refMap && !r.ref) note.push('<span class="bad">not in the reference list</span>'); if (r.revs.length > 1) note.push('<span class="warn">' + r.revs.length + " revisions here</span>");
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(r.base) + "</b></td><td>" + esc(r.revs.join(", ")) + "</td><td>" + badge(r.types) + "</td>" +
+      (ref ? "<td>" + esc(r.ref ? r.ref.title : "") + "</td><td>" + esc(r.ref ? r.ref.tower : "") + "</td><td>" + esc(r.ref ? r.ref.typo : "") + '</td><td style="white-space:nowrap">' + esc(r.ref ? r.ref.model : "") + "</td>" : "") +
+      '<td class="muted">' + esc(r.folders.join(", ") || "(top)") + "</td><td>" + note.join(" &middot; ") + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+}
+/* one line per tower + typology: drawings and their file types */
+function groupRows() {
+  var g = {}, keys = [];
+  for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i]; if (!pass(r)) continue;
+    var tw = r.ref ? r.ref.tower : "", ty = r.ref ? r.ref.typo : "", k = (r.ref ? "" : "~") + tw + "|" + ty;
+    if (!g[k]) { g[k] = { tower: r.ref ? tw : "(not in the reference)", typo: ty, n: 0, types: {}, models: [] }; keys.push(k); }
+    var x = g[k]; x.n++; for (var t in r.types) if (r.types.hasOwnProperty(t)) x.types[t] = (x.types[t] || 0) + 1;
+    if (r.ref && r.ref.model && x.models.indexOf(r.ref.model) < 0) x.models.push(r.ref.model); }
+  keys.sort(); var out = []; for (var j = 0; j < keys.length; j++) out.push(g[keys[j]]); return out;
+}
+function groups() {
+  var gs = groupRows(), h = ['<table class="grid"><tr><th>Tower</th><th>Typology</th><th>Model</th><th>Drawings</th><th>Drawings with each file type</th></tr>'];
+  for (var i = 0; i < gs.length; i++) { var x = gs[i]; h.push("<tr><td><b>" + esc(x.tower || "&ndash;") + "</b></td><td><b>" + esc(x.typo || "&ndash;") + "</b></td><td>" + esc(x.models.join(", ")) + "</td><td>" + x.n + "</td><td>" + badge(x.types) + "</td></tr>"); }
+  $("res").innerHTML = gs.length ? h.join("") + "</table>" + (refMap || regUsed ? "" : '<div class="muted" style="padding:12px">Pick a reference list in step 2 to group by tower / typology.</div>') : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+}
+
+/* ---------- export ---------- */
+function rowsOut() {
+  var t = [["Drawing", "Revision", "File types", "Description", "Tower", "Typology", "Model", "Folder", "Files", "In reference"]];
+  for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i]; if (!pass(r)) continue; var fl = []; for (var f = 0; f < r.files.length; f++) fl.push(r.files[f].name);
+    t.push([r.base, r.revs.join(", "), typeList(r.types).join(", "), r.ref ? r.ref.title : "", r.ref ? r.ref.tower : "", r.ref ? r.ref.typo : "", r.ref ? r.ref.model : "", r.folders.join(", "), fl.join("\n"), refMap ? (r.ref ? "yes" : "NO") : ""]); }
+  return t;
+}
+function summaryText() {
+  var s = "Folder contents – " + LT.today() + "\r\n" + cfg.folder + "\r\n\r\n" + result.rows.length + " drawings, " + result.files.length + " files\r\nFile types: ";
+  var t = typeList(result.types), a = []; for (var i = 0; i < t.length; i++) a.push(t[i] + " " + result.types[t[i]]); s += a.join(", ") + "\r\n";
+  if (refMap || regUsed) { var gs = groupRows(); s += "\r\nBY TOWER / TYPOLOGY\r\n"; for (var g = 0; g < gs.length; g++) { var x = gs[g], ty = typeList(x.types), b = []; for (var k = 0; k < ty.length; k++) b.push(ty[k] + " " + x.types[ty[k]]);
+    s += "  • " + [x.tower, x.typo].filter(Boolean).join(" · ") + ": " + x.n + " drawing(s) – " + b.join(", ") + (x.models.length ? "  (model " + x.models.join(", ") + ")" : "") + "\r\n"; } }
+  return s;
+}
+function exportMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Excel / CSV of what's shown", fn: function () { if (!result) { alert("Pick a folder first."); return; } var f = LT.exportsDir() + "\\FolderContents_" + LT.safeName(fso.GetFileName(cfg.folder)).replace(/ /g, "_") + "_" + LT.stamp() + ".csv"; LT.writeCsv(f, rowsOut()); LT.open(f); } },
+    { label: "&#128203; Copy summary (for email / Teams)", fn: function () { if (!result) { alert("Pick a folder first."); return; } if (LT.copyText(summaryText())) LT.toast("Summary copied"); } },
+    "-",
+    { label: "Check this folder in Submission Check", fn: function () { if (LT.main() && cfg.folder) LT.main().send("check", "check-folder", cfg.folder); } },
+    { label: "Open this folder in Bulk Files", fn: function () { if (LT.main() && cfg.folder) LT.main().send("files", "open-folder", cfg.folder); } }]);
+}
+
+/* ---------- events ---------- */
+$("bFolder").onclick = pickFolder; $("bRescan").onclick = function () { run(); };
+$("subs").onclick = function () { cfg.subs = this.checked; save(); if (result) run(); };
+$("bRef").onclick = function (e) { var r = this.getBoundingClientRect(), c = checkList(), R = reg(); LT.menu(r.left, r.bottom + 2, [
+  { label: "&#128216; Use my Drawing Register" + (R ? " (" + esc(R.name) + ")" : " (not made yet)"), fn: function () { if (R) useRef("register"); else alert("Make a project in the Drawing Register tab first, or pick a list here."); } },
+  { label: "&#9989; Use my Submission Check list" + (c ? " (" + esc(fso.GetFileName(c.list)) + ")" : " (not set up yet)"), fn: function () { if (c) useRef("check"); else alert("Set up your list in Submission Check first, or pick a list here."); } },
+  { label: "&#128196; Another Excel / CSV list...", fn: function () { LT.pickFile(function (p) { useRef("file", p); }); } },
+  { label: "None &ndash; drawings and file types only", fn: function () { useRef("none"); } }]); (e || window.event).cancelBubble = true; };
+$("aCheck").onclick = function () { useRef("check"); }; $("aReg").onclick = function () { useRef("register"); }; $("aNone").onclick = function () { useRef("none"); };
+$("aPick").onclick = function () { $("ask").style.display = "none"; LT.pickFile(function (p) { useRef("file", p); }); };
+var colKeys = { cName: "name", cTitle: "title", cTower: "tower", cTypo: "typo", cModel: "model" };
+for (var ck in colKeys) if (colKeys.hasOwnProperty(ck)) (function (id, key) { $(id).onchange = function () { cfg.cols[key] = this.value; save(); run(); }; })(ck, colKeys[ck]);
+$("cSheet").onchange = function () { cfg.sheet = this.value; cfg.cols = {}; save(); run(true); };
+$("show").onchange = render; $("fTower").onchange = render; $("fTypo").onchange = render; $("fType").onchange = render; $("search").onkeyup = render;
+$("types").onclick = function (e) { var t = LT.up(e.target || e.srcElement, "data-t"); if (t) { $("fType").value = t.getAttribute("data-t"); render(); } };
+$("bExport").onclick = function (e) { var r = this.getBoundingClientRect(); exportMenu(r.left - 150, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-s"); if (tr) { var r = shown[+tr.getAttribute("data-s")]; try { LT.showInFolder(r.files[0].full); } catch (x) { } } };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".ty{background:{chip};color:{text};border-radius:{r}px}", "#types span:hover{color:{accent}}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); paths(); };
+window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { cfg.folder = value; save(); paths(); if (!cfg.refKind) askRef(); else run(); } };
+look(); load(); paths(); LT.tabKeys();
+</script>
+</body>
+</html>

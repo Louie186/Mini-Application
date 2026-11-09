@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Drawing Register</title>
+<meta name="lt-order" content="5.5">
+<meta name="lt-icon" content="&#128216;">
+<meta name="lt-desc" content="Load each new MIDP: see what is new, removed or retitled, and every drawing's Tower / Typology / Model (guessed for new drawings, you confirm). Submission Check and Folder Contents use it too.">
+<!--
+  Lew's Toolbox - Drawing Register. One register per project (register.json lists them, register\<id>.json holds one).
+  Load MIDP: reads the drawing rows of one sheet (category = the heading row above), takes the revision off the number,
+  compares with the last MIDP (new / removed / title changed / back), and guesses Tower / Typology for new drawings:
+    1. a known drawing with the most similar title (same start of the title)
+    2. the project's typology rules, e.g.  Unit Type {n} BR - Type {x} => {n}BR{x}
+    3. a section (category) where the drawings have no typology ("-")
+  Model = the project's models table (Tower + Typology -> Model). Nothing project-specific is written in this file.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.right{float:right}
+#sum{flex:none;padding:8px 14px}
+#tickBar{display:none;flex:none;padding:6px 14px 0}
+#res td.tk{width:26px;cursor:pointer;text-align:center}
+#res td.no{white-space:nowrap;font-weight:bold}
+#res td.cat{font-size:.85em}
+.g{font-style:italic}
+.tag{display:inline-block;padding:1px 7px;margin:0 3px 2px 0;font-size:.82em;font-weight:bold;white-space:nowrap}
+#empty{padding:40px 24px}
+.opts span{display:inline-block;padding:2px 8px;margin:0 4px 4px 0;cursor:pointer;font-size:.88em}
+#sheetList .btn{display:block;width:100%;text-align:left;margin:0 0 6px}
+textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
+.small{font-size:.88em}
+#impPrev td{font-size:.85em;padding:3px 6px}
+#res table.grid{table-layout:fixed}
+#res td{overflow:hidden;word-wrap:break-word}
+#res td.nw{white-space:nowrap;text-overflow:ellipsis}
+.rz{position:absolute;right:-3px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:2}
+#pick{display:none;position:fixed;z-index:30;width:360px;padding:8px}
+#pkList{max-height:300px;overflow-y:auto;margin:6px 0}
+#pkList label{display:block;padding:3px 4px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pkList .n{float:right;margin-left:8px}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="lbl">Project:</span><select id="proj" style="width:200px;height:28px;margin:0 6px 6px 0"></select><button class="btn small" id="bProj">&#9662;</button>
+    <button class="btn primary" id="bLoad">&#128229; Load new MIDP...</button>
+    <button class="btn" id="bSetup">&#9881; Setup</button>
+    <span class="right"><button class="btn" id="bHist">History &#9662;</button><button class="btn" id="bExport">Export &#9662;</button></span>
+  </div>
+  <div class="step bar" id="filters">
+    <span id="views"></span><br>
+    <span class="lbl">Filter:</span><button class="btn small fb" data-f="cat" id="fbCat"></button><button class="btn small fb" data-f="tower" id="fbTower"></button><button class="btn small fb" data-f="typo" id="fbTypo"></button>
+    <input type="text" id="search" placeholder="Search number / title / section" style="width:220px;margin:0 8px 6px 0"><button class="btn small" id="fClear" style="display:none">&#10005; Clear filters</button>
+  </div>
+  <div id="sum" class="muted"></div>
+  <div id="tickBar"><span class="lbl big" id="tickN"></span><button class="btn small primary" id="bSet">Set Tower / Typology...</button><button class="btn small" id="bAccept">&#10004; Accept the guesses</button><button class="btn small" id="bUntick">Clear ticks</button></div>
+  <div id="res"></div>
+  <div id="empty" style="display:none">
+    <h2>Drawing Register</h2>
+    <div class="muted" style="max-width:640px;line-height:1.6">One list of every drawing in the project, kept up to date from the MIDP.<br>
+      &bull; Load each new MIDP: you see what is <b>new</b>, <b>removed</b> or has a <b>new title</b><br>
+      &bull; Every drawing has its <b>Tower / Typology / Model</b>. New drawings get a guess &ndash; you only confirm or fix them<br>
+      &bull; Submission Check and Folder Contents look drawings up here</div><br>
+    <button class="btn primary" id="bFirst">+ Make a project...</button>
+  </div>
+</div>
+
+<!-- filter: tick one or more values -->
+<div id="pick"><input type="text" id="pkQ" placeholder="Type to narrow the list (e.g. enlarged)" style="width:100%">
+  <div id="pkList"></div>
+  <button class="btn small" id="pkAll">Tick all shown</button><button class="btn small" id="pkNone">Untick all</button><button class="btn small primary" id="pkDone" style="float:right">Done</button></div>
+
+<!-- MIDP changes before they are saved -->
+<div class="ov" id="ovLoad"><div class="card" style="width:640px">
+  <h3>New MIDP</h3>
+  <div id="ldTxt"></div>
+  <div class="acts"><button class="btn" id="ldCancel">Cancel</button><span class="sp"></span><button class="btn primary" id="ldOk">Save to the register</button></div>
+</div></div>
+
+<!-- which sheet -->
+<div class="ov" id="ovSheet"><div class="card" style="width:420px">
+  <h3>Which sheet has the drawings?</h3><div class="muted small" style="margin-bottom:8px">It is remembered for this project (Setup to change it).</div>
+  <div id="sheetList"></div>
+  <div class="acts"><span class="sp"></span><button class="btn" id="shCancel">Cancel</button></div>
+</div></div>
+
+<!-- edit one or many drawings -->
+<div class="ov" id="ovEdit"><div class="card">
+  <h3 id="edH"></h3>
+  <div id="edInfo" class="muted small" style="margin-bottom:10px"></div>
+  <div class="fld"><label>Tower</label><input type="text" id="edTower"><div class="opts" id="edTowerO"></div></div>
+  <div class="fld"><label>Typology</label><input type="text" id="edTypo"><div class="opts" id="edTypoO"></div></div>
+  <div class="fld"><label>Model (empty = from the models table)</label><input type="text" id="edModel"></div>
+  <div class="muted small" id="edHint"></div>
+  <div class="acts"><button class="btn" id="edNa" title="General drawings that belong to no tower / typology">Not for a typology ( - )</button><span class="sp"></span><button class="btn" id="edCancel">Cancel</button><button class="btn primary" id="edOk">Save</button></div>
+</div></div>
+
+<!-- setup -->
+<div class="ov" id="ovSetup"><div class="card" style="width:720px">
+  <h3>Setup for this project</h3>
+  <div class="h" style="margin-top:0">Reading the MIDP</div>
+  <div class="row2">
+    <div class="fld"><label>Sheet name (empty = ask)</label><input type="text" id="sSheet"></div>
+    <div class="fld"><label>Number column (empty = find it)</label><input type="text" id="sNum" placeholder="e.g. A"></div>
+    <div class="fld"><label>Title column (empty = next one)</label><input type="text" id="sTitle" placeholder="e.g. B"></div>
+  </div>
+  <div class="row2">
+    <div class="fld"><label>Only numbers starting with</label><input type="text" id="sPrefix" placeholder="e.g. 5013-"></div>
+    <div class="fld"><label>Tower is part no. ... of the number (0 = no)</label><input type="text" id="sTowerPart"></div>
+  </div>
+  <div class="muted small" id="sEx"></div>
+  <div class="h">Typology rules <span class="muted small" style="font-weight:normal">&ndash; one per line:  words in the title =&gt; typology.  {n} {x} {y} = any short word or number</span></div>
+  <textarea id="sRules" rows="4"></textarea>
+  <div class="muted small">Example: <b>Unit Type {n} BR - Type {x} =&gt; {n}BR{x}</b> makes "UNIT TYPE 2 BR - Type C ..." into 2BRC. Rules are only used when no similar drawing is known.</div>
+  <div class="h">Models table <span class="muted small" style="font-weight:normal" id="sModN"></span></div>
+  <button class="btn small" id="sModImp">Import from Excel...</button><span class="muted small">one per line:  Tower | Typology | Model</span>
+  <textarea id="sModels" rows="5"></textarea>
+  <div class="h">Drawings you already have</div>
+  <button class="btn small" id="sListImp">Import an existing drawing list (with Tower / Typology)...</button><span class="muted small">e.g. your last generated list. Imported drawings count as confirmed.</span>
+  <div class="acts"><span class="sp"></span><button class="btn" id="sCancel">Cancel</button><button class="btn primary" id="sOk">Save</button></div>
+</div></div>
+
+<!-- import a list or a models table: pick the columns -->
+<div class="ov" id="ovImp"><div class="card" style="width:720px">
+  <h3 id="impH"></h3>
+  <div class="row2">
+    <div class="fld"><label>Sheet</label><select id="iSheet"></select></div>
+    <div class="fld" id="iNumF"><label>Number</label><select id="iNum"></select></div>
+    <div class="fld" id="iTitleF"><label>Description</label><select id="iTitle"></select></div>
+  </div>
+  <div class="row2">
+    <div class="fld"><label>Tower</label><select id="iTower"></select></div>
+    <div class="fld"><label>Typology</label><select id="iTypo"></select></div>
+    <div class="fld"><label>Model</label><select id="iModel"></select></div>
+  </div>
+  <div class="muted small">First rows as they will be read:</div>
+  <table class="grid" id="impPrev"></table>
+  <div class="acts"><span class="sp"></span><button class="btn" id="iCancel">Cancel</button><button class="btn primary" id="iOk">Import</button></div>
+</div></div>
+
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso;
+var MM = null, IX = null, pid = "", P = null, view = "midp", shown = [], ticked = {}, lastTick = -1, pending = null, editKeys = [], imp = null;
+var STARTER = "Unit Type {n} BR - Type {x} {y} => {n}BR{x}{y}\r\nUnit Type {n} BR - Type {x} => {n}BR{x}";
+
+/* ---------- small helpers ---------- */
+function up(s) { return LT.trim(s).toUpperCase(); }
+function letter(i) { var s = ""; i++; while (i > 0) { var m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+function colIx(l) { l = up(l); if (!/^[A-Z]{1,3}$/.test(l)) return -1; var n = 0; for (var i = 0; i < l.length; i++) n = n * 26 + (l.charCodeAt(i) - 64); return n - 1; }
+function normT(t) { return (" " + (t || "") + " ").toUpperCase().replace(/\s*-\s*/g, " - ").replace(/\s+/g, " ").replace(/^\s+|\s+$/g, ""); }
+function noVal(v) { v = LT.trim(v); return !v || /^(0|#?n\/a|#ref!|#value!|#name\?|none)$/i.test(v); }
+function splitNo(a) { var s = LT.trim(a).replace(/\s+/g, "").replace(/-+$/, ""), p = s.split("-"), rev = ""; if (p.length >= 4 && /^[A-Z]{1,2}\d{1,3}$/i.test(p[p.length - 1])) rev = p.pop().toUpperCase(); return { base: p.join("-"), key: p.join("-").toUpperCase(), rev: rev }; }
+function nowTxt() { var d = new Date(); return LT.today() + " " + LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes()); }
+function keys(o) { var a = []; for (var k in o) if (o.hasOwnProperty(k)) a.push(k); return a; }
+
+/* ---------- projects ---------- */
+function blank(name) { return { name: name, setup: { sheet: "", num: "", title: "", prefix: "", towerPart: 0 }, rules: rulesFrom(STARTER), models: [], drawings: {}, history: [], last: null, changes: {} }; }
+function saveIx() { try { LT.saveJson(LT.dataPath("register.json"), IX); } catch (e) { } }
+function saveP() { try { LT.saveJson(LT.registerFile(pid), P); } catch (e) { alert("Couldn't save the register:\n" + (e.message || e)); } }
+function loadAll() {
+  IX = LT.registerIndex(); if (!IX.projects) IX.projects = [];
+  var id = IX.current; if (!find(id)) id = IX.projects.length ? IX.projects[0].id : "";
+  openProject(id);
+}
+function find(id) { for (var i = 0; i < IX.projects.length; i++) if (IX.projects[i].id == id) return IX.projects[i]; return null; }
+function openProject(id) {
+  pid = id; P = null; ticked = {}; lastTick = -1; F = { cat: {}, tower: {}, typo: {} };
+  if (id) { P = LT.readJson(LT.registerFile(id), null); if (!P) P = blank(find(id).name); var b = blank(""); for (var k in b) if (P[k] === undefined) P[k] = b[k]; IX.current = id; saveIx(); }
+  var h = ""; for (var i = 0; i < IX.projects.length; i++) h += '<option value="' + esc(IX.projects[i].id) + '"' + (IX.projects[i].id == id ? " selected" : "") + ">" + esc(IX.projects[i].name) + "</option>";
+  $("proj").innerHTML = h;
+  $("empty").style.display = P ? "none" : "block"; $("res").style.display = $("filters").style.display = $("sum").style.display = P ? "" : "none";
+  if (P) { fillFilters(); render(); }
+}
+function newProject() {
+  var n = prompt("Name of the project (e.g. the project number and name):", ""); if (!n || !LT.trim(n)) return;
+  var id = "p" + LT.now().toString(36); IX.projects.push({ id: id, name: LT.trim(n) }); saveIx();
+  pid = id; P = blank(LT.trim(n)); saveP(); openProject(id);
+  LT.toast("Project made - now Load new MIDP, or Setup to import what you have");
+}
+function projMenu(x, y) {
+  LT.menu(x, y, [{ label: "+ New project...", fn: newProject },
+    { label: "Rename this project...", fn: function () { if (!P) return; var n = prompt("New name:", P.name); if (!n) return; P.name = LT.trim(n); find(pid).name = P.name; saveIx(); saveP(); openProject(pid); } },
+    { label: "Remove this project from the list...", fn: function () { if (!P || !confirm("Remove \"" + P.name + "\" from the list?\n\nIts file is kept (renamed to .removed) in the data folder.")) return;
+      try { var f = LT.registerFile(pid); if (fso.FileExists(f)) fso.MoveFile(f, f.replace(/\.json$/, "_" + LT.stamp() + ".removed")); } catch (e) { }
+      for (var i = 0; i < IX.projects.length; i++) if (IX.projects[i].id == pid) IX.projects.splice(i, 1); IX.current = ""; saveIx(); loadAll(); } }]);
+}
+
+/* ---------- models table + guessing ---------- */
+function rulesFrom(txt) { var o = [], ls = (txt || "").split(/\r?\n/); for (var i = 0; i < ls.length; i++) { var m = /^(.+?)\s*=>\s*(.+)$/.exec(LT.trim(ls[i])); if (m) o.push({ find: m[1], typo: m[2] }); } return o; }
+function rulesTxt() { var a = []; for (var i = 0; i < P.rules.length; i++) a.push(P.rules[i].find + " => " + P.rules[i].typo); return a.join("\r\n"); }
+function ruleRe(pat) {
+  var names = [], src = "", parts = pat.split(/(\{\w+\})/);
+  for (var i = 0; i < parts.length; i++) { var p = parts[i]; if (!p) continue; var m = /^\{(\w+)\}$/.exec(p);
+    if (m) { names.push(m[1]); src += "([A-Z0-9]{1,4})"; } else src += "\\s*" + normT(p).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s*") + "\\s*"; }
+  return { re: new RegExp("(^|[^A-Z0-9])" + src + "(?![A-Z0-9])"), names: names };
+}
+function byRule(title) {
+  var t = normT(title);
+  for (var i = 0; i < P.rules.length; i++) { var R; try { R = ruleRe(P.rules[i].find); } catch (e) { continue; } var m = R.re.exec(t); if (!m) continue;
+    var out = P.rules[i].typo; for (var k = 0; k < R.names.length; k++) out = out.split("{" + R.names[k] + "}").join(m[k + 2]); return out; }
+  return "";
+}
+function towerOf(num) { var n = +P.setup.towerPart || 0; if (!n) return ""; var s = (num.split("-")[n - 1] || "").toUpperCase(); return /^[A-Z]{1,2}\d{1,2}$/.test(s) ? s : ""; }
+function guess(d, known) {
+  var w = normT(d.title).split(" "), best = 0, cands = [], g = { tower: "", typo: "", how: "", like: "" };
+  for (var i = 0; i < known.length; i++) { var k = known[i], kw = k._w || (k._w = normT(k.title).split(" ")), n = 0; while (n < w.length && n < kw.length && w[n] == kw[n]) n++;
+    if (n > best) { best = n; cands = [k]; } else if (n == best && n) cands.push(k); }
+  var seg = towerOf(d.num);
+  if (best >= 4 && best >= Math.min(w.length, 6) * 0.6) {
+    var t = {}, nT = 0; for (var c = 0; c < cands.length; c++) if (!t[cands[c].typo]) { t[cands[c].typo] = 1; nT++; }
+    if (nT == 1) { var k0 = cands[0]; g.typo = k0.typo; g.like = k0.num; g.how = "like"; g.tower = k0.typo == "-" || k0.tower == "-" ? "-" : (seg || k0.tower); }
+  }
+  var r = byRule(d.title);
+  if (r && (!g.typo || g.typo == "-")) { g.typo = r; g.how = "rule"; g.like = ""; g.tower = seg; }
+  if (!g.typo && d.cat) { var n0 = 0, nd = 0; for (var q = 0; q < known.length; q++) if (known[q].cat == d.cat) { n0++; if (known[q].typo == "-") nd++; }
+    if ((n0 >= 3 && nd / n0 >= 0.9) || (n0 == 2 && nd == 2)) { g.typo = "-"; g.tower = "-"; g.how = "group"; } }
+  return g;
+}
+function knownList() { var a = [], D = P.drawings; for (var k in D) if (D.hasOwnProperty(k) && D[k].ok && D[k].typo) a.push({ num: D[k].num, title: D[k].title, cat: D[k].cat, tower: D[k].tower, typo: D[k].typo }); return a; }
+function guessAll(only) {
+  var known = knownList(), D = P.drawings, n = 0;
+  for (var k in D) if (D.hasOwnProperty(k)) { var d = D[k]; if (d.ok || (only && !only[k]) || d.inMidp === false) continue; if (d.typo && d.how == "you") continue;
+    var g = guess(d, known); d.tower = g.tower; d.typo = g.typo; d.how = g.typo ? g.how : ""; d.like = g.like; if (g.typo) n++; }
+  return n;
+}
+function mKey(t, y) { return up(t) + "|" + normT(y); }
+function modelMap() { if (MM) return MM; var m = {}; for (var i = 0; i < P.models.length; i++) { var x = P.models[i], k = mKey(x.tower, x.typo); if (!m[k]) m[k] = x.model; } MM = m; return m; }
+function modelOf(d) { if (d.model) return d.model; if (!d.typo || d.typo == "-") return ""; return modelMap()[mKey(d.tower, d.typo)] || d.impModel || ""; }
+
+/* ---------- reading the MIDP ---------- */
+function readBook(p, sheet) {
+  if (!/\.(xlsx|xlsm|xlsb|xls)$/i.test(p)) return { names: [], sheet: "", rows: LT.parseCsv(LT.readText(p)) };
+  var xl = null, wb = null, out = { names: [], sheet: "", rows: null };
+  try {
+    xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false; try { xl.AutomationSecurity = 3; } catch (e) { }
+    wb = xl.Workbooks.Open(p, 0, true);
+    for (var i = 1; i <= wb.Worksheets.Count; i++) { var ws = wb.Worksheets(i); if (ws.Visible == -1 || ws.Visible === true) out.names.push("" + ws.Name); }
+    var pick = ""; for (var j = 0; j < out.names.length; j++) if (sheet && out.names[j].toLowerCase() == sheet.toLowerCase()) pick = out.names[j];
+    if (!pick && out.names.length == 1) pick = out.names[0];
+    if (pick) { out.sheet = pick; out.rows = LT.sheetRows(wb.Worksheets(pick)); }
+  } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+  return out;
+}
+function numCol(rows) { var per = {}, best = 0, col = 0; for (var r = 0; r < Math.min(rows.length, 3000); r++) for (var c = 0; c < rows[r].length; c++) if (LT.isDocNo(rows[r][c])) { per[c] = (per[c] || 0) + 1; if (per[c] > best) { best = per[c]; col = c; } } return col; }
+function parseRows(rows) {
+  var S = P.setup, nc = colIx(S.num), tc; if (nc < 0) nc = numCol(rows); tc = colIx(S.title); if (tc < 0) tc = nc + 1;
+  var pre = up(S.prefix), out = [], seen = {}, dup = [], cat = "", firsts = {};
+  for (var r = 0; r < rows.length; r++) { var row = rows[r], a = LT.cell(row, nc); if (!a) continue;
+    if (LT.isDocNo(a)) { var f = up(a.split(/[-_]/)[0]); firsts[f] = (firsts[f] || 0) + 1;
+      if (pre && up(a).indexOf(pre) != 0) continue;
+      var s = splitNo(a); if (seen[s.key]) { dup.push(s.base); continue; } seen[s.key] = 1;
+      out.push({ num: s.base, key: s.key, rev: s.rev, title: LT.trim(LT.cell(row, tc)).replace(/\s+/g, " "), cat: cat }); }
+    else if (/[A-Za-z]/.test(a)) { var other = 0; for (var c = 0; c < row.length; c++) if (c != nc && LT.trim(row[c])) other++; if (other <= 1) cat = a.replace(/\s+/g, " "); } }
+  return { list: out, dup: dup, numCol: nc, titleCol: tc };
+}
+function loadMidp(p, sheet) {
+  var b;
+  try { b = readBook(p, sheet == null ? P.setup.sheet : sheet); } catch (e) { alert("Couldn't open the MIDP - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return; }
+  if (!b.rows) { sheetAsk(b.names, p); return; }
+  if (b.sheet) P.setup.sheet = b.sheet;
+  var R = parseRows(b.rows);
+  if (!R.list.length) { alert("No drawing numbers found on sheet \"" + b.sheet + "\".\n\nCheck Setup (sheet, number column, 'only numbers starting with')."); return; }
+  pending = { path: p, file: fso.GetFileName(p), sheet: b.sheet, R: R, diff: diff(R.list) };
+  showDiff();
+}
+function sheetAsk(names, p) {
+  if (!names.length) { alert("That workbook has no sheets to read."); return; }
+  var h = ""; for (var i = 0; i < names.length; i++) h += '<button class="btn" data-sh="' + esc(names[i]) + '">' + esc(names[i]) + "</button>";
+  $("sheetList").innerHTML = h; $("ovSheet").style.display = "block";
+  $("sheetList").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-sh"); if (!b) return; $("ovSheet").style.display = "none"; loadMidp(p, b.getAttribute("data-sh")); };
+}
+function diff(list) {
+  var D = P.drawings, first = !P.last, o = { nw: [], back: [], chg: [], same: 0, gone: [], known: 0 }, inNew = {};
+  for (var i = 0; i < list.length; i++) { var x = list[i], d = D[x.key]; inNew[x.key] = 1;
+    if (!d) o.nw.push(x);
+    else if (first) { o.known++; }
+    else if (d.inMidp === false) o.back.push(x);
+    else if (normT(d.title) != normT(x.title)) o.chg.push({ x: x, old: d.title });
+    else o.same++; }
+  if (!first) for (var k in D) if (D.hasOwnProperty(k) && D[k].inMidp !== false && !inNew[k]) o.gone.push(k);
+  return o;
+}
+function showDiff() {
+  var d = pending.diff, R = pending.R, h = [], li = function (a, f, max) { var s = ""; for (var i = 0; i < Math.min(a.length, max); i++) s += "<div>&bull; " + f(a[i]) + "</div>"; if (a.length > max) s += '<div class="muted">... and ' + (a.length - max) + " more</div>"; return s; };
+  h.push("<div><b>" + esc(pending.file) + "</b> &middot; sheet <b>" + esc(pending.sheet || "-") + "</b> &middot; " + R.list.length + " drawings (numbers in column " + letter(R.numCol) + ", titles in " + letter(R.titleCol) + ")</div>");
+  if (P.last) h.push('<div class="muted small">Compared with ' + esc(P.last.file) + " (" + esc(P.last.date) + ")</div>");
+  else h.push('<div class="muted small">First MIDP in this project' + (d.known ? " &ndash; " + d.known + " drawings are already known from your imported list" : "") + ".</div>");
+  h.push('<div class="h">&#10133; New: ' + d.nw.length + "</div>" + li(d.nw, function (x) { return "<b>" + esc(x.num) + "</b> " + esc(x.title); }, 12));
+  if (P.last) {
+    h.push('<div class="h">&#10006; Removed from the MIDP: ' + d.gone.length + "</div>" + li(d.gone, function (k) { return "<b>" + esc(P.drawings[k].num) + "</b> " + esc(P.drawings[k].title); }, 12));
+    h.push('<div class="h">&#9998; Title changed: ' + d.chg.length + "</div>" + li(d.chg, function (c) { return "<b>" + esc(c.x.num) + '</b> <span class="muted">' + esc(c.old) + "</span> &rarr; " + esc(c.x.title); }, 8));
+    if (d.back.length) h.push('<div class="h">&#8617; Back in the MIDP: ' + d.back.length + "</div>" + li(d.back, function (x) { return "<b>" + esc(x.num) + "</b> " + esc(x.title); }, 6));
+    h.push('<div class="h">&#10004; Same: ' + d.same + "</div>");
+  }
+  if (R.dup.length) h.push('<div class="warn small">' + R.dup.length + " number(s) are in the MIDP twice; the first one is used: " + esc(R.dup.slice(0, 5).join(", ")) + "</div>");
+  h.push('<div class="muted small" style="margin-top:8px">New drawings get a Tower / Typology guess (shown in orange until you accept it).</div>');
+  $("ldTxt").innerHTML = h.join(""); $("ovLoad").style.display = "block";
+}
+function applyMidp() {
+  var d = pending.diff, D = P.drawings, list = pending.R.list, ch = {}, only = {};
+  for (var i = 0; i < list.length; i++) { var x = list[i], o = D[x.key];
+    if (!o) { o = D[x.key] = { num: x.num, title: x.title, cat: x.cat, rev: x.rev, tower: "", typo: "", model: "", how: "", ok: false, first: LT.today() }; if (P.last) ch[x.key] = "new"; else if (d.known) ch[x.key] = "new"; only[x.key] = 1; }
+    else { if (P.last && o.inMidp === false) ch[x.key] = "back"; else if (P.last && normT(o.title) != normT(x.title)) { ch[x.key] = "changed"; o.oldTitle = o.title; } o.title = x.title; o.cat = x.cat; o.rev = x.rev; o.num = x.num; }
+    o.inMidp = true; only[x.key] = 1; }
+  for (var g = 0; g < d.gone.length; g++) { D[d.gone[g]].inMidp = false; ch[d.gone[g]] = "removed"; }
+  if (!P.last) for (var q in D) if (D.hasOwnProperty(q) && !only[q] && D[q].inMidp !== true) D[q].inMidp = false;
+  var ord = []; for (var r = 0; r < list.length; r++) ord.push(list[r].key); P.order = ord;
+  var nG = guessAll(null);
+  P.changes = ch;
+  P.history.unshift({ date: nowTxt(), file: pending.file, count: list.length, nw: d.nw.length, gone: d.gone.length, chg: d.chg.length, back: d.back.length,
+    newList: keysOf(ch, "new"), goneList: d.gone.slice(0), chgList: keysOf(ch, "changed") });
+  if (P.history.length > 60) P.history.length = 60;
+  P.last = { file: pending.file, path: pending.path, date: nowTxt(), count: list.length };
+  saveP(); $("ovLoad").style.display = "none"; pending = null;
+  view = keys(ch).length ? "changes" : "midp"; fillFilters(); render();
+  LT.toast("Register updated" + (nG ? " - " + nG + " guesses to check" : ""));
+}
+function keysOf(o, v) { var a = []; for (var k in o) if (o.hasOwnProperty(k) && o[k] == v) a.push(k); return a; }
+
+/* ---------- the list ---------- */
+function stat(k, d) {
+  var c = P.changes[k];
+  return { isNew: c == "new" || c == "back", chg: c == "changed", gone: d.inMidp === false, check: d.inMidp !== false && (!d.typo || !d.ok) };
+}
+function counts() {
+  var D = P.drawings, n = { midp: 0, changes: 0, check: 0, gone: 0, all: 0 };
+  for (var k in D) if (D.hasOwnProperty(k)) { var d = D[k], s = stat(k, d); n.all++; if (!s.gone) n.midp++; else n.gone++; if (P.changes[k]) n.changes++; if (s.check) n.check++; }
+  return n;
+}
+/* filters: for Section / Tower / Typology, the values ticked (none ticked = all) */
+var F = { cat: {}, tower: {}, typo: {} }, FN = { cat: "Section", tower: "Tower", typo: "Typology" }, pickKey = "";
+function fillFilters() {
+  var bs = { cat: "fbCat", tower: "fbTower", typo: "fbTypo" }, any = false;
+  for (var f in bs) if (bs.hasOwnProperty(f)) { var n = keys(F[f]).length; if (n) any = true; $(bs[f]).innerHTML = FN[f] + ": " + (n == 0 ? "All" : n == 1 ? esc(keys(F[f])[0]) : n + " ticked") + " &#9662;"; $(bs[f]).className = "btn small fb" + (n ? " on" : ""); }
+  $("fClear").style.display = any || LT.trim($("search").value) ? "" : "none";
+}
+function values(f) { var D = P.drawings, c = {}, a = []; for (var k in D) if (D.hasOwnProperty(k)) { var v = D[k][f] || "(empty)"; if (view != "all" && view != "gone" && D[k].inMidp === false) continue; if (!c[v]) { c[v] = 0; a.push(v); } c[v]++; } if (f != "cat") a.sort(); return { list: a, count: c }; }
+function pickShow(f, btn) {
+  pickKey = f; $("pkQ").value = ""; pickList(); var p = $("pick"), r = btn.getBoundingClientRect(); p.style.display = "block";
+  p.style.left = Math.max(4, Math.min(r.left, document.documentElement.clientWidth - p.offsetWidth - 4)) + "px"; p.style.top = (r.bottom + 2) + "px"; try { $("pkQ").focus(); } catch (e) { }
+}
+function pickList() {
+  var V = values(pickKey), q = LT.trim($("pkQ").value).toLowerCase(), h = "", words = q.split(/\s+/);
+  for (var i = 0; i < V.list.length; i++) { var v = V.list[i], lv = v.toLowerCase(), ok = true; for (var w = 0; w < words.length; w++) if (words[w] && lv.indexOf(words[w]) < 0) ok = false; if (!ok) continue;
+    h += '<label title="' + esc(v) + '"><span class="n muted">' + V.count[v] + '</span><input type="checkbox" style="height:auto" data-pv="' + esc(v) + '"' + (F[pickKey][v] ? " checked" : "") + "> " + esc(v) + "</label>"; }
+  $("pkList").innerHTML = h || '<div class="muted">Nothing matches.</div>';
+}
+function pickHide() { $("pick").style.display = "none"; pickKey = ""; }
+function pass(k, d, s) {
+  if (view == "midp" && s.gone) return false; if (view == "changes" && !P.changes[k]) return false; if (view == "check" && !s.check) return false; if (view == "gone" && !s.gone) return false;
+  var q = LT.trim($("search").value).toLowerCase();
+  for (var f in F) if (F.hasOwnProperty(f) && keys(F[f]).length && !F[f][d[f] || "(empty)"]) return false;
+  if (q) { var all = (d.num + " " + d.title + " " + (d.cat || "")).toLowerCase(), ws = q.split(/\s+/); for (var w = 0; w < ws.length; w++) if (ws[w] && all.indexOf(ws[w]) < 0) return false; }
+  return true;
+}
+function order(D) { var a = [], seen = {}, o = P.order || []; for (var i = 0; i < o.length; i++) if (D[o[i]] && !seen[o[i]]) { seen[o[i]] = 1; a.push(o[i]); }
+  var rest = []; for (var k in D) if (D.hasOwnProperty(k) && !seen[k]) rest.push(k); rest.sort(); return a.concat(rest); }
+function render() {
+  if (!P) return;
+  var n = counts(), V = [["midp", "In the MIDP", n.midp], ["changes", "Changes in the last MIDP", n.changes], ["check", "To check", n.check], ["gone", "Removed from the MIDP", n.gone], ["all", "Everything", n.all]], vh = "";
+  for (var v = 0; v < V.length; v++) vh += '<span class="chip' + (view == V[v][0] ? " on" : "") + '" data-v="' + V[v][0] + '">' + V[v][1] + " " + V[v][2] + "</span>";
+  $("views").innerHTML = vh;
+  $("sum").innerHTML = P.last ? "Last MIDP: <b>" + esc(P.last.file) + "</b> &middot; loaded " + esc(P.last.date) + " &middot; " + P.last.count + " drawings" + (P.history[0] ? " &middot; " + P.history[0].nw + " new, " + P.history[0].gone + " removed, " + P.history[0].chg + " titles changed" : "") + (n.check ? ' &middot; <span class="warn">' + n.check + " to check</span>" : "") + (P.models.length ? "" : ' &middot; <span class="muted">no models table yet (Setup)</span>')
+    : (n.all ? n.all + " drawings imported. Load the MIDP next." : "Load the MIDP, or Setup &gt; import the list you already have.");
+  var D = P.drawings, ks = order(D), W = colW(), longest = 10;
+  for (var z = 0; z < ks.length; z++) if (D[ks[z]].num.length > longest) longest = D[ks[z]].num.length;
+  var fs = LT.themeVars().fs || 13, wNo = Math.round(longest * fs * 0.66) + 22, tot = 34 + wNo, cg = '<colgroup><col style="width:34px"><col style="width:' + wNo + 'px">', th = "";
+  for (var c = 0; c < COLS.length; c++) { var cc = COLS[c]; tot += W[cc[0]]; cg += '<col data-c="' + cc[0] + '" style="width:' + W[cc[0]] + 'px">'; th += "<th>" + cc[1] + '<span class="rz" data-rz="' + cc[0] + '" title="Drag to change the width (double-click = back to normal)"></span></th>'; }
+  var h = ['<table class="grid" id="tbl" style="width:' + tot + 'px">' + cg + '</colgroup><tr><th class="tk"><input type="checkbox" id="tkAll" style="height:auto" title="Tick all shown"></th><th>Drawing</th>' + th + "</tr>"];
+  shown = []; var max = 2000;
+  for (var i = 0; i < ks.length; i++) { var k = ks[i], d = D[k], s = stat(k, d); if (!pass(k, d, s)) continue; shown.push(k); if (shown.length > max) continue;
+    var gcls = d.ok ? "" : ' class="warn g"', note = [];
+    if (s.isNew) note.push('<span class="tag ok">' + (P.changes[k] == "back" ? "BACK" : "NEW") + "</span>");
+    if (s.chg) note.push('<span class="tag warn" title="was: ' + esc(d.oldTitle || "") + '">TITLE CHANGED</span>');
+    if (s.gone) note.push('<span class="tag bad">REMOVED</span>');
+    if (!d.typo && !s.gone) note.push('<span class="bad">set Tower / Typology</span>');
+    else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
+    h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td><td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + esc(modelOf(d)) + "</td><td>" + note.join(" ") + "</td></tr>"); }
+  h.push("</table>");
+  if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
+  $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+  tickBar();
+}
+function tickBar() { var n = keys(ticked).length; $("tickBar").style.display = n ? "block" : "none"; $("tickN").innerHTML = n + " ticked:"; }
+
+/* ---------- editing ---------- */
+function opts(el, list, target) { var h = ""; for (var i = 0; i < list.length && i < 40; i++) h += '<span class="chipO" data-o="' + esc(list[i]) + '">' + esc(list[i]) + "</span>"; $(el).innerHTML = h; $(el).onclick = function (e) { var o = LT.up(e.target || e.srcElement, "data-o"); if (o) { $(target).value = o.getAttribute("data-o"); if (target == "edTower") typoOpts(); hint(); } }; }
+function towers() { var s = {}, a = []; for (var i = 0; i < P.models.length; i++) if (P.models[i].tower && !s[P.models[i].tower]) { s[P.models[i].tower] = 1; a.push(P.models[i].tower); } var D = P.drawings; for (var k in D) if (D.hasOwnProperty(k) && D[k].ok && D[k].tower && D[k].tower != "-" && !s[D[k].tower]) { s[D[k].tower] = 1; a.push(D[k].tower); } return a.sort(); }
+function typoOpts() { var t = up($("edTower").value), s = {}, a = []; for (var i = 0; i < P.models.length; i++) { var m = P.models[i]; if ((!t || up(m.tower) == t) && m.typo.charAt(0) != "*" && !s[m.typo]) { s[m.typo] = 1; a.push(m.typo); } } a.sort(); opts("edTypoO", a, "edTypo"); }
+function hint() { var t = LT.trim($("edTower").value), y = LT.trim($("edTypo").value), m = y && y != "-" ? modelMap()[mKey(t, y)] : ""; $("edHint").innerHTML = y && y != "-" ? (m ? "Model from the table: <b>" + esc(m) + "</b>" : '<span class="warn">This Tower + Typology is not in the models table.</span>') : ""; }
+function edit(ks) {
+  if (!ks.length) return; editKeys = ks; var d = P.drawings[ks[0]], one = ks.length == 1;
+  $("edH").innerHTML = one ? esc(d.num) : "Set " + ks.length + " drawings";
+  $("edInfo").innerHTML = one ? esc(d.title) + (d.cat ? "<br>" + esc(d.cat) : "") + (!d.ok && d.typo ? '<br><span class="warn">Guess' + (d.how == "like" ? " &ndash; same as " + esc(d.like) : d.how == "rule" ? " &ndash; from a typology rule" : " &ndash; its section has no typologies") + "</span>" : "") : "Empty boxes are left as they are.";
+  $("edTower").value = one ? d.tower || "" : ""; $("edTypo").value = one ? d.typo || "" : ""; $("edModel").value = one ? d.model || "" : "";
+  opts("edTowerO", towers().concat(["-"]), "edTower"); typoOpts(); hint();
+  $("ovEdit").style.display = "block"; try { $("edTower").focus(); } catch (e) { }
+}
+function saveEdit(na) {
+  var t = LT.trim($("edTower").value), y = LT.trim($("edTypo").value), m = LT.trim($("edModel").value), one = editKeys.length == 1;
+  if (na) { t = "-"; y = "-"; m = ""; }
+  for (var i = 0; i < editKeys.length; i++) { var d = P.drawings[editKeys[i]];
+    if (one || na) { d.tower = t; d.typo = y; d.model = m; } else { if (t) d.tower = t; if (y) d.typo = y; if (m) d.model = m; }
+    if (d.typo) { d.ok = true; d.how = "you"; d.like = ""; } }
+  saveP(); $("ovEdit").style.display = "none"; MM = null; fillFilters(); render();
+}
+function accept(ks) { var n = 0; for (var i = 0; i < ks.length; i++) { var d = P.drawings[ks[i]]; if (d.typo && !d.ok) { d.ok = true; n++; } } saveP(); render(); LT.toast(n + " guess(es) accepted"); }
+
+/* ---------- setup ---------- */
+function modelsTxt() { var a = []; for (var i = 0; i < P.models.length; i++) a.push(P.models[i].tower + " | " + P.models[i].typo + " | " + P.models[i].model); return a.join("\r\n"); }
+function setupShow() {
+  var S = P.setup; $("sSheet").value = S.sheet || ""; $("sNum").value = S.num || ""; $("sTitle").value = S.title || ""; $("sPrefix").value = S.prefix || ""; $("sTowerPart").value = S.towerPart || 0;
+  $("sRules").value = rulesTxt(); $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")"; setupEx(); $("ovSetup").style.display = "block";
+}
+function setupEx() { var ex = ""; for (var k in P.drawings) if (P.drawings.hasOwnProperty(k)) { ex = P.drawings[k].num; break; } var n = +$("sTowerPart").value || 0;
+  $("sEx").innerHTML = ex && n ? "Example: " + esc(ex) + " &rarr; part " + n + " = <b>" + esc(ex.split("-")[n - 1] || "") + "</b> (only used when it looks like T1, T2, B3...)" : ""; }
+function setupSave() {
+  var S = P.setup; S.sheet = LT.trim($("sSheet").value); S.num = up($("sNum").value); S.title = up($("sTitle").value); S.prefix = LT.trim($("sPrefix").value); S.towerPart = parseInt($("sTowerPart").value, 10) || 0;
+  P.rules = rulesFrom($("sRules").value);
+  var ms = [], ls = $("sModels").value.split(/\r?\n/); for (var i = 0; i < ls.length; i++) { var p = ls[i].split("|"); if (p.length >= 3 && LT.trim(p[1])) ms.push({ tower: LT.trim(p[0]), typo: LT.trim(p[1]), model: LT.trim(p[2]) }); }
+  P.models = ms; MM = null; saveP(); $("ovSetup").style.display = "none"; render(); LT.toast("Setup saved");
+}
+
+/* ---------- import a list / a models table ---------- */
+/* a models table: the sheet + heading row that has Tower and Typology */
+function readModels(p, sheet) {
+  var books = /\.(xlsx|xlsm|xlsb|xls)$/i.test(p) ? LT.readExcelAll(p) : { names: ["CSV"], rows: { CSV: LT.parseCsv(LT.readText(p)) } }, res = null;
+  var hr = function (t) { for (var r = 0; r < Math.min(t.length, 30); r++) { var a = (t[r] || []).join("|"); if (/tower|building|block/i.test(a) && /typolog|unit type/i.test(a)) return r; } return -1; };
+  var order = books.names.slice(0); order.sort(function (a, b) { var ha = hr(books.rows[a]), hb = hr(books.rows[b]), ma = ha >= 0 && /model/i.test(books.rows[a][ha].join("|")) ? 1 : 0, mb = hb >= 0 && /model/i.test(books.rows[b][hb].join("|")) ? 1 : 0; return mb - ma; });
+  for (var i = 0; i < order.length; i++) { var n = order[i], t = books.rows[n], h = hr(t); if (sheet && n != sheet) continue; if (h < 0 && !(sheet && n == sheet)) continue;
+    var head = []; for (var c = 0; c < (t[Math.max(h, 0)] || []).length; c++) head.push(h >= 0 ? LT.trim(t[h][c]) || "Column " + letter(c) : "Column " + letter(c));
+    res = { sheets: books.names, sheet: n, table: t, headRow: h, head: head }; break; }
+  if (!res) throw new Error("No sheet with Tower and Typology headings found.");
+  return res;
+}
+function startImport(kind) {
+  LT.pickFile(function (p) {
+    try { var L = kind == "models" ? readModels(p) : LT.readList(p, ""); } catch (e) { alert("Couldn't read that file - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return; }
+    imp = { kind: kind, path: p, L: L }; impCols(true); $("impH").innerHTML = kind == "list" ? "Import drawings: " + esc(fso.GetFileName(p)) : "Import the models table: " + esc(fso.GetFileName(p));
+    $("iNumF").style.display = $("iTitleF").style.display = kind == "list" ? "" : "none"; $("ovImp").style.display = "block";
+  });
+}
+function impHead(re, not) { var h = imp.L.head; for (var i = 0; i < h.length; i++) if (re.test(h[i]) && !(not && not.test(h[i]))) return h[i]; return ""; }
+function impCols(guess) {
+  var L = imp.L, c;
+  if (imp.kind == "list") c = LT.listColumns(L, imp.c || {}, guess);
+  else c = guess ? { tower: impHead(/tower|building|block/i), typo: impHead(/typolog|unit type|type/i, /model/i), model: impHead(/model n|model ref|^model$/i) || impHead(/model/i, /type/i) } : imp.c;
+  imp.c = c;
+  var so = ""; for (var s = 0; s < L.sheets.length; s++) so += "<option" + (L.sheets[s] == L.sheet ? " selected" : "") + ">" + esc(L.sheets[s]) + "</option>"; $("iSheet").innerHTML = so;
+  var o = function (sel, none) { var h = none ? '<option value="">(none)</option>' : ""; for (var i = 0; i < L.head.length; i++) h += "<option" + (L.head[i] == sel ? " selected" : "") + ">" + esc(L.head[i]) + "</option>"; return h; };
+  $("iNum").innerHTML = o(c.name, false); $("iTitle").innerHTML = o(c.title, true); $("iTower").innerHTML = o(c.tower, true); $("iTypo").innerHTML = o(c.typo, true); $("iModel").innerHTML = o(c.model, true);
+  impPrev();
+}
+function impRows() {
+  var L = imp.L, c = imp.c, ix = function (n) { return n ? L.head.indexOf(n) : -1; }, iN = ix(c.name), iT = ix(c.title), iTw = ix(c.tower), iTy = ix(c.typo), iM = ix(c.model), out = [];
+  for (var r = L.headRow + 1; r < L.table.length; r++) { var row = L.table[r], tw = LT.cell(row, iTw), ty = LT.cell(row, iTy), m = LT.cell(row, iM);
+    var o = { tower: noVal(tw) ? "" : tw, typo: noVal(ty) ? "" : ty, model: noVal(m) || m == "-" ? "" : m };
+    if (imp.kind == "list") { var n = LT.cell(row, iN); if (!LT.isDocNo(n)) continue; var s = splitNo(n); o.num = s.base; o.key = s.key; o.title = LT.cell(row, iT); }
+    else if (!o.typo || !o.model) continue;
+    out.push(o); }
+  return out;
+}
+function impPrev() { var rs = impRows(), h = ""; for (var i = 0; i < Math.min(rs.length, 4); i++) { var r = rs[i]; h += "<tr>" + (imp.kind == "list" ? "<td>" + esc(r.num) + "</td><td>" + esc((r.title || "").substring(0, 40)) + "</td>" : "") + "<td>" + esc(r.tower) + "</td><td>" + esc(r.typo) + "</td><td>" + esc(r.model) + "</td></tr>"; }
+  $("impPrev").innerHTML = (h || '<tr><td class="bad">Nothing found with these columns.</td></tr>') + '<tr><td colspan="5" class="muted">' + rs.length + " rows</td></tr>"; }
+function impDo() {
+  var rs = impRows(); if (!rs.length) { alert("Nothing to import with these columns."); return; }
+  if (imp.kind == "models") { P.models = []; for (var i = 0; i < rs.length; i++) P.models.push({ tower: rs[i].tower, typo: rs[i].typo, model: rs[i].model }); MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")"; }
+  else { var D = P.drawings, nN = 0, nU = 0;
+    for (var j = 0; j < rs.length; j++) { var r = rs[j], d = D[r.key];
+      if (!d) { d = D[r.key] = { num: r.num, title: r.title, cat: "", rev: "", tower: "", typo: "", model: "", how: "", ok: false, first: LT.today(), inMidp: P.last ? false : undefined }; nN++; } else nU++;
+      if (!d.title) d.title = r.title;
+      if (r.typo) { d.tower = r.tower; d.typo = r.typo; d.ok = true; d.how = "import"; d.like = ""; if (r.model) d.impModel = r.model; } }
+    var nG = guessAll(null); LT.toast(nN + " drawings added, " + nU + " updated" + (nG ? ", " + nG + " guessed" : "")); }
+  saveP(); $("ovImp").style.display = "none"; fillFilters(); render();
+}
+
+/* ---------- export ---------- */
+function exportRows(full) {
+  var t = [full ? ["DRAWING NUMBER", "REV", "DESCRIPTION", "SECTION", "TOWER", "TYPOLOGY", "MODEL", "STATUS", "CHECKED"] : ["DRAWING NUMBER", "DESCRIPTION", "TOWER", "TYPOLOGY", "MODEL"]], D = P.drawings;
+  for (var i = 0; i < shown.length; i++) { var k = shown[i], d = D[k], c = P.changes[k] || "";
+    t.push(full ? [d.num, d.rev || "", d.title, d.cat || "", d.tower, d.typo, modelOf(d), d.inMidp === false ? "removed" : c, d.ok ? "yes" : d.typo ? "guess" : "no"] : [d.num, d.title, d.tower, d.typo, modelOf(d)]); }
+  return t;
+}
+function exportExcel(full) {
+  var rows = exportRows(full), base = LT.exportsDir() + "\\DrawingRegister_" + LT.safeName(P.name).replace(/ /g, "_") + "_" + LT.stamp(); LT.mkdirs(LT.exportsDir());
+  var xl = null, wb = null;
+  try {
+    xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
+    wb = xl.Workbooks.Add(); var ws = wb.Worksheets(1); ws.Name = "Register";
+    var nc = rows[0].length, arr = [];
+    for (var r = 0; r < rows.length; r++) for (var c = 0; c < nc; c++) { var cell = ws.Cells(r + 1, c + 1); cell.NumberFormat = "@"; cell.Value = rows[r][c]; }
+    var W = full ? [34, 6, 70, 34, 8, 18, 34, 10, 9] : [34, 70, 8, 18, 34]; for (var w = 0; w < W.length; w++) ws.Columns(w + 1).ColumnWidth = W[w];
+    var hd = ws.Range(ws.Cells(1, 1), ws.Cells(1, nc)); hd.Font.Bold = true; hd.Interior.Color = 0x7E3E5B; hd.Font.Color = 0xFFFFFF;
+    try { ws.Range(ws.Cells(1, 1), ws.Cells(rows.length, nc)).AutoFilter(); } catch (e) { }
+    wb.SaveAs(base + ".xlsx", 51); LT.open(base + ".xlsx");
+  } catch (e) { try { LT.writeCsv(base + ".csv", rows); LT.open(base + ".csv"); LT.toast("Excel isn't available - saved as CSV instead"); } catch (e2) { alert("Couldn't export:\n" + (e2.message || e2)); } }
+  finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+}
+function changesText(h) {
+  h = h || P.history[0]; if (!h) return "";
+  var D = P.drawings, s = "MIDP changes – " + P.name + "\r\n" + h.file + " (loaded " + h.date + ")\r\n\r\n" + h.nw + " new, " + h.gone + " removed, " + h.chg + " titles changed\r\n";
+  var part = function (t, a, f) { if (!a || !a.length) return ""; var o = "\r\n" + t + "\r\n"; for (var i = 0; i < a.length; i++) { var d = D[a[i]]; if (d) o += "  • " + f(d) + "\r\n"; } return o; };
+  s += part("NEW", h.newList, function (d) { return d.num + "  " + d.title + (d.typo && d.typo != "-" ? "  (" + d.tower + " / " + d.typo + ")" : ""); });
+  s += part("REMOVED", h.goneList, function (d) { return d.num + "  " + d.title; });
+  s += part("TITLE CHANGED", h.chgList, function (d) { return d.num + "  " + (d.oldTitle || "") + "  →  " + d.title; });
+  return s;
+}
+function exportMenu(x, y) {
+  LT.menu(x, y, [{ label: "Excel: Number, Description, Tower, Typology, Model (what's shown)", fn: function () { exportExcel(false); } },
+    { label: "Excel: with revision, section, status (what's shown)", fn: function () { exportExcel(true); } },
+    "-", { label: "&#128203; Copy the last MIDP changes (for email / Teams)", fn: function () { var t = changesText(); if (!t) { alert("Load a MIDP first."); return; } if (LT.copyText(t)) LT.toast("Changes copied"); } }]);
+}
+function histMenu(x, y) {
+  var it = []; for (var i = 0; i < P.history.length && i < 15; i++) (function (h) { it.push({ label: esc(h.date) + " &middot; " + esc(h.file) + " &middot; +" + h.nw + " / &minus;" + h.gone + " / &#9998;" + h.chg, fn: function () { var t = changesText(h); if (LT.copyText(t)) LT.toast("Copied"); alert(t.length > 3000 ? t.substring(0, 3000) + "\n..." : t); } }); })(P.history[i]);
+  if (!it.length) it.push({ label: "No MIDP loaded yet", fn: function () { } });
+  LT.menu(x, y, it);
+}
+
+/* ---------- events ---------- */
+function at(btn) { var r = btn.getBoundingClientRect(); return [r.left, r.bottom + 2]; }
+function stop(e) { (e || window.event).cancelBubble = true; }
+$("proj").onchange = function () { openProject(this.value); };
+$("bProj").onclick = function (e) { var a = at(this); projMenu(a[0], a[1]); stop(e); };
+$("bFirst").onclick = newProject;
+$("bLoad").onclick = function () { if (!P) { newProject(); if (!P) return; } LT.pickFile(function (p) { loadMidp(p); }); };
+$("bSetup").onclick = function () { if (P) setupShow(); };
+$("bExport").onclick = function (e) { if (!P) return; var a = at(this); exportMenu(a[0] - 260, a[1]); stop(e); };
+$("bHist").onclick = function (e) { if (!P) return; var a = at(this); histMenu(a[0] - 200, a[1]); stop(e); };
+$("ldOk").onclick = applyMidp; $("ldCancel").onclick = function () { pending = null; $("ovLoad").style.display = "none"; };
+$("shCancel").onclick = function () { $("ovSheet").style.display = "none"; };
+$("edOk").onclick = function () { saveEdit(false); }; $("edNa").onclick = function () { saveEdit(true); }; $("edCancel").onclick = function () { $("ovEdit").style.display = "none"; };
+$("edTower").onkeyup = function () { typoOpts(); hint(); }; $("edTypo").onkeyup = hint;
+$("sOk").onclick = setupSave; $("sCancel").onclick = function () { $("ovSetup").style.display = "none"; };
+$("sTowerPart").onkeyup = setupEx;
+$("sModImp").onclick = function () { startImport("models"); }; $("sListImp").onclick = function () { $("ovSetup").style.display = "none"; startImport("list"); };
+$("iOk").onclick = impDo; $("iCancel").onclick = function () { $("ovImp").style.display = "none"; };
+$("iSheet").onchange = function () { try { imp.L = imp.kind == "models" ? readModels(imp.path, this.value) : LT.readList(imp.path, this.value); } catch (e) { } impCols(true); };
+var iMap = { iNum: "name", iTitle: "title", iTower: "tower", iTypo: "typo", iModel: "model" };
+for (var im in iMap) if (iMap.hasOwnProperty(im)) (function (id, key) { $(id).onchange = function () { imp.c[key] = this.value; impPrev(); }; })(im, iMap[im]);
+$("views").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-v"); if (c) { view = c.getAttribute("data-v"); render(); } };
+$("filters").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-f"); if (!b) return; var f = b.getAttribute("data-f"); if (pickKey == f) { pickHide(); return; } pickShow(f, b); (e || window.event).cancelBubble = true; };
+$("search").onkeyup = function () { fillFilters(); render(); };
+$("fClear").onclick = function () { F = { cat: {}, tower: {}, typo: {} }; $("search").value = ""; fillFilters(); render(); };
+$("pkQ").onkeyup = pickList;
+$("pkList").onclick = function (e) { var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-pv") == null) return; var v = t.getAttribute("data-pv"); if (t.checked) F[pickKey][v] = 1; else delete F[pickKey][v]; fillFilters(); render(); };
+$("pkAll").onclick = function () { var c = $("pkList").getElementsByTagName("input"); for (var i = 0; i < c.length; i++) F[pickKey][c[i].getAttribute("data-pv")] = 1; pickList(); fillFilters(); render(); };
+$("pkNone").onclick = function () { F[pickKey] = {}; pickList(); fillFilters(); render(); };
+$("pkDone").onclick = pickHide;
+(function () { var h = function (e) { e = e || window.event; if (!pickKey) return; var t = e.target || e.srcElement; while (t) { if (t.id == "pick" || (t.getAttribute && t.getAttribute("data-f"))) return; t = t.parentNode; } pickHide(); };
+  if (document.attachEvent) document.attachEvent("onmousedown", h); else document.addEventListener("mousedown", h, false); })();
+/* column widths: drag the edge of a heading (not Drawing); remembered on this PC */
+var COLS = [["rev", "Rev", 60], ["title", "Title", 360], ["cat", "Section", 200], ["tower", "Tower", 70], ["typo", "Typology", 120], ["model", "Model", 250], ["note", "Note", 200]], drag = null;
+function colW() { var s = LT.settings(), w = s.regCols || {}, o = {}; for (var i = 0; i < COLS.length; i++) o[COLS[i][0]] = w[COLS[i][0]] || COLS[i][2]; return o; }
+function saveColW(o) { var s = LT.settings(); s.regCols = o; LT.saveSettings(s); }
+$("res").onmousedown = function (e) {
+  e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || !t.getAttribute("data-rz")) return;
+  var c = t.getAttribute("data-rz"), W = colW(), cols = $("tbl").getElementsByTagName("col"), col = null; for (var i = 0; i < cols.length; i++) if (cols[i].getAttribute("data-c") == c) col = cols[i];
+  drag = { c: c, x: e.clientX, w: W[c], W: W, col: col, tw: $("tbl").offsetWidth };
+  if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
+};
+(function () {
+  var mv = function (e) { if (!drag) return; e = e || window.event; var w = Math.max(36, drag.w + e.clientX - drag.x); drag.col.style.width = w + "px"; $("tbl").style.width = (drag.tw + w - drag.w) + "px"; drag.now = w; if (e.preventDefault) e.preventDefault(); e.returnValue = false; };
+  var upf = function () { if (!drag) return; if (drag.now) { drag.W[drag.c] = drag.now; saveColW(drag.W); } drag = null; };
+  if (document.attachEvent) { document.attachEvent("onmousemove", mv); document.attachEvent("onmouseup", upf); } else { document.addEventListener("mousemove", mv, false); document.addEventListener("mouseup", upf, false); }
+})();
+$("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.getAttribute && t.getAttribute("data-rz")) { var W = colW(); for (var i = 0; i < COLS.length; i++) if (COLS[i][0] == t.getAttribute("data-rz")) W[COLS[i][0]] = COLS[i][2]; saveColW(W); render(); return; }
+  var tr = LT.up(t, "data-k"); if (tr) edit([tr.getAttribute("data-k")]); };
+$("res").onclick = function (e) {
+  e = e || window.event; var t = e.target || e.srcElement;
+  if (t.id == "tkAll") { ticked = {}; if (t.checked) for (var i = 0; i < shown.length; i++) ticked[shown[i]] = 1; render(); return; }
+  var td = t; while (td && td.tagName != "TD") td = td.parentNode; if (!td || td.className.indexOf("tk") < 0) return;
+  var tr = LT.up(td, "data-k"); if (!tr) return; var k = tr.getAttribute("data-k"), pos = -1; for (var j = 0; j < shown.length; j++) if (shown[j] == k) pos = j;
+  var on = !ticked[k];
+  if (e.shiftKey && lastTick >= 0) { var a = Math.min(lastTick, pos), b = Math.max(lastTick, pos); for (var q = a; q <= b; q++) { if (on) ticked[shown[q]] = 1; else delete ticked[shown[q]]; } }
+  else { if (on) ticked[k] = 1; else delete ticked[k]; }
+  lastTick = pos; render();
+};
+$("res").oncontextmenu = function (e) {
+  e = e || window.event; var tr = LT.up(e.target || e.srcElement, "data-k"); if (!tr) return true; var k = tr.getAttribute("data-k"), ks = ticked[k] ? keys(ticked) : [k];
+  LT.menu(e.clientX, e.clientY, [{ label: "Set Tower / Typology..." + (ks.length > 1 ? " (" + ks.length + ")" : ""), fn: function () { edit(ks); } },
+    { label: "&#10004; Accept the guess" + (ks.length > 1 ? "es (" + ks.length + ")" : ""), fn: function () { accept(ks); } },
+    { label: "Guess again", fn: function () { var o = {}; for (var i = 0; i < ks.length; i++) { o[ks[i]] = 1; P.drawings[ks[i]].ok = false; P.drawings[ks[i]].how = ""; } guessAll(o); saveP(); render(); } },
+    "-", { label: "Copy the number", fn: function () { LT.copyText(P.drawings[k].num); LT.toast("Copied"); } }]);
+  if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
+};
+$("bSet").onclick = function () { edit(keys(ticked)); }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
+window.ltTheme = look; window.ltReload = loadAll; window.ltShown = function () { if (P) render(); };
+look(); loadAll(); LT.tabKeys();
+</script>
+</body>
+</html>

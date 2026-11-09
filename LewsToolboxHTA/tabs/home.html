@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Home</title>
+<meta name="lt-order" content="0">
+<meta name="lt-icon" content="&#127968;">
+<meta name="lt-desc" content="Your start page. Shows what is due today, what you are waiting on from others, deadlines in the next 2 weeks, recent files and how busy the team is.">
+<!--
+  Lew's Toolbox - Home / Today: one screen to start the day.
+  Only READS what the other tabs saved (tracker.json, delegate.json, workload.json, transmittals.json, the Launcher list);
+  a task typed here is handed to the Tracker tab, which saves it.
+-->
+<style>
+#wrap{height:100%;overflow:auto;padding:18px 22px}
+#hello{font-size:1.5em;font-weight:bold}
+#date{margin:2px 0 14px}
+#quickRow{margin-bottom:14px}
+#quick{width:420px;max-width:70%}
+#cols{display:flex;flex-wrap:wrap;margin:0 -7px}
+.box{flex:1 1 360px;min-width:300px;margin:0 7px 14px;padding:12px 14px}
+.box h3{font-size:1em;margin-bottom:8px}
+.box h3 .n{font-weight:normal;margin-left:6px}
+.it{padding:5px 0;cursor:pointer}
+.it .s{font-size:.85em}
+.day{font-weight:bold;margin:8px 0 2px;font-size:.85em;text-transform:uppercase;letter-spacing:.4px}
+.empty{padding:4px 0}
+.tile{display:inline-block;width:46%;margin:0 4% 6px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
+.go{float:right;font-size:.85em;cursor:pointer}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="wrap">
+  <div id="hello"></div>
+  <div id="date" class="muted"></div>
+  <div id="quickRow"><input type="text" id="quick" placeholder="Add a task for today...  e.g.  Check RFI drawings #Tower1 !"> <button class="btn primary" id="bAdd">+ Add</button></div>
+  <div id="cols">
+    <div class="box"><h3>&#9728; Today <span class="n muted" id="nToday"></span><span class="go" data-go="tracker">Open Tracker &rsaquo;</span></h3><div id="today"></div></div>
+    <div class="box"><h3>&#9203; Waiting on others <span class="n muted" id="nWait"></span><span class="go" data-go="delegate">Open Delegate &rsaquo;</span></h3><div id="wait"></div></div>
+    <div class="box"><h3>&#128197; Next 2 weeks <span class="n muted" id="nNext"></span></h3><div id="next"></div></div>
+    <div class="box"><h3>&#128640; Recent files <span class="go" data-go="launcher">Open Launcher &rsaquo;</span></h3><div id="recent"></div></div>
+    <div class="box" id="teamBox" style="display:none"><h3>&#128101; Team this week <span class="go" data-go="workload">Open Team workload &rsaquo;</span></h3><div id="team"></div></div>
+  </div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, links = [];
+function D(s) { return LT.parseIso(s); }
+function todayD() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function daysFrom(iso) { var d = D(iso); return d ? Math.round((d - todayD()) / 864e5) : null; }
+function when(iso) { var n = daysFrom(iso); if (n == null) return ""; if (n == 0) return "today"; if (n == 1) return "tomorrow"; if (n < 0) return (-n) + " day" + (n == -1 ? "" : "s") + " late"; return LT.fmtDate(iso); }
+function read(name) { try { return LT.readJson(LT.dataPath(name), null); } catch (e) { return null; } }
+function link(tab, what, value) { links.push({ tab: tab, what: what, value: value }); return ' data-l="' + (links.length - 1) + '"'; }
+
+function render() {
+  links = [];
+  var s = LT.settings(), h = new Date().getHours(), name = (s.userName || "").split(/[ .]/)[0];
+  $("hello").innerHTML = (h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening") + (name ? ", " + esc(name.charAt(0).toUpperCase() + name.substring(1)) : "");
+  var d = new Date(); $("date").innerHTML = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()] + " " + d.getDate() + " " + LT.MON[d.getMonth()] + " " + d.getFullYear();
+
+  var tr = read("tracker.json") || { tasks: [] }, dl = read("delegate.json") || { tasks: [] }, events = [];
+  /* today: my tasks that are late, due today, or being worked on */
+  var mine = [];
+  for (var i = 0; i < (tr.tasks || []).length; i++) { var t = tr.tasks[i]; if (t.status == "Done") continue; var n = daysFrom(t.due);
+    if ((n != null && n <= 0) || t.status == "Doing") mine.push(t);
+    if (n != null && n > 0 && n <= 14) events.push({ due: t.due, text: t.title, sub: t.project || "my task", tab: "tracker" }); }
+  mine.sort(function (a, b) { return (a.due || "9") < (b.due || "9") ? -1 : 1; });
+  var html = "";
+  for (var j = 0; j < mine.length && j < 12; j++) { var m = mine[j], late = daysFrom(m.due) < 0;
+    html += '<div class="it"' + link("tracker", "view", "today") + "><b>" + (m.priority == "High" ? '<span class="bad">!</span> ' : "") + esc(m.title) + '</b><div class="s ' + (late ? "bad" : "muted") + '">' + esc([m.project, m.status == "Doing" ? "doing" : "", when(m.due)].filter(Boolean).join(" · ")) + "</div></div>"; }
+  $("today").innerHTML = html || '<div class="empty muted">Nothing due today &ndash; add one above.</div>';
+  $("nToday").innerHTML = mine.length ? mine.length : "";
+
+  /* waiting on others: delegated items not completed, late first */
+  var wait = [];
+  for (var k = 0; k < (dl.tasks || []).length; k++) { var t2 = dl.tasks[k];
+    var items = t2.subs && t2.subs.length ? t2.subs : [t2];
+    for (var q = 0; q < items.length; q++) { var it = items[q]; if (it.status == "Completed") continue; var due = it.due || t2.due, who = it.who || t2.who;
+      if (!who) continue;
+      wait.push({ code: it.code, title: (items === t2.subs ? t2.title + " – " : "") + it.title, who: who, due: due, status: it.status });
+      var nd = daysFrom(due); if (nd != null && nd >= 0 && nd <= 14) events.push({ due: due, text: it.code + " " + it.title, sub: "from " + who, tab: "delegate" }); } }
+  wait.sort(function (a, b) { var x = daysFrom(a.due), y = daysFrom(b.due); x = x == null ? 999 : x; y = y == null ? 999 : y; return x - y; });
+  html = ""; var nLate = 0;
+  for (var w = 0; w < wait.length; w++) { var lt = daysFrom(wait[w].due) < 0; if (lt) nLate++;
+    if (w < 10) html += '<div class="it"' + link("delegate", "", "") + "><b>" + esc(wait[w].who) + "</b> &ndash; " + esc(wait[w].title) + '<div class="s ' + (lt ? "bad" : "muted") + '">' + esc([wait[w].code, wait[w].status, when(wait[w].due)].filter(Boolean).join(" · ")) + "</div></div>"; }
+  if (wait.length > 10) html += '<div class="muted s">&hellip; and ' + (wait.length - 10) + " more</div>";
+  $("wait").innerHTML = html || '<div class="empty muted">Nothing delegated is open.</div>';
+  $("nWait").innerHTML = wait.length ? wait.length + (nLate ? ' &middot; <span class="bad">' + nLate + " late</span>" : "") : "";
+
+  /* next 2 weeks: every date from every tab, by day */
+  var tm = read("transmittals.json"); if (tm && tm.planned) for (var p = 0; p < tm.planned.length; p++) { var pd = daysFrom(tm.planned[p].due); if (pd != null && pd >= 0 && pd <= 14) events.push({ due: tm.planned[p].due, text: tm.planned[p].title, sub: "submission", tab: "transmittal" }); }
+  events.sort(function (a, b) { return a.due < b.due ? -1 : a.due > b.due ? 1 : 0; });
+  html = ""; var lastDay = "", perDay = {};
+  for (var e = 0; e < events.length; e++) perDay[events[e].due] = (perDay[events[e].due] || 0) + 1;
+  for (var e2 = 0; e2 < events.length && e2 < 18; e2++) { var ev = events[e2];
+    if (ev.due != lastDay) { lastDay = ev.due; html += '<div class="day' + (perDay[ev.due] >= 3 ? " bad" : "") + '">' + esc(when(ev.due) == "tomorrow" ? "Tomorrow" : LT.fmtDate(ev.due)) + (perDay[ev.due] >= 3 ? " &middot; " + perDay[ev.due] + " things due" : "") + "</div>"; }
+    html += '<div class="it"' + link(ev.tab, "", "") + ">" + esc(ev.text) + ' <span class="s muted">&middot; ' + esc(ev.sub) + "</span></div>"; }
+  $("next").innerHTML = html || '<div class="empty muted">No dates in the next 2 weeks.</div>';
+  $("nNext").innerHTML = events.length ? events.length : "";
+
+  /* recent files from the Launcher */
+  var home = s.launcherHome || LT.dataDir(), lib = null;
+  try { lib = LT.readJson(home + "\\QuickLaunch-data\\library.json", null); } catch (x) { }
+  var rec = []; if (lib && lib.items) for (var r = 0; r < lib.items.length; r++) if (lib.items[r].last) rec.push(lib.items[r]);
+  rec.sort(function (a, b) { return b.last - a.last; });
+  html = ""; for (var r2 = 0; r2 < rec.length && r2 < 10; r2++) html += '<span class="tile" title="' + esc(rec[r2].path) + '" data-open="' + esc(rec[r2].path) + '">&#128196; ' + esc(rec[r2].name) + "</span>";
+  $("recent").innerHTML = html || '<div class="empty muted">Files you open from the Launcher show up here.</div>';
+
+  /* team this week (when the Team workload tab has been used) */
+  var wl = read("workload.json");
+  if (wl && wl.people && wl.people.length) {
+    var th = ""; for (var pp = 0; pp < wl.people.length; pp++) { var pr = wl.people[pp], load = loadOf(pr.name, wl, dl), pct = pr.hours ? Math.round(load / pr.hours * 100) : 0;
+      th += '<div class="it"' + link("workload", "", "") + "><b>" + esc(pr.name) + '</b> <span class="' + (pct > 100 ? "bad" : pct >= 80 ? "warn" : "ok") + '">' + pct + "%</span> <span class=\"s muted\">" + Math.round(load * 10) / 10 + " of " + pr.hours + " h</span></div>"; }
+    $("team").innerHTML = th; $("teamBox").style.display = "";
+  } else $("teamBox").style.display = "none";
+}
+/* hours planned this week for a person (same rule as the Team workload tab: open delegated items with hours) */
+function loadOf(name, wl, dl) {
+  var h = 0, ws = addDays(todayD(), -((todayD().getDay() + 6) % 7)), we = addDays(ws, 6), est = wl.estimates || {};
+  for (var i = 0; i < (dl.tasks || []).length; i++) { var t = dl.tasks[i], items = t.subs && t.subs.length ? t.subs : [t];
+    for (var j = 0; j < items.length; j++) { var it = items[j]; if (it.status == "Completed") continue;
+      var who = ("" + (it.who || t.who || "")).split(/\s*(?:,|;|&|\/|\band\b)\s*/i), mine = false, n = 0;
+      for (var k = 0; k < who.length; k++) { if (!LT.trim(who[k])) continue; n++; if (LT.trim(who[k]).toLowerCase() == name.toLowerCase()) mine = true; }
+      if (!mine) continue;
+      var d = D(it.due || t.due); if (d && d > we) continue;
+      var e = est[it.code]; h += (e == null || e === "" ? (wl.defaultHours || 0) : +e) / n; } }
+  return h;
+}
+$("bAdd").onclick = function () { var v = LT.trim($("quick").value); if (!v) { $("quick").focus(); return; } if (LT.main()) { LT.main().send("tracker", "add-task", v); $("quick").value = ""; } };
+$("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { $("bAdd").onclick(); return false; } };
+$("wrap").onclick = function (e) {
+  var t = e.target || e.srcElement, g = LT.up(t, "data-go"), l = LT.up(t, "data-l"), o = LT.up(t, "data-open");
+  if (g && LT.main()) LT.main().show(g.getAttribute("data-go"));
+  else if (l && LT.main()) { var k = links[+l.getAttribute("data-l")]; if (k.what) LT.main().send(k.tab, k.what, k.value); else LT.main().show(k.tab); }
+  else if (o) { try { LT.open(o.getAttribute("data-open")); } catch (x) { alert("Couldn't open it - it may have moved."); } }
+};
+function look() { LT.applyLook([".box{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}", ".it{border-bottom:1px solid {lineSoft}}", ".it:hover,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".day{color:{muted}}"]); }
+window.ltTheme = function () { look(); };
+window.ltShown = render; window.ltReload = render;
+look(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

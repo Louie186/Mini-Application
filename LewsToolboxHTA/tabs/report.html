@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Weekly Report</title>
+<meta name="lt-order" content="11">
+<meta name="lt-icon" content="&#128202;">
+<meta name="lt-desc" content="Writes your weekly update in one click: done, delegated, sent, next week and team load - ready to paste into an email.">
+<!--
+  Lew's Toolbox - Weekly report: one click pulls together my work (Tracker), delegated work per person (Delegate),
+  submissions sent (Transmittal), next week's deadlines and the team load (Team workload) - ready to copy into an
+  email / Teams, open as an email, or save. Only reads the other tabs' files.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#out{flex:1 1 auto;overflow:auto;min-height:0;padding:16px 20px;line-height:1.5}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+#out h3{font-size:1em;margin:14px 0 4px;text-transform:uppercase;letter-spacing:.4px}
+#out h2{font-size:1.25em;margin:0 0 2px}
+#out ul{margin:0 0 0 22px}
+#out td,#out th{padding:2px 12px 2px 0;text-align:left}
+#secs label{margin-right:12px;white-space:nowrap}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <select id="week" style="width:140px;margin:0 8px 6px 0"><option value="0">This week</option><option value="-1">Last week</option></select>
+    <button class="btn primary" id="bCopy">&#128203; Copy for email / Teams</button>
+    <button class="btn" id="bMail">&#9993; Open as an email</button>
+    <button class="btn" id="bSave">Save (text + CSV)</button>
+    <div id="secs">
+      <label><input type="checkbox" data-s="mine" checked style="height:auto"> My work</label>
+      <label><input type="checkbox" data-s="team" checked style="height:auto"> Delegated work</label>
+      <label><input type="checkbox" data-s="sent" checked style="height:auto"> Submissions sent</label>
+      <label><input type="checkbox" data-s="next" checked style="height:auto"> Next week</label>
+      <label><input type="checkbox" data-s="load" checked style="height:auto"> Team load</label>
+    </div>
+  </div>
+  <div id="out"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, text = "", rows = [];
+function D(s) { return LT.parseIso(s); }
+function todayD() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function read(n) { try { return LT.readJson(LT.dataPath(n), null); } catch (e) { return null; } }
+function on(k) { var b = $("secs").getElementsByTagName("input"); for (var i = 0; i < b.length; i++) if (b[i].getAttribute("data-s") == k) return b[i].checked; return true; }
+function dd(d) { return d.getDate() + " " + LT.MON[d.getMonth()]; }
+function names(s) { var a = ("" + (s || "")).split(/\s*(?:,|;|&|\/|\band\b)\s*/i), o = []; for (var i = 0; i < a.length; i++) if (LT.trim(a[i])) o.push(LT.trim(a[i])); return o; }
+
+function build() {
+  var ws = addDays(todayD(), -((todayD().getDay() + 6) % 7) + 7 * +$("week").value), we = addDays(ws, 6), nws = addDays(ws, 7), nwe = addDays(ws, 13);
+  var inW = function (iso) { var d = D(iso); return d && d >= ws && d <= we; }, inN = function (iso) { var d = D(iso); return d && d >= nws && d <= nwe; };
+  var tr = read("tracker.json") || { tasks: [] }, dl = read("delegate.json") || { tasks: [] }, tm = read("transmittals.json") || { log: [] }, wl = read("workload.json");
+  var me = LT.settings().userName || "", H = [], T = [];
+  rows = [["Section", "Item", "Detail"]];
+  var head = "Weekly report – " + dd(ws) + " to " + dd(we) + " " + we.getFullYear() + (me ? " – " + me : "");
+  H.push("<h2>" + esc(head) + "</h2>"); T.push(head);
+  var section = function (title, lines, key) { if (!lines.length) return; H.push("<h3>" + esc(title) + "</h3><ul>"); T.push("", title.toUpperCase());
+    for (var i = 0; i < lines.length; i++) { H.push("<li>" + esc(lines[i]) + "</li>"); T.push("  • " + lines[i]); rows.push([title, lines[i], ""]); } H.push("</ul>"); };
+
+  if (on("mine")) {
+    var done = [], open = [], hp = {};
+    for (var i = 0; i < (tr.tasks || []).length; i++) { var t = tr.tasks[i];
+      if (t.status == "Done" && inW(t.doneOn)) done.push(t.title + (t.project ? "  [" + t.project + "]" : ""));
+      if (t.status != "Done" && D(t.due) && D(t.due) <= we) open.push(t.title + " – due " + LT.fmtDate(t.due) + (D(t.due) < todayD() ? " (late)" : ""));
+      for (var l = 0; l < (t.log || []).length; l++) if (inW(t.log[l].date)) { var p = t.project || "(no project)"; hp[p] = (hp[p] || 0) + t.log[l].hours; } }
+    section("Done this week (" + done.length + ")", done);
+    section("Still open – due this week or late (" + open.length + ")", open);
+    var hl = [], tot = 0; for (var k in hp) if (hp.hasOwnProperty(k)) { tot += hp[k]; hl.push(k + ": " + Math.round(hp[k] * 10) / 10 + " h"); }
+    if (hl.length) section("Time logged (" + Math.round(tot * 10) / 10 + " h)", hl);
+  }
+  if (on("team")) {
+    var per = {}, order = [], lateL = [];
+    for (var a = 0; a < (dl.tasks || []).length; a++) { var dt = dl.tasks[a], list = dt.subs && dt.subs.length ? dt.subs : [dt];
+      for (var b = 0; b < list.length; b++) { var it = list[b], who = names(it.who || dt.who), due = it.due || dt.due;
+        for (var w = 0; w < who.length; w++) { var key = who[w].toLowerCase(); if (!per[key]) { per[key] = { name: who[w], done: 0, open: 0, late: 0 }; order.push(key); }
+          if (it.status == "Completed") { if (inW(it.doneOn)) per[key].done++; } else { per[key].open++; if (D(due) && D(due) < todayD()) { per[key].late++; if (w == 0) lateL.push(it.code + " " + (list === dt.subs ? dt.title + " – " : "") + it.title + " (" + who.join(", ") + ", due " + LT.fmtDate(due) + ")"); } } } } }
+    order.sort(); var pl = [];
+    for (var o = 0; o < order.length; o++) { var pr = per[order[o]]; pl.push(pr.name + ": " + pr.done + " completed this week, " + pr.open + " open" + (pr.late ? ", " + pr.late + " LATE" : "")); }
+    section("Delegated work by person", pl); section("Late delegated items (" + lateL.length + ")", lateL);
+  }
+  if (on("sent")) {
+    var sl = []; for (var s = 0; s < (tm.log || []).length; s++) { var x = tm.log[s]; if (!inW(x.date)) continue; sl.push(x.no + " – " + (x.to || "?") + " – " + x.purpose + " – " + x.items.length + " document(s), " + LT.fmtDate(x.date)); }
+    section("Submissions sent (" + sl.length + ")", sl);
+  }
+  if (on("next")) {
+    var nl = [];
+    for (var n1 = 0; n1 < (tr.tasks || []).length; n1++) { var t1 = tr.tasks[n1]; if (t1.status != "Done" && inN(t1.due)) nl.push({ d: t1.due, s: LT.fmtDate(t1.due) + " – " + t1.title + " (me)" }); }
+    for (var n2 = 0; n2 < (dl.tasks || []).length; n2++) { var t2 = dl.tasks[n2], l2 = t2.subs && t2.subs.length ? t2.subs : [t2];
+      for (var n3 = 0; n3 < l2.length; n3++) if (l2[n3].status != "Completed" && inN(l2[n3].due || t2.due)) nl.push({ d: l2[n3].due || t2.due, s: LT.fmtDate(l2[n3].due || t2.due) + " – " + l2[n3].code + " " + l2[n3].title + " (" + (l2[n3].who || t2.who) + ")" }); }
+    nl.sort(function (p1, p2) { return p1.d < p2.d ? -1 : 1; }); var ns = []; for (var n4 = 0; n4 < nl.length; n4++) ns.push(nl[n4].s);
+    section("Coming up next week (" + ns.length + ")", ns);
+  }
+  if (on("load") && wl && wl.people && wl.people.length) {
+    var ll = [], est = wl.estimates || {};
+    for (var q = 0; q < wl.people.length; q++) { var pp = wl.people[q], h = 0;
+      for (var r = 0; r < (dl.tasks || []).length; r++) { var t3 = dl.tasks[r], l3 = t3.subs && t3.subs.length ? t3.subs : [t3];
+        for (var r2 = 0; r2 < l3.length; r2++) { var i3 = l3[r2]; if (i3.status == "Completed") continue; var who3 = names(i3.who || t3.who), mine = false; for (var r3 = 0; r3 < who3.length; r3++) if (who3[r3].toLowerCase() == pp.name.toLowerCase()) mine = true; if (!mine) continue;
+          var d3 = D(i3.due || t3.due); if (d3 && (d3 < nws || d3 > nwe) && !(d3 < nws && d3 < todayD())) continue; if (!d3) continue;
+          var e3 = est[i3.code]; h += (e3 == null || e3 === "" ? (wl.defaultHours || 0) : +e3) / who3.length; } }
+      var pct = pp.hours ? Math.round(h / pp.hours * 100) : 0; ll.push(pp.name + ": " + Math.round(h * 10) / 10 + " of " + pp.hours + " h next week (" + pct + "%)" + (pct > 100 ? " – OVERLOADED" : pct < 50 ? " – has room" : "")); }
+    section("Team load next week", ll);
+  }
+  if (H.length == 1) { H.push('<div class="muted" style="margin-top:12px">Nothing to report yet for this week &ndash; it fills in from Tracker, Delegate, Transmittal and Team workload.</div>'); T.push("", "Nothing to report."); }
+  $("out").innerHTML = H.join(""); text = T.join("\r\n");
+}
+$("week").onchange = build; $("secs").onclick = function (e) { if ((e.target || e.srcElement).tagName == "INPUT") build(); };
+$("bCopy").onclick = function () { build(); if (LT.copyText(text)) LT.toast("Report copied - paste it into an email or Teams"); };
+$("bMail").onclick = function () { build(); var subj = text.split("\r\n")[0], body = text.length > 1800 ? text.substring(0, 1800) + "\r\n… (shortened - use Copy for the full report)" : text;
+  try { LT.open("mailto:?subject=" + encodeURIComponent(subj) + "&body=" + encodeURIComponent(body)); } catch (e) { alert("Couldn't open your email program - use Copy instead."); } };
+$("bSave").onclick = function () { build(); var base = LT.exportsDir() + "\\WeeklyReport_" + LT.today(); try { LT.writeUtf8(base + ".txt", text, true); LT.writeCsv(base + ".csv", rows); LT.showInFolder(base + ".txt"); } catch (e) { alert("Couldn't save the report."); } };
+function look() { LT.applyLook(["#out{background:{panel}}", "#out h3{color:{accent}}"]); }
+window.ltTheme = look; window.ltShown = build; window.ltReload = build;
+look(); build(); LT.tabKeys();
+</script>
+</body>
+</html>

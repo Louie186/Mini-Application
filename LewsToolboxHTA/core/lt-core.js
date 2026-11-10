@@ -333,7 +333,7 @@ var LT = (function () {
     "table.grid .fz{position:relative;z-index:1;white-space:nowrap}table.grid td.fz{background-color:{bg}}table.grid th.fz{z-index:2}",
     "table.grid .fzl{border-right:2px solid {line}}",
     "table.grid tr.fhr th{position:relative;z-index:4;border-bottom:{bw}px solid {line};background-color:{panel}}table.grid tr.fhr th.fz{z-index:5}",
-    ".fhc{position:absolute;z-index:8;display:none;box-shadow:0 3px 6px rgba(0,0,0,.18)}.fhc table.grid{margin:0}",
+    ".fhc{position:fixed;z-index:8;display:none;overflow:hidden;box-shadow:0 3px 6px rgba(0,0,0,.18)}.fhc table.grid{margin-top:0;margin-bottom:0}",
     "table.grid .rn{text-align:right;color:{muted};font-weight:normal;padding-right:8px}table.grid td.rn{font-size:.9em}",
     "table.grid th .rz{position:absolute;right:-3px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3}table.grid th .rz:hover{background:{accent}}",
     "#toast .undo{display:inline-block;margin-left:14px;padding:1px 10px;cursor:pointer;text-decoration:underline}",
@@ -483,51 +483,61 @@ var LT = (function () {
   function pageKey() { var p = ("" + location.pathname).replace(/\\/g, "/"); return p.substring(p.lastIndexOf("/") + 1).replace(/\.\w+$/, "").toLowerCase(); }
   function headText(th) { return L.trim((th.textContent || th.innerText || "").replace(/\s+/g, " ")) || "#"; }
   function savedW() { var s = L.settings(); return s.gridCols || {}; }
+  /* Scrolling. Two things follow the scroll, done so they don't lag:
+     - frozen columns: one style rule per scroll area, rewritten ONLY when you scroll sideways
+     - column titles: a copy of the heading row sits OUTSIDE the scroll area, on top of it, so scrolling
+       down never moves it (nothing to catch up). Sideways it slides with the columns. Ticking, clicking
+       and dragging a column edge on it act on the real heading. */
   function fzRules() {
     if (!gridCss) { gridCss = document.createElement("style"); document.getElementsByTagName("head")[0].appendChild(gridCss); }
-    var r = [], sc = document.querySelectorAll ? document.querySelectorAll("[data-fzc]") : [];
+    var sc = document.querySelectorAll ? document.querySelectorAll("[data-fzc]") : [], r = [], changed = false;
     for (var i = 0; i < sc.length; i++) {
-      var box = sc[i], top = box.getBoundingClientRect().top;
-      r.push('[data-fzc="' + box.getAttribute("data-fzc") + '"] .fz{left:' + box.scrollLeft + "px}");
-      // frozen cells take the colour of the area behind the table, so the row looks the same all the way along
-      var bg = css(box, "backgroundColor"); if (bg && bg != "transparent" && !/rgba\([^)]*,\s*0\)/.test(bg)) r.push('[data-fzc="' + box.getAttribute("data-fzc") + '"] td.fz{background-color:' + bg + "}");
-      headCopies(box, top);
+      var box = sc[i], id = box.getAttribute("data-fzc");
+      if (box.className == "fhc") continue;
+      if (box.__sl !== box.scrollLeft) { box.__sl = box.scrollLeft; changed = true; }
+      r.push('[data-fzc="' + id + '"] .fz{left:' + box.scrollLeft + "px}");
+      var bg = css(box, "backgroundColor"); if (bg && bg != "transparent" && !/rgba\([^)]*,\s*0\)/.test(bg)) r.push('[data-fzc="' + id + '"] td.fz{background-color:' + bg + "}");
     }
-    setCss(gridCss, r.join("\n"));
+    var txt = r.join("\n"); if (changed || gridCss.__t !== txt) { gridCss.__t = txt; setCss(gridCss, txt); }
+    for (var j = 0; j < sc.length; j++) if (sc[j].className != "fhc") headBar(sc[j]);
   }
-  /* Column titles stay on top when you scroll down. Internet Explorer (the HTA) can't move table heading
-     cells reliably, so a copy of the heading row floats over the list instead. Ticking / clicking / dragging
-     a column edge on the copy does it on the real heading. */
-  function headCopies(box, top) {
-    if (css(box, "position") == "static") box.style.position = "relative";
-    var kids = box.childNodes, have = [];
-    for (var c = kids.length - 1; c >= 0; c--) { var k = kids[c]; if (k.className == "fhc") { if (!k.__src || !box.contains(k.__src)) box.removeChild(k); else have.push(k); } }
-    var ts = box.getElementsByTagName("table");
-    for (var j = 0; j < ts.length; j++) {
-      var tb = ts[j]; if (!tb.getAttribute("data-fzt") || hasCls(tb, "fhcopy") || !tb.rows.length) continue;
-      var cp = null; for (var h = 0; h < have.length; h++) if (have[h].__src === tb) cp = have[h];
-      var hr = tb.rows[0], tr = tb.getBoundingClientRect(), y = top - tr.top;
-      y = Math.max(0, Math.min(y, tb.offsetHeight - hr.offsetHeight));
-      if (y <= 0) { if (cp) cp.style.display = "none"; continue; }
-      if (!cp || cp.__w != tb.offsetWidth || cp.__n != hr.cells.length) {
-        if (cp) box.removeChild(cp);
-        cp = document.createElement("div"); cp.className = "fhc"; cp.__src = tb; cp.__w = tb.offsetWidth; cp.__n = hr.cells.length;
-        var t2 = document.createElement("table"); t2.className = tb.className + " fhcopy nofit"; t2.style.tableLayout = "fixed"; t2.style.width = tb.offsetWidth + "px"; t2.__src = tb;
-        var cgs = tb.getElementsByTagName("colgroup"); if (cgs.length) t2.appendChild(cgs[0].cloneNode(true));
-        var tbd = document.createElement("tbody"), hc = hr.cloneNode(true); tbd.appendChild(hc); t2.appendChild(tbd);
-        var all = t2.getElementsByTagName("*"); for (var a = 0; a < all.length; a++) if (all[a].id) all[a].removeAttribute("id");
-        cp.appendChild(t2); box.appendChild(cp);
-        cp.onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (t.getAttribute && (t.getAttribute("data-grz") != null || t.getAttribute("data-rz") != null)) return;
-          var th = t; while (th && th.tagName != "TH") th = th.parentNode; if (!th) return;
-          var real = this.__src.rows[0].cells[th.cellIndex]; if (!real) return;
-          var target = real; if (t.tagName == "INPUT") { var ins = real.getElementsByTagName("input"); if (ins.length) target = ins[0]; }
-          if (e.stopPropagation) e.stopPropagation(); e.cancelBubble = true; if (e.preventDefault) e.preventDefault(); e.returnValue = false;
-          var cp0 = this; window.setTimeout(function () { target.click(); cp0.__w = -1; fzRules(); }, 0); };
-      }
-      cp.style.display = "block";
-      cp.style.left = Math.round(tr.left - box.getBoundingClientRect().left + box.scrollLeft - (box.clientLeft || 0)) + "px";
-      cp.style.top = Math.round(box.scrollTop + y + (tr.top - top)) + "px";
+  function onScroll(e) {
+    var box = (e && (e.currentTarget || e.target)) || (window.event && window.event.srcElement); if (!box || !box.getAttribute) return;
+    if (box.__sl !== box.scrollLeft) fzRules(); else headBar(box);   // down only: just the titles, no restyling
+  }
+  function headBar(box) {
+    var ov = box.__ov;
+    if (!ov) {
+      ov = box.__ov = document.createElement("div"); ov.className = "fhc"; ov.setAttribute("data-fzc", box.getAttribute("data-fzc")); ov.__box = box;
+      document.body.appendChild(ov);
+      ov.onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (t.getAttribute && (t.getAttribute("data-grz") != null || t.getAttribute("data-rz") != null)) return;
+        var th = t; while (th && th.tagName != "TH") th = th.parentNode; if (!th || !this.__src) return;
+        var real = this.__src.rows[0].cells[th.cellIndex]; if (!real) return;
+        var target = real; if (t.tagName == "INPUT") { var ins = real.getElementsByTagName("input"); if (ins.length) target = ins[0]; }
+        if (e.preventDefault) e.preventDefault(); e.returnValue = false;
+        var o = this; window.setTimeout(function () { target.click(); o.__w = -1; headBar(o.__box); }, 0); };
     }
+    // the table whose rows are at the top of the view right now
+    var bt = box.getBoundingClientRect(), ts = box.getElementsByTagName("table"), tb = null, y = 0;
+    for (var i = 0; i < ts.length; i++) { var t = ts[i]; if (!t.getAttribute("data-fzt") || !t.rows.length) continue;
+      var tr = t.getBoundingClientRect(), hh = t.rows[0].offsetHeight;
+      if (tr.top < bt.top && tr.bottom > bt.top + hh) { tb = t; y = tr.bottom - bt.top - hh; break; } }
+    if (!tb || !box.offsetHeight) { ov.style.display = "none"; return; }
+    if (ov.__src !== tb || ov.__w != tb.offsetWidth || ov.__n != tb.rows[0].cells.length) {
+      ov.innerHTML = ""; ov.__src = tb; ov.__w = tb.offsetWidth; ov.__n = tb.rows[0].cells.length;
+      var t2 = document.createElement("table"); t2.className = tb.className + " fhcopy nofit"; t2.style.tableLayout = "fixed"; t2.style.width = tb.offsetWidth + "px"; t2.__src = tb;
+      var cgs = tb.getElementsByTagName("colgroup"); if (cgs.length) t2.appendChild(cgs[0].cloneNode(true));
+      var tbd = document.createElement("tbody"); tbd.appendChild(tb.rows[0].cloneNode(true)); t2.appendChild(tbd);
+      var all = t2.getElementsByTagName("*"); for (var a = 0; a < all.length; a++) if (all[a].id) all[a].removeAttribute("id");
+      ov.appendChild(t2); ov.__t2 = t2;
+    }
+    // sits exactly over the top of the scroll area (scrollbar left clear), slides up as the table ends
+    var cw = box.clientWidth, hgt = tb.rows[0].offsetHeight;
+    ov.style.left = Math.round(bt.left + (box.clientLeft || 0)) + "px";
+    ov.style.top = Math.round(bt.top + (box.clientTop || 0) + Math.min(0, y)) + "px";
+    ov.style.width = cw + "px"; ov.style.height = hgt + "px";
+    ov.__t2.style.marginLeft = Math.round(tb.getBoundingClientRect().left - bt.left - (box.clientLeft || 0)) + "px";
+    ov.style.display = "block";
   }
   function fitGrid(tb) {
     if (tb.getAttribute("data-fit") || hasCls(tb, "nofit") || L.up(tb, "data-nofit")) return;
@@ -584,7 +594,7 @@ var LT = (function () {
     var sc = scroller(tb);
     if (sc && !sc.getAttribute("data-fzc")) {
       sc.setAttribute("data-fzc", "" + (++gridSeq));
-      if (sc.attachEvent) sc.attachEvent("onscroll", fzRules); else sc.addEventListener("scroll", fzRules, false);
+      if (sc.attachEvent) sc.attachEvent("onscroll", function () { onScroll({ currentTarget: sc }); }); else sc.addEventListener("scroll", onScroll, false);
     }
     fzRules();
   }
@@ -627,6 +637,7 @@ var LT = (function () {
       } else window.setInterval(function () { L.fitGrids(); }, 400);
     };
     if (window.addEventListener) window.addEventListener("load", start, false); else window.attachEvent("onload", start);
+    var rs = function () { fzRules(); }; if (window.addEventListener) window.addEventListener("resize", rs, false); else window.attachEvent("onresize", rs);
   })();
 
   L.tabKeys = function () {

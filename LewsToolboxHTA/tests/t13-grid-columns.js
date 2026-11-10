@@ -24,17 +24,17 @@ module.exports = async ({ page, out }) => {
   await page.waitForTimeout(300);
   const h0 = await f.evaluate(() => document.querySelector('#main table.grid:not(.fhcopy)').rows[0].getBoundingClientRect().top);
   await f.evaluate(() => { $('main').scrollTop = 600; $('main').dispatchEvent(new Event('scroll')); }); await page.waitForTimeout(100);
-  const hs = await f.evaluate(() => { var tb = document.querySelector('#main table.grid:not(.fhcopy)'), cp = document.querySelector('#main .fhc'), th = cp && cp.querySelector('th:nth-child(3)');
+  const hs = await f.evaluate(() => { var tb = document.querySelector('#main table.grid:not(.fhcopy)'), cp = document.querySelector('.fhc'), th = cp && cp.querySelector('th:nth-child(3)');
     return [th ? th.getBoundingClientRect().top : -1, $('main').getBoundingClientRect().top, $('main').scrollTop, tb.rows[tb.rows.length - 1].cells[0].innerText, th ? th.textContent : '', cp ? getComputedStyle(cp).display : '', cp ? cp.querySelector('th').getBoundingClientRect().left - tb.rows[0].cells[0].getBoundingClientRect().left : -1]; });
   ok(hs[2] > 500 && hs[5] == 'block' && Math.abs(hs[0] - hs[1]) < 3 && /Task/.test(hs[4]) && Math.abs(hs[6]) < 2, 'scroll down: the column titles stay at the top, lined up with the columns (scrolled ' + hs[2] + 'px)');
   // sideways while scrolled down: the No. / ID titles stay too
   await f.evaluate(() => { $('main').scrollLeft = 200; $('main').dispatchEvent(new Event('scroll')); }); await page.waitForTimeout(100);
-  ok(await f.evaluate(() => { var cp = document.querySelector('#main .fhc'), a = cp.querySelector('th.fz').getBoundingClientRect().left, b = $('main').getBoundingClientRect().left; return Math.abs(a - b) < 3; }), 'scroll down and right: No. title stays at the left');
+  ok(await f.evaluate(() => { var cp = document.querySelector('.fhc'), a = cp.querySelector('th.fz').getBoundingClientRect().left, b = $('main').getBoundingClientRect().left; return Math.abs(a - b) < 3; }), 'scroll down and right: No. title stays at the left');
   // drag a column edge on the floating titles = resizes the real column
-  const gg = await f.evaluate(() => { var r = document.querySelector('#main .fhc th:nth-child(4) .rz').getBoundingClientRect(); return { x: r.left + 4, y: r.top + r.height / 2, w: document.querySelector('#main table.grid:not(.fhcopy)').rows[0].cells[3].offsetWidth }; });
+  const gg = await f.evaluate(() => { var r = document.querySelector('.fhc th:nth-child(4) .rz').getBoundingClientRect(); return { x: r.left + 4, y: r.top + r.height / 2, w: document.querySelector('#main table.grid:not(.fhcopy)').rows[0].cells[3].offsetWidth }; });
   const frm = await (await page.$('#f_delegate')).boundingBox();
   await page.mouse.move(frm.x + gg.x, frm.y + gg.y); await page.mouse.down(); await page.mouse.move(frm.x + gg.x + 60, frm.y + gg.y, { steps: 4 }); await page.mouse.up(); await page.waitForTimeout(100);
-  ok(await f.evaluate(w => { var tb = document.querySelector('#main table.grid:not(.fhcopy)'), cp = document.querySelector('#main .fhc th:nth-child(4)'); return tb.rows[0].cells[3].offsetWidth >= w + 50 && Math.abs(cp.offsetWidth - tb.rows[0].cells[3].offsetWidth) < 2; }, gg.w), 'drag an edge on the floating titles: real column wider, titles stay lined up');
+  ok(await f.evaluate(w => { var tb = document.querySelector('#main table.grid:not(.fhcopy)'), cp = document.querySelector('.fhc th:nth-child(4)'); return tb.rows[0].cells[3].offsetWidth >= w + 50 && Math.abs(cp.offsetWidth - tb.rows[0].cells[3].offsetWidth) < 2; }, gg.w), 'drag an edge on the floating titles: real column wider, titles stay lined up');
   await f.evaluate(() => { $('main').scrollLeft = 0; $('main').dispatchEvent(new Event('scroll')); });
   ok(hs[3] == '60', 'rows numbered 1 to 60');
   await page.screenshot({ path: out + '/g_scrolled_down.png' });

@@ -20,7 +20,7 @@
 .big{font-weight:bold}
 #heat{padding:0 14px 8px;flex:none}
 #heat td.c{text-align:center;cursor:pointer;font-weight:bold;width:130px}
-#heat td.c.sel{outline:2px solid #000}
+#heat td.c.sel{outline:2px solid}
 .chip2{display:inline-block;padding:3px 10px;margin:0 6px 6px 0;cursor:pointer}
 #items input{width:70px;height:24px;text-align:right}
 .right{float:right}
@@ -118,8 +118,8 @@ $("people").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "da
 $("heat").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-c"); if (!c) return; var a = c.getAttribute("data-c").split(","); pick = { p: +a[0], w: +a[1] }; render(); };
 $("items").onchange = function (e) { var t = e.target || e.srcElement, k = t.getAttribute && t.getAttribute("data-k"); if (k == null) return; var v = LT.trim(t.value).replace(",", ".");
   if (v === "") delete store.estimates[k]; else if (!(parseFloat(v) >= 0)) { alert("Type a number of hours, e.g. 4 or 1.5"); return; } else store.estimates[k] = parseFloat(v); save(); render(); };
-function look() { LT.applyLook([".chip2{background:{chip};border-radius:{rc}px}", "#heat td.c.cool{background:#d9f2e3;color:#14532d}", "#heat td.c.warm{background:#fff1c2;color:#7a4b00}", "#heat td.c.hot{background:#f9d0cc;color:#8a1c12}", "#heat td.c.z{color:{muted}}",
-  ".cool{color:#1f8a4c}.warm{color:#a86500}.hot{color:#c0392b}", ".un{font-weight:normal;font-size:.8em;opacity:.8}", "#items{background:{panel}}", "#heat td.c.sel{outline:2px solid {accent}}"]); }
+function look() { LT.applyLook([".chip2{background:{chip};border-radius:{rc}px}", "#heat td.c.cool{background:{okSoft};color:{ok}}", "#heat td.c.warm{background:{warnSoft};color:{warn}}", "#heat td.c.hot{background:{badSoft};color:{bad}}", "#heat td.c.z{color:{muted}}",
+  ".cool{color:{ok}}.warm{color:{warn}}.hot{color:{bad}}", ".un{font-weight:normal;font-size:.8em;opacity:.8}", "#items{background:{panel}}", "#heat td.c.sel{outline:2px solid {accent}}"]); }
 window.ltTheme = look; window.ltShown = render; window.ltReload = function () { load(); render(); };
 look(); load(); render(); LT.tabKeys();
 </script>

@@ -464,6 +464,16 @@ var THEMES={
   console:{name:"Retro Console",bg:"#dfe7f2",panel:"#c9d6ea",hover:"#f0f5fc",text:"#141b33",muted:"#5a6a90",line:"#1b2a6b",accent:"#1b2a6b",accText:"#f0f5fc",chip:"#d3deef",
     font:"'Lucida Console',Consolas,monospace",r:0,bw:2,shadow:"3px 3px 0 #1b2a6b",big:"6px 6px 0 #1b2a6b",retro:1}
 };
+/* Lew's Toolbox: any look the Toolbox has that this list doesn't (e.g. Slate) comes from core\lt-core.js,
+   so every tab always shows the same look */
+(function(){ try{ for(var k in LT.THEMES) if(LT.THEMES.hasOwnProperty(k)&&!THEMES[k]) THEMES[k]=LT.THEMES[k]; }catch(e){} })();
+var CSS_SLATE=[
+ ".btn,.chip,#q{border-radius:99px}",
+ ".btn.on{background:{chip};color:{text}}",
+ ".chip.on{background:{chip};color:{text};box-shadow:inset 0 -2px 0 {accent2}}",
+ ".lhead{text-transform:none;letter-spacing:0}",
+ ".tile:hover,.row:hover{background:{hover}}"
+];
 var SIZES={
   compact:{name:"Compact",fs:12,row:30,ic:18,tile:78,tic:28},
   normal:{name:"Normal",fs:13,row:36,ic:22,tile:90,tic:34},
@@ -541,12 +551,13 @@ var CSS_GRID=[
 ];
 function setCss(el,css){ if(el.styleSheet&&typeof el.styleSheet.cssText=="string") el.styleSheet.cssText=css; else el.textContent=css; }
 function applyLook(){
-  var t=THEMES[store.theme]||THEMES.retro, z=SIZES[store.size]||SIZES.normal, v={};
+  var t=THEMES[store.theme]||THEMES.light, z=SIZES[store.size]||SIZES.normal, v={};
   for(var a in t) v[a]=t[a]; for(var b in z) v[b]=z[b];
   v.rc=t.r?99:0; v.r2=t.r?t.r+2:0; v.ri=t.r?4:0; v.rti=t.r?8:0;
   v.icf=Math.round(z.ic*0.36); v.ticf=Math.round(z.tic*0.3);
   v.lineSoft=t.retro?"rgba(0,0,0,.25)":t.line;
   var rules=CSS.slice(0); if(t.retro) rules=rules.concat(CSS_RETRO); if(t.grid) rules=rules.concat(CSS_GRID);
+  if(t.slate) rules=rules.concat(CSS_SLATE);
   if(t.badge) rules.push(".ico .bdg{background:{badge} !important;color:{badgeText} !important}");
   var bs=store.btnStyle||"auto"; if(bs=="clean"||(bs=="auto"&&!t.retro)) rules=rules.concat(CSS_CLEAN);
   setCss($("themeCss"),rules.join("\n").replace(/\{(\w+)\}/g,function(m,k){ return v[k]!==undefined?v[k]:m; }));

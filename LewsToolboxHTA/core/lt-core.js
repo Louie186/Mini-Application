@@ -346,6 +346,10 @@ var LT = (function () {
     var s = L.settings(), t = L.THEMES[s.theme] || L.THEMES.light, z = L.SIZES[s.size] || L.SIZES.normal, v = {};
     for (var a in t) v[a] = t[a]; for (var b in z) v[b] = z[b];
     v.rc = t.r ? 99 : 0; v.r2 = t.r ? t.r + 2 : 0; v.lineSoft = t.retro ? "rgba(0,0,0,.25)" : t.line;
+    // soft see-through versions of the status colours, for highlighted cells (follow every look)
+    var soft = function (hex, a) { var h = ("" + hex).replace("#", ""); if (h.length == 3) h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2); return "rgba(" + parseInt(h.substring(0, 2), 16) + "," + parseInt(h.substring(2, 4), 16) + "," + parseInt(h.substring(4, 6), 16) + "," + a + ")"; };
+    v.ok = v.ok || "#1f8a4c"; v.warn = v.warn || "#a86500"; v.bad = v.bad || "#c0392b"; v.accent2 = v.accent2 || v.accent;
+    v.okSoft = soft(v.ok, .18); v.warnSoft = soft(v.warn, .2); v.badSoft = soft(v.bad, .2);
     return v;
   };
   function setCss(el, css) { if (el.styleSheet && typeof el.styleSheet.cssText == "string") el.styleSheet.cssText = css; else el.textContent = css; }

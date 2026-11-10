@@ -165,6 +165,9 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
    - Each drawing shows the **file types found** (e.g. `dwg, pdf`) and its Tower / Typology / Model
    - **Tower / Typology filters**, and **Show ▾ > Summary by tower / typology**: drawings, found, missing, wrong revision, file types and model per group (also in the copied summary and the Excel report)
 - **Show:** problems only, missing, wrong revision, files not on the list… Double-click a row to open its folder
+- **⬆ Remaining on top** (tick box next to Show, on by default): drawings **not yet in the folder** go to the top under **⏳ Remaining**, then **✔ In the folder** in your list's order
+  - Order on top: Missing → Missing file type → Wrong revision. The red number next to it = how many are remaining
+  - Untick to keep your list's order. Remembered
 - **Report ▾:** Excel report (through Excel, or CSV if Excel isn't there), copy summary for email / Teams, other notes
 - **Fix names in Bulk Files** opens the folder in Bulk Files. Folder, list and columns are remembered
 

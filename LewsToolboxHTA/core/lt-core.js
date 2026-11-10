@@ -571,6 +571,8 @@ var LT = (function () {
     for (var cr = 1; cr < tb.rows.length; cr++) { var cl2 = tb.rows[cr].cells; if (cl2.length != ths.length) continue; for (var cj in cc) if (cc.hasOwnProperty(cj) && cl2[cj]) cl2[cj].className += " code"; }
     // frozen: No., tick boxes + the first column with a real heading (drawing / document number)
     var nf = 0; for (var i = 0; i < ths.length; i++) { nf = i + 1; if (!hasCls(ths[i], "rn") && headText(ths[i]) != "#" && ths[i].offsetWidth > 48) break; }
+    // ...or up to the drawing / document number column, when it's one of the first few (e.g. Row | Category | On the list)
+    for (var cf = nf; cf < Math.min(ths.length - 1, 4); cf++) if (cc[cf]) { nf = cf + 1; break; }
     if (nf >= ths.length) nf = Math.max(0, ths.length - 1);
     var own = tb.getElementsByTagName("colgroup").length > 0;   // the tab already sizes its columns (Drawing Register)
     var key = pageKey(), sw = savedW(), cg = null, tot = 0, nat = [];

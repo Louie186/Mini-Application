@@ -52,6 +52,7 @@
   <div class="step bar">
     <span class="num">3</span><button class="btn primary" id="bRun">&#9654; Check</button>
     <span class="lbl">Show:</span><select id="show" style="width:225px;height:26px;margin:0 8px 6px 0"><option value="all">Everything</option><option value="bad" selected>Problems only</option><option value="miss">Missing</option><option value="rev">Wrong revision</option><option value="extra">Files not on the list</option><option value="ok">OK only</option><option value="groups">Summary by tower / typology</option></select>
+    <label class="lbl" id="remBox" title="Drawings not yet in the folder (missing, missing a file type, wrong revision) go to the top. Untick to keep your list's order."><input type="checkbox" id="remTop" style="height:auto"> &#11014; Remaining on top <span id="remN" class="bad" style="font-weight:bold"></span></label>
     <span id="fBox" style="display:none"><span class="lbl">Tower:</span><select id="fTower" style="width:120px;height:26px;margin:0 8px 6px 0"></select><span class="lbl">Typology:</span><select id="fTypo" style="width:120px;height:26px;margin:0 8px 6px 0"></select></span>
     <span class="right"><button class="btn" id="bReport">Report &#9662;</button><button class="btn" id="bFix" title="Open the folder in Bulk Files to fix names">Fix names in Bulk Files</button></span>
   </div>
@@ -64,7 +65,7 @@ var cfg, table = null, head = [], headRow = 0, sheets = [], last = null, shown =
 var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
 var NAME_WORDS = ["file name", "filename", "drawing number", "drawing no", "drawing no.", "dwg no", "dwg number", "document number", "document no", "doc no", "doc number", "number", "name", "file", "deliverable"];
 function CFG() { return LT.dataPath("check.json"); }
-function loadCfg() { cfg = LT.readJson(CFG(), null) || {}; var d = { folder: "", list: "", formats: "", subs: true, colName: "", colRev: "", colFmt: "", colFolder: "", colTitle: "", colTower: "", colTypo: "", colModel: "" }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
+function loadCfg() { cfg = LT.readJson(CFG(), null) || {}; var d = { folder: "", list: "", formats: "", subs: true, colName: "", colRev: "", colFmt: "", colFolder: "", colTitle: "", colTower: "", colTypo: "", colModel: "", remTop: true }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
 function saveCfg() { try { LT.saveJson(CFG(), cfg); } catch (e) { } }
 function up(s) { return LT.trim(s).toUpperCase(); }
 function exts(s) { var a = ("" + (s || "")).split(/[\s,;\/+&]+/), o = []; for (var i = 0; i < a.length; i++) { var x = LT.trim(a[i]).replace(/^\./, "").toLowerCase(); if (x && o.indexOf(x) < 0) o.push(x); } return o; }
@@ -226,10 +227,16 @@ function render() {
   if (mode == "groups") { groups(); return; }
   var h = ['<table class="grid"><tr><th>Row</th><th>Category</th><th>On the list</th><th>Title</th>' + (ex.tower ? "<th>Tower</th>" : "") + (ex.typo ? "<th>Typology</th>" : "") + (ex.model ? "<th>Model</th>" : "") + '<th>Rev</th><th>File types found</th><th>Result</th><th>Found in folder</th><th>Note</th></tr>'];
   shown = [];
-  if (mode != "extra") for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i];
+  /* Remaining on top: not yet in the folder first (missing, then missing a file type, then wrong revision), the rest in list order */
+  var rank = function (r) { return r.status == "Missing" ? 0 : r.status == "Missing file type" ? 1 : r.status == "Wrong revision" ? 2 : 3; };
+  var rows = last.rows.slice(0), top = cfg.remTop && mode != "extra", nRem = 0, nDone = 0, span = 9 + (ex.tower ? 1 : 0) + (ex.typo ? 1 : 0) + (ex.model ? 1 : 0), head = -1;
+  if (top) rows.sort(function (a, b) { return rank(a) - rank(b) || a.no - b.no; });
+  for (var c = 0; c < rows.length; c++) if (passFilter(rows[c]) && (mode != "bad" || rows[c].lv) && (mode != "ok" || !rows[c].lv) && (mode != "miss" || rows[c].status == "Missing" || rows[c].status == "Missing file type") && (mode != "rev" || rows[c].status == "Wrong revision")) { if (rank(rows[c]) < 3) nRem++; else nDone++; }
+  if (mode != "extra") for (var i = 0; i < rows.length; i++) { var r = rows[i];
     if (!passFilter(r)) continue;
     if (mode == "bad" && r.lv == 0) continue; if (mode == "miss" && r.status != "Missing" && r.status != "Missing file type") continue; if (mode == "rev" && r.status != "Wrong revision") continue; if (mode == "ok" && r.lv != 0) continue;
     var fl = []; for (var f = 0; f < r.files.length && f < 3; f++) fl.push(esc(r.files[f].rel)); if (r.files.length > 3) fl.push("&hellip;");
+    if (top && nRem && nDone) { var g = rank(r) < 3 ? 0 : 1; if (g != head) { head = g; h.push('<tr class="grp"><td colspan="' + span + '">' + (g ? "&#10004; In the folder &nbsp;" + nDone : "&#9203; Remaining &ndash; not yet in the folder &nbsp;" + nRem) + "</td></tr>"); } }
     shown.push(r);
     h.push('<tr data-s="' + (shown.length - 1) + '"><td>' + r.no + '</td><td class="muted">' + esc(r.cat || "") + "</td><td><b>" + esc(r.entry) + "</b></td><td>" + esc(r.title) + "</td>" +
       (ex.tower ? "<td>" + esc(r.tower) + "</td>" : "") + (ex.typo ? "<td>" + esc(r.typo) + "</td>" : "") + (ex.model ? "<td>" + esc(r.model) + "</td>" : "") + "<td>" + esc(r.rev) + "</td><td><b>" + esc((r.found || []).join(", ")) + "</b>" +
@@ -240,6 +247,8 @@ function render() {
     h.push('<tr data-s="' + (shown.length - 1) + '">' + blanks + "<td><b>" + esc(e.ext) + '</b></td><td class="warn" style="font-weight:bold;white-space:nowrap">&#10133; Not on the list</td><td>' + esc(e.rel) + '</td><td class="muted">' + (e.size == 0 ? "Empty file (0 KB)" : "") + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+  var all = 0; for (var q = 0; q < last.rows.length; q++) if (last.rows[q].status == "Missing" || last.rows[q].status == "Missing file type" || last.rows[q].status == "Wrong revision") all++;
+  $("remN").innerHTML = all ? all : ""; $("remN").className = all ? "bad" : "ok"; if (!all) $("remN").innerHTML = "&#10004; 0";
 }
 /* one line per tower + typology: how many drawings, found, missing, wrong revision, file types, models */
 function groupRows() {
@@ -316,7 +325,8 @@ function reportMenu(x, y) {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}"]); }
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}",
+  "tr.grp td{background:{chip};font-weight:bold;padding:7px 10px;border-top:{bw}px solid {line}}"]); }
 function under(btn, fn) { return function (e) { var r = btn.getBoundingClientRect(); fn(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; }; }
 $("bFolder").onclick = pickFolder; $("bList").onclick = pickList; $("bRun").onclick = runCheck;
 $("subs").onclick = function () { cfg.subs = this.checked; saveCfg(); };
@@ -330,15 +340,16 @@ $("cModel").onchange = function () { cfg.colModel = this.value; saveCfg(); };
 $("fTower").onchange = render; $("fTypo").onchange = render;
 $("bMoreCols").onclick = under($("bMoreCols"), moreCols);
 $("show").onchange = render;
+$("remTop").onclick = function () { cfg.remTop = this.checked; saveCfg(); render(); };
 $("bReport").onclick = under($("bReport"), reportMenu);
 $("bFix").onclick = function () { if (cfg.folder && LT.main()) LT.main().send("files", "open-folder", cfg.folder); else alert("Pick the submission folder first."); };
 $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-s"); if (!tr) return; var o = shown[+tr.getAttribute("data-s")]; try { if (o.full) LT.showInFolder(o.full); else if (o.files && o.files.length) LT.showInFolder(o.files[0].full); else LT.open(cfg.folder); } catch (x) { } };
 
 /* called by the main window */
 window.ltTheme = function () { look(); };
-window.ltReload = function () { loadCfg(); table = null; showPaths(); };
+window.ltReload = function () { loadCfg(); table = null; showPaths(); $("remTop").checked = cfg.remTop !== false; };
 window.ltReceive = function (what, value) { if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); } };
-look(); loadCfg();
+look(); loadCfg(); $("remTop").checked = cfg.remTop !== false;
 if (cfg.list && fso.FileExists(cfg.list)) { try { if (!/\.(xlsx|xlsm|xls)$/i.test(cfg.list)) readList(cfg.list, false); } catch (e) { } }
 showPaths(); LT.tabKeys();
 </script>

@@ -333,6 +333,7 @@ var LT = (function () {
     "table.grid .fz{position:relative;z-index:1;white-space:nowrap}table.grid td.fz{background-color:{bg}}table.grid th.fz{z-index:2}",
     "table.grid .fzl{border-right:2px solid {line}}",
     "table.grid tr.fhr th{position:relative;z-index:4;border-bottom:{bw}px solid {line};background-color:{panel}}table.grid tr.fhr th.fz{z-index:5}",
+    ".fhc{position:absolute;z-index:8;display:none;box-shadow:0 3px 6px rgba(0,0,0,.18)}.fhc table.grid{margin:0}",
     "table.grid .rn{text-align:right;color:{muted};font-weight:normal;padding-right:8px}table.grid td.rn{font-size:.9em}",
     "table.grid th .rz{position:absolute;right:-3px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3}table.grid th .rz:hover{background:{accent}}",
     "#toast .undo{display:inline-block;margin-left:14px;padding:1px 10px;cursor:pointer;text-decoration:underline}",
@@ -490,13 +491,43 @@ var LT = (function () {
       r.push('[data-fzc="' + box.getAttribute("data-fzc") + '"] .fz{left:' + box.scrollLeft + "px}");
       // frozen cells take the colour of the area behind the table, so the row looks the same all the way along
       var bg = css(box, "backgroundColor"); if (bg && bg != "transparent" && !/rgba\([^)]*,\s*0\)/.test(bg)) r.push('[data-fzc="' + box.getAttribute("data-fzc") + '"] td.fz{background-color:' + bg + "}");
-      // heading row: slides down with the scroll, but never past the bottom of its own table
-      var ts = box.getElementsByTagName("table");
-      for (var j = 0; j < ts.length; j++) { var tb = ts[j], id = tb.getAttribute("data-fzt"); if (!id || !tb.rows.length) continue;
-        var y = top - tb.getBoundingClientRect().top; y = Math.max(0, Math.min(y, tb.offsetHeight - tb.rows[0].offsetHeight));
-        if (y > 0) r.push('table[data-fzt="' + id + '"] tr.fhr th{top:' + Math.round(y) + "px}"); }
+      headCopies(box, top);
     }
     setCss(gridCss, r.join("\n"));
+  }
+  /* Column titles stay on top when you scroll down. Internet Explorer (the HTA) can't move table heading
+     cells reliably, so a copy of the heading row floats over the list instead. Ticking / clicking / dragging
+     a column edge on the copy does it on the real heading. */
+  function headCopies(box, top) {
+    if (css(box, "position") == "static") box.style.position = "relative";
+    var kids = box.childNodes, have = [];
+    for (var c = kids.length - 1; c >= 0; c--) { var k = kids[c]; if (k.className == "fhc") { if (!k.__src || !box.contains(k.__src)) box.removeChild(k); else have.push(k); } }
+    var ts = box.getElementsByTagName("table");
+    for (var j = 0; j < ts.length; j++) {
+      var tb = ts[j]; if (!tb.getAttribute("data-fzt") || hasCls(tb, "fhcopy") || !tb.rows.length) continue;
+      var cp = null; for (var h = 0; h < have.length; h++) if (have[h].__src === tb) cp = have[h];
+      var hr = tb.rows[0], tr = tb.getBoundingClientRect(), y = top - tr.top;
+      y = Math.max(0, Math.min(y, tb.offsetHeight - hr.offsetHeight));
+      if (y <= 0) { if (cp) cp.style.display = "none"; continue; }
+      if (!cp || cp.__w != tb.offsetWidth || cp.__n != hr.cells.length) {
+        if (cp) box.removeChild(cp);
+        cp = document.createElement("div"); cp.className = "fhc"; cp.__src = tb; cp.__w = tb.offsetWidth; cp.__n = hr.cells.length;
+        var t2 = document.createElement("table"); t2.className = tb.className + " fhcopy nofit"; t2.style.tableLayout = "fixed"; t2.style.width = tb.offsetWidth + "px"; t2.__src = tb;
+        var cgs = tb.getElementsByTagName("colgroup"); if (cgs.length) t2.appendChild(cgs[0].cloneNode(true));
+        var tbd = document.createElement("tbody"), hc = hr.cloneNode(true); tbd.appendChild(hc); t2.appendChild(tbd);
+        var all = t2.getElementsByTagName("*"); for (var a = 0; a < all.length; a++) if (all[a].id) all[a].removeAttribute("id");
+        cp.appendChild(t2); box.appendChild(cp);
+        cp.onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (t.getAttribute && (t.getAttribute("data-grz") != null || t.getAttribute("data-rz") != null)) return;
+          var th = t; while (th && th.tagName != "TH") th = th.parentNode; if (!th) return;
+          var real = this.__src.rows[0].cells[th.cellIndex]; if (!real) return;
+          var target = real; if (t.tagName == "INPUT") { var ins = real.getElementsByTagName("input"); if (ins.length) target = ins[0]; }
+          if (e.stopPropagation) e.stopPropagation(); e.cancelBubble = true; if (e.preventDefault) e.preventDefault(); e.returnValue = false;
+          var cp0 = this; window.setTimeout(function () { target.click(); cp0.__w = -1; fzRules(); }, 0); };
+      }
+      cp.style.display = "block";
+      cp.style.left = Math.round(tr.left - box.getBoundingClientRect().left + box.scrollLeft - (box.clientLeft || 0)) + "px";
+      cp.style.top = Math.round(box.scrollTop + y + (tr.top - top)) + "px";
+    }
   }
   function fitGrid(tb) {
     if (tb.getAttribute("data-fit") || hasCls(tb, "nofit") || L.up(tb, "data-nofit")) return;
@@ -563,26 +594,28 @@ var LT = (function () {
   };
   function gridDown(e) {
     e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-grz") == null) return;
-    var tb = L.up(t, "data-fit"), col = tb.getElementsByTagName("col")[+t.getAttribute("data-grz")];
-    gridDrag = { tb: tb, col: col, x: e.clientX, w: col.offsetWidth || parseInt(col.style.width, 10), tw: tb.offsetWidth };
+    var ct = srcOf(t), tb = ct ? ct.__src : L.up(t, "data-fit"), i = +t.getAttribute("data-grz"), col = tb.getElementsByTagName("col")[i];
+    gridDrag = { tb: tb, col: col, x: e.clientX, w: col.offsetWidth || parseInt(col.style.width, 10), tw: tb.offsetWidth, ct: ct, col2: ct ? ct.getElementsByTagName("col")[i] : null };
     if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
   }
   function gridMove(e) {
     if (!gridDrag) return; e = e || window.event;
     var w = Math.max(40, gridDrag.w + e.clientX - gridDrag.x); gridDrag.col.style.width = w + "px"; gridDrag.tb.style.width = (gridDrag.tw + w - gridDrag.w) + "px"; gridDrag.now = w;
+    if (gridDrag.ct) { gridDrag.col2.style.width = w + "px"; gridDrag.ct.style.width = gridDrag.tb.style.width; }
     if (e.preventDefault) e.preventDefault(); e.returnValue = false;
   }
   function gridUp() {
-    if (!gridDrag) return; var d = gridDrag; gridDrag = null; if (!d.now) return;
+    if (!gridDrag) return; var d = gridDrag; gridDrag = null; if (!d.now) return; window.setTimeout(fzRules, 0);
     var s = L.settings(), k = d.col.getAttribute("data-gk"); s.gridCols = s.gridCols || {}; s.gridCols[k] = d.now; gridCache[k] = d.now; L.saveSettings(s);
   }
   function gridDbl(e) {
     e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-grz") == null) return;
-    var tb = L.up(t, "data-fit"), col = tb.getElementsByTagName("col")[+t.getAttribute("data-grz")], k = col.getAttribute("data-gk");
+    var ct = srcOf(t), tb = ct ? ct.__src : L.up(t, "data-fit"), col = tb.getElementsByTagName("col")[+t.getAttribute("data-grz")], k = col.getAttribute("data-gk");
     var s = L.settings(); if (s.gridCols) { delete s.gridCols[k]; L.saveSettings(s); } delete gridCache[k];
     var old = parseInt(col.style.width, 10), w = 150; col.style.width = w + "px"; tb.style.width = (tb.offsetWidth + w - old) + "px"; gridCache[k] = w;
-    if (e.stopPropagation) e.stopPropagation(); e.cancelBubble = true;
+    if (e.stopPropagation) e.stopPropagation(); e.cancelBubble = true; window.setTimeout(fzRules, 0);
   }
+  function srcOf(t) { while (t && t.tagName != "TABLE") t = t.parentNode; return t && t.__src ? t : null; }
   (function () {
     var on = function (n, f, cap) { if (document.addEventListener) document.addEventListener(n, f, !!cap); else document.attachEvent("on" + n, f); };
     on("mousedown", gridDown, true); on("mousemove", gridMove); on("mouseup", gridUp); on("dblclick", gridDbl, true);

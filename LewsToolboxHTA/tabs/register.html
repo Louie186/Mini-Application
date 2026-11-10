@@ -387,6 +387,7 @@ function render() {
   h.push("</table>");
   if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+  if ($("tkAll")) { var all = shown.length > 0; for (var ta = 0; ta < shown.length && all; ta++) if (!ticked[shown[ta]]) all = false; $("tkAll").checked = all; }
   tickBar();
 }
 function tickBar() { var n = keys(ticked).length; $("tickBar").style.display = n ? "block" : "none"; $("tickN").innerHTML = n + " ticked:"; }

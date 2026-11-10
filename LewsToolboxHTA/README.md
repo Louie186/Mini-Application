@@ -56,6 +56,9 @@ No install, no build step.
   - **Double-click** the edge = back to normal
   - Widths are remembered per tab on this PC
 - **Long text wraps** onto more lines instead of being cut off
+- **Codes in a fixed-width font (Consolas)** – drawing numbers, revisions, IDs, models, file names and folders, so they line up character for character
+  - Titles, notes and buttons stay in the normal font (easier to read)
+  - The Retro looks keep their own font
 
 ## Launcher
 

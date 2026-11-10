@@ -329,7 +329,8 @@ var LT = (function () {
     "#menu .sep{height:1px;margin:4px 6px;background:{line}}#menu .mi.on:before{content:'\\2713  '}",
     "#toast{position:fixed;right:18px;bottom:18px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;display:none;background:{accent};color:{accText};border-radius:{r}px;box-shadow:0 6px 20px rgba(0,0,0,.3)}",
     "table.grid.fitm{table-layout:auto!important}table.grid.fitm td,table.grid.fitm th{white-space:nowrap!important}",
-    "table.grid.fit td{white-space:normal;word-wrap:break-word;overflow:hidden}table.grid.fit td.fz{white-space:nowrap}",
+    "table.grid.fit td{white-space:normal;word-wrap:break-word;overflow:hidden;line-height:1.4}table.grid.fit td.fz{white-space:nowrap}",
+    "table.grid td.code,table.grid td.code input{font-family:{mono};font-size:1.04em;letter-spacing:0}table.grid td.code b{font-weight:bold}",
     "table.grid .fz{position:relative;z-index:1;white-space:nowrap}table.grid td.fz{background-color:{bg}}table.grid th.fz{z-index:2}",
     "table.grid .fzl{border-right:2px solid {line}}",
     "table.grid tr.fhr th{position:relative;z-index:4;border-bottom:{bw}px solid {line};background-color:{panel}}table.grid tr.fhr th.fz{z-index:5}",
@@ -352,6 +353,8 @@ var LT = (function () {
     // soft see-through versions of the status colours, for highlighted cells (follow every look)
     var soft = function (hex, a) { var h = ("" + hex).replace("#", ""); if (h.length == 3) h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2); return "rgba(" + parseInt(h.substring(0, 2), 16) + "," + parseInt(h.substring(2, 4), 16) + "," + parseInt(h.substring(4, 6), 16) + "," + a + ")"; };
     v.ok = v.ok || "#1f8a4c"; v.warn = v.warn || "#a86500"; v.bad = v.bad || "#c0392b"; v.accent2 = v.accent2 || v.accent;
+    // fixed-width font for codes (drawing numbers, revisions, IDs, file names): Consolas is on every Windows PC
+    v.mono = t.retro ? t.font : "Consolas,'Cascadia Mono','Lucida Console',monospace";
     v.okSoft = soft(v.ok, .18); v.warnSoft = soft(v.warn, .2); v.badSoft = soft(v.bad, .2);
     return v;
   };
@@ -562,6 +565,10 @@ var LT = (function () {
       }
     }
     head.className += " fhr";
+    // code columns (drawing numbers, revisions, IDs, file names, folders) get the fixed-width font
+    var CODE = /^(drawing|drawing \/ document number|id|rev|revision|before|now|model|file|file name|current name|new name.*|folder|location.*|on the list|found in folder)$/i, cc = {};
+    for (var ci = 0; ci < ths.length; ci++) if (CODE.test(headText(ths[ci]))) cc[ci] = 1;
+    for (var cr = 1; cr < tb.rows.length; cr++) { var cl2 = tb.rows[cr].cells; if (cl2.length != ths.length) continue; for (var cj in cc) if (cc.hasOwnProperty(cj) && cl2[cj]) cl2[cj].className += " code"; }
     // frozen: No., tick boxes + the first column with a real heading (drawing / document number)
     var nf = 0; for (var i = 0; i < ths.length; i++) { nf = i + 1; if (!hasCls(ths[i], "rn") && headText(ths[i]) != "#" && ths[i].offsetWidth > 48) break; }
     if (nf >= ths.length) nf = Math.max(0, ths.length - 1);

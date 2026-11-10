@@ -16,6 +16,7 @@ module.exports = async ({ page, out }) => {
   ok(/rn/.test(info.rn) && /fz/.test(info.rn) && /=1$/.test(info.rn), 'row number column (No.) first, frozen, starts at 1');
   ok(/fz fzl/.test(info.fz) && !/fz/.test(info.fz2), 'drawing / document number column frozen next to it, the rest are not');
   ok(info.grips == info.th - 2, 'every other column has a resize grip (' + info.grips + ')');
+  ok(await f.evaluate(() => { var r = document.querySelector('#main table.grid:not(.fhcopy)').rows[1]; return /Consolas/.test(getComputedStyle(r.cells[1]).fontFamily) && !/Consolas/.test(getComputedStyle(r.cells[2]).fontFamily); }), 'ID / drawing number in Consolas, task title stays in the normal font');
   // wrapped text
   ok(await f.evaluate(() => { var r = document.querySelector('#main table.grid:not(.fhcopy)').rows; return r[1].offsetHeight > r[3].offsetHeight + 8; }), 'long text wraps onto more lines');
   ok(await f.evaluate(() => { var c = document.querySelector('#main table.grid:not(.fhcopy)').rows[1].cells[1]; return getComputedStyle(c).whiteSpace == 'nowrap' && c.scrollHeight <= c.offsetHeight + 2; }), 'drawing number does not wrap');

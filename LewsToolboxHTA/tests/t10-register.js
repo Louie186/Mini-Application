@@ -112,7 +112,7 @@ module.exports = async ({ page, out }) => {
   await page.evaluate(() => { const fs = window.__mockFs, add = (p, t) => { fs.files[p.toLowerCase()] = { path: p, text: t, time: Date.now() }; fs.dirs['c:\\sub2'] = 'C:\\Sub2'; };
     add('C:\\Lists\\Plain.csv', 'Number,Title\r\n9001-ABC-T1-ZZ-PLN-INT-10100,A\r\n');
     add('C:\\Sub2\\9001-ABC-T1-ZZ-PLN-INT-10100-T1 - UNIT TYPE 1 BR A.pdf', 'x'); add('C:\\Sub2\\20261101_9001-ABC-T2-ZZ-PLN-INT-20101-T1.pdf', 'x'); add('C:\\Sub2\\notes.txt', 'x'); });
-  await c.evaluate(() => { useRef('file', 'C:\\Lists\\Plain.csv'); cfg.folder = 'C:\\Sub2'; run(); });
+  await c.evaluate(() => { useRef('file', 'C:\\Lists\\Plain.csv'); cfg.folder = 'C:\\Sub2'; run(); $('show').value = 'all'; render(); });   // a list now opens on 'Remaining': look at every drawing
   const c2 = await c.evaluate(() => result.rows.map(r => r.base.slice(-5) + ':' + (r.ref ? r.ref.tower + '/' + r.ref.typo + '/' + r.ref.model : '-')).join(' ') + ' | other ' + result.other.length + ' | th ' + /<th>Tower/.test(document.getElementById('res').innerHTML));
   ok(c2 == '10100:T1/1BRA/M-21000 20101:T2/2BRC/M-22000 | other 1 | th true', 'old list without Tower columns + names with extra text: register fills them in: ' + c2);
   await c.evaluate(() => { useRef('none'); });

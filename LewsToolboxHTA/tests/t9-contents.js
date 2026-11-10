@@ -27,9 +27,9 @@ module.exports = async ({ page, out }) => {
   ok(r[2] == '10110 T1 dwg+rvt Tower 1 1BRB 21010 CAD', 'subfolder files read (dwg + rvt in CAD)');
   ok(r.some(x => /^19999 T1 pdf - - -/.test(x)), 'drawing not in the list has no tower');
   ok(await f.evaluate(() => result.other.length == 2), 'non-drawing files kept separately (2)');
-  const sum = await f.evaluate(() => document.getElementById('sumTxt').innerText + ' / ' + document.getElementById('types').innerText);
+  const sum = await f.evaluate(() => document.getElementById('sumTxt').innerText + ' / ' + document.getElementById('chips').innerText + ' / ' + document.getElementById('types').innerText);
   console.log('   ' + sum);
-  ok(/5 drawing/.test(sum) && /1 not in the reference/.test(sum) && /\.pdf 5/.test(sum), 'summary counts drawings, missing from list, and file types');
+  ok(/5 drawing/.test(sum) && /not on the checklist 1/.test(sum) && /\.pdf 5/.test(sum), 'summary counts drawings, not on the list (now a button), and file types');
   await page.screenshot({ path: out + '/i_contents.png' });
   await f.selectOption('#show', 'noref');
   ok(await f.evaluate(() => shown.length == 1 && /19999/.test(shown[0].base)), 'Show: not in the reference list');

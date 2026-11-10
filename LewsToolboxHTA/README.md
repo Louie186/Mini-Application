@@ -188,6 +188,20 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 
 ## Folder Contents
 
+**Quick checklist check – what's finished, what's still missing**
+1. **Folder...** – the folder to check (subfolders too)
+2. **Checklist ▾** – your list:
+   - **Paste a list** (quickest): one drawing number per line, copied from Excel or an email. A description after it (tab or two spaces) is kept
+   - or your Drawing Register, your Submission Check list, or any Excel / CSV
+   - **Each drawing needs:** (optional) e.g. `pdf, dwg` – a drawing only counts as finished when it has all of these
+3. It opens on **Remaining**. The bar on top shows how far you are:
+   - **✔ Finished** (green) · **◐ Lacking** a file type (amber) · **✖ Missing** (red)
+   - Buttons: **Remaining** · **Finished** · **Whole checklist** · **In the folder, not on the checklist**
+- Matches the drawing number with or without the revision, with a date in front, or with the title after it
+- **Export ▾** → CSV of what's shown, or **Copy what's remaining** (for email / Teams)
+- Your checklist, the file types needed and the view are remembered
+
+
 The folder comes first – "what's in here?"
 
 1. **Folder…** (include subfolders). The first time it asks **which list gives the Tower / Typology / Model**:

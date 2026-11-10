@@ -6,7 +6,7 @@
 <title>Folder Contents</title>
 <meta name="lt-order" content="6">
 <meta name="lt-icon" content="&#128269;">
-<meta name="lt-desc" content="Pick a folder and see every drawing in it once, with its revisions, the file types it has (pdf, dwg, rvt...), and its Tower / Typology / Model from your reference list.">
+<meta name="lt-desc" content="Pick a folder and a checklist: see at a glance what is finished, what is still missing, and what is in the folder but not on the list. Also every drawing once, with its revisions and file types (pdf, dwg, rvt...).">
 <!--
   Lew's Toolbox - Folder Contents: the folder comes first. Every drawing in it (and its subfolders) is shown once,
   with its revisions, file types and folders, plus Description / Tower / Typology / Model looked up in a reference list
@@ -27,6 +27,11 @@
 .right{float:right}
 #ask .card{width:460px}
 #ask .btn{display:block;width:100%;text-align:left;margin:0 0 8px;height:auto;padding:9px 12px;white-space:normal}
+#prog{display:none;margin:2px 0 8px}
+#bar{height:12px;overflow:hidden;margin:6px 0 8px;max-width:640px}#bar i{display:block;height:100%;float:left}
+#chips .cbtn{display:inline-block;padding:5px 12px;margin:0 6px 4px 0;font-weight:bold;cursor:pointer}
+.st{display:inline-block;padding:1px 8px;font-weight:bold;font-size:.9em;white-space:nowrap}
+#pasteDlg .card{width:620px}#pText{width:100%;height:300px;font-family:Consolas,'Lucida Console',monospace}
 </style>
 <script src="../core/lt-core.js"></script>
 </head>
@@ -38,7 +43,8 @@
     <button class="btn small" id="bRescan">&#8635; Read again</button>
   </div>
   <div class="step">
-    <span class="num">2</span><button class="btn" id="bRef">&#128196; Reference list &#9662;</button><span class="path big" id="refLbl"></span>
+    <span class="num">2</span><button class="btn" id="bRef">&#128203; Checklist &#9662;</button><span class="path big" id="refLbl"></span>
+    <span id="needBox" style="display:none"><span class="lbl">Each drawing needs:</span><input type="text" id="need" placeholder="any file (or e.g. pdf, dwg)" title="File types every drawing must have to count as finished, e.g.  pdf, dwg   (empty = any file is enough)" style="width:190px;margin:0 8px 6px 0"></span>
     <div id="cols" style="margin-left:32px;display:none">
       <span id="sheetBox"><span class="lbl">Sheet:</span><select id="cSheet"></select></span>
       <span class="lbl">Number:</span><select id="cName"></select>
@@ -50,31 +56,40 @@
   </div>
   <div class="step bar">
     <span class="num">3</span><span class="lbl">Show:</span>
-    <select id="show" style="width:220px;height:26px;margin:0 8px 6px 0"><option value="all">Every drawing</option><option value="noref">Not in the reference list</option><option value="multi">More than one revision here</option><option value="groups">Summary by tower / typology</option><option value="other">Other files (not drawings)</option></select>
+    <select id="show" style="width:220px;height:26px;margin:0 8px 6px 0"><option value="left">Checklist: remaining</option><option value="done">Checklist: finished</option><option value="chk">Checklist: everything</option><option value="all">Every drawing in the folder</option><option value="noref">In the folder, not on the checklist</option><option value="multi">More than one revision here</option><option value="groups">Summary by tower / typology</option><option value="other">Other files (not drawings)</option></select>
     <span id="fBox"><span class="lbl">Tower:</span><select id="fTower" style="width:110px;height:26px;margin:0 8px 6px 0"></select><span class="lbl">Typology:</span><select id="fTypo" style="width:110px;height:26px;margin:0 8px 6px 0"></select></span>
     <span class="lbl">File type:</span><select id="fType" style="width:90px;height:26px;margin:0 8px 6px 0"></select>
     <input type="text" id="search" placeholder="Search" style="width:150px;margin:0 8px 6px 0">
     <span class="right"><button class="btn" id="bExport">Export &#9662;</button></span>
   </div>
-  <div id="sum"><div id="sumTxt" class="muted">Pick a folder to see what's inside.</div><div id="types"></div></div>
+  <div id="sum"><div id="prog"><div id="progTxt" class="big"></div><div id="bar"></div><div id="chips"></div></div><div id="sumTxt" class="muted">Pick a folder to see what's inside.</div><div id="types"></div></div>
   <div id="res"></div>
 </div>
 
 <!-- which reference? -->
 <div class="ov" id="ask"><div class="card">
-  <h3>Which list should give the Tower / Typology / Model?</h3>
+  <h3>Which checklist should the folder be checked against?</h3>
   <button class="btn primary" id="aReg">&#128216; My Drawing Register<div class="muted" id="aRegName" style="font-weight:normal;font-size:.9em"></div></button>
   <button class="btn" id="aCheck">&#9989; The list I use in Submission Check<div class="muted" id="aCheckName" style="font-weight:normal;font-size:.9em"></div></button>
-  <button class="btn" id="aPick">&#128196; Another Excel / CSV list...</button>
+  <button class="btn" id="aPaste">&#128203; Paste a list (one drawing number per line)...</button>
+  <button class="btn" id="aPick">&#128196; An Excel / CSV list...</button>
   <button class="btn" id="aNone">None &ndash; just show the drawings and their file types</button>
 </div></div>
 
+<!-- paste a checklist -->
+<div class="ov" id="pasteDlg"><div class="card">
+  <h3>Paste your checklist</h3>
+  <div class="muted" style="margin-bottom:8px">One drawing / document number per line. Anything after it on the line (a tab, or two spaces) is kept as the description. Copy a column straight from Excel or an email.</div>
+  <textarea id="pText" spellcheck="false"></textarea>
+  <div class="acts"><span class="sp"></span><button class="btn" id="pCancel">Cancel</button><button class="btn primary" id="pOk">Use this checklist</button></div>
+</div></div>
+
 <script>
-var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg, list = null, refMap = null, result = null, shown = [];
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg, list = null, refMap = null, result = null, shown = [], items = null;
 var regUsed = 0;
 var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
 function FILE() { return LT.dataPath("contents.json"); }
-function load() { cfg = LT.readJson(FILE(), null) || {}; var d = { folder: "", subs: true, ref: "", refKind: "", sheet: "", cols: {} }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
+function load() { cfg = LT.readJson(FILE(), null) || {}; var d = { folder: "", subs: true, ref: "", refKind: "", sheet: "", cols: {}, need: "", pasted: "", show: "" }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
 function save() { try { LT.saveJson(FILE(), cfg); } catch (e) { } }
 function up(s) { return LT.trim(s).toUpperCase(); }
 function splitRev(stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; }
@@ -92,9 +107,10 @@ function checkList() { var c = LT.readJson(LT.dataPath("check.json"), null); ret
 /* ---------- step 1: the folder ---------- */
 function paths() {
   $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
-  $("refLbl").innerHTML = cfg.refKind == "register" ? (refMap && refMap.reg ? esc(refMap.reg.name) + ' <span class="muted">(Drawing Register)</span>' : '<span class="muted">Drawing Register</span>') : cfg.refKind == "none" ? '<span class="muted">none &ndash; drawings and file types only</span>' : cfg.ref ? esc(fso.GetFileName(cfg.ref)) + (cfg.refKind == "check" ? ' <span class="muted">(Submission Check list)</span>' : "") + (list ? ' <span class="muted">&middot; ' + list.sheet + "</span>" : "") : '<span class="muted">not picked</span>';
-  $("subs").checked = cfg.subs;
+  $("refLbl").innerHTML = cfg.refKind == "paste" ? (items ? items.length : countLines(cfg.pasted)) + ' drawings <span class="muted">(pasted list)</span>' : cfg.refKind == "register" ? (refMap && refMap.reg ? esc(refMap.reg.name) + ' <span class="muted">(Drawing Register)</span>' : '<span class="muted">Drawing Register</span>') : cfg.refKind == "none" ? '<span class="muted">none &ndash; drawings and file types only</span>' : cfg.ref ? esc(fso.GetFileName(cfg.ref)) + (cfg.refKind == "check" ? ' <span class="muted">(Submission Check list)</span>' : "") + (list ? ' <span class="muted">&middot; ' + list.sheet + "</span>" : "") : '<span class="muted">not picked</span>';
+  $("subs").checked = cfg.subs; $("need").value = cfg.need || ""; $("needBox").style.display = cfg.refKind && cfg.refKind != "none" ? "" : "none";
 }
+function countLines(t) { var n = 0, l = ("" + (t || "")).split(/\r?\n/); for (var i = 0; i < l.length; i++) if (LT.trim(l[i])) n++; return n; }
 function pickFolder() { var f = LT.pickFolder("Pick the folder with the drawings"); if (!f) return; cfg.folder = f; save(); paths(); if (!cfg.refKind) askRef(); else run(); }
 function reg() { try { return LT.register(); } catch (e) { return null; } }
 function askRef() { var R = reg(); $("aReg").style.display = R ? "" : "none"; $("aRegName").innerHTML = R ? esc(R.name) + " &middot; " + R.count() + " drawings" : ""; var c = checkList(); $("aCheck").style.display = c ? "" : "none"; $("aCheckName").innerHTML = c ? esc(fso.GetFileName(c.list)) : ""; $("ask").style.display = "block"; }
@@ -108,8 +124,17 @@ function useRef(kind, path) {
   list = null; refMap = null; save(); paths(); if (cfg.folder) run();
 }
 function readRef(guess) {
-  refMap = null; list = null;
-  if (cfg.refKind == "register") { $("cols").style.display = "none"; var R = reg(); if (!R) { alert("There's no Drawing Register yet - make one in the Drawing Register tab, or pick another list."); return true; } refMap = { reg: R, n: R.count() }; return true; }
+  refMap = null; list = null; items = null;
+  if (cfg.refKind == "register") { $("cols").style.display = "none"; var R = reg(); if (!R) { alert("There's no Drawing Register yet - make one in the Drawing Register tab, or pick another list."); return true; } refMap = { reg: R, n: R.count() };
+    var rl = R.list(); items = []; for (var ri = 0; ri < rl.length; ri++) if (rl[ri].inMidp) { var g = R.find(rl[ri].number) || rl[ri]; items.push({ number: rl[ri].number, title: g.title || "", tower: g.tower || "", typo: g.typo || "", model: g.model || "" }); }
+    items.sort(function (a, b) { return up(a.number) < up(b.number) ? -1 : 1; }); return true; }
+  if (cfg.refKind == "paste") { $("cols").style.display = "none"; refMap = { byBase: {}, bySeq: {}, seqCount: {}, n: 0 }; items = [];
+    var ls = ("" + cfg.pasted).split(/\r?\n/);
+    for (var li = 0; li < ls.length; li++) { var line = LT.trim(ls[li]); if (!line) continue;
+      var m = /^(\S+)(?:\t+|\s{2,}|\s+[-\u2013]\s+)?(.*)$/.exec(line), no = m ? m[1] : line, de = m ? LT.trim(m[2]) : "";
+      if (!/\d/.test(no)) continue;   // a heading line like "Drawing No."
+      addRef({ number: no, title: de, tower: "", typo: "", model: "" }); }
+    return true; }
   if (cfg.refKind == "none" || !cfg.ref) { $("cols").style.display = "none"; return true; }
   if (!fso.FileExists(cfg.ref)) { alert("The reference list isn't there any more:\n" + cfg.ref); return false; }
   try { list = LT.readList(cfg.ref, guess ? "" : cfg.sheet); } catch (e) { alert("Couldn't read the reference list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return false; }
@@ -123,10 +148,16 @@ function readRef(guess) {
     var row = list.table[r], e = LT.cell(row, iN); if (!e) continue;
     var info = { number: e, title: LT.cell(row, iT), tower: LT.isBlankish(LT.cell(row, iTw)) ? "" : LT.cell(row, iTw), typo: LT.isBlankish(LT.cell(row, iTy)) ? "" : LT.cell(row, iTy), model: LT.isBlankish(LT.cell(row, iM)) ? "" : LT.cell(row, iM) };
     if (LT.isCategory(e, info.title + info.tower + info.typo + info.model)) continue;
-    var b = up(splitRev(e.replace(/\.[a-z0-9]{2,4}$/i, "")).base); refMap.byBase[b] = info; refMap.n++;
-    var ns = numbers(e); for (var k = 0; k < ns.length; k++) { refMap.bySeq[ns[k]] = info; refMap.seqCount[ns[k]] = (refMap.seqCount[ns[k]] || 0) + 1; }
+    addRef(info);
   }
   return true;
+}
+/* one checklist line: kept in order, and findable by its full number or its number part (e.g. 10110) */
+function addRef(info) {
+  if (!items) items = [];
+  var b = up(splitRev(info.number.replace(/\.[a-z0-9]{2,4}$/i, "")).base); if (refMap.byBase[b]) return;
+  refMap.byBase[b] = info; refMap.n++; items.push(info);
+  var ns = numbers(info.number); for (var k = 0; k < ns.length; k++) { refMap.bySeq[ns[k]] = info; refMap.seqCount[ns[k]] = (refMap.seqCount[ns[k]] || 0) + 1; }
 }
 function fillCols() {
   var o = function (sel, none) { var h = none ? '<option value="">(none)</option>' : ""; for (var i = 0; i < list.head.length; i++) h += "<option" + (list.head[i] == sel ? " selected" : "") + ">" + esc(list.head[i]) + "</option>"; return h; };
@@ -168,22 +199,53 @@ function run(guess) {
     /* Tower / Typology / Model the reference list doesn't have come from the Drawing Register */
     if (R && (!x.ref || (!x.ref.tower && !x.ref.typo && !x.ref.model))) { var g = R.find(x.base); if (g) { x.ref = x.ref ? { number: x.ref.number, title: x.ref.title || g.title, tower: g.tower, typo: g.typo, model: g.model } : g; x.fromReg = 1; regUsed++; } }
     rows.push(x); }
-  result = { rows: rows, other: other, files: files, types: types };
+  result = { rows: rows, other: other, files: files, types: types, items: matchList(draw, rows) };
+  if (result.items && !cfg.show) { cfg.show = "left"; save(); }
+  if (cfg.show) { try { $("show").value = cfg.show; } catch (x) { } }
+  if (!result.items && /^(left|done|chk)$/.test($("show").value)) $("show").value = "all";
   fillFilters(); summary(); render();
 }
+/* checklist: each line -> finished / lacking a file type / missing (in the checklist's own order) */
+function needs() { var a = ("" + (cfg.need || "")).toLowerCase().split(/[\s,;\/]+/), o = []; for (var i = 0; i < a.length; i++) { var t = a[i].replace(/^\./, ""); if (t && o.indexOf(t) < 0) o.push(t); } return o; }
+function matchList(draw, rows) {
+  if (!items) return null;
+  var bySeq = {}, cnt = {}, need = needs(), out = [];
+  for (var i = 0; i < rows.length; i++) { rows[i].inList = false; var ns = numbers(rows[i].base); for (var k = 0; k < ns.length; k++) { bySeq[ns[k]] = rows[i]; cnt[ns[k]] = (cnt[ns[k]] || 0) + 1; } }
+  for (var j = 0; j < items.length; j++) {
+    var it = items[j], key = up(splitRev(it.number.replace(/\.[a-z0-9]{2,4}$/i, "")).base), row = draw[key] || null;
+    if (!row) { var n2 = numbers(it.number); for (var q = n2.length - 1; q >= 0 && !row; q--) if (cnt[n2[q]] == 1) row = bySeq[n2[q]]; }
+    var lack = []; if (row) { row.inList = true; for (var z = 0; z < need.length; z++) if (!row.types[need[z]]) lack.push(need[z]); }
+    out.push({ it: it, row: row, lack: lack, st: !row ? "missing" : lack.length ? "lacking" : "done", no: j + 1 });
+  }
+  return out;
+}
+function count(st) { var n = 0, a = result && result.items || []; for (var i = 0; i < a.length; i++) if (!st || a[i].st == st) n++; return n; }
 function typeList(t) { var a = []; for (var k in t) if (t.hasOwnProperty(k)) a.push(k); return a.sort(); }
 function fillFilters() {
   var tw = {}, ty = {}, a = [], b = [];
-  for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i].ref; if (!r) continue; if (r.tower && !tw[r.tower]) { tw[r.tower] = 1; a.push(r.tower); } if (r.typo && !ty[r.typo]) { ty[r.typo] = 1; b.push(r.typo); } }
+  var refs = []; for (var i = 0; i < result.rows.length; i++) if (result.rows[i].ref) refs.push(result.rows[i].ref);
+  if (result.items) for (var i2 = 0; i2 < result.items.length; i2++) refs.push(result.items[i2].it);
+  for (var i3 = 0; i3 < refs.length; i3++) { var r = refs[i3]; if (r.tower && !tw[r.tower]) { tw[r.tower] = 1; a.push(r.tower); } if (r.typo && !ty[r.typo]) { ty[r.typo] = 1; b.push(r.typo); } }
   a.sort(); b.sort();
   var o = function (l, keep) { var h = '<option value="">All</option>'; for (var k = 0; k < l.length; k++) h += "<option" + (l[k] == keep ? " selected" : "") + ">" + esc(l[k]) + "</option>"; return h; };
   $("fTower").innerHTML = o(a, $("fTower").value); $("fTypo").innerHTML = o(b, $("fTypo").value); $("fBox").style.display = a.length || b.length ? "" : "none";
   $("fType").innerHTML = o(typeList(result.types), $("fType").value);
 }
 function summary() {
-  var n = result.rows.length, noref = 0, multi = 0; for (var i = 0; i < n; i++) { if (refMap && !result.rows[i].ref) noref++; if (result.rows[i].revs.length > 1) multi++; }
-  $("sumTxt").className = "big";
-  $("sumTxt").innerHTML = n + " drawing(s) &middot; " + result.files.length + " file(s)" + (refMap ? " &middot; " + (n - noref) + " found in the reference" + (noref ? ' &middot; <span class="bad">' + noref + " not in the reference</span>" : "") : "") +
+  var n = result.rows.length, noref = 0, multi = 0; for (var i = 0; i < n; i++) { if (refMap && !(result.items ? result.rows[i].inList : result.rows[i].ref)) noref++; if (result.rows[i].revs.length > 1) multi++; }
+  if (result.items) {
+    var all = result.items.length, dn = count("done"), ms = count("missing"), lk = count("lacking"), pct = all ? Math.floor(dn / all * 100) : 0, v = $("show").value;
+    $("progTxt").innerHTML = "Checklist: " + dn + " of " + all + " finished (" + pct + "%)" + (dn == all && all ? ' &nbsp;<span class="ok">&#10004; all there</span>' : "");
+    var w = function (x) { return all ? (x / all * 100) : 0; };
+    $("bar").innerHTML = '<i class="bd" style="width:' + w(dn) + '%"></i><i class="bl" style="width:' + w(lk) + '%"></i><i class="bm" style="width:' + w(ms) + '%"></i>';
+    $("chips").innerHTML = '<span class="cbtn' + (v == "left" ? " on" : "") + '" data-v="left">&#9203; Remaining ' + (ms + lk) + (lk ? ' <span style="font-weight:normal">(' + ms + " missing &middot; " + lk + " lacking a file type)</span>" : "") + "</span>" +
+      '<span class="cbtn' + (v == "done" ? " on" : "") + '" data-v="done">&#10004; Finished ' + dn + "</span>" +
+      '<span class="cbtn' + (v == "chk" ? " on" : "") + '" data-v="chk">&#9776; Whole checklist ' + all + "</span>" +
+      '<span class="cbtn' + (v == "noref" ? " on" : "") + '" data-v="noref">&#10133; In the folder, not on the checklist ' + noref + "</span>";
+    $("prog").style.display = "block";
+  } else $("prog").style.display = "none";
+  $("sumTxt").className = result.items ? "muted" : "big";
+  $("sumTxt").innerHTML = n + " drawing(s) &middot; " + result.files.length + " file(s)" + (refMap ? (result.items ? "" : " &middot; " + (n - noref) + " found in the reference" + (noref ? ' &middot; <span class="bad">' + noref + " not in the reference</span>" : "")) : "") +
     (regUsed ? ' &middot; <span class="muted" style="font-weight:normal">Tower / Typology for ' + regUsed + " from the Drawing Register</span>" : "") + (multi ? ' &middot; <span class="warn">' + multi + " with more than one revision</span>" : "") + (result.other.length ? " &middot; " + result.other.length + " other file(s)" : "");
   var h = "<b>File types:</b> &nbsp;", t = typeList(result.types); for (var j = 0; j < t.length; j++) h += '<span data-t="' + esc(t[j]) + '" title="Show only these">.' + esc(t[j] || "(none)") + " " + result.types[t[j]] + "</span>";
   $("types").innerHTML = h;
@@ -199,19 +261,36 @@ function render() {
   if (!result) { $("res").innerHTML = ""; return; }
   var mode = $("show").value; shown = [];
   if (mode == "groups") { groups(); return; }
+  if (/^(left|done|chk)$/.test(mode)) { checklistView(mode); return; }
   if (mode == "other") { var o = ['<table class="grid"><tr><th>File</th><th>Folder</th><th>Type</th></tr>'];
     for (var k = 0; k < result.other.length; k++) { var f = result.other[k]; if ($("fType").value && f.ext != $("fType").value) continue; shown.push({ files: [f] }); o.push('<tr data-s="' + (shown.length - 1) + '"><td>' + esc(f.name) + '</td><td class="muted">' + esc(f.folder || "(top)") + "</td><td>" + esc(f.ext) + "</td></tr>"); }
     $("res").innerHTML = shown.length ? o.join("") + "</table>" : '<div class="muted" style="padding:24px">No other files.</div>'; return; }
   var ref = !!refMap || regUsed > 0, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower</th><th>Typology</th><th>Model</th>" : "") + "<th>Folder</th><th>Note</th></tr>"];
   for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i];
-    if (!pass(r)) continue; if (mode == "noref" && (!refMap || r.ref)) continue; if (mode == "multi" && r.revs.length < 2) continue;
+    if (!pass(r)) continue; if (mode == "noref" && (!refMap || (result.items ? r.inList : r.ref))) continue; if (mode == "multi" && r.revs.length < 2) continue;
     shown.push(r); var note = [];
-    if (refMap && !r.ref) note.push('<span class="bad">not in the reference list</span>'); if (r.revs.length > 1) note.push('<span class="warn">' + r.revs.length + " revisions here</span>");
+    if (refMap && !(result.items ? r.inList : r.ref)) note.push('<span class="bad">not on the checklist</span>'); if (r.revs.length > 1) note.push('<span class="warn">' + r.revs.length + " revisions here</span>");
     h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(r.base) + "</b></td><td>" + esc(r.revs.join(", ")) + "</td><td>" + badge(r.types) + "</td>" +
       (ref ? "<td>" + esc(r.ref ? r.ref.title : "") + "</td><td>" + esc(r.ref ? r.ref.tower : "") + "</td><td>" + esc(r.ref ? r.ref.typo : "") + '</td><td style="white-space:nowrap">' + esc(r.ref ? r.ref.model : "") + "</td>" : "") +
       '<td class="muted">' + esc(r.folders.join(", ") || "(top)") + "</td><td>" + note.join(" &middot; ") + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+}
+function passItem(x) {
+  var it = x.it, t = $("fTower").value, y = $("fTypo").value, ft = $("fType").value, q = LT.trim($("search").value).toLowerCase();
+  if (t && it.tower != t) return false; if (y && it.typo != y) return false; if (ft && (!x.row || !x.row.types[ft])) return false;
+  if (q && (it.number + " " + it.title + " " + it.tower + " " + it.typo + " " + it.model).toLowerCase().indexOf(q) < 0) return false;
+  return true;
+}
+function stHtml(x) { return x.st == "done" ? '<span class="st sd">&#10004; Finished</span>' : x.st == "lacking" ? '<span class="st sl">&#9680; Lacking ' + esc(x.lack.join(", ")) + "</span>" : '<span class="st sm">&#10006; Missing</span>'; }
+function checklistView(mode) {
+  var it = result.items, h = ['<table class="grid"><tr><th>Drawing</th><th>Status</th><th>Description</th><th>Tower</th><th>Typology</th><th>Revision</th><th>File types</th><th>Folder</th></tr>'];
+  for (var i = 0; i < it.length; i++) { var x = it[i];
+    if (mode == "left" && x.st == "done") continue; if (mode == "done" && x.st != "done") continue; if (!passItem(x)) continue;
+    shown.push(x.row || { files: [] }); var r = x.row;
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(x.it.number) + "</b></td><td>" + stHtml(x) + "</td><td>" + esc(x.it.title) + "</td><td>" + esc(x.it.tower) + "</td><td>" + esc(x.it.typo) + "</td><td>" + (r ? esc(r.revs.join(", ")) : "") + "</td><td>" + (r ? badge(r.types) : "") + '</td><td class="muted">' + (r ? esc(r.folders.join(", ") || "(top)") : "") + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">' + (mode == "left" ? "&#10004; Nothing remaining" + (LT.trim($("search").value) || $("fTower").value || $("fTypo").value || $("fType").value ? " with these filters." : " &ndash; everything on the checklist is in the folder.") : "Nothing to show here.") + "</div>";
 }
 /* one line per tower + typology: drawings and their file types */
 function groupRows() {
@@ -230,6 +309,19 @@ function groups() {
 }
 
 /* ---------- export ---------- */
+function checklistOut() {
+  var t = [["No.", "Status", "Drawing", "Description", "Tower", "Typology", "Revision found", "File types found", "Lacking", "Folder"]], it = result.items;
+  for (var i = 0; i < it.length; i++) { var x = it[i], r = x.row; if (!passItem(x)) continue; if ($("show").value == "left" && x.st == "done") continue; if ($("show").value == "done" && x.st != "done") continue;
+    t.push([x.no, x.st == "done" ? "Finished" : x.st == "lacking" ? "Lacking a file type" : "Missing", x.it.number, x.it.title, x.it.tower, x.it.typo, r ? r.revs.join(", ") : "", r ? typeList(r.types).join(", ") : "", x.lack.join(", "), r ? r.folders.join(", ") : ""]); }
+  return t;
+}
+function remainingText() {
+  var it = result.items, s = "Checklist check – " + LT.today() + "\r\n" + cfg.folder + "\r\n\r\n" + count("done") + " of " + it.length + " finished, " + (count("missing") + count("lacking")) + " remaining\r\n";
+  var m = [], l = []; for (var i = 0; i < it.length; i++) { if (it[i].st == "missing") m.push(it[i]); else if (it[i].st == "lacking") l.push(it[i]); }
+  if (m.length) { s += "\r\nMISSING (" + m.length + ")\r\n"; for (var a = 0; a < m.length; a++) s += "  • " + m[a].it.number + (m[a].it.title ? " – " + m[a].it.title : "") + "\r\n"; }
+  if (l.length) { s += "\r\nLACKING A FILE TYPE (" + l.length + ")\r\n"; for (var b = 0; b < l.length; b++) s += "  • " + l[b].it.number + " – needs " + l[b].lack.join(", ") + "\r\n"; }
+  return s;
+}
 function rowsOut() {
   var t = [["Drawing", "Revision", "File types", "Description", "Tower", "Typology", "Model", "Folder", "Files", "In reference"]];
   for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i]; if (!pass(r)) continue; var fl = []; for (var f = 0; f < r.files.length; f++) fl.push(r.files[f].name);
@@ -245,7 +337,8 @@ function summaryText() {
 }
 function exportMenu(x, y) {
   LT.menu(x, y, [
-    { label: "Excel / CSV of what's shown", fn: function () { if (!result) { alert("Pick a folder first."); return; } var f = LT.exportsDir() + "\\FolderContents_" + LT.safeName(fso.GetFileName(cfg.folder)).replace(/ /g, "_") + "_" + LT.stamp() + ".csv"; LT.writeCsv(f, rowsOut()); LT.open(f); } },
+    { label: "Excel / CSV of what's shown", fn: function () { if (!result) { alert("Pick a folder first."); return; } var ck = result.items && /^(left|done|chk)$/.test($("show").value), f = LT.exportsDir() + "\\" + (ck ? "Checklist_" : "FolderContents_") + LT.safeName(fso.GetFileName(cfg.folder)).replace(/ /g, "_") + "_" + LT.stamp() + ".csv"; LT.writeCsv(f, ck ? checklistOut() : rowsOut()); LT.open(f); } },
+    { label: "&#128203; Copy what's remaining (for email / Teams)", fn: function () { if (!result || !result.items) { alert("Pick a folder and a checklist first."); return; } if (LT.copyText(remainingText())) LT.toast("Remaining list copied"); } },
     { label: "&#128203; Copy summary (for email / Teams)", fn: function () { if (!result) { alert("Pick a folder first."); return; } if (LT.copyText(summaryText())) LT.toast("Summary copied"); } },
     "-",
     { label: "Check this folder in Submission Check", fn: function () { if (LT.main() && cfg.folder) LT.main().send("check", "check-folder", cfg.folder); } },
@@ -258,18 +351,28 @@ $("subs").onclick = function () { cfg.subs = this.checked; save(); if (result) r
 $("bRef").onclick = function (e) { var r = this.getBoundingClientRect(), c = checkList(), R = reg(); LT.menu(r.left, r.bottom + 2, [
   { label: "&#128216; Use my Drawing Register" + (R ? " (" + esc(R.name) + ")" : " (not made yet)"), fn: function () { if (R) useRef("register"); else alert("Make a project in the Drawing Register tab first, or pick a list here."); } },
   { label: "&#9989; Use my Submission Check list" + (c ? " (" + esc(fso.GetFileName(c.list)) + ")" : " (not set up yet)"), fn: function () { if (c) useRef("check"); else alert("Set up your list in Submission Check first, or pick a list here."); } },
-  { label: "&#128196; Another Excel / CSV list...", fn: function () { LT.pickFile(function (p) { useRef("file", p); }); } },
+  { label: "&#128203; Paste a list...", fn: openPaste },
+  { label: "&#128196; An Excel / CSV list...", fn: function () { LT.pickFile(function (p) { useRef("file", p); }); } },
   { label: "None &ndash; drawings and file types only", fn: function () { useRef("none"); } }]); (e || window.event).cancelBubble = true; };
 $("aCheck").onclick = function () { useRef("check"); }; $("aReg").onclick = function () { useRef("register"); }; $("aNone").onclick = function () { useRef("none"); };
+function openPaste() { $("ask").style.display = "none"; $("pText").value = cfg.refKind == "paste" ? cfg.pasted : ""; $("pasteDlg").style.display = "block"; try { $("pText").focus(); } catch (x) { } }
+$("aPaste").onclick = openPaste; $("pCancel").onclick = function () { $("pasteDlg").style.display = "none"; };
+$("pOk").onclick = function () { var t = $("pText").value; if (!countLines(t)) { alert("Paste at least one drawing number."); return; } $("pasteDlg").style.display = "none"; cfg.pasted = t; cfg.show = ""; useRef("paste"); };
+$("need").onchange = function () { if (LT.trim(this.value) == LT.trim(cfg.need || "")) return; cfg.need = this.value; save(); if (result) run(); };
+/* on mouse-down, so a click right after typing in "Each drawing needs" is not lost when that box redraws the list */
+$("chips").onmousedown = function (e) { var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { $("show").value = b.getAttribute("data-v"); cfg.show = $("show").value; save(); summary(); render(); } };
 $("aPick").onclick = function () { $("ask").style.display = "none"; LT.pickFile(function (p) { useRef("file", p); }); };
 var colKeys = { cName: "name", cTitle: "title", cTower: "tower", cTypo: "typo", cModel: "model" };
 for (var ck in colKeys) if (colKeys.hasOwnProperty(ck)) (function (id, key) { $(id).onchange = function () { cfg.cols[key] = this.value; save(); run(); }; })(ck, colKeys[ck]);
 $("cSheet").onchange = function () { cfg.sheet = this.value; cfg.cols = {}; save(); run(true); };
-$("show").onchange = render; $("fTower").onchange = render; $("fTypo").onchange = render; $("fType").onchange = render; $("search").onkeyup = render;
+$("show").onchange = function () { cfg.show = this.value; save(); if (result) summary(); render(); }; $("fTower").onchange = render; $("fTypo").onchange = render; $("fType").onchange = render; $("search").onkeyup = render;
 $("types").onclick = function (e) { var t = LT.up(e.target || e.srcElement, "data-t"); if (t) { $("fType").value = t.getAttribute("data-t"); render(); } };
 $("bExport").onclick = function (e) { var r = this.getBoundingClientRect(); exportMenu(r.left - 150, r.bottom + 2); (e || window.event).cancelBubble = true; };
 $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-s"); if (tr) { var r = shown[+tr.getAttribute("data-s")]; try { LT.showInFolder(r.files[0].full); } catch (x) { } } };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".ty{background:{chip};color:{text};border-radius:{r}px}", "#types span:hover{color:{accent}}"]); }
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".ty{background:{chip};color:{text};border-radius:{r}px}", "#types span:hover{color:{accent}}",
+  "#bar{background:{chip};border-radius:6px}#bar .bd{background:{ok}}#bar .bl{background:{warn}}#bar .bm{background:{badSoft}}",
+  "#chips .cbtn{background:{chip};color:{text};border:{bw}px solid transparent;border-radius:{rc}px}#chips .cbtn:hover{border-color:{line}}#chips .cbtn.on{border-color:{accent};background:{hover}}",
+  ".st{border-radius:{rc}px}.st.sd{background:{okSoft};color:{ok}}.st.sl{background:{warnSoft};color:{warn}}.st.sm{background:{badSoft};color:{bad}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); paths(); };
 window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { cfg.folder = value; save(); paths(); if (!cfg.refKind) askRef(); else run(); } };
 look(); load(); paths(); LT.tabKeys();

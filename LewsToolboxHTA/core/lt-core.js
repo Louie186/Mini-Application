@@ -582,7 +582,8 @@ var LT = (function () {
       cg = document.createElement("colgroup");
       for (var c = 0; c < ths.length; c++) {
         var k = key + "|" + headText(ths[c]), w = c < nf ? 0 : sw[k] || gridCache[k];
-        if (!w) { w = nat[c]; if (c >= nf) w = Math.max(60, Math.min(w, 320)); gridCache[k] = c < nf ? 0 : w; }
+        if (!sw[k] && c >= nf) { var nw = Math.max(60, Math.min(nat[c], 320)); if (!w || nw > w) w = nw; gridCache[k] = w; }   // grows when new content needs more room, never shrinks by itself
+        else if (!w) { w = nat[c]; gridCache[k] = 0; }
         if (c < nf) w = nat[c] + 2;
         var col = document.createElement("col"); col.style.width = w + "px"; col.setAttribute("data-gk", k); cg.appendChild(col); tot += w;
         if (c >= nf && headText(ths[c]) != "#") { var g = document.createElement("span"); g.className = "rz"; g.setAttribute("data-grz", "" + c); g.title = "Drag to change the width (double-click = back to normal)"; ths[c].appendChild(g); }

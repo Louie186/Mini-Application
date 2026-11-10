@@ -47,9 +47,9 @@ module.exports = async ({ page, out }) => {
   // multi-select like File Explorer
   await f.selectOption('#mode', 'copy'); await f.evaluate(() => validate());
   const trs = await f.$$('tr[data-i]');
-  await trs[0].click({ position: { x: 300, y: 10 } }); await trs[2].click({ position: { x: 300, y: 10 }, modifiers: ['Shift'] });
+  await (await trs[0].$('td:nth-child(3)')).click(); await (await trs[2].$('td:nth-child(3)')).click({ modifiers: ['Shift'] });
   ok(await f.evaluate(() => selected().length == 3), 'click + Shift+click selects a range (3)');
-  await (await f.$$('tr[data-i]'))[1].click({ position: { x: 300, y: 10 }, modifiers: ['Control'] });
+  await (await (await f.$$('tr[data-i]'))[1].$('td:nth-child(3)')).click({ modifiers: ['Control'] });
   ok(await f.evaluate(() => selected().length == 2 && !shown[1].sel), 'Ctrl+click takes one out of the selection');
   await page.keyboard.press('Space');
   ok(await f.evaluate(() => !shown[0].tick && shown[1].tick && !shown[2].tick), 'Space unticks the selected rows only');

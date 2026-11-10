@@ -46,6 +46,15 @@ No install, no build step.
   - The menu shrinks to icons only. Click **▶** (or Ctrl+[ again) to open it
   - Remembered next time
 
+## Tables (every tab)
+
+- **Column A is frozen** – the drawing / document number (and any tick box before it) stays in place when you scroll sideways
+  - It never wraps, so the number is always on one line
+- **Change a column's width** – drag the right edge of its heading (it turns blue when you point at it)
+  - **Double-click** the edge = back to normal
+  - Widths are remembered per tab on this PC
+- **Long text wraps** onto more lines instead of being cut off
+
 ## Launcher
 
 - Works exactly like QuickLaunch (same buttons, keys, Excel bulk edit, timer)

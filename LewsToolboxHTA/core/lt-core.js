@@ -328,6 +328,11 @@ var LT = (function () {
     "#menu .mi{padding:7px 12px;cursor:pointer;white-space:nowrap;border-radius:{r}px}#menu .mi:hover{background:{accent};color:{accText}}",
     "#menu .sep{height:1px;margin:4px 6px;background:{line}}#menu .mi.on:before{content:'\\2713  '}",
     "#toast{position:fixed;right:18px;bottom:18px;z-index:40;padding:8px 16px;font-weight:bold;white-space:nowrap;display:none;background:{accent};color:{accText};border-radius:{r}px;box-shadow:0 6px 20px rgba(0,0,0,.3)}",
+    "table.grid.fitm{table-layout:auto!important}table.grid.fitm td,table.grid.fitm th{white-space:nowrap!important}",
+    "table.grid.fit td{white-space:normal;word-wrap:break-word;overflow:hidden}table.grid.fit td.fz{white-space:nowrap}",
+    "table.grid .fz{position:relative;z-index:1;white-space:nowrap}table.grid td.fz{background-color:{bg}}table.grid th.fz{z-index:2}",
+    "table.grid .fzl{border-right:2px solid {line}}",
+    "table.grid th .rz{position:absolute;right:-3px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3}table.grid th .rz:hover{background:{accent}}",
     "#toast .undo{display:inline-block;margin-left:14px;padding:1px 10px;cursor:pointer;text-decoration:underline}",
     ".scroll{overflow:auto}",
     "#datePop{display:none;position:fixed;z-index:35;width:236px;padding:8px;background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}",
@@ -454,6 +459,110 @@ var LT = (function () {
   /* ---------- inside the main window ---------- */
   L.main = function () { try { return window.top && window.top.LTMain ? window.top.LTMain : null; } catch (e) { return null; } };
   /* tab pages: Ctrl+1..9 switches tabs even while a tab has the keyboard */
+  /* ---------- result tables: frozen first column, drag-to-resize columns, wrapped text ----------
+     Every <table class="grid"> a tab shows gets this by itself (no change needed in the tab):
+     - The first column (drawing / document number) stays in place when you scroll sideways.
+       Narrow tick-box columns in front of it stay with it. Its text never wraps.
+     - Every other column can be made wider / narrower: drag the right edge of its heading.
+       Double-click the edge = back to normal. Widths are remembered per tab on this PC.
+     - Long text in the other columns wraps onto more lines instead of being cut off.
+     The HTA's Internet Explorer engine has no "sticky" columns, so the frozen column is moved
+     along with the scroll by one small style rule per scroll area.
+     A table can opt out with class "nofit"; dialog tables (inside .ov) are left alone. */
+  var gridSeq = 0, gridDrag = null, gridCache = {}, gridCss = null;
+  function css(el, k) { try { return el.currentStyle ? el.currentStyle[k] : window.getComputedStyle(el, null)[k]; } catch (e) { return ""; } }
+  function scroller(el) { el = el.parentNode; while (el && el.nodeType == 1 && el.tagName != "BODY") { var o = css(el, "overflowX") || css(el, "overflow"); if (o == "auto" || o == "scroll") return el; el = el.parentNode; } return null; }
+  function hasCls(el, c) { return (" " + el.className + " ").indexOf(" " + c + " ") >= 0; }
+  function pageKey() { var p = ("" + location.pathname).replace(/\\/g, "/"); return p.substring(p.lastIndexOf("/") + 1).replace(/\.\w+$/, "").toLowerCase(); }
+  function headText(th) { return L.trim((th.textContent || th.innerText || "").replace(/\s+/g, " ")) || "#"; }
+  function savedW() { var s = L.settings(); return s.gridCols || {}; }
+  function fzRules() {
+    if (!gridCss) { gridCss = document.createElement("style"); document.getElementsByTagName("head")[0].appendChild(gridCss); }
+    var r = [], sc = document.querySelectorAll ? document.querySelectorAll("[data-fzc]") : [];
+    for (var i = 0; i < sc.length; i++) r.push('[data-fzc="' + sc[i].getAttribute("data-fzc") + '"] .fz{left:' + sc[i].scrollLeft + "px}");
+    setCss(gridCss, r.join("\n"));
+  }
+  function fitGrid(tb) {
+    if (tb.getAttribute("data-fit") || hasCls(tb, "nofit") || L.up(tb, "data-nofit")) return;
+    var ov = tb.parentNode; while (ov && ov.nodeType == 1) { if (hasCls(ov, "ov")) return; ov = ov.parentNode; }
+    var head = tb.rows && tb.rows[0]; if (!head) return;
+    var ths = head.cells; if (!ths.length || ths[0].tagName != "TH") return;
+    tb.setAttribute("data-fit", "1");
+    // frozen: leading narrow columns (tick boxes, row numbers) + the first column with a real heading
+    var nf = 0; for (var i = 0; i < ths.length; i++) { nf = i + 1; if (headText(ths[i]) != "#" && ths[i].offsetWidth > 48) break; }
+    if (nf >= ths.length) nf = Math.max(0, ths.length - 1);
+    var own = tb.getElementsByTagName("colgroup").length > 0;   // the tab already sizes its columns (Drawing Register)
+    var key = pageKey(), sw = savedW(), cg = null, tot = 0, nat = [];
+    if (!own) {
+      // measure each column at its natural width (one line, not squeezed), then put the table back
+      var oldW = tb.style.width; tb.className += " fitm"; tb.style.width = "auto";
+      for (var m = 0; m < ths.length; m++) nat.push(ths[m].offsetWidth + 6);
+      tb.className = tb.className.replace(/\s*fitm/, ""); tb.style.width = oldW;
+      cg = document.createElement("colgroup");
+      for (var c = 0; c < ths.length; c++) {
+        var k = key + "|" + headText(ths[c]), w = c < nf ? 0 : sw[k] || gridCache[k];
+        if (!w) { w = nat[c]; if (c >= nf) w = Math.max(60, Math.min(w, 320)); gridCache[k] = c < nf ? 0 : w; }
+        if (c < nf) w = nat[c] + 2;
+        var col = document.createElement("col"); col.style.width = w + "px"; col.setAttribute("data-gk", k); cg.appendChild(col); tot += w;
+        if (c >= nf && headText(ths[c]) != "#") { var g = document.createElement("span"); g.className = "rz"; g.setAttribute("data-grz", "" + c); g.title = "Drag to change the width (double-click = back to normal)"; ths[c].appendChild(g); }
+      }
+      // spare room in the window goes to the widest column that wraps (usually Title), not saved
+      var sc0 = scroller(tb), avail = sc0 ? sc0.clientWidth - 2 : 0, cols = cg.getElementsByTagName("col");
+      if (avail > tot && nf < cols.length) { var big = nf; for (var b = nf; b < cols.length; b++) if (parseInt(cols[b].style.width, 10) > parseInt(cols[big].style.width, 10)) big = b; cols[big].style.width = (parseInt(cols[big].style.width, 10) + avail - tot) + "px"; tot = avail; }
+      tb.insertBefore(cg, tb.firstChild);
+      tb.style.tableLayout = "fixed"; tb.style.width = tot + "px"; tb.className += " fit";
+    }
+    // mark the frozen cells (only plain cells - full-width group rows keep scrolling)
+    for (var r = 0; r < tb.rows.length; r++) {
+      var cells = tb.rows[r].cells, pos = 0;
+      for (var q = 0; q < cells.length && pos < nf; q++) { var span = cells[q].colSpan || 1; if (pos + span <= nf) cells[q].className += (pos + span == nf ? " fz fzl" : " fz"); pos += span; }
+    }
+    var sc = scroller(tb);
+    if (sc && !sc.getAttribute("data-fzc")) {
+      sc.setAttribute("data-fzc", "" + (++gridSeq));
+      if (sc.attachEvent) sc.attachEvent("onscroll", fzRules); else sc.addEventListener("scroll", fzRules, false);
+    }
+    fzRules();
+  }
+  L.fitGrids = function (root) {
+    var ts = (root || document).getElementsByTagName("table");
+    for (var i = 0; i < ts.length; i++) if (hasCls(ts[i], "grid")) try { fitGrid(ts[i]); } catch (e) { }
+  };
+  function gridDown(e) {
+    e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-grz") == null) return;
+    var tb = L.up(t, "data-fit"), col = tb.getElementsByTagName("col")[+t.getAttribute("data-grz")];
+    gridDrag = { tb: tb, col: col, x: e.clientX, w: col.offsetWidth || parseInt(col.style.width, 10), tw: tb.offsetWidth };
+    if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
+  }
+  function gridMove(e) {
+    if (!gridDrag) return; e = e || window.event;
+    var w = Math.max(40, gridDrag.w + e.clientX - gridDrag.x); gridDrag.col.style.width = w + "px"; gridDrag.tb.style.width = (gridDrag.tw + w - gridDrag.w) + "px"; gridDrag.now = w;
+    if (e.preventDefault) e.preventDefault(); e.returnValue = false;
+  }
+  function gridUp() {
+    if (!gridDrag) return; var d = gridDrag; gridDrag = null; if (!d.now) return;
+    var s = L.settings(), k = d.col.getAttribute("data-gk"); s.gridCols = s.gridCols || {}; s.gridCols[k] = d.now; gridCache[k] = d.now; L.saveSettings(s);
+  }
+  function gridDbl(e) {
+    e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-grz") == null) return;
+    var tb = L.up(t, "data-fit"), col = tb.getElementsByTagName("col")[+t.getAttribute("data-grz")], k = col.getAttribute("data-gk");
+    var s = L.settings(); if (s.gridCols) { delete s.gridCols[k]; L.saveSettings(s); } delete gridCache[k];
+    var old = parseInt(col.style.width, 10), w = 150; col.style.width = w + "px"; tb.style.width = (tb.offsetWidth + w - old) + "px"; gridCache[k] = w;
+    if (e.stopPropagation) e.stopPropagation(); e.cancelBubble = true;
+  }
+  (function () {
+    var on = function (n, f, cap) { if (document.addEventListener) document.addEventListener(n, f, !!cap); else document.attachEvent("on" + n, f); };
+    on("mousedown", gridDown, true); on("mousemove", gridMove); on("mouseup", gridUp); on("dblclick", gridDbl, true);
+    var start = function () {
+      L.fitGrids();
+      if (window.MutationObserver) {
+        var busy = false;
+        new MutationObserver(function () { if (busy) return; busy = true; window.setTimeout(function () { busy = false; L.fitGrids(); }, 0); }).observe(document.body, { childList: true, subtree: true });
+      } else window.setInterval(function () { L.fitGrids(); }, 400);
+    };
+    if (window.addEventListener) window.addEventListener("load", start, false); else window.attachEvent("onload", start);
+  })();
+
   L.tabKeys = function () {
     var h = function (e) {
       e = e || window.event;

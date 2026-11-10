@@ -11,40 +11,53 @@ module.exports = async ({ page, out }) => {
     save(); view = 'list'; render();
   });
   await page.waitForTimeout(300);
-  const info = await f.evaluate(() => { var tb = document.querySelector('#main table.grid'); return { fit: / fit/.test(tb.className), cols: tb.getElementsByTagName('col').length, fz: tb.rows[1].cells[0].className, fz2: tb.rows[1].cells[1].className, grips: tb.querySelectorAll('th .rz').length, th: tb.rows[0].cells.length }; });
+  const info = await f.evaluate(() => { var tb = document.querySelector('#main table.grid'); return { fit: / fit/.test(tb.className), cols: tb.getElementsByTagName('col').length, rn: tb.rows[1].cells[0].className + '=' + tb.rows[1].cells[0].innerText, fz: tb.rows[1].cells[1].className, fz2: tb.rows[1].cells[2].className, grips: tb.querySelectorAll('th .rz').length, th: tb.rows[0].cells.length }; });
   ok(info.fit && info.cols == info.th, 'table gets fixed column widths (' + info.cols + ' columns)');
-  ok(/fz fzl/.test(info.fz) && !/fz/.test(info.fz2), 'column A (drawing / document number) is frozen, the rest are not');
-  ok(info.grips == info.th - 1, 'every other column has a resize grip (' + info.grips + ')');
+  ok(/rn/.test(info.rn) && /fz/.test(info.rn) && /=1$/.test(info.rn), 'row number column (No.) first, frozen, starts at 1');
+  ok(/fz fzl/.test(info.fz) && !/fz/.test(info.fz2), 'drawing / document number column frozen next to it, the rest are not');
+  ok(info.grips == info.th - 2, 'every other column has a resize grip (' + info.grips + ')');
   // wrapped text
   ok(await f.evaluate(() => { var r = document.querySelector('#main table.grid').rows; return r[1].offsetHeight > r[3].offsetHeight + 8; }), 'long text wraps onto more lines');
-  ok(await f.evaluate(() => { var c = document.querySelector('#main table.grid').rows[1].cells[0]; return getComputedStyle(c).whiteSpace == 'nowrap' && c.scrollHeight <= c.offsetHeight + 2; }), 'drawing number does not wrap');
+  ok(await f.evaluate(() => { var c = document.querySelector('#main table.grid').rows[1].cells[1]; return getComputedStyle(c).whiteSpace == 'nowrap' && c.scrollHeight <= c.offsetHeight + 2; }), 'drawing number does not wrap');
+  // heading row stays on top when scrolling down
+  await f.evaluate(() => { for (var i = 13; i <= 60; i++) data.tasks.push({ id: 'y' + i, code: 'T' + i, title: 'Extra ' + i, group: '', project: '', who: 'Ben', due: '', status: 'Not started', notes: '', subs: [], history: [] }); save(); render(); });
+  await page.waitForTimeout(300);
+  const h0 = await f.evaluate(() => document.querySelector('#main table.grid').rows[0].getBoundingClientRect().top);
+  await f.evaluate(() => { $('main').scrollTop = 600; $('main').dispatchEvent(new Event('scroll')); }); await page.waitForTimeout(100);
+  const hs = await f.evaluate(() => { var tb = document.querySelector('#main table.grid'); return [tb.rows[0].cells[2].getBoundingClientRect().top, $('main').getBoundingClientRect().top, $('main').scrollTop, tb.rows[tb.rows.length - 1].cells[0].innerText]; });
+  ok(hs[2] > 500 && Math.abs(hs[0] - hs[1]) < 3, 'scroll down: the column titles stay at the top (scrolled ' + hs[2] + 'px)');
+  ok(hs[3] == '60', 'rows numbered 1 to 60');
+  await page.screenshot({ path: out + '/g_scrolled_down.png' });
+  await f.evaluate(() => { $('main').scrollTop = 0; $('main').dispatchEvent(new Event('scroll')); });
   // drag "Task / item" edge wider
-  const g = await f.evaluate(() => { var th = document.querySelector('#main table.grid').rows[0].cells[1], r = th.querySelector('.rz').getBoundingClientRect(); return { x: r.left + 4, y: r.top + r.height / 2, w: th.offsetWidth }; });
+  const g = await f.evaluate(() => { var th = document.querySelector('#main table.grid').rows[0].cells[2], r = th.querySelector('.rz').getBoundingClientRect(); return { x: r.left + 4, y: r.top + r.height / 2, w: th.offsetWidth }; });
   await page.mouse.move(g.x + 0, g.y + 0);
   const fr = await (await page.$('#f_delegate')).boundingBox();
   await page.mouse.move(fr.x + g.x, fr.y + g.y); await page.mouse.down(); await page.mouse.move(fr.x + g.x + 120, fr.y + g.y, { steps: 5 }); await page.mouse.up();
-  const w2 = await f.evaluate(() => document.querySelector('#main table.grid').rows[0].cells[1].offsetWidth);
+  const w2 = await f.evaluate(() => document.querySelector('#main table.grid').rows[0].cells[2].offsetWidth);
   ok(w2 >= g.w + 110, 'drag the heading edge: column wider (' + g.w + ' → ' + w2 + 'px)');
   ok(await f.evaluate(() => { var s = LT.settings().gridCols || {}; return s['delegate|Task / item'] > 0; }), 'width saved for this tab');
   await f.evaluate(() => render()); await page.waitForTimeout(200);
-  ok(Math.abs(await f.evaluate(() => document.querySelector('#main table.grid').rows[0].cells[1].offsetWidth) - w2) < 3, 'width kept after the list redraws');
+  ok(Math.abs(await f.evaluate(() => document.querySelector('#main table.grid').rows[0].cells[2].offsetWidth) - w2) < 3, 'width kept after the list redraws');
   await page.screenshot({ path: out + '/g_resized.png' });
   // frozen while scrolling sideways
-  const before = await f.evaluate(() => { var r = document.querySelector('#main table.grid').rows[1]; return [r.cells[0].getBoundingClientRect().left, r.cells[2].getBoundingClientRect().left]; });
+  const before = await f.evaluate(() => { var r = document.querySelector('#main table.grid').rows[1]; return [r.cells[1].getBoundingClientRect().left, r.cells[3].getBoundingClientRect().left]; });
   await f.evaluate(() => { $('main').scrollLeft = 300; $('main').dispatchEvent(new Event('scroll')); });
   await page.waitForTimeout(100);
-  const after = await f.evaluate(() => { var r = document.querySelector('#main table.grid').rows[1]; return [r.cells[0].getBoundingClientRect().left, r.cells[2].getBoundingClientRect().left, $('main').scrollLeft]; });
+  const after = await f.evaluate(() => { var r = document.querySelector('#main table.grid').rows[1]; return [r.cells[1].getBoundingClientRect().left, r.cells[3].getBoundingClientRect().left, $('main').scrollLeft]; });
   ok(after[2] > 0 && Math.abs(after[0] - before[0]) < 2 && after[1] < before[1] - 50, 'scroll sideways: column A stays, other columns move (scrolled ' + after[2] + 'px)');
   await page.screenshot({ path: out + '/g_scrolled.png' });
   await f.evaluate(() => { $('main').scrollLeft = 0; $('main').dispatchEvent(new Event('scroll')); });
   // double-click = back to normal
-  await page.mouse.dblclick(fr.x + g.x + 120, fr.y + g.y); await page.waitForTimeout(100);
+  await f.evaluate(() => { var th = document.querySelector('#main table.grid').rows[0].cells[2]; $('main').scrollLeft = th.offsetLeft - 150; $('main').dispatchEvent(new Event('scroll')); });
+  const g2 = await f.evaluate(() => { var r = document.querySelector('#main table.grid').rows[0].cells[2].querySelector('.rz').getBoundingClientRect(); return { x: r.left + 4, y: r.top + r.height / 2 }; });
+  await page.mouse.dblclick(fr.x + g2.x, fr.y + g2.y); await page.waitForTimeout(100);
   ok(await f.evaluate(() => !(LT.settings().gridCols || {})['delegate|Task / item']), 'double-click the edge: saved width cleared');
   // other tabs get it too (Tracker list: tick box + Task frozen)
   await page.click('.nb[data-k="tracker"]'); await page.waitForTimeout(600);
   const tr = page.frame({ url: /tracker\.html/ });
   await tr.evaluate(() => { data.tasks.push({ id: 'z', title: 'Check RFI drawings', project: 'Tower 1', due: LT.today(), priority: 'Normal', status: 'To do', notes: '', log: [] }); save(); data.view = 'open'; render(); });
   await page.waitForTimeout(300);
-  ok(await tr.evaluate(() => { var tb = document.querySelector('#main table.grid'); return tb && / fit/.test(tb.className) && /fz/.test(tb.rows[1].cells[0].className) && /fzl/.test(tb.rows[1].cells[1].className); }), 'Tracker list: tick box + Task frozen');
+  ok(await tr.evaluate(() => { var tb = document.querySelector('#main table.grid'); return tb && / fit/.test(tb.className) && /fz/.test(tb.rows[1].cells[1].className) && /fzl/.test(tb.rows[1].cells[2].className); }), 'Tracker list: No. + tick box + Task frozen');
   await page.setViewportSize({ width: 1180, height: 700 });
 };

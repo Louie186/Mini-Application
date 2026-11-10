@@ -48,7 +48,9 @@ No install, no build step.
 
 ## Tables (every tab)
 
-- **Column A is frozen** – the drawing / document number (and any tick box before it) stays in place when you scroll sideways
+- **No.** – every row has a number on the left, so you always know which row you're on
+- **Column titles stay on top** when you scroll down
+- **No. + column A are frozen** – the row number and drawing / document number (and any tick box) stay in place when you scroll sideways
   - It never wraps, so the number is always on one line
 - **Change a column's width** – drag the right edge of its heading (it turns blue when you point at it)
   - **Double-click** the edge = back to normal

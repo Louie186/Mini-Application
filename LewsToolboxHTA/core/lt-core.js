@@ -332,6 +332,8 @@ var LT = (function () {
     "table.grid.fit td{white-space:normal;word-wrap:break-word;overflow:hidden}table.grid.fit td.fz{white-space:nowrap}",
     "table.grid .fz{position:relative;z-index:1;white-space:nowrap}table.grid td.fz{background-color:{bg}}table.grid th.fz{z-index:2}",
     "table.grid .fzl{border-right:2px solid {line}}",
+    "table.grid tr.fhr th{position:relative;z-index:4;border-bottom:{bw}px solid {line};background-color:{panel}}table.grid tr.fhr th.fz{z-index:5}",
+    "table.grid .rn{text-align:right;color:{muted};font-weight:normal;padding-right:8px}table.grid td.rn{font-size:.9em}",
     "table.grid th .rz{position:absolute;right:-3px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3}table.grid th .rz:hover{background:{accent}}",
     "#toast .undo{display:inline-block;margin-left:14px;padding:1px 10px;cursor:pointer;text-decoration:underline}",
     ".scroll{overflow:auto}",
@@ -483,7 +485,17 @@ var LT = (function () {
   function fzRules() {
     if (!gridCss) { gridCss = document.createElement("style"); document.getElementsByTagName("head")[0].appendChild(gridCss); }
     var r = [], sc = document.querySelectorAll ? document.querySelectorAll("[data-fzc]") : [];
-    for (var i = 0; i < sc.length; i++) r.push('[data-fzc="' + sc[i].getAttribute("data-fzc") + '"] .fz{left:' + sc[i].scrollLeft + "px}");
+    for (var i = 0; i < sc.length; i++) {
+      var box = sc[i], top = box.getBoundingClientRect().top;
+      r.push('[data-fzc="' + box.getAttribute("data-fzc") + '"] .fz{left:' + box.scrollLeft + "px}");
+      // frozen cells take the colour of the area behind the table, so the row looks the same all the way along
+      var bg = css(box, "backgroundColor"); if (bg && bg != "transparent" && !/rgba\([^)]*,\s*0\)/.test(bg)) r.push('[data-fzc="' + box.getAttribute("data-fzc") + '"] td.fz{background-color:' + bg + "}");
+      // heading row: slides down with the scroll, but never past the bottom of its own table
+      var ts = box.getElementsByTagName("table");
+      for (var j = 0; j < ts.length; j++) { var tb = ts[j], id = tb.getAttribute("data-fzt"); if (!id || !tb.rows.length) continue;
+        var y = top - tb.getBoundingClientRect().top; y = Math.max(0, Math.min(y, tb.offsetHeight - tb.rows[0].offsetHeight));
+        if (y > 0) r.push('table[data-fzt="' + id + '"] tr.fhr th{top:' + Math.round(y) + "px}"); }
+    }
     setCss(gridCss, r.join("\n"));
   }
   function fitGrid(tb) {
@@ -491,9 +503,26 @@ var LT = (function () {
     var ov = tb.parentNode; while (ov && ov.nodeType == 1) { if (hasCls(ov, "ov")) return; ov = ov.parentNode; }
     var head = tb.rows && tb.rows[0]; if (!head) return;
     var ths = head.cells; if (!ths.length || ths[0].tagName != "TH") return;
-    tb.setAttribute("data-fit", "1");
-    // frozen: leading narrow columns (tick boxes, row numbers) + the first column with a real heading
-    var nf = 0; for (var i = 0; i < ths.length; i++) { nf = i + 1; if (headText(ths[i]) != "#" && ths[i].offsetWidth > 48) break; }
+    tb.setAttribute("data-fit", "1"); tb.setAttribute("data-fzt", "" + (++gridSeq));
+    // row numbers (No.) in front of every row, so you always know which row you're on
+    var own0 = tb.getElementsByTagName("colgroup").length > 0, nRows = 0;
+    if (!hasCls(tb, "nonum") && !(tb.id == "heat" || tb.id == "tabList")) {
+      var hc = document.createElement("th"); hc.className = "rn"; hc.innerHTML = "No."; head.insertBefore(hc, ths[0]);
+      for (var rr = 1; rr < tb.rows.length; rr++) {
+        var row = tb.rows[rr], cl = row.cells, plain = cl.length > 1;
+        for (var z = 0; z < cl.length && plain; z++) if ((cl[z].colSpan || 1) > 1) plain = false;
+        if (plain) { var nc = row.insertCell(0); nc.className = "rn"; nc.innerHTML = "" + (++nRows); }
+        else if (cl.length) cl[0].colSpan = (cl[0].colSpan || 1) + 1;
+      }
+      if (own0) {   // the tab sizes its own columns: add one for No. in front
+        var w0 = Math.max(38, ("" + nRows).length * 9 + 22), cg0 = tb.getElementsByTagName("colgroup")[0], c0 = document.createElement("col");
+        c0.style.width = w0 + "px"; cg0.insertBefore(c0, cg0.firstChild);
+        if (tb.style.width) tb.style.width = (parseInt(tb.style.width, 10) + w0) + "px";
+      }
+    }
+    head.className += " fhr";
+    // frozen: No., tick boxes + the first column with a real heading (drawing / document number)
+    var nf = 0; for (var i = 0; i < ths.length; i++) { nf = i + 1; if (!hasCls(ths[i], "rn") && headText(ths[i]) != "#" && ths[i].offsetWidth > 48) break; }
     if (nf >= ths.length) nf = Math.max(0, ths.length - 1);
     var own = tb.getElementsByTagName("colgroup").length > 0;   // the tab already sizes its columns (Drawing Register)
     var key = pageKey(), sw = savedW(), cg = null, tot = 0, nat = [];

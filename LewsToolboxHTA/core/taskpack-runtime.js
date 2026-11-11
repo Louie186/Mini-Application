@@ -1,6 +1,10 @@
 // The page that runs inside an HTML Task Pack - from Lew's Tracker (skills/delegate/taskpack.js, function runtime),
 // unchanged except that non-English letters are written as \uXXXX so the file is plain ASCII on any PC.
 // Keep it the same as the web app so packs and replies work in both. The Delegate tab reads this file to make each pack.
+// Toolbox additions (optional, a pack without them looks and replies exactly as before):
+//   t.refs / item.refs = list of references (k = kind, t = text, h = link), shown under the task / item
+//   (no curly brackets in these top comments: the Delegate tab cuts the page out of this file at the first one)
+//   P.team = [names]  this pack goes to a group's lead: each item gets an "Assign to" box; the reply sends row.who
   function runtime(P) {
     var KEY = 'ltpack:' + (P.projectId || '') + ':' + (P.person || P.label || P.id);
     var BASE = {};
@@ -24,13 +28,15 @@
     function fmt(d) { if (!d) return ''; var x = new Date(d + 'T00:00:00'); return isNaN(x) ? d : x.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }); }
     function pend(code, base) {
       var o = S.items[code] || {}, bs = base.status || 'Not started', bn = base.notes || '';
-      return { status: o.status != null && o.sFrom === bs && o.status !== bs ? o.status : null, notes: o.notes != null && o.nFrom === bn && o.notes !== bn ? o.notes : null };
+      var bw = base.who || '';
+      return { status: o.status != null && o.sFrom === bs && o.status !== bs ? o.status : null, notes: o.notes != null && o.nFrom === bn && o.notes !== bn ? o.notes : null, who: o.who != null && o.wFrom === bw && o.who !== bw ? o.who : null };
     }
     function cur(code, base) { var p = pend(code, base); return { status: p.status || base.status || 'Not started', notes: p.notes != null ? p.notes : (base.notes || '') }; }
     function setItem(code, field, v) {
       var base = BASE[code]; if (!base) return;
       var o = S.items[code] = S.items[code] || {}, p = pend(code, base);
       if (field === 'status') { if (p.status == null) o.sFrom = base.status || 'Not started'; o.status = v; }
+      else if (field === 'who') { if (p.who == null) o.wFrom = base.who || ''; o.who = v; }
       else { if (p.notes == null) o.nFrom = base.notes || ''; o.notes = v; }
     }
     function lines() {
@@ -76,17 +82,33 @@
       '@media(max-width:600px){.it{grid-template-columns:1fr auto}.it .sts{grid-column:1/-1;order:3;justify-self:start}.due{margin-left:0;width:100%}}',
       '@media print{.foot,.help,.bar2,.add,.tools,.panelbtn,.panelcard{display:none!important}.it textarea{display:none}.wrap{padding-bottom:0}.card{break-inside:avoid}.sts button:not(.on){display:none}}'
     ].join('\n');
+    css.textContent += '.refs{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px;font-size:13px}.refs a{color:#2f6fed;text-decoration:none}.refs a:hover{text-decoration:underline}.refs span{opacity:.85}' +
+      'select.who{margin-top:3px;font-size:13px;padding:2px 6px;border-radius:6px;max-width:200px}small.who{opacity:.8}';
     document.head.appendChild(css);
+    document.addEventListener('change', function (e) { var w = e.target.getAttribute && e.target.getAttribute('data-who'); if (w) { setItem(w, 'who', e.target.value); save(); } });
     document.title = 'Tasks \u2014 ' + (P.label || P.person || '');
 
     var OPEN = {};
+    var RICON = { link: '\ud83d\udd17', file: '\ud83d\udcc4', folder: '\ud83d\udcc1', drawing: '\ud83d\udcd0', note: '\ud83d\udcdd' };
+    function refsHtml(refs) {
+      if (!refs || !refs.length) return '';
+      return '<div class="refs">' + refs.map(function (r) { var tx = (RICON[r.k] || '') + ' ' + esc(r.t);
+        return r.h ? '<a href="' + esc(r.h) + '" target="_blank" rel="noopener" title="' + esc(r.h) + '">' + tx + '</a>' : '<span>' + tx + '</span>'; }).join('') + '</div>';
+    }
+    function whoHtml(l) {
+      if (!P.team || !P.team.length || l.n || l.base === l.t) return l.base && l.base !== l.t && l.base.who ? '<small class="who">\ud83d\udc64 ' + esc(l.base.who) + '</small>' : '';
+      var p = pend(l.code, l.base), w = p.who != null ? p.who : (l.base.who || '');
+      return '<select class="who" data-who="' + esc(l.code) + '" title="Who in your team does this?"><option value="">Assign to\u2026</option>' +
+        P.team.map(function (n) { return '<option' + (n === w ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select>';
+    }
     function itemHtml(l) {
       var key = l.n ? 'n:' + l.n.lid : 'c:' + l.code, st = stOf(l), notes = l.n ? l.n.notes : cur(l.code, l.base).notes;
       var title = l.n ? l.n.title : (l.base === l.t ? 'Status of this task' : l.base.title), lt = late(l);
       return '<div class="it' + (st === 'Completed' ? ' done' : '') + (l.n ? ' new' : '') + '">' +
         '<div class="sts">' + ST.map(function (s, i) { return '<button class="s' + i + (s[0] === st ? ' on' : '') + '" data-st="' + key + '" data-v="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div>' +
         '<div class="nm"><span>' + esc(title) + '</span>' + (l.n ? '<span class="tag">NEW</span>' : '') + (!l.n && l.base && l.base.info ? '<small class="inf">' + esc(l.base.info) + '</small>' : '') +
-        '<small class="' + (lt ? 'late' : '') + '">' + (l.due ? (lt ? 'overdue ' : '') + esc(fmt(l.due)) : '') + '</small>' +
+        '<small class="' + (lt ? 'late' : '') + '">' + (l.due ? (lt ? 'overdue ' : '') + esc(fmt(l.due)) : '') + '</small>' + whoHtml(l) +
+        (!l.n && l.base !== l.t ? refsHtml(l.base.refs) : '') +
         (notes && !OPEN[key] ? '<em>\u270e ' + esc(notes) + '</em>' : '') + '</div>' +
         '<div class="tools"><button class="ib' + (notes ? ' has' : '') + '" data-noteopen="' + key + '" title="' + (notes ? 'Edit note' : 'Add a note') + '">\u270e</button>' +
         (l.n ? '<button class="ib x" data-del="' + key + '" title="Remove">\u00d7</button>' : '') + '</div>' +
@@ -117,7 +139,7 @@
         var tlate = t.due && t.due < TODAY && dn < mine.length;
         h += '<div class="card"><div class="ch"><span class="code">' + esc(t.code) + '</span><b>' + esc(t.title) + '</b>' + (t.group ? '<span class="grp">' + esc(t.group) + '</span>' : '') +
           '<span class="cnt">' + dn + '/' + mine.length + '</span><span class="due' + (tlate ? ' late' : '') + '">' + (t.due ? (tlate ? 'overdue ' : 'due ') + esc(fmt(t.due)) : '') + '</span></div>' +
-          (t.notes ? '<div class="lew">\ud83d\udcdd ' + esc(t.notes) + '</div>' : '') + ls.map(itemHtml).join('') +
+          (t.notes ? '<div class="lew">\ud83d\udcdd ' + esc(t.notes) + '</div>' : '') + (t.refs && t.refs.length ? '<div class="lew">' + refsHtml(t.refs) + '</div>' : '') + ls.map(itemHtml).join('') +
           '<div class="add"><input data-addin="' + esc(t.code) + '" placeholder="+ add an item\u2026"><button data-add="' + esc(t.code) + '">Add</button></div></div>';
       });
       S.newTasks.forEach(function (nt) {
@@ -144,7 +166,7 @@
       P.tasks.forEach(function (t) {
         var tp = pend(t.code, t);
         rows.push({ id: t.code, title: t.title, status: t.subs.length ? '' : (tp.status || ''), notes: tp.notes, derived: !!t.subs.length });
-        t.subs.forEach(function (s) { var sp = pend(s.code, s); rows.push({ id: s.code, title: s.title, status: sp.status || '', notes: sp.notes }); });
+        t.subs.forEach(function (s) { var sp = pend(s.code, s), row = { id: s.code, title: s.title, status: sp.status || '', notes: sp.notes }; if (sp.who != null) row.who = sp.who; rows.push(row); });
         (S.newItems[t.code] || []).forEach(function (n) { rows.push({ id: '', title: n.title, status: n.status, notes: n.notes, due: n.due || '' }); });
       });
       S.newTasks.forEach(function (nt) {

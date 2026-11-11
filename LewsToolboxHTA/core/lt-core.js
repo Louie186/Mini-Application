@@ -21,6 +21,7 @@ var LT = (function () {
   /* the folder that holds LewsToolbox.hta (tab pages live in its "tabs" subfolder) */
   L.appDir = function () {
     var p = pathFromUrl(location.href), d = p.substring(0, p.lastIndexOf("\\"));
+    if (/\\tabs\\parts$/i.test(d)) d = d.substring(0, d.lastIndexOf("\\"));   // a page inside a tab (tabs\\parts)
     if (/\\(tabs|core)$/i.test(d)) d = d.substring(0, d.lastIndexOf("\\"));
     return d;
   };

@@ -111,6 +111,8 @@ var LTMain = {
       if (++tries < 40) window.setTimeout(go, 150);
     })();
   },
+  /* hands a tab a message WITHOUT switching to it (only if that tab is open; tabs also re-read their files when shown) */
+  post: function (key, what, value) { try { var f = frames[key], w = f && f.contentWindow; if (w && w.ltReceive && w.document.readyState == "complete") w.ltReceive(what, value); } catch (x) { } },
   /* after Settings changes the theme or text size: every tab redraws in the new look */
   themeChanged: function (from) {
     look();

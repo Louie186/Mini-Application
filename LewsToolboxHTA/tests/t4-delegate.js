@@ -6,12 +6,12 @@ module.exports = async ({ page, out }) => {
   await page.click('.nb[data-k="delegate"]'); await page.waitForTimeout(700);
   const f = page.frame({ url: /delegate\.html/ });
   // make two tasks through the edit dialog
-  await f.click('#bNew'); await f.fill('#eTitle', 'Level 3 GA sheets'); await f.fill('#eGroup', 'Drawings'); await f.fill('#eProj', 'Tower 1'); await f.fill('#eWho', 'Anna');
+  await page.mouse.move(900, 600); await f.evaluate(() => edit(null)); await f.fill('#eTitle', 'Level 3 GA sheets'); await f.fill('#eGroup', 'Drawings'); await f.fill('#eProj', 'Tower 1'); await f.fill('#eWho', 'Anna');
   await f.evaluate(() => { var d = new Date(); d.setDate(d.getDate() - 1); $('eDue').value = LT.pad(d.getDate()) + '/' + LT.pad(d.getMonth() + 1) + '/' + d.getFullYear(); });
   await f.click('#eAddRow'); await f.click('#eAddRow');
   await f.evaluate(() => { var r = $('items').getElementsByTagName('tr'); r[1].getElementsByClassName('iT')[0].value = 'Sheet A-301 – plan'; r[1].getElementsByClassName('iW')[0].value = 'Anna'; r[2].getElementsByClassName('iT')[0].value = 'Sheet A-302'; r[2].getElementsByClassName('iW')[0].value = 'Ben'; });
   await f.click('#eOk');
-  await f.click('#bNew'); await f.fill('#eTitle', 'Clash report "zone B" & <check>'); await f.fill('#eWho', 'Ben, Anna'); await f.fill('#eNotes', 'first pass'); await f.click('#eOk');
+  await f.evaluate(() => edit(null)); await f.fill('#eTitle', 'Clash report "zone B" & <check>'); await f.fill('#eWho', 'Ben, Anna'); await f.fill('#eNotes', 'first pass'); await f.click('#eOk');
   const tasks = await f.evaluate(() => data.tasks.map(t => t.code + ':' + t.subs.map(s => s.code).join(',')));
   ok(tasks.join(' ') == 'T001:T001.1,T001.2 T002:', 'tasks and item IDs made: ' + tasks.join(' '));
   await page.screenshot({ path: out + '/h_delegate.png' });

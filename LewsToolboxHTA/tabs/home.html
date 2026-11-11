@@ -41,7 +41,7 @@
     <div class="box"><h3>&#9203; Waiting on others <span class="n muted" id="nWait"></span><span class="go" data-go="delegate">Open Delegate &rsaquo;</span></h3><div id="wait"></div></div>
     <div class="box"><h3>&#128197; Next 2 weeks <span class="n muted" id="nNext"></span></h3><div id="next"></div></div>
     <div class="box"><h3>&#128640; Recent files <span class="go" data-go="launcher">Open Launcher &rsaquo;</span></h3><div id="recent"></div></div>
-    <div class="box" id="teamBox" style="display:none"><h3>&#128101; Team this week <span class="go" data-go="workload">Open Team workload &rsaquo;</span></h3><div id="team"></div></div>
+    <div class="box" id="teamBox" style="display:none"><h3>&#128101; Team this week <span class="go" data-go="delegate" data-view="workload">Open Workload &rsaquo;</span></h3><div id="team"></div></div>
   </div>
 </div>
 <script>
@@ -132,7 +132,7 @@ $("bAdd").onclick = function () { var v = LT.trim($("quick").value); if (!v) { $
 $("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { $("bAdd").onclick(); return false; } };
 $("wrap").onclick = function (e) {
   var t = e.target || e.srcElement, g = LT.up(t, "data-go"), l = LT.up(t, "data-l"), o = LT.up(t, "data-open");
-  if (g && LT.main()) LT.main().show(g.getAttribute("data-go"));
+  if (g && LT.main()) { if (g.getAttribute("data-view")) LT.main().send(g.getAttribute("data-go"), "view", g.getAttribute("data-view")); else LT.main().show(g.getAttribute("data-go")); }
   else if (l && LT.main()) { var k = links[+l.getAttribute("data-l")]; if (k.what) LT.main().send(k.tab, k.what, k.value); else LT.main().show(k.tab); }
   else if (o) { try { LT.open(o.getAttribute("data-open")); } catch (x) { alert("Couldn't open it - it may have moved."); } }
 };

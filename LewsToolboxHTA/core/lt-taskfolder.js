@@ -112,8 +112,8 @@
       h.push("</table></div>"); }
     var refs = (t.refs || []).slice(0); for (var r2 = 0; r2 < (t.subs || []).length; r2++) refs = refs.concat(t.subs[r2].refs || []);
     if (refs.length) { h.push('<div class="sec"><h2>References</h2><table><tr><th>Type</th><th>Reference</th></tr>');
-      for (var r = 0; r < refs.length; r++) { var x2 = refs[r], lab = L.refLabel ? L.refLabel(x2) : x2.value, link = x2.kind == "link" ? (/^[a-z]+:/i.test(x2.value) ? x2.value : "https://" + x2.value) : x2.kind == "file" || x2.kind == "folder" ? "file:///" + x2.value.replace(/\\/g, "/") : "";
-        h.push("<tr><td>" + e(L.REF_NAME ? L.REF_NAME[x2.kind] : x2.kind) + "</td><td>" + (link ? '<a href="' + e(link) + '">' + e(lab) + "</a>" : e(x2.kind == "note" ? x2.value : lab)) + "</td></tr>"); }
+      for (var r = 0; r < refs.length; r++) { var x2 = refs[r], lab = x2.kind == "drawing" ? L.refLabel(x2) : L.refShort ? L.refShort(x2).name : x2.value, link = x2.kind == "link" ? (/^[a-z]+:/i.test(x2.value) ? x2.value : "https://" + x2.value) : x2.kind == "file" || x2.kind == "folder" ? "file:///" + x2.value.replace(/\\/g, "/") : "";
+        h.push("<tr><td>" + e(L.REF_NAME ? L.REF_NAME[x2.kind] : x2.kind) + "</td><td>" + (link ? '<a href="' + e(link) + '" title="' + e(x2.value) + '">' + e(lab) + "</a>" : e(x2.kind == "note" ? x2.value : lab)) + "</td></tr>"); }
       h.push("</table></div>"); }
     for (var s = 0; s < SUBS.length; s++) { var fs = by[SUBS[s]] || [];
       h.push('<div class="sec"><h2>' + SUBS[s] + ' <span class="muted" style="font-weight:normal">(' + fs.length + ")</span></h2>");
@@ -122,7 +122,7 @@
         for (var q = 0; q < fs.length; q++) h.push('<tr><td><a href="' + href(SUBS[s] + "\\" + fs[q].rel) + '">' + e(fs[q].rel) + "</a></td><td>" + e(KIND[fs[q].ext] || fs[q].ext.toUpperCase()) + "</td><td>" + size(fs[q].size) + "</td><td>" + date(fs[q].date) + "</td></tr>");
         h.push("</table>"); }
       h.push("</div>"); }
-    h.push('<div class="ft"><span>' + e(dir) + "</span><span>Updated " + date(L.today()) + " " + L.pad(now.getHours()) + ":" + L.pad(now.getMinutes()) + (L.settings().userName ? " by " + e(L.settings().userName) : "") + " &middot; Lew's Toolbox</span></div></div></body></html>");
+    h.push('<div class="ft"><span title="' + e(dir) + '">&#128193; ' + e(fso.GetFileName(dir)) + "</span><span>Updated " + date(L.today()) + " " + L.pad(now.getHours()) + ":" + L.pad(now.getMinutes()) + (L.settings().userName ? " by " + e(L.settings().userName) : "") + " &middot; Lew's Toolbox</span></div></div></body></html>");
     return h.join("\n");
   };
 })(LT);

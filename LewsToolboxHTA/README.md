@@ -104,6 +104,9 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
   - **Who does it** – empty = you. A person, or a group (groups are made in Delegate → Team & groups)
   - **Description / notes**, project, due (click it for a calendar), priority, status, repeat, time
   - **References for the whole task** – pick 🔗 Link · 📄 File · 📁 Folder · 📐 Drawing · 📝 Note, type or **Browse…**, **+ Add**
+    - **Show as** (optional) – a short name instead of the long link / path, e.g. paste the ACC link and type `ACC – Tower 1 model`
+    - Without a name it shows neatly by itself: a link shows its page / file name and the site (`Roof Kitchen Equipment Schedule.xlsx · keo.sharepoint.com`), a path shows the file name and only the last two folders (`…\Markups\2026-11-10`)
+    - Click the name to open it · point at it to see the full link / path · **✎** to rename or change the link (Enter = done)
     - Files and folders: **Send a copy** (copied into the transmittal) or **Link only** (already on a shared drive)
     - Drawings: several at once (one per line, or `,` between). The title comes from the Drawing Register
   - **Checklist** – items with their own person, date, status and **📎 references** (click 📎 on the item)

@@ -404,7 +404,7 @@ function openTF(t) {
   $("tfMake").style.display = has ? "none" : ""; $("tfBody").style.display = has ? "" : "none"; $("tfActs").style.display = has ? "" : "none";
   if (!has) { $("tfName").value = (t.code ? t.code + " " : "") + t.title; $("tfWhere").value = LT.settings().tfLast || ""; $("tf").style.display = "block"; try { $("tfName").focus(); } catch (e) { } return; }
   var s0 = LT.settings(); $("tfMove").checked = !!s0.tfMove; $("tfCopy").checked = !s0.tfMove;
-  $("tfPath").innerHTML = esc(t.folder); $("tf").style.display = "block"; tfShow(tfSub);
+  var sh = LT.refShort({ kind: "folder", value: t.folder }); $("tfPath").innerHTML = '<span title="' + esc(t.folder) + '">&#128193; <b>' + esc(sh.name) + "</b> &nbsp;" + esc(sh.where) + "</span>"; $("tf").style.display = "block"; tfShow(tfSub);
   if (tfTimer) window.clearInterval(tfTimer); tfTimer = window.setInterval(function () { if ($("tf").style.display != "block" || !tfTask || !tfTask.folder) return; var n = LT.tfFiles(tfTask.folder).length; if (n != tfCount) { tfDirty = true; tfTabs(); if (!tfX) tfList(); } }, 3000);
 }
 function makeTF() {

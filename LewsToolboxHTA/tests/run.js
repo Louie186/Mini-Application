@@ -22,6 +22,7 @@ const APP = path.resolve(__dirname, '..');
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   page.on('dialog', d => { errors.push('DIALOG: ' + d.message().slice(0, 200)); d.accept(); });
   await page.goto('file://' + work + '/LewsToolbox.html'); await page.waitForTimeout(1500);
+  await page.evaluate(() => { const b = document.getElementById('wnOk'); if (b) b.click(); });   // the "What's new" note after an update
   const test = require(path.resolve(process.argv[2]));
   await test({ page, errors, work, out: process.argv[3] || '/tmp/claude-0' });
   console.log(errors.length ? 'PAGE ERRORS:\n  ' + errors.join('\n  ') : 'no page errors');

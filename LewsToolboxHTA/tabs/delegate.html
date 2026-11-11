@@ -820,6 +820,7 @@ function packRefs(refs, copied) {
   var o = []; copied = copied || {};
   for (var i = 0; i < (refs || []).length; i++) { var r = refs[i], c = copied[(r.value || "").toLowerCase()], h = "";
     if (r.kind == "link") h = /^[a-z]+:/i.test(r.value) ? r.value : "https://" + r.value;
+    else if (r.kind == "drawing") h = LT.drawingLink(r.value);
     else if (r.kind == "file" || r.kind == "folder") h = c ? "References/" + encodeURIComponent(c) : "file:///" + r.value.replace(/\\/g, "/");
     o.push({ k: r.kind, t: r.kind == "note" ? r.value : r.kind == "drawing" ? LT.refLabel(r) : LT.refShort(r).name, h: h }); }   // short name; the link / path is in the link itself
   return o;

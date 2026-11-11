@@ -503,17 +503,33 @@ var LT = (function () {
     for (var m = 0; m < (P.models || []).length; m++) { var mk = up(P.models[m].tower) + "|" + up(P.models[m].typo); if (!mm[mk]) mm[mk] = P.models[m].model; }
     for (var k in D) if (D.hasOwnProperty(k)) { var ns = k.split(/[-_ .]+/); for (var j = 0; j < ns.length; j++) if (/^\d{3,}$/.test(ns[j])) { seq[ns[j]] = k; cnt[ns[j]] = (cnt[ns[j]] || 0) + 1; } }
     return { name: name, id: id,
-      list: function () { var o = []; for (var k4 in D) if (D.hasOwnProperty(k4)) { var d4 = D[k4]; o.push({ number: d4.num || k4, title: d4.title || "", cat: d4.cat || "", tower: d4.tower || "", typo: d4.typo || "", inMidp: d4.inMidp !== false }); } return o; },
+      list: function () { var o = []; for (var k4 in D) if (D.hasOwnProperty(k4)) { var d4 = D[k4]; o.push({ number: d4.num || k4, title: d4.title || "", link: d4.link || "", cat: d4.cat || "", tower: d4.tower || "", typo: d4.typo || "", inMidp: d4.inMidp !== false }); } return o; },
       count: function () { var n = 0; for (var k2 in D) if (D.hasOwnProperty(k2)) n++; return n; },
       find: function (s) {
         s = L.trim(s).toUpperCase().replace(/\.[A-Z0-9]{2,4}$/, "").replace(/-+$/, "");
-        var hit = function (k3) { var d = D[k3]; return d ? { number: d.num || k3, title: d.title || "", cat: d.cat || "", tower: d.tower || "", typo: d.typo || "", ok: !!d.ok, model: d.model || (d.typo && d.typo != "-" ? mm[up(d.tower) + "|" + up(d.typo)] || d.impModel || "" : "") } : null; };
+        var hit = function (k3) { var d = D[k3]; return d ? { number: d.num || k3, title: d.title || "", cat: d.cat || "", tower: d.tower || "", typo: d.typo || "", ok: !!d.ok, link: d.link || "", model: d.model || (d.typo && d.typo != "-" ? mm[up(d.tower) + "|" + up(d.typo)] || d.impModel || "" : "") } : null; };
         if (D[s]) return hit(s);
         var p = s.split(/[-_]/); while (p.length > 2) { p.pop(); var b = p.join("-"); if (D[b]) return hit(b); }
         var ns2 = s.split(/[-_ .]+/); for (var q = ns2.length - 1; q >= 0; q--) if (/^\d{3,}$/.test(ns2[q]) && cnt[ns2[q]] == 1) return hit(seq[ns2[q]]);
         return null;
       } };
   };
+
+  /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
+  L.VERSION = "2026.11.12";
+  L.WHATS_NEW = [
+    { v: "2026.11.12", items: [
+      "<b>Team Board</b> (Delegate &gt; Team &amp; groups): give a group a shared folder &ndash; the Toolbox files every task there neatly and keeps a board page the team opens. Add a task later and it shows as NEW",
+      "<b>Drawing status</b> (Drawing Register &gt; Status): not started / in progress / checked / issued (with the TR number), for every sheet",
+      "<b>Revision check</b> in Transmittal: a warning if a revision is lower than one already issued, or a newer one is in the folder",
+      "<b>Task templates</b>: right-click a task &gt; Save as template; start new ones with <b>From template</b>",
+      "<b>Timeline</b> in the task folder window (and in the summary): created, delegated, progress, chased, done",
+      "<b>Close-out pack</b>: right-click a task &gt; zip its Output folder with the summary, ready to archive",
+      "<b>Online links for drawings</b> (Drawing Register: double-click a drawing): references, packs and summaries link to it",
+      "Earlier this week: <b>Ctrl+V</b> into a task, <b>Ctrl+K</b> search, the morning reminder, Copy as email, Chase up" ] }
+  ];
+  /* the online link (ACC / SharePoint...) of a drawing, set in the Drawing Register; "" if none */
+  L.drawingLink = function (no) { try { var R = L.register(), d = R && R.find(no); return d && d.link ? d.link : ""; } catch (e) { return ""; } };
 
   /* ---------- inside the main window ---------- */
   L.main = function () { try { return window.top && window.top.LTMain ? window.top.LTMain : null; } catch (e) { return null; } };

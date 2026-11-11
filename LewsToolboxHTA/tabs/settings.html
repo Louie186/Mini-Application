@@ -23,7 +23,7 @@
 
   <div class="h">Reminders</div>
   <label><input type="checkbox" id="remind" style="height:auto"> Once a day, when the Toolbox opens: what's due today and what's late (yours and your team's)</label>
-  <button class="btn small" id="bRemind">Show it now</button> <span class="muted">Ctrl+K in any tab searches everything (tasks, drawings, transmittals, people, files).</span>
+  <button class="btn small" id="bRemind">Show it now</button> <button class="btn small" id="bNew">What's new</button> <span class="muted">Ctrl+K in any tab searches everything (tasks, drawings, transmittals, people, files).</span>
 
   <div class="h">Your name</div>
   <input type="text" id="uname" style="width:220px"> <button class="btn" id="bName">Save</button>
@@ -97,6 +97,7 @@ document.body.onclick = function (e) {
   if (th) { save(function (s) { s.theme = th.getAttribute("data-theme"); }); look(); if (LT.main()) LT.main().themeChanged(window); }
   else if (sz) { save(function (s) { s.size = sz.getAttribute("data-size"); }); look(); if (LT.main()) LT.main().themeChanged(window); }
 };
+LT.$("bNew").onclick = function () { if (LT.main()) LT.main().whatsNew(); };
 LT.$("remind").onclick = function () { var on = this.checked; save(function (s) { s.remind = on; }); };
 LT.$("bRemind").onclick = function () { if (LT.main() && !LT.main().remindNow()) LT.toast("Nothing due today and nothing late"); };
 LT.$("tips").onclick = function () { var on = this.checked; save(function (s) { s.tips = on; }); if (LT.main()) LT.main().tipsChanged(); };

@@ -80,7 +80,7 @@
   L.tfSave = function (dir, task, opts) {
     opts = opts || {};
     var j = { kind: MARK, v: 1, app: "Lew's Toolbox", id: task.id, code: task.code, title: task.title, project: task.project || "", who: task.who || "", due: task.due || "", status: task.status || "", priority: task.priority || "",
-      created: task.created || "", description: task.notes || "", subs: task.subs || [], refs: task.refs || [], notes: task.fnotes || [], folder: dir, saved: L.today() };
+      created: task.created || "", events: task.events || [], description: task.notes || "", subs: task.subs || [], refs: task.refs || [], notes: task.fnotes || [], folder: dir, saved: L.today() };
     var md = metaDir(dir); L.mkdirs(md);
     var old = ["_task.json", "Notes.txt", "Task Summary.html", "Task Summary.pdf"];   // folders made before: their files move into Backup and Ref
     for (var o = 0; o < old.length; o++) { var op = dir + "\\" + old[o]; if (fso.FileExists(op)) { try { unhide(op); if (fso.FileExists(md + "\\" + old[o])) fso.DeleteFile(op, true); else fso.MoveFile(op, md + "\\" + old[o]); } catch (x) { } } }
@@ -105,6 +105,37 @@
     var w = null; try { w = new ActiveXObject("Word.Application"); w.Visible = false; var doc = w.Documents.Open(html, false, true); doc.SaveAs2 ? doc.SaveAs2(pdf, 17) : doc.SaveAs(pdf, 17); doc.Close(false); } catch (e) { } finally { try { if (w) w.Quit(); } catch (e) { } }
     return fso.FileExists(pdf) ? pdf : "";
   };
+  /* ---------- timeline: what happened to a task, from the Tasks tab (t.events) and from Delegate (its history) ----------
+     [{ at: "2026-11-11 09:30", text, from: "Tasks" | "Delegate" }], oldest first */
+  L.taskTimeline = function (t) {
+    var out = [], ev = t.events || [], i;
+    for (i = 0; i < ev.length; i++) out.push({ at: ev[i].at, text: ev[i].text, from: "Tasks" });
+    if (t.delegated && t.delegated.code) {
+      var dg = L.readJson(L.dataPath("delegate.json"), null) || {}, ts = dg.tasks || [], d = null;
+      for (i = 0; i < ts.length; i++) if (ts[i].code == t.delegated.code) d = ts[i];
+      var now = new Date();
+      for (i = 0; d && i < (d.history || []).length; i++) {
+        var m = /^(\d{1,2}) ([A-Z][a-z]{2}) (\d\d:\d\d)\s+(.*)$/.exec(d.history[i]); if (!m) continue;
+        var mo = L.MON.indexOf(m[2]), y = now.getFullYear(); if (mo < 0) continue; if (mo > now.getMonth()) y--;   // Delegate's history has no year
+        out.push({ at: L.iso(new Date(y, mo, +m[1])) + " " + m[3], text: d.code + ": " + m[4], from: "Delegate" }); } }
+    out.sort(function (a, b) { return a.at < b.at ? -1 : a.at > b.at ? 1 : 0; });
+    return out;
+  };
+  L.taskEvent = function (t, text) { var d = new Date(); t.events = t.events || []; t.events.push({ at: L.iso(d) + " " + L.pad(d.getHours()) + ":" + L.pad(d.getMinutes()), text: text }); };
+
+  /* ---------- close-out pack: Output + the summary (PDF + HTML) + notes, zipped next to the task folder's subfolders ---------- */
+  L.tfCloseOut = function (dir, t) {
+    var r = L.tfSave(dir, t), md = metaDir(dir), parts = [];
+    if (fso.FolderExists(dir + "\\Output")) parts.push(dir + "\\Output");
+    var extra = ["Task Summary.pdf", "Task Summary.html", "Notes.txt"]; for (var i = 0; i < extra.length; i++) if (fso.FileExists(md + "\\" + extra[i])) parts.push(md + "\\" + extra[i]);
+    var zip = dir + "\\" + L.safeName((t.code ? t.code + " " : "") + t.title) + " - close-out " + L.today() + ".zip";
+    try { if (fso.FileExists(zip)) fso.DeleteFile(zip, true); } catch (e) { throw new Error("The old close-out zip is open somewhere - close it and try again."); }
+    var q = function (x) { return "'" + x.replace(/'/g, "''") + "'"; }, list = []; for (var k = 0; k < parts.length; k++) list.push(q(parts[k]));
+    L.wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Compress-Archive -LiteralPath ' + list.join(",").replace(/"/g, '\\"') + " -DestinationPath " + q(zip) + ' -Force"', 0, true);
+    if (!fso.FileExists(zip)) throw new Error("The zip couldn't be made (needs Windows PowerShell 5 - standard on Windows 10 / 11).");
+    return { zip: zip, pdf: r.pdf, parts: parts.length };
+  };
+
   /* ---------- the summary page ---------- */
   function e(s) { return L.esc(s == null ? "" : s); }
   /* the summary lives in Reference\Backup and Ref\, so the links go two folders up; names with & # % spaces are encoded */
@@ -138,7 +169,7 @@
       h.push("</table></div>"); }
     var refs = (t.refs || []).slice(0); for (var r2 = 0; r2 < (t.subs || []).length; r2++) refs = refs.concat(t.subs[r2].refs || []);
     if (refs.length) { h.push('<div class="sec"><h2>References</h2><table><tr><th>Type</th><th>Reference</th></tr>');
-      for (var r = 0; r < refs.length; r++) { var x2 = refs[r], lab = x2.kind == "drawing" ? L.refLabel(x2) : L.refShort ? L.refShort(x2).name : x2.value, link = x2.kind == "link" ? (/^[a-z]+:/i.test(x2.value) ? x2.value : "https://" + x2.value) : x2.kind == "file" || x2.kind == "folder" ? "file:///" + x2.value.replace(/\\/g, "/") : "";
+      for (var r = 0; r < refs.length; r++) { var x2 = refs[r], lab = x2.kind == "drawing" ? L.refLabel(x2) : L.refShort ? L.refShort(x2).name : x2.value, link = x2.kind == "drawing" ? L.drawingLink(x2.value) : x2.kind == "link" ? (/^[a-z]+:/i.test(x2.value) ? x2.value : "https://" + x2.value) : x2.kind == "file" || x2.kind == "folder" ? "file:///" + x2.value.replace(/\\/g, "/") : "";
         var gone = (x2.kind == "file" && /^([a-z]:|\\\\)/i.test(x2.value) && !fso.FileExists(x2.value)) || (x2.kind == "folder" && /^([a-z]:|\\\\)/i.test(x2.value) && !fso.FolderExists(x2.value));
         if (gone) { h.push("<tr><td>" + e(L.REF_NAME ? L.REF_NAME[x2.kind] : x2.kind) + '</td><td><span class="muted" title="' + e(x2.value) + '">' + e(lab) + ' &nbsp;&#9888; not found (renamed or moved?)</span></td></tr>'); continue; }
         h.push("<tr><td>" + e(L.REF_NAME ? L.REF_NAME[x2.kind] : x2.kind) + "</td><td>" + (link ? '<a href="' + e(link) + '" title="' + e(x2.value) + '">' + e(lab) + "</a>" : e(x2.kind == "note" ? x2.value : lab)) + "</td></tr>"); }
@@ -150,6 +181,10 @@
         for (var q = 0; q < fs.length; q++) h.push('<tr><td><a href="' + href(SUBS[s] + "\\" + fs[q].rel) + '">' + e(fs[q].rel) + "</a></td><td>" + e(KIND[fs[q].ext] || fs[q].ext.toUpperCase()) + "</td><td>" + size(fs[q].size) + "</td><td>" + date(fs[q].date) + "</td></tr>");
         h.push("</table>"); }
       h.push("</div>"); }
+    var tl = L.taskTimeline(t);
+    if (tl.length) { h.push('<div class="sec"><h2>Timeline</h2><table><tr><th style="width:130px">When</th><th>What happened</th></tr>');
+      for (var z = 0; z < tl.length; z++) h.push('<tr><td class="n">' + e(tl[z].at) + "</td><td>" + e(tl[z].text) + (tl[z].from == "Delegate" ? ' <span class="muted">(Delegate)</span>' : "") + "</td></tr>");
+      h.push("</table></div>"); }
     h.push('<div class="ft"><span title="' + e(dir) + '">&#128193; ' + e(fso.GetFileName(dir)) + "</span><span>Updated " + date(L.today()) + " " + L.pad(now.getHours()) + ":" + L.pad(now.getMinutes()) + (L.settings().userName ? " by " + e(L.settings().userName) : "") + " &middot; Lew's Toolbox</span></div></div></body></html>");
     return h.join("\n");
   };

@@ -41,6 +41,8 @@
 .qr{padding:6px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .qr .k{display:inline-block;width:94px;font-size:.8em;font-weight:bold}.qr .c{font-family:Consolas,'Lucida Console',monospace;margin-right:6px}.qr .s{font-size:.85em;margin-left:8px}
 #qsHint{font-size:.8em;margin-top:6px}
+#wn{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:61;background:rgba(0,0,0,.35)}
+#wnBox{width:600px;max-width:92%;margin:70px auto 0;padding:16px 20px;line-height:1.5}#wnBox h3{margin:0 0 4px}#wnBox ul{margin:8px 0 12px;padding-left:20px}#wnBox li{margin-bottom:5px}#wnBox .v{font-size:.85em}
 #remind{display:none;flex:none;position:relative;margin:6px 2px;padding:7px 8px;font-size:.85em;line-height:1.35}
 #remind h4{margin:0 14px 4px 0;font-size:1em}#remind ul{margin:0 0 4px;padding-left:14px}#remind .rb{margin:4px 4px 0 0;padding:2px 7px;font:inherit;font-weight:bold;cursor:pointer}
 #remind .rx{position:absolute;right:6px;top:4px;cursor:pointer;font-weight:bold}
@@ -62,6 +64,7 @@
   <div id="body"><div id="warn"></div></div>
 </div>
 <div id="tip"></div>
+<div id="wn"><div id="wnBox"></div></div>
 <div id="qs"><div id="qsBox"><input type="text" id="qsIn" placeholder="Search tasks, drawings, transmittals, people, files, tabs..."><div id="qsRes"></div><div id="qsHint">&uarr; &darr; pick &middot; Enter = open &middot; Esc = close &middot; Ctrl+K from any tab</div></div></div>
 <script>
 /* ================================================================
@@ -146,6 +149,7 @@ var LTMain = {
   /* for Settings: every tab with its description */
   tabList: function () { var o = []; for (var i = 0; i < tabs.length; i++) o.push({ key: tabs[i].key, title: tabs[i].title, icon: tabs[i].icon, desc: tabs[i].desc }); return o; },
   remindNow: function () { return reminders(true); },
+  whatsNew: function () { return whatsNew(true); },
   tipsChanged: function () { tipsOn = LT.settings().tips !== false; hideTip(); renderNav(); },
   appDir: APP
 };
@@ -159,6 +163,7 @@ function look() {
     "#railBtn{background:transparent;color:{muted};border:{bw}px solid {line};border-radius:{r}px}#railBtn:hover{color:{text};border-color:{accent}}",
     ".ng{color:{muted};border-top:1px solid {line};padding-top:8px}",
     "#clock{color:{text};cursor:default}#clkD{color:{muted};font-size:.85em}",
+    "#wnBox{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#wnBox .v{color:{muted}}",
     "#qsBox{background:{panel};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#qsHint{color:{muted}}",
     ".qr{border-radius:{r}px;color:{text}}.qr.on{background:{hover};box-shadow:inset 3px 0 0 {accent}}.qr .k{color:{muted}}.qr .s{color:{muted}}",
     "#remind{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#remind .rb{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}#remind .rb:hover{border-color:{accent}}#remind .late{color:{bad};font-weight:bold}#remind .rx{color:{muted}}",
@@ -224,7 +229,7 @@ function qsIndex() {
   for (i = 0; i < gs.length; i++) { ppl[gs[i].lead] = 1; for (j = 0; j < (gs[i].members || []).length; j++) ppl[gs[i].members[j]] = 1; (function (g) { add("Group", "", g.name, "lead " + g.lead + "  \u00b7  " + (g.members || []).join(", "), function () { LTMain.send("delegate", "person", g.name); }); })(gs[i]); }
   for (var p in ppl) if (ppl.hasOwnProperty(p) && p) (function (n) { add("Person", "", n, "their delegated work", function () { LTMain.send("delegate", "person", n); }); })(p);
   var tl = J("transmittals.json").log || [];
-  for (i = 0; i < tl.length; i++) (function (t) { var its = []; for (j = 0; j < (t.items || []).length; j++) its.push((t.items[j].no || "") + " " + (t.items[j].title || ""));
+  for (i = 0; i < tl.length; i++) (function (t) { var its = []; for (j = 0; j < (t.items || []).length; j++) its.push((t.items[j].number || "") + " " + (t.items[j].rev || "") + " " + (t.items[j].title || ""));
     add("Transmittal", t.no, "to " + (t.to || "?"), LT.fmtDate(t.date) + "  " + its.join("  ").substring(0, 300), function () { if (t.dir && fso.FolderExists(t.dir)) LT.open(t.dir); else show("transmittal"); }); })(tl[i]);
   try { var R = LT.register(); if (R) { var ds = R.list(); for (i = 0; i < ds.length; i++) (function (d) { add("Drawing", d.number, d.title, [d.cat, d.tower].join("  "), function () { LTMain.send("register", "find", d.number); }); })(ds[i]); } } catch (e) { }
   for (i = 0; i < tabs.length; i++) (function (t) { add("Tab", "", t.title, "", function () { show(t.key); }); })(tabs[i]);
@@ -242,6 +247,19 @@ function qsFind() {
 }
 function qsMark() { var rs = LT.$("qsRes").childNodes; for (var i = 0; i < rs.length; i++) rs[i].className = "qr" + (i == qsOn ? " on" : ""); try { rs[qsOn].scrollIntoView(false); } catch (e) { } }
 function qsGo(i) { var x = qsHits[i]; if (!x) return; closeSearch(); x.go(); }
+
+/* ---------- "What's new": once after an update (Settings can show it again) ---------- */
+function whatsNew(force) {
+  var s = LT.settings(), seen = s.seenVersion || "", h = "";
+  if (!force && seen == LT.VERSION) return false;
+  for (var i = 0; i < LT.WHATS_NEW.length; i++) { var w = LT.WHATS_NEW[i]; if (!force && seen && w.v <= seen) continue; if (!force && !seen && i > 0) break;
+    h += '<div class="v">Version ' + LT.esc(w.v) + "</div><ul><li>" + w.items.join("</li><li>") + "</li></ul>"; }
+  if (!h) { s.seenVersion = LT.VERSION; LT.saveSettings(s); return false; }
+  LT.$("wnBox").innerHTML = "<h3>&#10024; What's new in Lew's Toolbox</h3>" + h + '<button class="btn primary" id="wnOk">Got it</button> <span class="v">Your tasks and lists are kept as they were.</span>';
+  LT.$("wn").style.display = "block";
+  LT.$("wnOk").onclick = function () { LT.$("wn").style.display = "none"; var s2 = LT.settings(); s2.seenVersion = LT.VERSION; LT.saveSettings(s2); };
+  return true;
+}
 
 /* ---------- once a day, on opening: what's due today, what's late (yours and your team's) ---------- */
 function reminders(force) {
@@ -334,6 +352,7 @@ function taskbarShortcut() {
   LT.$("qsRes").onclick = function (e) { var r = LT.up(e ? e.target : window.event.srcElement, "data-q"); if (r) qsGo(+r.getAttribute("data-q")); };
   LT.$("qs").onclick = function (e) { if ((e ? e.target : window.event.srcElement) === LT.$("qs")) closeSearch(); };
   window.setTimeout(function () { try { reminders(false); } catch (e) { } }, 2500);
+  window.setTimeout(function () { try { whatsNew(false); } catch (e) { } }, 900);
   var rt = null;
   window.onresize = function () { if (rt) window.clearTimeout(rt); rt = window.setTimeout(function () { var s = LT.settings(); s.win = { w: document.documentElement.clientWidth, h: document.documentElement.clientHeight }; LT.saveSettings(s); }, 700); };
   show(LT.settings().lastTab || "launcher");

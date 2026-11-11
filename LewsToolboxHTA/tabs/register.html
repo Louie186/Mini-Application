@@ -100,6 +100,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   <div class="fld"><label>Tower</label><input type="text" id="edTower"><div class="opts" id="edTowerO"></div></div>
   <div class="fld"><label>Typology</label><input type="text" id="edTypo"><div class="opts" id="edTypoO"></div></div>
   <div class="fld"><label>Model (empty = from the models table)</label><input type="text" id="edModel"></div>
+  <div class="fld"><label>Online link (ACC / SharePoint / BIM 360) &ndash; tasks, packs and summaries link to it</label><input type="text" id="edLink" placeholder="https://..."></div>
   <div class="muted small" id="edHint"></div>
   <div class="acts"><button class="btn" id="edNa" title="General drawings that belong to no tower / typology">Not for a typology ( - )</button><span class="sp"></span><button class="btn" id="edCancel">Cancel</button><button class="btn primary" id="edOk">Save</button></div>
 </div></div>
@@ -382,6 +383,7 @@ function render() {
     if (s.isNew) note.push('<span class="tag ok">' + (P.changes[k] == "back" ? "BACK" : "NEW") + "</span>");
     if (s.chg) note.push('<span class="tag warn" title="was: ' + esc(d.oldTitle || "") + '">TITLE CHANGED</span>');
     if (s.gone) note.push('<span class="tag bad">REMOVED</span>');
+    if (d.link) note.push('<span class="lnk" data-lnk="' + esc(k) + '" title="' + esc(d.link) + '">&#128279; link</span>');
     if (!d.typo && !s.gone) note.push('<span class="bad">set Tower / Typology</span>');
     else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
     h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td><td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + esc(modelOf(d)) + "</td><td>" + note.join(" ") + "</td></tr>"); }
@@ -402,14 +404,16 @@ function edit(ks) {
   if (!ks.length) return; editKeys = ks; var d = P.drawings[ks[0]], one = ks.length == 1;
   $("edH").innerHTML = one ? esc(d.num) : "Set " + ks.length + " drawings";
   $("edInfo").innerHTML = one ? esc(d.title) + (d.cat ? "<br>" + esc(d.cat) : "") + (!d.ok && d.typo ? '<br><span class="warn">Guess' + (d.how == "like" ? " &ndash; same as " + esc(d.like) : d.how == "rule" ? " &ndash; from a typology rule" : " &ndash; its section has no typologies") + "</span>" : "") : "Empty boxes are left as they are.";
-  $("edTower").value = one ? d.tower || "" : ""; $("edTypo").value = one ? d.typo || "" : ""; $("edModel").value = one ? d.model || "" : "";
+  $("edTower").value = one ? d.tower || "" : ""; $("edTypo").value = one ? d.typo || "" : ""; $("edModel").value = one ? d.model || "" : ""; $("edLink").value = one ? d.link || "" : "";
   opts("edTowerO", towers().concat(["-"]), "edTower"); typoOpts(); hint();
   $("ovEdit").style.display = "block"; try { $("edTower").focus(); } catch (e) { }
 }
 function saveEdit(na) {
-  var t = LT.trim($("edTower").value), y = LT.trim($("edTypo").value), m = LT.trim($("edModel").value), one = editKeys.length == 1;
+  var t = LT.trim($("edTower").value), y = LT.trim($("edTypo").value), m = LT.trim($("edModel").value), lk = LT.trim($("edLink").value), one = editKeys.length == 1;
+  if (lk && !/^[a-z]+:/i.test(lk)) lk = "https://" + lk;
   if (na) { t = "-"; y = "-"; m = ""; }
   for (var i = 0; i < editKeys.length; i++) { var d = P.drawings[editKeys[i]];
+    if (one) d.link = lk; else if (lk) d.link = lk;
     if (one || na) { d.tower = t; d.typo = y; d.model = m; } else { if (t) d.tower = t; if (y) d.typo = y; if (m) d.model = m; }
     if (d.typo) { d.ok = true; d.how = "you"; d.like = ""; } }
   saveP(); $("ovEdit").style.display = "none"; MM = null; fillFilters(); render();
@@ -578,6 +582,7 @@ $("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.get
 $("res").onclick = function (e) {
   e = e || window.event; var t = e.target || e.srcElement;
   if (t.id == "tkAll") { ticked = {}; if (t.checked) for (var i = 0; i < shown.length; i++) ticked[shown[i]] = 1; render(); return; }
+  var lnk = LT.up(t, "data-lnk"); if (lnk) { try { LT.open(P.drawings[lnk.getAttribute("data-lnk")].link); } catch (x) { } return; }
   var td = t; while (td && td.tagName != "TD") td = td.parentNode; if (!td || td.className.indexOf("tk") < 0) return;
   var tr = LT.up(td, "data-k"); if (!tr) return; var k = tr.getAttribute("data-k"), pos = -1; for (var j = 0; j < shown.length; j++) if (shown[j] == k) pos = j;
   var on = !ticked[k];
@@ -590,11 +595,12 @@ $("res").oncontextmenu = function (e) {
   LT.menu(e.clientX, e.clientY, [{ label: "Set Tower / Typology..." + (ks.length > 1 ? " (" + ks.length + ")" : ""), fn: function () { edit(ks); } },
     { label: "&#10004; Accept the guess" + (ks.length > 1 ? "es (" + ks.length + ")" : ""), fn: function () { accept(ks); } },
     { label: "Guess again", fn: function () { var o = {}; for (var i = 0; i < ks.length; i++) { o[ks[i]] = 1; P.drawings[ks[i]].ok = false; P.drawings[ks[i]].how = ""; } guessAll(o); saveP(); render(); } },
+    P.drawings[k].link ? { label: "&#128279; Open the online link", fn: function () { try { LT.open(P.drawings[k].link); } catch (x) { } } } : { label: "&#128279; Add an online link...", fn: function () { edit([k]); } },
     "-", { label: "Copy the number", fn: function () { LT.copyText(P.drawings[k].num); LT.toast("Copied"); } }]);
   if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
 };
 $("bSet").onclick = function () { edit(keys(ticked)); }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
-function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
 window.ltTheme = look; window.ltReload = loadAll; window.ltShown = function () { if (P) render(); };
 /* from search (Ctrl+K): show that drawing */
 window.ltReceive = function (what, value) { if (what == "find" && P) { $("search").value = value; fillFilters(); render(); } };

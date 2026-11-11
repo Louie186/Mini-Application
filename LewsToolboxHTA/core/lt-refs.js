@@ -33,7 +33,7 @@
   /* plain text, one line each (email, CSV, Excel) */
   L.refLines = function (refs) {
     var o = []; for (var i = 0; i < (refs || []).length; i++) { var r = refs[i];
-      o.push(NAME[r.kind] + ": " + (r.label && r.kind != "note" ? r.label + " - " : "") + (r.kind == "note" ? r.value : r.kind == "drawing" ? L.refLabel(r) : r.value) + (L.refCopies(r) ? "  (copy in the transmittal)" : "")); }
+      o.push(NAME[r.kind] + ": " + (r.label && r.kind != "note" ? r.label + " - " : "") + (r.kind == "note" ? r.value : r.kind == "drawing" ? L.refLabel(r) + (L.drawingLink(r.value) ? "  " + L.drawingLink(r.value) : "") : r.value) + (L.refCopies(r) ? "  (copy in the transmittal)" : "")); }
     return o;
   };
   /* small read-only list, e.g. under a task in a list */
@@ -53,7 +53,7 @@
           (ed ? (r.kind == "note" ? '<input type="text" class="rfv" value="' + L.esc(r.value) + '" placeholder="Note">' :
                   '<input type="text" class="rfl" value="' + L.esc(r.label || "") + '" placeholder="Show as (e.g. ' + L.esc(L.refShort({ kind: r.kind, value: r.value }).name) + ')" title="The short name everyone sees"><input type="text" class="rfv" value="' + L.esc(r.value) + '" title="The link / path">') +
                 '<span class="rfe on" title="Done">&#10003;</span>'
-              : '<span class="rfn' + (r.kind == "link" || fileish ? " go" : "") + '" title="' + L.esc(sh.full) + '">' + L.esc(sh.name) + '</span><span class="rfw' + (gone ? " gone" : "") + '" title="' + L.esc(sh.full) + '">' + L.esc(sh.where) + "</span>" +
+              : '<span class="rfn' + (r.kind == "link" || fileish || (r.kind == "drawing" && L.drawingLink(r.value)) ? " go" : "") + '" title="' + L.esc(sh.full) + '">' + L.esc(sh.name) + '</span><span class="rfw' + (gone ? " gone" : "") + '" title="' + L.esc(sh.full) + '">' + L.esc(sh.where) + "</span>" +
                 (fileish ? '<select class="rfs" title="Copy it into the transmittal, or only give its location"><option value="copy"' + (r.send != "link" ? " selected" : "") + '>Send a copy</option><option value="link"' + (r.send == "link" ? " selected" : "") + ">Link only</option></select>" : "") +
                 '<span class="rfe" title="Rename / change the link">&#9998;</span>') +
           '<span class="rfx" title="Remove">&#10005;</span></div>'); }
@@ -77,8 +77,8 @@
     el.onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, row = L.up(t, "data-ri"), i = row ? +row.getAttribute("data-ri") : -1;
       if (t.className == "rfx" && i >= 0) { refs.splice(i, 1); el.__edit = -1; draw(); if (onChange) onChange(); }
       else if (/(^| )rfe( |$)/.test(t.className) && i >= 0) { el.__edit = el.__edit === i ? -1 : i; draw(); if (el.__edit === i) { var ins = row.parentNode.getElementsByTagName("input"); for (var z = 0; z < ins.length; z++) if (L.up(ins[z], "data-ri") && +L.up(ins[z], "data-ri").getAttribute("data-ri") == i) { try { ins[z].focus(); } catch (x) { } break; } } }
-      else if (/(^| )go( |$)/.test(t.className) && i >= 0) { try { L.open(refs[i].value); } catch (x) { alert("Couldn't open:\n" + refs[i].value); } }
-      else if (t.className == "rfo" && i >= 0) { try { L.open(refs[i].value); } catch (x) { alert("Couldn't open:\n" + refs[i].value); } }
+      else if (/(^| )go( |$)/.test(t.className) && i >= 0) { try { L.open(refs[i].kind == "drawing" ? L.drawingLink(refs[i].value) : refs[i].value); } catch (x) { alert("Couldn't open:\n" + refs[i].value); } }
+      else if (t.className == "rfo" && i >= 0) { try { L.open(refs[i].kind == "drawing" ? L.drawingLink(refs[i].value) : refs[i].value); } catch (x) { alert("Couldn't open:\n" + refs[i].value); } }
       else if ((" " + t.className + " ").indexOf(" rfa ") >= 0) add();
       else if ((" " + t.className + " ").indexOf(" rfb ") >= 0) { if (q("rfk").value == "folder") { var f = L.pickFolder("Pick the folder"); if (f) { q("rfnew").value = f; add(); } } else L.pickFile(function (p) { q("rfnew").value = p; add(); }); } };
     el.onchange = function (e) { e = e || window.event; var t = e.target || e.srcElement, row = L.up(t, "data-ri"), i = row ? +row.getAttribute("data-ri") : -1;

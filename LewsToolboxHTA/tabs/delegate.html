@@ -52,6 +52,7 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
 <script src="../core/lt-core.js"></script>
 <script src="../core/lt-refs.js"></script>
 <script src="../core/lt-transmittal.js"></script>
+<script src="../core/lt-taskfolder.js"></script>
 </head>
 <body>
 <div id="app">
@@ -440,6 +441,10 @@ function fromLog(L) {
   for (var i = 0; i < (L.subs || []).length; i++) { var x = L.subs[i];
     t.subs.push({ id: LT.uid("s"), code: t.code + "." + (i + 1), title: x.title, who: x.who || "", due: x.due || "", status: x.status == "Done" ? "Completed" : "Not started", notes: "", refs: copy(x.refs || []), updated: "" }); }
   if (!t.subs.length) t.status = L.status == "Done" ? "Completed" : "Not started";
+  /* a task folder: what's in its Reference folder goes along (copied into the transmittal) */
+  if (L.folder && fso.FolderExists(L.folder)) { var have = {}; for (var h = 0; h < t.refs.length; h++) have[(t.refs[h].value || "").toLowerCase()] = 1;
+    var tf = LT.tfFiles(L.folder); for (var f = 0; f < tf.length; f++) if (tf[f].sub == "Reference" && !have[tf[f].path.toLowerCase()]) t.refs.push({ kind: "file", value: tf[f].path, label: "", send: "copy" });
+    t.folder = L.folder; t.history.push(st + "  Reference files from the task folder: " + L.folder); }
   data.tasks.push(t); save(); view = "list"; render();
   tellTasks(t);
   openSend(t);

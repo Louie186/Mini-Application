@@ -39,9 +39,16 @@ tr.done td.t{text-decoration:line-through}
 #subRefs{display:none;margin-top:6px;padding:8px}
 .tid{font-family:Consolas,'Lucida Console',monospace;white-space:nowrap}
 .sub{font-size:.85em;margin-top:2px}
+#tf .card{width:860px}#tfNote{width:100%;height:80px}
+#tfDrop{height:270px;overflow:auto}#tfDrop object{width:100%;height:100%}
+#tfTabs{margin:8px 0 6px}.tfadd{margin-bottom:6px}.tfp{word-break:break-all}
+.tfl td.a{width:60px;text-align:right;white-space:nowrap}.tfl .x{cursor:pointer;margin-left:8px}
+.tfn{padding:6px 10px;margin-bottom:6px}.tfn .at{font-size:.85em}.tfn .tx{white-space:pre-wrap}
+.tfc{cursor:pointer}
 </style>
 <script src="../core/lt-core.js"></script>
 <script src="../core/lt-refs.js"></script>
+<script src="../core/lt-taskfolder.js"></script>
 </head>
 <body>
 <div id="app">
@@ -49,6 +56,7 @@ tr.done td.t{text-decoration:line-through}
     <input type="text" id="quick" placeholder="Add a task...   e.g.  Check RFI drawings fri #Tower1 !">
     <button class="btn primary" id="bAdd">+ Add</button>
     <button class="btn" id="bDetail">+ Detailed...</button>
+    <button class="btn" id="bOpenTF" title="A folder made with &quot;Task folder&quot; - the Toolbox recognises it (and adds the task if it isn't here yet)">&#128194; Open a task folder...</button>
     <button class="btn" id="bExport">Export &#9662;</button>
     <span class="lbl muted" title="Quick add words:&#10;  today, tomorrow, mon ... sun, next week, 25/11 = due date&#10;  #Project = project (use _ for spaces: #Tower_1)&#10;  ! = high priority, !low = low&#10;  @Name = waiting on someone" style="cursor:help;font-weight:bold">?&nbsp;words</span>
   </div>
@@ -89,9 +97,36 @@ tr.done td.t{text-decoration:line-through}
     <div id="subRefs"><div class="muted" id="subRefsT" style="margin-bottom:4px"></div><div id="subRefsE"></div></div>
   </div>
   <div class="fld"><label>Time</label><span id="eTime"></span> &nbsp; Add: <input type="text" id="eAddH" style="width:70px" placeholder="1.5 or 0:45"> <button class="btn small" id="eAddB">+ h</button></div>
-  <div class="acts"><button class="btn" id="eDel">Delete</button><span class="sp"></span><button class="btn" id="eCancel">Cancel</button><button class="btn" id="eDeleg" title="Save, then open it in the Delegate tab to hand it out">&#128203; Save and delegate</button><button class="btn primary" id="eOk">Save</button></div>
+  <div class="acts"><button class="btn" id="eDel">Delete</button><span class="sp"></span><button class="btn" id="eCancel">Cancel</button><button class="btn" id="eTF" title="Save, then make / open this task's folder">&#128193; Task folder...</button><button class="btn" id="eDeleg" title="Save, then open it in the Delegate tab to hand it out">&#128203; Save and delegate</button><button class="btn primary" id="eOk">Save</button></div>
 </div></div>
 <datalist id="projList"></datalist><datalist id="pplList"></datalist>
+
+<!-- the task folder: make it, fill it, review it -->
+<div class="ov" id="tf"><div class="card">
+  <h3 id="tfT">Task folder</h3>
+  <div id="tfMake">
+    <div class="muted" style="margin-bottom:8px">A folder for everything about this task: <b>Reference</b> (what it's based on), <b>Incoming</b> (what comes back), <b>Output</b> (what you produce), your notes, and a summary (HTML + PDF) with links to every file.</div>
+    <div class="fld"><label>Where</label><div style="display:flex"><input type="text" id="tfWhere" style="flex:1 1 auto;margin-right:6px" placeholder="Pick the place for this task's folder"><button class="btn" id="tfBrowse" style="margin:0">Browse...</button></div></div>
+    <div class="fld"><label>Folder name</label><input type="text" id="tfName"></div>
+    <div class="acts"><span class="sp"></span><button class="btn" id="tfCancel">Cancel</button><button class="btn primary" id="tfMakeB">&#128193; Make the folder</button></div>
+  </div>
+  <div id="tfBody">
+    <div class="tfp"><span class="muted" id="tfPath"></span></div>
+    <div style="margin:6px 0 2px"><button class="btn small" id="tfOpen">&#128194; Open in Explorer</button><button class="btn small" id="tfSum">&#128196; Open the summary</button><button class="btn small primary" id="tfUpd">&#8635; Update summary (HTML + PDF)</button><button class="btn small" id="tfRe">Read again</button></div>
+    <div id="tfTabs"></div>
+    <div id="tfFiles">
+      <div class="tfadd"><button class="btn small" id="tfAddF">+ Add files...</button><button class="btn small" id="tfAddD">+ Add a folder...</button><button class="btn small" id="tfShot" title="Take a snip first (Win+Shift+S), then click here">&#128203; Paste screenshot</button>
+        <span class="lbl">Add files / Add a folder:</span><label class="lbl"><input type="radio" name="tfMode" id="tfCopy" style="height:auto" checked> Copy</label><label class="lbl"><input type="radio" name="tfMode" id="tfMove" style="height:auto"> Move</label></div>
+      <div id="tfDrop"></div>
+    </div>
+    <div id="tfNotes" style="display:none">
+      <textarea id="tfNote" placeholder="Type or paste a note (Teams / email text, a decision, a phone call...) - it's saved with today's date and time"></textarea>
+      <div style="margin:4px 0 8px"><button class="btn small primary" id="tfAddN">+ Add note</button></div>
+      <div id="tfNList"></div>
+    </div>
+  </div>
+  <div class="acts" id="tfActs"><span class="muted" id="tfMsg"></span><span class="sp"></span><button class="btn" id="tfClose">Close</button></div>
+</div></div>
 
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso;
@@ -157,7 +192,7 @@ function parseDate(s) {
   if (m) { var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : todayD().getFullYear(); return LT.iso(new Date(y, +m[2] - 1, +m[1])); }
   return null;
 }
-function blank() { return { id: LT.uid("t"), code: "", title: "", project: "", due: "", priority: "Normal", status: "To do", waitingOn: "", who: "", notes: "", repeat: "", created: LT.today(), doneOn: "", log: [], timer: 0, subs: [], refs: [] }; }
+function blank() { return { id: LT.uid("t"), code: "", title: "", project: "", due: "", priority: "Normal", status: "To do", waitingOn: "", who: "", notes: "", repeat: "", created: LT.today(), doneOn: "", log: [], timer: 0, subs: [], refs: [], folder: "", fnotes: [] }; }
 function hrs(a) { a = LT.trim(a || "").toLowerCase().replace("h", ""); var m = /^(\d+):(\d{1,2})$/.exec(a); if (m) return +m[1] + +m[2] / 60; var n = parseFloat(a.replace(",", ".")); return n > 0 ? n : 0; }
 
 /* quick add:  "Check RFI drawings fri #Tower1 !" */
@@ -233,7 +268,7 @@ function list() {
   var h = ['<table class="grid"><tr><th></th><th>ID</th><th>Task</th><th>Who</th><th>Project</th><th>Due</th><th>Priority</th><th>Status</th><th>Hours</th><th>Notes</th></tr>'];
   for (var i = 0; i < shown.length; i++) {
     var t = shown[i], st = statusText(t), hr = hours(t), nd = 0; for (var q = 0; q < t.subs.length; q++) if (t.subs[q].status == "Done") nd++;
-    var extra = (t.subs.length ? '<span class="muted">&#9745; ' + nd + "/" + t.subs.length + "</span> " : "") + LT.refChips(t.refs);
+    var extra = (t.folder ? '<span class="rfc tfc" data-tf="' + i + '" title="' + esc(t.folder) + ' - click to open the task folder">&#128193; folder</span> ' : "") + (t.subs.length ? '<span class="muted">&#9745; ' + nd + "/" + t.subs.length + "</span> " : "") + LT.refChips(t.refs);
     var dueCls = overdue(t) ? "bad" : (t.due == LT.today() && t.status != "Done" ? "today" : "");
     h.push('<tr data-i="' + i + '" class="' + (t.status == "Done" ? "done" : "") + '"><td class="cb"><input type="checkbox" data-done="' + i + '" style="height:auto"' + (t.status == "Done" ? " checked" : "") + (t.fromDelegate ? " disabled" : "") + '></td>' +
       '<td class="tid">' + esc(t.code || "") + '</td><td class="t">' + (t.fromDelegate ? "&#128203; " : "") + (t.timer ? "&#9201; " : "") + esc(t.title) + (t.repeat ? " &#8635;" : "") + (extra ? '<div class="sub">' + extra + "</div>" : "") + "</td><td>" + esc(t.who || (t.fromDelegate ? t.waitingOn : "")) + "</td><td>" + esc(t.project) + '</td><td class="' + dueCls + '">' + (t.status == "Done" ? "done " + esc(nice(t.doneOn)) : esc(nice(t.due))) +
@@ -293,7 +328,7 @@ function nextRepeat(t) {
   else if (t.repeat == "Monthly") n = new Date(from.getFullYear(), from.getMonth() + 1, from.getDate());
   else return null;
   if (n < todayD()) n = todayD();
-  var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.delegated = null; c.dprog = c.dwho = ""; for (var j = 0; j < (c.subs || []).length; j++) c.subs[j].status = "To do"; c.due = LT.iso(n); c.log = []; c.timer = 0; c.created = LT.today();
+  var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.delegated = null; c.dprog = c.dwho = ""; c.folder = ""; c.fnotes = []; for (var j = 0; j < (c.subs || []).length; j++) c.subs[j].status = "To do"; c.due = LT.iso(n); c.log = []; c.timer = 0; c.created = LT.today();
   return c;
 }
 function copy(t) { return JSON.parse(JSON.stringify(t)); }
@@ -317,7 +352,8 @@ function taskMenu(t, x, y) {
   if (t.fromDelegate) { LT.menu(x, y, [{ label: "From the Delegate tab &ndash; change it there", fn: function () { if (LT.main()) LT.main().show("delegate"); } }]); return; }
   var m = [{ label: "<b>Edit...</b>", fn: function () { edit(t); } },
     t.delegated ? { label: "&#128203; Delegated (" + esc(t.delegated.code) + ") &ndash; open in Delegate", fn: function () { if (LT.main()) LT.main().send("delegate", "show-task", t.delegated.code); } }
-                : { label: "&#128203; <b>Delegate this task...</b>", fn: function () { delegate(t); } }, "-"];
+                : { label: "&#128203; <b>Delegate this task...</b>", fn: function () { delegate(t); } },
+    { label: "&#128193; " + (t.folder ? "Task folder (review, add files, notes)..." : "Make a task folder..."), fn: function () { openTF(t); } }, "-"];
   for (var i = 0; i < STATUSES.length; i++) (function (s) {
     m.push({ label: s, on: t.status == s, fn: function () { if (s == "Waiting" && !t.waitingOn) { var w = prompt("Who are you waiting on?", ""); if (w == null) return; t.waitingOn = w; } setStatus(t, s); } });
   })(STATUSES[i]);
@@ -328,7 +364,7 @@ function taskMenu(t, x, y) {
   if (t.timer) m.push({ label: "&#9632; Stop timer", fn: function () { stopTimer(t); save(); render(); } });
   else m.push({ label: "&#9201; Start timer", fn: function () { startTimer(t); } });
   m.push({ label: "+ Add time...", fn: function () { var h = hrs(prompt('Hours spent on "' + t.title + '" today (e.g. 1.5 or 0:45):', "")); if (h > 0) { t.log.push({ date: LT.today(), hours: h }); save(); render(); } } }, "-");
-  m.push({ label: "Duplicate", fn: function () { var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.log = []; c.timer = 0; c.created = LT.today(); c.delegated = null; c.dprog = c.dwho = ""; addTask(c); save(); render(); } });
+  m.push({ label: "Duplicate", fn: function () { var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.log = []; c.timer = 0; c.created = LT.today(); c.delegated = null; c.dprog = c.dwho = ""; c.folder = ""; c.fnotes = []; addTask(c); save(); render(); } });
   m.push({ label: "Delete", fn: function () { del(t); } });
   LT.menu(x, y, m);
 }
@@ -358,6 +394,82 @@ function edit(t) {
   showTime(); $("eDel").style.display = t ? "" : "none";
   $("dlg").style.display = "block"; $("eTitle").focus();
 }
+/* ---------- task folder ---------- */
+var tfTask = null, tfSub = "Reference", tfDirty = false, tfTimer = null, tfCount = -1;
+function openTF(t) {
+  tfTask = t; tfDirty = false; $("tfMsg").innerHTML = "";
+  $("tfT").innerHTML = "&#128193; " + esc(t.code) + " " + esc(t.title);
+  if (t.folder && !LT.fso.FolderExists(t.folder)) { if (confirm("This task's folder isn't there any more:\n" + t.folder + "\n\nPick where it is now? (Cancel = make a new one)")) { var f = LT.pickFolder("Where is the folder of " + t.code + " " + t.title + "?"); if (f) { t.folder = f; save(); } } else { t.folder = ""; save(); } }
+  var has = !!t.folder && LT.fso.FolderExists(t.folder);
+  $("tfMake").style.display = has ? "none" : ""; $("tfBody").style.display = has ? "" : "none"; $("tfActs").style.display = has ? "" : "none";
+  if (!has) { $("tfName").value = (t.code ? t.code + " " : "") + t.title; $("tfWhere").value = LT.settings().tfLast || ""; $("tf").style.display = "block"; try { $("tfName").focus(); } catch (e) { } return; }
+  var s0 = LT.settings(); $("tfMove").checked = !!s0.tfMove; $("tfCopy").checked = !s0.tfMove;
+  $("tfPath").innerHTML = esc(t.folder); $("tf").style.display = "block"; tfShow(tfSub);
+  if (tfTimer) window.clearInterval(tfTimer); tfTimer = window.setInterval(function () { if ($("tf").style.display != "block" || !tfTask || !tfTask.folder) return; var n = LT.tfFiles(tfTask.folder).length; if (n != tfCount) { tfDirty = true; tfTabs(); if (!tfX) tfList(); } }, 3000);
+}
+function makeTF() {
+  var where = LT.trim($("tfWhere").value), name = LT.trim($("tfName").value), dir;
+  try { dir = LT.tfMake(where, name); } catch (e) { alert(e.message || e); return; }
+  var s = LT.settings(); s.tfLast = where; LT.saveSettings(s);
+  tfTask.folder = dir; save(); render();
+  var r = LT.tfSave(dir, tfTask); LT.toast("Task folder made" + (r.pdf ? " (with the summary PDF)" : ""));
+  openTF(tfTask);
+}
+function tfTabs() {
+  var fs = LT.tfFiles(tfTask.folder), n = {}; tfCount = fs.length; for (var i = 0; i < fs.length; i++) n[fs[i].sub] = (n[fs[i].sub] || 0) + 1;
+  var h = ""; for (var k = 0; k < LT.TF_SUBS.length; k++) { var x = LT.TF_SUBS[k]; h += '<button class="btn' + (tfSub == x ? " on" : "") + '" data-tfs="' + x + '">' + x + " &nbsp;" + (n[x] || 0) + "</button>"; }
+  h += '<button class="btn' + (tfSub == "Notes" ? " on" : "") + '" data-tfs="Notes">&#128221; Notes &nbsp;' + (tfTask.fnotes || []).length + "</button>";
+  $("tfTabs").innerHTML = h; return fs;
+}
+var tfX = null;
+/* shows one subfolder: an Explorer view you can drop files into (Windows), or the Toolbox's own list */
+function tfShow(sub) {
+  tfSub = sub; tfTabs();
+  $("tfFiles").style.display = sub == "Notes" ? "none" : ""; $("tfNotes").style.display = sub == "Notes" ? "" : "none";
+  if (sub == "Notes") { tfNotes(); return; }
+  tfX = null; $("tfDrop").innerHTML = '<object id="tfXo" classid="clsid:8856F961-340A-11D0-A96B-00C04FD705A2"></object>';
+  try { var o = $("tfXo"); o.Navigate(tfTask.folder + "\\" + sub); tfX = o; } catch (e) { tfX = null; }
+  if (!tfX) tfList();
+  else $("tfMsg").innerHTML = "Drag files from Explorer, or emails from Outlook, into the box above. Windows decides copy or move: hold <b>Ctrl</b> = copy, <b>Shift</b> = move.";
+}
+function tfList() {
+  var fs = LT.tfFiles(tfTask.folder), h = ['<table class="grid tfl nofit"><tr><th>File</th><th>Size</th><th>Date</th><th></th></tr>'], n = 0;
+  for (var i = 0; i < fs.length; i++) { if (fs[i].sub != tfSub) continue; n++;
+    h.push('<tr><td><a href="#" data-tfo="' + esc(fs[i].path) + '">' + esc(fs[i].rel) + '</a></td><td>' + (fs[i].size >= 1048576 ? Math.round(fs[i].size / 104857.6) / 10 + " MB" : Math.max(1, Math.round(fs[i].size / 1024)) + " KB") + "</td><td>" + esc(LT.fmtDate(fs[i].date)) + '</td><td class="a"><span class="x" data-tfin="' + esc(fs[i].path) + '" title="Show in Explorer">&#128194;</span></td></tr>'); }
+  h.push("</table>");
+  $("tfDrop").innerHTML = n ? h.join("") : '<div class="muted" style="padding:24px">Nothing in ' + tfSub + ' yet. <b>+ Add files</b>, <b>Paste screenshot</b>, or <b>Open in Explorer</b> and drop files into the ' + tfSub + " folder.</div>";
+}
+function tfAfter(res, what) {
+  tfDirty = true; LT.tfSave(tfTask.folder, tfTask, { pdf: false }); tfTabs(); if (tfX) { try { tfX.Refresh(); } catch (e) { } } else tfList();
+  $("tfMsg").innerHTML = esc(what) + (res.errors && res.errors.length ? ' &middot; <span class="bad">not added: ' + esc(res.errors.join(", ")) + "</span>" : "");
+}
+function tfMode(move) { var s = LT.settings(); s.tfMove = !!move; LT.saveSettings(s); }
+function tfNotes() {
+  var ns = tfTask.fnotes || [], h = "";
+  for (var i = ns.length - 1; i >= 0; i--) h += '<div class="tfn"><div class="at muted">' + esc(ns[i].at) + ' <span class="x" data-tfdn="' + i + '" title="Delete this note" style="cursor:pointer">&#10005;</span></div><div class="tx">' + esc(ns[i].text) + "</div></div>";
+  $("tfNList").innerHTML = h || '<div class="muted">No notes yet.</div>';
+}
+function closeTF() {
+  $("tf").style.display = "none"; if (tfTimer) { window.clearInterval(tfTimer); tfTimer = null; }
+  if (tfTask && tfTask.folder && tfDirty) { var r = LT.tfSave(tfTask.folder, tfTask); LT.toast("Summary updated" + (r.pdf ? " (HTML + PDF)" : " (HTML)")); }
+  render();
+}
+/* a task folder picked in Explorer: open its task, or add it as a task (made on another PC, or before) */
+function openTaskFolder() {
+  var dir = LT.pickFolder("Pick a task folder (it has Reference, Incoming and Output)"); if (!dir) return;
+  var j = LT.tfRead(dir);
+  if (!j) { alert("That isn't a task folder made by the Toolbox (no _task.json in it).\n\nTo make one: open a task > Task folder..."); return; }
+  var t = null; for (var i = 0; i < data.tasks.length && !t; i++) { var x = data.tasks[i]; if ((j.id && x.id == j.id) || (x.folder && x.folder.toLowerCase() == dir.toLowerCase()) || (x.code == j.code && x.title == j.title)) t = x; }
+  if (t) { if (t.folder != dir) { t.folder = dir; save(); } }
+  else {
+    if (!confirm('"' + (j.code ? j.code + " " : "") + j.title + '" isn\'t in your Tasks yet. Add it?')) return;
+    t = blank(); t.id = j.id || t.id; t.code = j.code || ""; t.title = j.title || LT.fso.GetFileName(dir); t.project = j.project || ""; t.who = j.who || ""; t.due = j.due || ""; t.priority = j.priority || "Normal";
+    t.status = STATUSES.indexOf(j.status) >= 0 ? j.status : "To do"; t.created = j.created || LT.today(); t.notes = j.description || ""; t.subs = j.subs || []; t.refs = j.refs || []; t.fnotes = j.notes || []; t.folder = dir;
+    addTask(t); save(); render(); LT.toast("Added " + t.code + " from its folder");
+  }
+  openTF(t);
+}
+
 /* ---------- checklist in the edit dialog ---------- */
 var subRef = -1;
 function dmyOf(iso) { var d = D(iso); return d ? LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear() : ""; }
@@ -430,7 +542,7 @@ function exportMenu(x, y) {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}"].concat(LT.REF_CSS)); }
+function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}", ".tfn{background:{bg};border-left:3px solid {accent};border-radius:{r}px}", "#tfDrop{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}", ".tfc:hover{color:{accent}}"].concat(LT.REF_CSS)); }
 $("bAdd").onclick = quickAdd;
 $("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { quickAdd(); return false; } };
 $("bDetail").onclick = function () { edit(null); };
@@ -438,7 +550,7 @@ $("bExport").onclick = function (e) { var r = this.getBoundingClientRect(); expo
 $("views").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { data.view = b.getAttribute("data-v"); save(); render(); } };
 $("proj").onchange = render; $("search").onkeyup = render;
 $("bStop").onclick = function () { for (var i = 0; i < data.tasks.length; i++) stopTimer(data.tasks[i]); save(); render(); };
-$("main").onclick = function (e) { var t = e.target || e.srcElement, d = t.getAttribute && t.getAttribute("data-done"); if (d != null) { var task = shown[+d]; setStatus(task, t.checked ? "Done" : "To do"); } };
+$("main").onclick = function (e) { var t = e.target || e.srcElement, d = t.getAttribute && t.getAttribute("data-done"), tf = LT.up(t, "data-tf"); if (tf) { openTF(shown[+tf.getAttribute("data-tf")]); return; } if (d != null) { var task = shown[+d]; setStatus(task, t.checked ? "Done" : "To do"); } };
 $("main").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "data-i"); if (r) edit(shown[+r.getAttribute("data-i")]); };
 $("main").oncontextmenu = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-i"); if (r) taskMenu(shown[+r.getAttribute("data-i")], e.clientX, e.clientY); return false; };
 /* board: drag a card to another column */
@@ -450,6 +562,23 @@ $("main").ondragleave = function (e) { e = e || window.event; var col = LT.up(e.
 $("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); var col = LT.up(e.target || e.srcElement, "data-st"); if (col && dragI != null && shown[dragI]) { var st = col.getAttribute("data-st"), t = shown[dragI]; dragI = null; if (t.status != st) setStatus(t, st); else render(); } return false; };
 $("eOk").onclick = function () { saveEdit(); };
 $("eDeleg").onclick = function () { if (!LT.trim($("eAssign").value)) { alert("Fill in who does it first (a person or a group)."); return; } saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) delegate(t); } };
+$("eTF").onclick = function () { saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) openTF(t); } };
+$("bOpenTF").onclick = openTaskFolder;
+$("tfBrowse").onclick = function () { var f = LT.pickFolder("Where should this task's folder go?"); if (f) $("tfWhere").value = f; };
+$("tfMakeB").onclick = makeTF; $("tfCancel").onclick = function () { $("tf").style.display = "none"; };
+$("tfClose").onclick = closeTF;
+$("tfOpen").onclick = function () { try { LT.open(tfTask.folder + (tfSub != "Notes" ? "\\" + tfSub : "")); } catch (e) { } };
+$("tfSum").onclick = function () { var p = tfTask.folder + "\\Task Summary.html"; if (!LT.fso.FileExists(p)) LT.tfSave(tfTask.folder, tfTask, { pdf: false }); try { LT.open(p); } catch (e) { } };
+$("tfUpd").onclick = function () { $("tfMsg").innerHTML = "Making the summary..."; var r = LT.tfSave(tfTask.folder, tfTask); tfDirty = false; $("tfMsg").innerHTML = "Summary updated: Task Summary.html" + (r.pdf ? " + Task Summary.pdf" : ' &middot; <span class="warn">no PDF (needs Edge, Chrome or Word)</span>'); };
+$("tfRe").onclick = function () { tfShow(tfSub); };
+$("tfTabs").onclick = function (e) { var b = LT.up(e ? e.target : window.event.srcElement, "data-tfs"); if (b) tfShow(b.getAttribute("data-tfs")); };
+$("tfCopy").onclick = function () { tfMode(false); }; $("tfMove").onclick = function () { tfMode(true); };
+$("tfAddF").onclick = function () { LT.pickFile(function (p) { var r = LT.tfAdd(tfTask.folder, tfSub, [p], $("tfMove").checked); tfAfter(r, (r.added.length ? ($("tfMove").checked ? "Moved " : "Copied ") + r.added.join(", ") + " to " + tfSub : "")); }); };
+$("tfAddD").onclick = function () { var d = LT.pickFolder("Pick a folder to " + ($("tfMove").checked ? "move" : "copy") + " into " + tfSub); if (!d) return; var r = LT.tfAdd(tfTask.folder, tfSub, [d], $("tfMove").checked); tfAfter(r, r.added.length ? ($("tfMove").checked ? "Moved " : "Copied ") + r.added.join(", ") + " to " + tfSub : ""); };
+$("tfShot").onclick = function () { var nm = LT.tfPasteShot(tfTask.folder, tfSub); if (nm) tfAfter({}, "Screenshot saved: " + nm); else $("tfMsg").innerHTML = '<span class="warn">No picture on the clipboard - take a snip first (Win+Shift+S), then click Paste screenshot.</span>'; };
+$("tfAddN").onclick = function () { var v = LT.trim($("tfNote").value); if (!v) { $("tfNote").focus(); return; } var d = new Date(); tfTask.fnotes = tfTask.fnotes || []; tfTask.fnotes.push({ at: LT.today() + " " + LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes()), text: v }); $("tfNote").value = ""; save(); tfAfter({}, "Note added"); tfNotes(); };
+$("tfNList").onclick = function (e) { var x = LT.up(e ? e.target : window.event.srcElement, "data-tfdn"); if (x && confirm("Delete this note?")) { tfTask.fnotes.splice(+x.getAttribute("data-tfdn"), 1); save(); tfAfter({}, "Note deleted"); tfNotes(); } };
+$("tfDrop").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, o = LT.up(t, "data-tfo"), s = LT.up(t, "data-tfin"); if (o) { try { LT.open(o.getAttribute("data-tfo")); } catch (x) { } if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } if (s) { try { LT.showInFolder(s.getAttribute("data-tfin")); } catch (x) { } } };
 $("eAddSub").onclick = function () { readSubs(); work.subs.push({ code: "", title: "", who: "", due: "", status: "To do", refs: [] }); drawSubs(); var ins = $("subs").getElementsByTagName("input"); try { ins[ins.length - 3].focus(); } catch (e) { } };
 $("ePasteSub").onclick = function () { var t = prompt("Paste the items - one per line (separate with  ;  if this box joins the lines):", ""); if (!t) return; readSubs(); var ls = t.split(/\r?\n|;/); for (var i = 0; i < ls.length; i++) if (LT.trim(ls[i])) work.subs.push({ code: "", title: LT.trim(ls[i]), who: "", due: "", status: "To do", refs: [] }); drawSubs(); };
 $("subs").onclick = function (e) { var t = e ? e.target : window.event.srcElement, d = LT.up(t, "data-sdel"), r = LT.up(t, "data-sref");

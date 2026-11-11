@@ -114,6 +114,20 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Time:** right-click → Start timer (shown at the top), or Add time (`1.5` or `0:45`)
 - **Export ▾:** copy this week's summary for email / Teams, or CSV for Excel (with checklist and references)
 
+### Task folders (everything about one task in one place)
+
+- In Tasks: right-click a task → **📁 Make a task folder…** (or **📁 Task folder…** in the task window)
+  - **Where:** you choose every time (Browse…) · **Folder name:** you type it (the task's name is suggested)
+  - It makes: `Reference\` (what it's based on) · `Incoming\` (what comes back) · `Output\` (what you produce) · `Notes.txt` · **Task Summary.html** + **Task Summary.pdf** · a hidden `_task.json`
+- **Filling it** (tabs Reference / Incoming / Output / Notes):
+  - Drag files from Explorer, or emails from Outlook, into the box (Windows: **Ctrl** = copy, **Shift** = move)
+  - **+ Add files…** / **+ Add a folder…** – choose **Copy** or **Move** (remembered). The same name twice gets (2), (3)…
+  - **📋 Paste screenshot** – take a snip (Win+Shift+S), click it: saved as `Screenshot <date time>.png`
+  - **📝 Notes** – type or paste (Teams / email text, a call, a decision); each note gets the date and time
+- **Task Summary** – one professional page: details, description, notes, checklist, references, and every file of Reference / Incoming / Output **with links**. Updated when you close the window, or **↻ Update summary (HTML + PDF)**. The PDF is printed by Edge (or Chrome, or Word) without opening a window
+- **📂 Open a task folder…** (top of Tasks) – pick any task folder: its task opens. If it isn't in your Tasks (another PC, or deleted), it's added back from the folder
+- The task shows **📁 folder** in the list (click it). **Delegate this task**: the files in **Reference** go along as references (copied into the transmittal)
+
 ## Delegate
 
 1. **📥 From Tasks…** – the tasks you logged with someone in "Who does it" and haven't handed out yet. Pick one: it becomes `T001` (with its checklist `T001.1` … and references) and **Send** opens
@@ -309,6 +323,7 @@ The folder comes first – "what's in here?"
 - `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload (in Delegate); Contents, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
 - `core\lt-refs.js` – references (editor, labels, plain-text lines) used by Tasks and Delegate
 - `core\lt-transmittal.js` – making a transmittal (`LT.trMake`), used by the Transmittal tab and by Delegate
+- `core\lt-taskfolder.js` – task folders (`LT.tfMake`, `tfAdd`, `tfPasteShot`, `tfSave` = _task.json + Notes.txt + summary HTML/PDF, `tfRead`)
 - `core\taskpack-runtime.js` – the HTML task pack page; the Toolbox adds references and the lead's "Assign to" (no curly brackets in its top comments)
 - Tasks ↔ Delegate: `LT.main().send("delegate", "from-log", task)`, back with `LT.main().post("tracker", "delegated", …)` (post = no tab switch) and `delegate-feed.json` (code, log, to, tr, progress, status)
 - Date boxes: `LT.datePicker(test)` adds the pop-up calendar (dd/mm/yyyy)

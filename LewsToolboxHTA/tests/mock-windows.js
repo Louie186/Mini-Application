@@ -58,7 +58,7 @@
     BuildPath: function (a, b) { return a.replace(/\\+$/, "") + "\\" + b; }
   };
   var wsh = {
-    ExpandEnvironmentStrings: function (s) { return s.replace(/%APPDATA%/ig, "C:\\Users\\lew\\AppData\\Roaming").replace(/%USERNAME%/ig, "lew").replace(/%WINDIR%/ig, "C:\\Windows").replace(/%LOCALAPPDATA%/ig, "C:\\Users\\lew\\AppData\\Local").replace(/%USERPROFILE%/ig, "C:\\Users\\lew"); },
+    ExpandEnvironmentStrings: function (s) { return s.replace(/%ProgramFiles\(x86\)%/ig, "C:\\Program Files (x86)").replace(/%ProgramFiles%/ig, "C:\\Program Files").replace(/%APPDATA%/ig, "C:\\Users\\lew\\AppData\\Roaming").replace(/%USERNAME%/ig, "lew").replace(/%WINDIR%/ig, "C:\\Windows").replace(/%LOCALAPPDATA%/ig, "C:\\Users\\lew\\AppData\\Local").replace(/%USERPROFILE%/ig, "C:\\Users\\lew"); },
     Run: function (cmd) { FS.log.push("run " + cmd); return 0; },
     SpecialFolders: function () { return "C:\\Users\\lew\\Desktop"; },
     CreateShortcut: function (p) { return { Save: function () { FS.files[norm(p)] = { path: p, text: "lnk", time: Date.now() }; addDirs(p); } }; },

@@ -31,6 +31,9 @@
 #tip{display:none;position:fixed;z-index:50;width:280px;padding:10px 12px;line-height:1.45;font-size:13px}
 #tip b{display:block;margin-bottom:3px}
 #warn{display:none;position:absolute;left:0;right:0;top:0;z-index:5;padding:8px 12px;font-weight:bold;background:#b13e53;color:#fff}
+#dataWarn{display:none;flex:none;margin:6px 2px;padding:7px 8px;font-size:.85em;line-height:1.35;background:#fff4d6;color:#5a4200;border:1px solid #e5c36a;border-radius:8px}
+#dataWarn .wb{display:inline-block;margin:5px 4px 0 0;padding:2px 7px;font:inherit;font-weight:bold;cursor:pointer;border:1px solid #c9a646;background:#fff;color:#5a4200;border-radius:6px}
+#shell.rail #dataWarn{padding:4px;text-align:center}
 @media (max-width:700px){ #nav{width:58px} .nb{padding:0;text-align:center;text-overflow:clip} .nb .ic{width:auto} .nb .tx,#brand .tx{display:none} #clock span{display:none} #railBtn{display:none} }
 </style>
 <script src="core/lt-core.js"></script>
@@ -40,6 +43,7 @@
   <div id="nav">
     <div id="brand">&#129520;<span class="tx"> Lew's Toolbox</span><button id="railBtn" title="Fold the menu to icons / open it again (Ctrl+[)">&#9664;</button></div>
     <div id="tabs"></div>
+    <div id="dataWarn"></div>
     <div id="clock"><b id="clkT">--:--</b><br><span id="clkD"></span></div>
   </div>
   <div id="body"><div id="warn"></div></div>
@@ -119,6 +123,7 @@ var LTMain = {
     for (var k in frames) if (frames.hasOwnProperty(k)) { try { var w = frames[k].contentWindow; if (w && w !== from && w.ltTheme) w.ltTheme(); } catch (x) { } }
   },
   dataChanged: function () {
+    dataHereWarning();
     for (var k in frames) if (frames.hasOwnProperty(k)) { try { var w = frames[k].contentWindow; if (w && w.ltReload) w.ltReload(); } catch (x) { } }
   },
   makeShortcut: function () { return taskbarShortcut(); },
@@ -143,6 +148,15 @@ function look() {
   /* Slate: the menu item you're on gets a soft fill and a thin blue bar on its left */
   if (LT.themeVars().slate) rules.push(".nb.on{border-color:transparent;background:{chip};box-shadow:inset 3px 0 0 {accent2}}");
   LT.applyLook(rules);
+}
+/* while the data folder is inside the program folder, replacing the program could delete it: say so (once per start) */
+function dataHereWarning() {
+  var s = LT.settings(), w = LT.$("dataWarn"); if (s.dataFolder || s.dataHereOk) { w.style.display = "none"; return; }
+  w.innerHTML = '<div class="dwT" title="Your tasks, lists and logs are saved inside the program folder (' + LT.esc(LT.dataDir()) + '). If you replace or delete that folder when you update the Toolbox, they go with it.">&#9888;<span class="tx"> Your data is inside the program folder &ndash; updating could delete it</span></div>' +
+    '<div class="tx"><button class="wb" id="wMove">Move it (Settings)</button><button class="wb" id="wKeep" title="Don\'t ask again">Keep it here</button></div>';
+  w.style.display = "block";
+  LT.$("wMove").onclick = function () { show("settings"); };
+  LT.$("wKeep").onclick = function () { w.style.display = "none"; var s2 = LT.settings(); s2.dataHereOk = true; LT.saveSettings(s2); };
 }
 /* fold the side menu down to icons (remembered in settings) */
 function setRail(on, keep) {
@@ -215,6 +229,8 @@ function taskbarShortcut() {
   if (/\\Temp\\|\.zip\\/i.test(APP)) { var w = LT.$("warn"); w.innerHTML = "You're running Lew's Toolbox from inside a zip or temporary folder. Extract the whole folder first, or your work won't be saved."; w.style.display = "block"; }
   try { LT.mkdirs(LT.dataDir()); } catch (e) { var w2 = LT.$("warn"); w2.innerHTML = "Can't save in the data folder: " + LT.esc(LT.dataDir()) + " - pick another one in Settings."; w2.style.display = "block"; }
   tabs = findTabs(); tipsOn = LT.settings().tips !== false;
+  window.setTimeout(function () { try { LT.dailyBackup(); } catch (e) { } }, 1500);   // once a day: a copy of the data folder in Backups\<date>
+  dataHereWarning();
   LT.$("tabs").onmouseover = function (e) { var b = LT.up(e.target || e.srcElement, "data-k"); if (b) showTip(b); else hideTip(); };
   LT.$("tabs").onmouseout = function (e) { var to = e.relatedTarget || e.toElement; if (!to || !LT.up(to, "data-k")) hideTip(); };
   LT.$("tabs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-k"); if (b) { hideTip(); show(b.getAttribute("data-k")); } };

@@ -15,6 +15,15 @@ No install, no build step.
 - Your work is saved in `LewsToolbox-data` next to it (Settings → Data folder to move it, e.g. to OneDrive)
 - Settings for this PC are in `%APPDATA%\LewsToolbox\settings-hta.json`
 
+## Keeping your data safe (updates, backups)
+
+- **Program** = `LewsToolbox.hta` + `core\` + `tabs\` – this is what an update replaces
+- **Your data** = the data folder (tasks, delegate tasks and groups, transmittal log, Drawing Register, lists, Launcher list). It's never in the update zip
+- **Do this once:** Settings → **Data folder → Change folder…** → e.g. Documents or OneDrive → **Yes** to copy your data. Until then a small box in the side menu reminds you
+- **Updating:** close the Toolbox → unblock + extract the new zip → copy the new `LewsToolboxHTA` folder **over** the old one → **Replace the files**. Never delete the old folder while your data is still in it
+- **Backups:** every day, the first time you open the Toolbox, the data folder is copied to `Backups\<date>` (last 14 days kept). Settings → **💾 Back up now** · **↩ Restore this backup…** (what you have is backed up first, as "before restore")
+- Every saved file also keeps its previous version as `.backup` (used by itself if a file is ever damaged)
+
 ## Tabs
 
 The side menu follows the way the work flows: **WORK** (log it → hand it out → send it), **DRAWINGS**, **FILES**.

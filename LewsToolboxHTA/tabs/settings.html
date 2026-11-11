@@ -32,6 +32,13 @@
   <button class="btn" id="bDataDef">Use the folder next to the program</button>
   <button class="btn" id="bDataOpen">Open data folder</button>
 
+  <div class="h">Backups</div>
+  <div class="muted">Every day, the first time you open the Toolbox, your data is copied to <b>Backups\&lt;date&gt;</b> in the data folder (the last 14 days are kept). Your task folders aren't touched &ndash; they're already your own files.</div>
+  <div id="bkLast" style="margin:6px 0"></div>
+  <button class="btn primary" id="bBackup">&#128190; Back up now</button>
+  <select id="bkList" style="width:300px;margin:0 6px 6px 0"></select><button class="btn" id="bRestore">&#8617; Restore this backup...</button>
+  <button class="btn" id="bBkOpen">Open the Backups folder</button>
+
   <div class="h">Launcher list</div>
   <div class="muted">Use the Toolbox's own list, or share the same list with your QuickLaunch.hta (pick the folder that has QuickLaunch.hta in it).</div>
   <div id="lhPath" style="font-weight:bold;margin:6px 0"></div>
@@ -67,7 +74,8 @@ function refresh() {
   h = ""; for (var z in LT.SIZES) if (LT.SIZES.hasOwnProperty(z)) h += '<button class="btn' + (S.size == z ? " on" : "") + '" data-size="' + z + '">' + LT.SIZES[z].name + "</button>";
   LT.$("sizes").innerHTML = h;
   LT.$("uname").value = S.userName || "";
-  LT.$("dataPath").innerHTML = LT.esc(LT.dataDir()) + (S.dataFolder ? "" : ' <span class="muted">(next to the program)</span>');
+  LT.$("dataPath").innerHTML = LT.esc(LT.dataDir()) + (S.dataFolder ? ' <span class="ok" style="font-weight:normal">&#10004; safe when you update the Toolbox</span>' : ' <span class="warn" style="font-weight:normal">(inside the program folder &ndash; use Change folder... so updating the Toolbox can never delete it)</span>');
+  showBackups();
   LT.$("lhPath").innerHTML = S.launcherHome ? LT.esc(S.launcherHome + "\\QuickLaunch-data") + ' <span class="muted">(shared with QuickLaunch.hta)</span>' : LT.esc(LT.dataDir() + "\\QuickLaunch-data") + ' <span class="muted">(the Toolbox\'s own list)</span>';
   LT.$("trPath").innerHTML = S.trackerFolder ? LT.esc(S.trackerFolder) : '<span class="muted">Not linked</span>';
   LT.$("tips").checked = S.tips !== false;
@@ -93,6 +101,19 @@ LT.$("bData").onclick = function () {
   setData(f);
 };
 LT.$("bDataDef").onclick = function () { setData(""); };
+/* ---------- backups ---------- */
+function showBackups() {
+  var b = LT.backups(), h = ""; for (var i = 0; i < b.length; i++) h += '<option value="' + LT.esc(b[i].path) + '">' + LT.esc(b[i].name) + "</option>";
+  LT.$("bkList").innerHTML = h || "<option value=\"\">No backups yet</option>"; LT.$("bRestore").disabled = !b.length;
+  LT.$("bkLast").innerHTML = b.length ? "Newest: <b>" + LT.esc(b[0].name) + "</b> &middot; " + b.length + " backup(s) kept" : '<span class="muted">No backup yet &ndash; the first one is made today (or click Back up now).</span>';
+}
+LT.$("bBackup").onclick = function () { var r = LT.backupNow("manual"); showBackups(); LT.toast(r ? "Backed up: " + r.name + " (" + r.files + " files)" : "Nothing to back up yet"); };
+LT.$("bRestore").onclick = function () {
+  var p = LT.$("bkList").value, nm = LT.$("bkList").options[LT.$("bkList").selectedIndex].text; if (!p) return;
+  if (!confirm("Put back the data from " + nm + "?\n\nWhat you have now is backed up first (as \"before restore\"), so you can go back.\nFiles made after that backup stay as they are.")) return;
+  try { var r = LT.restoreBackup(p); showBackups(); if (LT.main()) LT.main().dataChanged(); alert("Restored " + nm + " (" + r.files + " files)." + (r.before ? "\n\nYour data from before is in: " + r.before.name : "")); } catch (e) { alert("Couldn't restore:\n" + (e.message || e)); }
+};
+LT.$("bBkOpen").onclick = function () { try { LT.mkdirs(LT.backupDir()); LT.open(LT.backupDir()); } catch (e) { } };
 function setData(f) {
   var oldDir = LT.dataDir(), newDir = f || (LT.appDir() + "\\LewsToolbox-data");
   if (oldDir.toLowerCase() == newDir.toLowerCase()) return;

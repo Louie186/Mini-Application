@@ -53,7 +53,12 @@
       delete FS.files[norm(a)]; FS.files[norm(b)] = { path: b, text: f.text, time: f.time }; addDirs(b); FS.log.push("move " + a + " -> " + b);
     },
     DeleteFile: function (p) { if (!FS.files[norm(p)]) throw err("File not found"); delete FS.files[norm(p)]; FS.log.push("delete " + p); },
-    CopyFolder: function (a, b) { if (wildcard(a)) { var ds = children(parentOf(a), true); if (!ds.length) throw err("Path not found"); } },
+    CopyFolder: function (a, b) { if (wildcard(a)) { var ds = children(parentOf(a), true); if (!ds.length) throw err("Path not found"); return; }
+      if (!FS.dirs[norm(a)]) throw err("Path not found"); var pa = norm(a) + "\\";
+      FS.dirs[norm(b)] = b; addDirs(b);
+      Object.keys(FS.dirs).forEach(function (k) { if (k.indexOf(pa) == 0) { var r = b + FS.dirs[k].substring(a.length); FS.dirs[norm(r)] = r; } });
+      Object.keys(FS.files).forEach(function (k) { if (k.indexOf(pa) == 0) { var f = FS.files[k], r = b + f.path.substring(a.length); FS.files[norm(r)] = { path: r, text: f.text, time: f.time }; } }); },
+    DeleteFolder: function (p) { var n = norm(p); if (!FS.dirs[n]) throw err("Path not found"); Object.keys(FS.files).forEach(function (k) { if (k.indexOf(n + "\\") == 0) delete FS.files[k]; }); Object.keys(FS.dirs).forEach(function (k) { if (k == n || k.indexOf(n + "\\") == 0) delete FS.dirs[k]; }); FS.log.push("delete folder " + p); },
     GetTempName: function () { return "rad" + Math.random().toString(36).slice(2, 7) + ".tmp"; },
     BuildPath: function (a, b) { return a.replace(/\\+$/, "") + "\\" + b; }
   };

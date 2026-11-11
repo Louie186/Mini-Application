@@ -85,6 +85,49 @@ var LT = (function () {
   };
   L.saveSettings = function (s) { try { L.saveJson(L.settingsFile(), s); } catch (e) { } };
   L.dataDir = function () { var s = L.settings(); return s.dataFolder || (L.appDir() + "\\LewsToolbox-data"); };
+  /* ---------- backups of the data folder: <data>\Backups\<date> (daily) / "<date> <time> (manual)" ---------- */
+  L.backupDir = function () { return L.dataDir() + "\\Backups"; };
+  /* copies a folder, file by file (Backups and exports are left out at the top: no backups of backups) */
+  function copyTree(src, dst, top) {
+    L.mkdirs(dst); var fo = fso.GetFolder(src), n = 0, e = new Enumerator(fo.Files);
+    for (; !e.atEnd(); e.moveNext()) { var f = e.item(); try { fso.CopyFile("" + f.Path, dst + "\\" + f.Name, true); n++; } catch (x) { } }
+    var s = new Enumerator(fo.SubFolders);
+    for (; !s.atEnd(); s.moveNext()) { var d = s.item(), nm = "" + d.Name; if (top && /^(backups|exports)$/i.test(nm)) continue; n += copyTree("" + d.Path, dst + "\\" + nm, false); }
+    return n;
+  }
+  L.backups = function () {
+    var out = [], b = L.backupDir(); if (!fso.FolderExists(b)) return out;
+    var e = new Enumerator(fso.GetFolder(b).SubFolders); for (; !e.atEnd(); e.moveNext()) out.push({ name: "" + e.item().Name, path: "" + e.item().Path });
+    out.sort(function (x, y) { return x.name < y.name ? 1 : -1; }); return out;
+  };
+  /* keeps the newest 14 daily backups and the newest 10 others (manual / before restore) */
+  L.pruneBackups = function () {
+    var all = L.backups(), daily = 0, other = 0;
+    for (var i = 0; i < all.length; i++) { var d = /^\d{4}-\d{2}-\d{2}$/.test(all[i].name), keep = d ? ++daily <= 14 : ++other <= 10; if (!keep) { try { fso.DeleteFolder(all[i].path, true); } catch (e) { } } }
+  };
+  /* kind: "daily" (once a day, silent) | "manual" | "before restore". Returns { name, path, files } or null */
+  L.backupNow = function (kind) {
+    var src = L.dataDir(); if (!fso.FolderExists(src)) return null;
+    var d = new Date(), name = L.today() + (kind == "daily" ? "" : " " + L.pad(d.getHours()) + L.pad(d.getMinutes()) + " (" + kind + ")"), dst = L.backupDir() + "\\" + name;
+    if (kind == "daily" && fso.FolderExists(dst)) return null;
+    var n = 0, k = 2; while (kind != "daily" && fso.FolderExists(dst)) dst = L.backupDir() + "\\" + name + " " + (k++);
+    n = copyTree(src, dst, true);
+    if (!n) { try { fso.DeleteFolder(dst, true); } catch (e) { } return null; }   // nothing saved yet: no empty backup
+    L.pruneBackups(); return { name: fso.GetFileName(dst), path: dst, files: n };
+  };
+  /* the first time the Toolbox opens each day */
+  L.dailyBackup = function () {
+    var s = L.settings(); if (s.lastBackup == L.today()) return null;
+    var r = null; try { r = L.backupNow("daily"); } catch (e) { }
+    s = L.settings(); s.lastBackup = L.today(); L.saveSettings(s); return r;
+  };
+  /* puts a backup back: today's data is backed up first ("before restore"), then the backup's files are copied over it */
+  L.restoreBackup = function (path) {
+    if (!fso.FolderExists(path)) throw new Error("That backup isn't there any more.");
+    var before = L.backupNow("before restore");
+    var n = copyTree(path, L.dataDir(), true);
+    return { files: n, before: before };
+  };
   L.dataPath = function (name) { return L.dataDir() + "\\" + name; };
   L.exportsDir = function () { return L.dataDir() + "\\exports"; };
 

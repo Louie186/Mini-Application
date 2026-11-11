@@ -48,6 +48,8 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
 .ev{display:block;margin-top:3px;padding:2px 6px;font-size:.88em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:move}
 .ev.p{font-weight:bold}
 .evm{display:block;margin-top:3px;font-size:.85em;font-weight:bold;cursor:pointer}
+.chp{margin:8px 0;padding:8px 10px}.chh{display:flex;align-items:center;margin-bottom:6px}.chh .sp{flex:1 1 auto}.chh .btn{margin:0 0 0 6px}
+.cht{width:100%;height:150px;font-size:.92em}
 </style>
 <script src="../core/lt-core.js"></script>
 <script src="../core/lt-refs.js"></script>
@@ -61,6 +63,7 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
     <button class="btn" id="bSend">&#128228; Send to people...</button>
     <button class="btn" id="bLoad">&#11014; Load replies...</button>
     <button class="btn" id="bPaste">&#128203; Paste reply...</button>
+    <button class="btn" id="bChase" title="A polite reminder for each person with late work (or work due in the next few days), listing exactly what">&#128276; Chase up...</button>
     <button class="btn" id="bMore">More &#9662;</button>
   </div>
   <div id="views" class="bar2"></div>
@@ -121,6 +124,15 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
   <div class="row2"><div class="fld"><label>Group name</label><input type="text" id="gName" placeholder="e.g. MEP Team"></div><div class="fld"><label>Lead (gets the group's tasks)</label><input type="text" id="gLead" list="pplList"></div></div>
   <div class="fld"><label>Members (comma between names) &ndash; the lead picks from these for each item</label><input type="text" id="gMem"></div>
   <div class="acts"><button class="btn" id="gDel">Delete group</button><span class="sp"></span><button class="btn" id="gCancel">Cancel</button><button class="btn primary" id="gOk">Save</button></div>
+</div></div>
+
+<!-- chase up: one polite message per person, listing exactly what's late / due soon -->
+<div class="ov" id="chase"><div class="card" style="width:820px">
+  <h3>&#128276; Chase up</h3>
+  <div class="bar2" style="padding:0"><label class="lbl"><input type="checkbox" id="cSoon" style="height:auto"> Also work due in the next <select id="cDays" style="width:56px;height:24px"><option>1</option><option>2</option><option selected>3</option><option>5</option><option>7</option></select> days</label>
+    <label class="lbl"><input type="checkbox" id="cLead" checked style="height:auto"> Group tasks go to the group's lead</label></div>
+  <div id="cList" style="max-height:440px;overflow-y:auto"></div>
+  <div class="acts"><span class="muted" id="cMsg"></span><span class="sp"></span><button class="btn" id="cAll">&#128203; Copy all</button><button class="btn primary" id="cClose">Close</button></div>
 </div></div>
 
 <!-- paste a reply -->
@@ -191,6 +203,49 @@ function parseDate(s) {
 }
 function dmy(iso) { var d = D(iso); return d ? LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear() : ""; }
 function copy(o) { return JSON.parse(JSON.stringify(o)); }
+
+/* ---------- chase up: who has late (or soon-due) work, and a ready message for each ---------- */
+var chaseList = [];
+function chaseData(soonDays, toLead) {
+  var today = todayD(), lim = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (soonDays || 0)), by = {}, order = [];
+  var put = function (who, line) { var k = who.toLowerCase(); if (!by[k]) { by[k] = { who: who, late: [], soon: [], tasks: [] }; order.push(k); } var p = by[k]; (line.late ? p.late : p.soon).push(line); if (p.tasks.indexOf(line.task) < 0) p.tasks.push(line.task); };
+  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i], g = groupOf(t.who); if (statusOf(t) == "Completed") continue;
+    var items = t.subs.length ? t.subs : [t];
+    for (var j = 0; j < items.length; j++) { var x = items[j], due = x.due || t.due, d = D(due); if (x.status == "Completed" || !d) continue;
+      var isLate = d < today; if (!isLate && !(soonDays && d <= lim)) continue;
+      var doer = x === t ? "" : LT.trim(x.who || ""), ws = g && toLead ? [g.lead] : names(doer || t.who); if (!ws.length) ws = ["(nobody named)"];
+      var days = Math.round((today - d) / 864e5);
+      for (var w = 0; w < ws.length; w++) put(ws[w], { task: t, late: isLate, code: x.code, title: x.title, parent: x === t ? "" : t.code + " " + t.title, doer: g && toLead && doer && !same(doer, g.lead) ? doer : "", due: due,
+        when: isLate ? "was due " + LT.fmtDate(due) + " (" + days + (days == 1 ? " day" : " days") + " late)" : "due " + LT.fmtDate(due) + (days == 0 ? " (today)" : "") }); } }
+  var out = []; for (var k = 0; k < order.length; k++) out.push(by[order[k]]);
+  out.sort(function (a, b) { return b.late.length - a.late.length || (a.who < b.who ? -1 : 1); });
+  return out;
+}
+function chaseText(p) {
+  var me = LT.settings().userName || "", first = p.who.split(/\s+/)[0], L = ["Hi " + first + ",", ""];
+  var line = function (x) { return "  \u2022 " + x.code + "  " + x.title + (x.doer ? " (" + x.doer + ")" : "") + " \u2013 " + x.when + (x.parent ? "   [" + x.parent + "]" : ""); };
+  if (p.late.length) { L.push("Just checking in on " + (p.late.length == 1 ? "this one - it's" : "these - they're") + " past the due date:", ""); for (var i = 0; i < p.late.length; i++) L.push(line(p.late[i])); }
+  if (p.soon.length) { L.push("", p.late.length ? "And coming up soon:" : "A quick reminder - these are due soon:", ""); for (var j = 0; j < p.soon.length; j++) L.push(line(p.soon[j])); }
+  L.push("", "Could you let me know where " + (p.late.length + p.soon.length == 1 ? "it's" : "they're") + " at, and a date you can finish" + (p.late.length + p.soon.length == 1 ? " it" : " them") + "? If anything is holding you up, tell me and I'll help sort it.", "", "Thanks,", me);
+  return L.join("\r\n");
+}
+function chaseSubject(p) { return "Quick check-in: " + (p.late.length ? p.late.length + " late" : "") + (p.late.length && p.soon.length ? ", " : "") + (p.soon.length ? p.soon.length + " due soon" : "") + (data.project ? " \u2013 " + data.project : ""); }
+function openChase() {
+  var s = LT.settings(); $("cSoon").checked = !!s.chaseSoon; $("cLead").checked = s.chaseLead !== false; $("cMsg").innerHTML = "";
+  drawChase(); $("chase").style.display = "block";
+}
+function drawChase() {
+  chaseList = chaseData($("cSoon").checked ? +$("cDays").value : 0, $("cLead").checked);
+  var h = "";
+  for (var i = 0; i < chaseList.length; i++) { var p = chaseList[i];
+    h += '<div class="chp"><div class="chh"><b>' + esc(p.who) + "</b> &nbsp;" + (p.late.length ? '<span class="bad">' + p.late.length + " late</span> &nbsp;" : "") + (p.soon.length ? '<span class="warn">' + p.soon.length + " due soon</span>" : "") +
+      '<span class="sp"></span><button class="btn small" data-cc="' + i + '">&#128203; Copy</button><button class="btn small" data-cm="' + i + '">&#9993; Email (Outlook)</button></div>' +
+      '<textarea class="cht" id="cht' + i + '">' + esc(chaseText(p)) + "</textarea></div>"; }
+  $("cList").innerHTML = h || '<div class="muted" style="padding:24px">Nobody to chase &ndash; nothing is late' + ($("cSoon").checked ? " or due soon" : "") + ". &#127881;</div>";
+  $("cAll").style.display = chaseList.length > 1 ? "" : "none";
+}
+/* the message was sent: note it on each task's history (shows when you last chased) */
+function chased(p, how) { var st = stampNow(); for (var i = 0; i < p.tasks.length; i++) p.tasks[i].history.push(st + "  Chased up " + p.who + " (" + how + ")"); save(); $("cMsg").innerHTML = "Noted on the task history: chased " + esc(p.who); }
 
 /* for the Tasks tab: one line per task, "waiting on" its people, its progress and transmittal */
 function writeFeed() {
@@ -926,7 +981,7 @@ function copyWeb() {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["tr.task td{background:{chip}}", "#items th{padding:3px}",
+function look() { LT.applyLook(["tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
   ".col{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}.col.over{border-color:{accent};background:{hover}}",
   ".dc{background:{bg};border:{bw}px solid {line};border-radius:{r}px}.dc:hover{border-color:{accent}}",
   ".pb{background:{chip};border-radius:3px}.pb i{background:{accent}}",
@@ -939,6 +994,15 @@ $("gOk").onclick = saveGroup; $("gCancel").onclick = function () { $("gdlg").sty
 $("gDel").onclick = function () { if (gEditing && confirm('Delete the group "' + gEditing.name + '"? Its tasks stay (assigned to "' + gEditing.name + '").')) { data.groups.splice(data.groups.indexOf(gEditing), 1); $("gdlg").style.display = "none"; save(); render(); } };
 $("bSend").onclick = function () { openSend(null); };
 $("bLoad").onclick = loadReplies;
+$("bChase").onclick = openChase;
+$("cClose").onclick = function () { $("chase").style.display = "none"; render(); };
+$("cSoon").onclick = function () { var v = this.checked, s = LT.settings(); s.chaseSoon = v; LT.saveSettings(s); drawChase(); };
+$("cLead").onclick = function () { var v = this.checked, s = LT.settings(); s.chaseLead = v; LT.saveSettings(s); drawChase(); };
+$("cDays").onchange = drawChase;
+$("cList").onclick = function (e) { var t = e ? e.target : window.event.srcElement, c = LT.up(t, "data-cc"), m = LT.up(t, "data-cm");
+  if (c) { var i = +c.getAttribute("data-cc"); if (LT.copyText($("cht" + i).value)) { LT.toast("Copied - paste it into Teams or an email"); chased(chaseList[i], "copied"); } }
+  if (m) { var j = +m.getAttribute("data-cm"), p = chaseList[j]; if (LT.mail(p.who, chaseSubject(p), $("cht" + j).value)) chased(p, "email"); else { LT.copyText($("cht" + j).value); alert("Outlook isn't there - the message is copied instead. Paste it into Teams or an email."); chased(p, "copied"); } } };
+$("cAll").onclick = function () { var a = []; for (var i = 0; i < chaseList.length; i++) a.push("=== " + chaseList[i].who + " ===\r\n" + $("cht" + i).value); if (LT.copyText(a.join("\r\n\r\n"))) LT.toast("All " + chaseList.length + " messages copied"); };
 $("bPaste").onclick = function () { $("pText").value = ""; $("paste").style.display = "block"; $("pText").focus(); };
 $("bMore").onclick = function (e) { var r = this.getBoundingClientRect(); moreMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
 $("views").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { view = b.getAttribute("data-v"); if (view == "web") loadWeb(); render(); } };
@@ -969,7 +1033,7 @@ $("items").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "dat
 $("sOk").onclick = doSend; $("sCancel").onclick = function () { $("send").style.display = "none"; };
 $("pCancel").onclick = function () { $("paste").style.display = "none"; };
 $("pOk").onclick = function () { var t = $("pText").value; if (!LT.trim(t)) return; try { var r = parseReply(t); r.file = "pasted reply"; $("paste").style.display = "none"; applyReplies([r]); } catch (e) { alert("That isn't a task pack reply.\n\n" + (e.message || e)); } };
-document.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 27) { $("dlg").style.display = "none"; $("send").style.display = "none"; $("paste").style.display = "none"; } };
+document.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 27) { $("dlg").style.display = "none"; $("chase").style.display = "none"; $("send").style.display = "none"; $("paste").style.display = "none"; } };
 
 /* called by the main window */
 window.ltTheme = function () { look(); try { var w = $("wlFrame"); if (w) w.contentWindow.ltTheme(); } catch (e) { } if (view != "workload") render(); };
@@ -978,6 +1042,9 @@ window.ltReceive = function (what, value) {
   if (what == "from-log") fromLog(JSON.parse(value));
   else if (what == "show-task") { var t = findTask(value); view = "list"; $("search").value = value || ""; render(); if (t) edit(t); }
   else if (what == "view") { view = value; render(); }
+  /* from search (Ctrl+K) / the morning reminder */
+  else if (what == "person") { view = "list"; var o = $("person").options, hit = false; for (var i = 0; i < o.length; i++) if (same(o[i].text, value)) { $("person").selectedIndex = i; hit = true; } if (!hit) { $("person").value = ""; $("search").value = value; } else $("search").value = ""; render(); }
+  else if (what == "chase") openChase();
 };
 window.ltShown = function () { loadWeb(); render(); };
 look(); load(); render(); LT.tabKeys(); LT.datePicker(function (i) { return i.id == "eDue" || /(^| )iD( |$)/.test(i.className); });

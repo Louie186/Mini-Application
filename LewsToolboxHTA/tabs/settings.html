@@ -21,6 +21,10 @@
   <div class="h">Hover tips</div>
   <label><input type="checkbox" id="tips" style="height:auto"> Show what each tab does when the mouse is over it in the side menu</label>
 
+  <div class="h">Reminders</div>
+  <label><input type="checkbox" id="remind" style="height:auto"> Once a day, when the Toolbox opens: what's due today and what's late (yours and your team's)</label>
+  <button class="btn small" id="bRemind">Show it now</button> <span class="muted">Ctrl+K in any tab searches everything (tasks, drawings, transmittals, people, files).</span>
+
   <div class="h">Your name</div>
   <input type="text" id="uname" style="width:220px"> <button class="btn" id="bName">Save</button>
   <span class="muted">Shown as "Issued by" on task sheets you send.</span>
@@ -79,6 +83,7 @@ function refresh() {
   LT.$("lhPath").innerHTML = S.launcherHome ? LT.esc(S.launcherHome + "\\QuickLaunch-data") + ' <span class="muted">(shared with QuickLaunch.hta)</span>' : LT.esc(LT.dataDir() + "\\QuickLaunch-data") + ' <span class="muted">(the Toolbox\'s own list)</span>';
   LT.$("trPath").innerHTML = S.trackerFolder ? LT.esc(S.trackerFolder) : '<span class="muted">Not linked</span>';
   LT.$("tips").checked = S.tips !== false;
+  LT.$("remind").checked = S.remind !== false;
   var tl = LT.main() ? LT.main().tabList() : [], th = "";
   for (var t = 0; t < tl.length; t++) th += '<tr><td style="white-space:nowrap"><b>' + tl[t].icon + " " + LT.esc(tl[t].title) + '</b></td><td class="muted">' + tl[t].desc + "</td></tr>";
   LT.$("tabList").innerHTML = th;
@@ -92,6 +97,8 @@ document.body.onclick = function (e) {
   if (th) { save(function (s) { s.theme = th.getAttribute("data-theme"); }); look(); if (LT.main()) LT.main().themeChanged(window); }
   else if (sz) { save(function (s) { s.size = sz.getAttribute("data-size"); }); look(); if (LT.main()) LT.main().themeChanged(window); }
 };
+LT.$("remind").onclick = function () { var on = this.checked; save(function (s) { s.remind = on; }); };
+LT.$("bRemind").onclick = function () { if (LT.main() && !LT.main().remindNow()) LT.toast("Nothing due today and nothing late"); };
 LT.$("tips").onclick = function () { var on = this.checked; save(function (s) { s.tips = on; }); if (LT.main()) LT.main().tipsChanged(); };
 LT.$("bName").onclick = function () { save(function (s) { s.userName = LT.trim(LT.$("uname").value); }); LT.toast("Saved"); };
 LT.$("bDataOpen").onclick = function () { try { LT.mkdirs(LT.dataDir()); LT.open(LT.dataDir()); } catch (e) { } };

@@ -55,6 +55,17 @@ The side menu follows the way the work flows: **WORK** (log it → hand it out �
 3. **Make the files** – each person (or lead) gets a **transmittal folder** (TR-…): the transmittal sheet, their task pack and the reference files. Send that folder
 4. Replies come back in **Delegate** (Load replies / Paste reply). **Tasks** shows who has it, how far it is (2/5 done), and marks it done when it's completed
 
+## Quick keys and helpers
+
+- **Ctrl+K** (any tab) – **search everything**: tasks and their checklist items, delegated work, transmittals (TR-…), drawings in the Register, people and groups, files in your task folders, and tab names. ↑ ↓ to pick, **Enter** opens it (the task, the person's work, the transmittal folder, the file)
+- **Ctrl+V on a task** (Tasks: click the task, then Ctrl+V) – what you copied goes into its **Reference** folder:
+  - a **snip** (Win+Shift+S) → `Screenshot <date time>.png`
+  - **files or folders copied in Explorer** (Ctrl+C) → copied in (the originals stay)
+  - no task folder yet? It offers to make one, then pastes straight in
+  - Ctrl+V while typing in a box is the normal paste
+- **Reminder on opening** (in the side menu) – once a day: your tasks due today, your late tasks, and who on the team has late work. **Chase up** goes straight to Delegate → Chase up. Turn it off / show it now: **Settings → Reminders**
+- **Copy as email** – right-click a task → **✉ Copy as email** (or **✉ Email it** = an Outlook draft): subject, greeting, details, checklist, references and the task folder, ready to send
+
 ## Looks and the side menu
 
 - **Settings → Looks:** two new looks, **Slate** (dark) and **Slate Light**
@@ -136,7 +147,8 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Filling it** (tabs Reference / Incoming / Output / Notes):
   - Drag files from Explorer, or emails from Outlook, into the box (Windows: **Ctrl** = copy, **Shift** = move)
   - **+ Add files…** / **+ Add a folder…** – choose **Copy** or **Move** (remembered). The same name twice gets (2), (3)…
-  - **📋 Paste screenshot** – take a snip (Win+Shift+S), click it: saved as `Screenshot <date time>.png`
+  - **📋 Paste (Ctrl+V)** – a snip (Win+Shift+S) is saved as `Screenshot <date time>.png`; files copied in Explorer (Ctrl+C) are copied in. Goes into the folder you're looking at
+  - In the task window: **📋 Paste screenshot / files** (saves the task, then pastes into Reference)
   - **📝 Notes** – type or paste (Teams / email text, a call, a decision); each note gets the date and time
 - **Task Summary** – made new on every save (always the folder as it is now), one professional page: details, description, notes, checklist, references, and every file of Reference / Incoming / Output **with links**. Updated when you close the window (if something changed), or **↻ Update summary (HTML + PDF)**. Open it with **📄 Open the summary** – the links open the files (the HTML keeps working if you move the folder; the PDF is made again on the next save). If the PDF is open in a viewer, close it and update again. The PDF is printed by Edge (or Chrome, or Word) without opening a window
 - **📂 Open a task folder…** (top of Tasks) – pick any task folder: its task opens. If it isn't in your Tasks (another PC, or deleted), it's added back from the folder
@@ -153,6 +165,12 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
    - **Make a transmittal for each person** (on by default) – see below
    - Saved in `exports\Delegate\<date time>`; reference copies go into its `References` folder
 3. **⬆ Load replies…** (their Excel file or reply .txt) or **📋 Paste reply…** – you see every change first, then OK. Loading the same reply twice adds nothing
+
+**🔔 Chase up…** – one polite message per person with late work, listing exactly what (code, item, how many days late, which task)
+- Tick **Also work due in the next 3 days** to add what's coming up
+- **Group tasks go to the group's lead** (on): the lead gets one message with the member's name on each item. Off: each member is chased directly
+- **📋 Copy** (for Teams) or **✉ Email (Outlook)** – a draft to that person, you check it and press Send. **Copy all** = every message at once
+- Each chase is noted in the task's **History** ("Chased up Kim (email)")
 
 **Groups and leads** (view **👥 Team & groups** → **+ Group**, double-click to edit)
 - A group = name, **lead**, members. A task for the group goes **only to the lead**
@@ -337,7 +355,7 @@ The folder comes first – "what's in here?"
 - `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload (in Delegate); Contents, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
 - `core\lt-refs.js` – references (editor, labels, plain-text lines) used by Tasks and Delegate
 - `core\lt-transmittal.js` – making a transmittal (`LT.trMake`), used by the Transmittal tab and by Delegate
-- `core\lt-taskfolder.js` – task folders (`LT.tfMake`, `tfAdd`, `tfPasteShot`, `tfSave` = _task.json + Notes.txt + summary HTML/PDF, `tfRead`)
+- `core\lt-taskfolder.js` – task folders (`LT.tfMake`, `tfAdd`, `tfPaste` (Ctrl+V: a snip or files copied in Explorer), `tfSave` = _task.json + Notes.txt + summary HTML/PDF, `tfRead`)
 - `core\taskpack-runtime.js` – the HTML task pack page; the Toolbox adds references and the lead's "Assign to" (no curly brackets in its top comments)
 - Tasks ↔ Delegate: `LT.main().send("delegate", "from-log", task)`, back with `LT.main().post("tracker", "delegated", …)` (post = no tab switch) and `delegate-feed.json` (code, log, to, tr, progress, status)
 - Date boxes: `LT.datePicker(test)` adds the pop-up calendar (dd/mm/yyyy)

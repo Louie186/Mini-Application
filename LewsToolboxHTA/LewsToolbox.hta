@@ -34,21 +34,35 @@
 #dataWarn{display:none;flex:none;margin:6px 2px;padding:7px 8px;font-size:.85em;line-height:1.35;background:#fff4d6;color:#5a4200;border:1px solid #e5c36a;border-radius:8px}
 #dataWarn .wb{display:inline-block;margin:5px 4px 0 0;padding:2px 7px;font:inherit;font-weight:bold;cursor:pointer;border:1px solid #c9a646;background:#fff;color:#5a4200;border-radius:6px}
 #shell.rail #dataWarn{padding:4px;text-align:center}
+#qs{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:60;background:rgba(0,0,0,.35)}
+#qsBox{width:640px;max-width:92%;margin:60px auto 0;padding:10px}
+#qsIn{width:100%;height:36px;font-size:1.1em;padding:0 10px}
+#qsRes{max-height:420px;overflow-y:auto;margin-top:8px}
+.qr{padding:6px 10px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qr .k{display:inline-block;width:94px;font-size:.8em;font-weight:bold}.qr .c{font-family:Consolas,'Lucida Console',monospace;margin-right:6px}.qr .s{font-size:.85em;margin-left:8px}
+#qsHint{font-size:.8em;margin-top:6px}
+#remind{display:none;flex:none;position:relative;margin:6px 2px;padding:7px 8px;font-size:.85em;line-height:1.35}
+#remind h4{margin:0 14px 4px 0;font-size:1em}#remind ul{margin:0 0 4px;padding-left:14px}#remind .rb{margin:4px 4px 0 0;padding:2px 7px;font:inherit;font-weight:bold;cursor:pointer}
+#remind .rx{position:absolute;right:6px;top:4px;cursor:pointer;font-weight:bold}
+#shell.rail #remind{padding:4px;text-align:center}
 @media (max-width:700px){ #nav{width:58px} .nb{padding:0;text-align:center;text-overflow:clip} .nb .ic{width:auto} .nb .tx,#brand .tx{display:none} #clock span{display:none} #railBtn{display:none} }
 </style>
 <script src="core/lt-core.js"></script>
+<script src="core/lt-taskfolder.js"></script>
 </head>
 <body>
 <div id="shell">
   <div id="nav">
     <div id="brand">&#129520;<span class="tx"> Lew's Toolbox</span><button id="railBtn" title="Fold the menu to icons / open it again (Ctrl+[)">&#9664;</button></div>
     <div id="tabs"></div>
+    <div id="remind"></div>
     <div id="dataWarn"></div>
     <div id="clock"><b id="clkT">--:--</b><br><span id="clkD"></span></div>
   </div>
   <div id="body"><div id="warn"></div></div>
 </div>
 <div id="tip"></div>
+<div id="qs"><div id="qsBox"><input type="text" id="qsIn" placeholder="Search tasks, drawings, transmittals, people, files, tabs..."><div id="qsRes"></div><div id="qsHint">&uarr; &darr; pick &middot; Enter = open &middot; Esc = close &middot; Ctrl+K from any tab</div></div></div>
 <script>
 /* ================================================================
    Main window. Finds every tab page in the "tabs" folder (each page says its own name and order
@@ -127,9 +141,11 @@ var LTMain = {
     for (var k in frames) if (frames.hasOwnProperty(k)) { try { var w = frames[k].contentWindow; if (w && w.ltReload) w.ltReload(); } catch (x) { } }
   },
   makeShortcut: function () { return taskbarShortcut(); },
+  search: function () { openSearch(); },
   toggleRail: function () { setRail(LT.$("shell").className != "rail", true); },
   /* for Settings: every tab with its description */
   tabList: function () { var o = []; for (var i = 0; i < tabs.length; i++) o.push({ key: tabs[i].key, title: tabs[i].title, icon: tabs[i].icon, desc: tabs[i].desc }); return o; },
+  remindNow: function () { return reminders(true); },
   tipsChanged: function () { tipsOn = LT.settings().tips !== false; hideTip(); renderNav(); },
   appDir: APP
 };
@@ -143,6 +159,9 @@ function look() {
     "#railBtn{background:transparent;color:{muted};border:{bw}px solid {line};border-radius:{r}px}#railBtn:hover{color:{text};border-color:{accent}}",
     ".ng{color:{muted};border-top:1px solid {line};padding-top:8px}",
     "#clock{color:{text};cursor:default}#clkD{color:{muted};font-size:.85em}",
+    "#qsBox{background:{panel};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#qsHint{color:{muted}}",
+    ".qr{border-radius:{r}px;color:{text}}.qr.on{background:{hover};box-shadow:inset 3px 0 0 {accent}}.qr .k{color:{muted}}.qr .s{color:{muted}}",
+    "#remind{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#remind .rb{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}#remind .rb:hover{border-color:{accent}}#remind .late{color:{bad};font-weight:bold}#remind .rx{color:{muted}}",
     "#tip{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#tip .k{margin-top:6px;font-size:.85em;color:{muted}}"
   ];
   /* Slate: the menu item you're on gets a soft fill and a thin blue bar on its left */
@@ -182,6 +201,77 @@ function clock() {
   var d = new Date();
   LT.$("clkT").innerHTML = LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes());
   LT.$("clkD").innerHTML = LT.DAYS[d.getDay()] + " " + d.getDate() + " " + LT.MON[d.getMonth()];
+}
+
+/* ---------- Ctrl+K: search everything (tasks, delegated work, transmittals, drawings, people, task-folder files, tabs) ---------- */
+var qsAll = [], qsHits = [], qsOn = 0;
+function qsIndex() {
+  var o = [], J = function (n) { return LT.readJson(LT.dataPath(n), null) || {}; }, i, j;
+  var add = function (kind, code, title, sub, go) { o.push({ kind: kind, code: code || "", title: title || "", sub: sub || "", go: go, hay: (code + " " + title + " " + sub).toLowerCase() }); };
+  var tr = J("tracker.json").tasks || [];
+  for (i = 0; i < tr.length; i++) (function (t) {
+    add("Task", t.code, t.title, [t.who, t.project, t.status == "Done" ? "done" : t.due ? "due " + LT.fmtDate(t.due) : ""].join("  ").replace(/^\s+/, ""), function () { LTMain.send("tracker", "show-task", t.code); });
+    for (j = 0; j < (t.subs || []).length; j++) add("Task item", t.subs[j].code, t.subs[j].title, (t.subs[j].who || "") + "  in " + t.code + " " + t.title, function () { LTMain.send("tracker", "show-task", t.code); });
+    if (t.folder) { try { var fs = LT.tfFiles(t.folder); for (var f = 0; f < fs.length; f++) (function (x) { add("File", "", x.name, t.code + " \\ " + x.sub, function () { try { LT.open(x.path); } catch (e) { } }); })(fs[f]); } catch (e) { } }
+  })(tr[i]);
+  var dg = J("delegate.json"), dt = dg.tasks || [], ppl = {};
+  for (i = 0; i < dt.length; i++) (function (t) {
+    add("Delegated", t.code, t.title, (t.who || "") + (t.due ? "  due " + LT.fmtDate(t.due) : ""), function () { LTMain.send("delegate", "show-task", t.code); });
+    for (j = 0; j < (t.subs || []).length; j++) add("Delegated item", t.subs[j].code, t.subs[j].title, (t.subs[j].who || "") + "  in " + t.code, function () { LTMain.send("delegate", "show-task", t.code); });
+    var ws = ("" + (t.who || "")).split(/\s*[,;&\/]\s*/); for (j = 0; j < (t.subs || []).length; j++) ws.push(t.subs[j].who || ""); for (j = 0; j < ws.length; j++) if (LT.trim(ws[j])) ppl[LT.trim(ws[j])] = 1;
+  })(dt[i]);
+  var gs = dg.groups || [];
+  for (i = 0; i < gs.length; i++) { ppl[gs[i].lead] = 1; for (j = 0; j < (gs[i].members || []).length; j++) ppl[gs[i].members[j]] = 1; (function (g) { add("Group", "", g.name, "lead " + g.lead + "  \u00b7  " + (g.members || []).join(", "), function () { LTMain.send("delegate", "person", g.name); }); })(gs[i]); }
+  for (var p in ppl) if (ppl.hasOwnProperty(p) && p) (function (n) { add("Person", "", n, "their delegated work", function () { LTMain.send("delegate", "person", n); }); })(p);
+  var tl = J("transmittals.json").log || [];
+  for (i = 0; i < tl.length; i++) (function (t) { var its = []; for (j = 0; j < (t.items || []).length; j++) its.push((t.items[j].no || "") + " " + (t.items[j].title || ""));
+    add("Transmittal", t.no, "to " + (t.to || "?"), LT.fmtDate(t.date) + "  " + its.join("  ").substring(0, 300), function () { if (t.dir && fso.FolderExists(t.dir)) LT.open(t.dir); else show("transmittal"); }); })(tl[i]);
+  try { var R = LT.register(); if (R) { var ds = R.list(); for (i = 0; i < ds.length; i++) (function (d) { add("Drawing", d.number, d.title, [d.cat, d.tower].join("  "), function () { LTMain.send("register", "find", d.number); }); })(ds[i]); } } catch (e) { }
+  for (i = 0; i < tabs.length; i++) (function (t) { add("Tab", "", t.title, "", function () { show(t.key); }); })(tabs[i]);
+  return o;
+}
+function openSearch() { qsAll = qsIndex(); LT.$("qs").style.display = "block"; var i = LT.$("qsIn"); i.value = ""; qsFind(); try { i.focus(); } catch (e) { } }
+function closeSearch() { LT.$("qs").style.display = "none"; }
+function qsFind() {
+  var w = LT.trim(LT.$("qsIn").value.toLowerCase()).split(/\s+/); qsHits = []; qsOn = 0;
+  if (w[0]) for (var i = 0; i < qsAll.length && qsHits.length < 60; i++) { var x = qsAll[i], ok = true; for (var k = 0; k < w.length; k++) if (x.hay.indexOf(w[k]) < 0) { ok = false; break; } if (ok) qsHits.push(x); }
+  var q = w.join(" ");
+  qsHits.sort(function (a, b) { var s = function (x) { return x.code.toLowerCase() == q ? 0 : x.title.toLowerCase().indexOf(q) == 0 || x.code.toLowerCase().indexOf(q) == 0 ? 1 : 2; }; return s(a) - s(b); });
+  var h = ""; for (var j = 0; j < qsHits.length; j++) { var y = qsHits[j]; h += '<div class="qr' + (j == qsOn ? " on" : "") + '" data-q="' + j + '"><span class="k">' + LT.esc(y.kind) + "</span>" + (y.code ? '<span class="c">' + LT.esc(y.code) + "</span>" : "") + LT.esc(y.title) + (y.sub ? '<span class="s">' + LT.esc(y.sub) + "</span>" : "") + "</div>"; }
+  LT.$("qsRes").innerHTML = h || (w[0] ? '<div class="qr">Nothing found for "' + LT.esc(q) + '"</div>' : '<div class="qr" style="cursor:default">Type a task, drawing number, transmittal (TR-005), a name or a file name.</div>');
+}
+function qsMark() { var rs = LT.$("qsRes").childNodes; for (var i = 0; i < rs.length; i++) rs[i].className = "qr" + (i == qsOn ? " on" : ""); try { rs[qsOn].scrollIntoView(false); } catch (e) { } }
+function qsGo(i) { var x = qsHits[i]; if (!x) return; closeSearch(); x.go(); }
+
+/* ---------- once a day, on opening: what's due today, what's late (yours and your team's) ---------- */
+function reminders(force) {
+  var s = LT.settings(); if (!force && (s.remind === false || s.remindOn == LT.today())) return false;
+  var today = LT.today(), mineToday = [], mineLate = [], team = {}, nLate = 0, i, j;
+  var tr = (LT.readJson(LT.dataPath("tracker.json"), null) || {}).tasks || [];
+  for (i = 0; i < tr.length; i++) { var t = tr[i]; if (t.status == "Done" || !t.due || t.delegated) continue; if (t.due == today) mineToday.push(t); else if (t.due < today) mineLate.push(t); }
+  var dj = LT.readJson(LT.dataPath("delegate.json"), null) || {}, dt = dj.tasks || [], lead = {};
+  if (s.chaseLead !== false) for (i = 0; i < (dj.groups || []).length; i++) lead[LT.trim(dj.groups[i].name).toLowerCase()] = dj.groups[i].lead;   // a group's work: its lead answers for it
+  var lateFor = function (who, code) { who = LT.trim(who || "") || "?"; team[who] = team[who] || []; team[who].push(code); nLate++; };
+  for (i = 0; i < dt.length; i++) { var d = dt[i], subs = d.subs || [];
+    var gl = lead[LT.trim(d.who || "").toLowerCase()];
+    if (subs.length) { for (j = 0; j < subs.length; j++) { var du = subs[j].due || d.due; if (subs[j].status != "Completed" && du && du < today) lateFor(gl || subs[j].who || d.who, subs[j].code); } }
+    else if (d.status != "Completed" && d.due && d.due < today) lateFor(d.who, d.code); }
+  if (!mineToday.length && !mineLate.length && !nLate) { if (!force) { s.remindOn = today; LT.saveSettings(s); } return false; }
+  var h = '<span class="rx tx" id="rX" title="Close">&#10005;</span><h4>&#128276;<span class="tx"> Good ' + (new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening") + (s.userName ? ", " + LT.esc(s.userName) : "") + "</span></h4><div class=\"tx\"><ul>";
+  if (mineToday.length) h += "<li><b>" + mineToday.length + "</b> of your tasks due today</li>";
+  if (mineLate.length) h += '<li class="late">' + mineLate.length + " of your tasks late</li>";
+  var ppl = []; for (var p in team) if (team.hasOwnProperty(p)) ppl.push(p);
+  ppl.sort(function (a, b) { return team[b].length - team[a].length; });
+  for (i = 0; i < ppl.length && i < 4; i++) h += '<li class="late">' + LT.esc(ppl[i]) + ": " + team[ppl[i]].length + " late (" + LT.esc(team[ppl[i]].slice(0, 3).join(", ")) + (team[ppl[i]].length > 3 ? "..." : "") + ")</li>";
+  if (ppl.length > 4) h += "<li>+ " + (ppl.length - 4) + " more people with late work</li>";
+  h += "</ul>" + (mineToday.length || mineLate.length ? '<button class="rb" id="rMine">My tasks</button>' : "") + (nLate ? '<button class="rb" id="rChase">&#128276; Chase up (' + nLate + ")</button>" : "") + "</div>";
+  var box = LT.$("remind"); box.innerHTML = h; box.style.display = "block";
+  var shut = function () { box.style.display = "none"; };
+  LT.$("rX").onclick = shut;
+  if (LT.$("rMine")) LT.$("rMine").onclick = function () { shut(); LTMain.send("tracker", "view", mineLate.length ? "overdue" : "today"); };
+  if (LT.$("rChase")) LT.$("rChase").onclick = function () { shut(); LTMain.send("delegate", "chase", ""); };
+  if (!force) { s.remindOn = today; LT.saveSettings(s); }
+  return true;
 }
 
 /* ---------- window size + icon (same tricks as QuickLaunch) ---------- */
@@ -234,9 +324,16 @@ function taskbarShortcut() {
   LT.$("tabs").onmouseover = function (e) { var b = LT.up(e.target || e.srcElement, "data-k"); if (b) showTip(b); else hideTip(); };
   LT.$("tabs").onmouseout = function (e) { var to = e.relatedTarget || e.toElement; if (!to || !LT.up(to, "data-k")) hideTip(); };
   LT.$("tabs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-k"); if (b) { hideTip(); show(b.getAttribute("data-k")); } };
-  document.onkeydown = function (e) { e = e || window.event; if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57) { LTMain.showIndex(e.keyCode - 49); return false; } if (e.ctrlKey && e.keyCode == 219) { setRail(LT.$("shell").className != "rail", true); return false; } };
+  document.onkeydown = function (e) { e = e || window.event;
+    if (LT.$("qs").style.display == "block") { if (e.keyCode == 27) { closeSearch(); return false; } if (e.keyCode == 40 || e.keyCode == 38) { qsOn = Math.max(0, Math.min(qsHits.length - 1, qsOn + (e.keyCode == 40 ? 1 : -1))); qsMark(); return false; } if (e.keyCode == 13) { qsGo(qsOn); return false; } }
+    if (e.ctrlKey && e.keyCode == 75) { openSearch(); return false; }
+    if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57) { LTMain.showIndex(e.keyCode - 49); return false; } if (e.ctrlKey && e.keyCode == 219) { setRail(LT.$("shell").className != "rail", true); return false; } };
   LT.$("railBtn").onclick = function (e) { setRail(LT.$("shell").className != "rail", true); (e || window.event).cancelBubble = true; };
   if (LT.settings().rail) setRail(true, false);
+  LT.$("qsIn").onkeyup = function (e) { e = e || window.event; if (e.keyCode != 38 && e.keyCode != 40 && e.keyCode != 13 && e.keyCode != 27) qsFind(); };
+  LT.$("qsRes").onclick = function (e) { var r = LT.up(e ? e.target : window.event.srcElement, "data-q"); if (r) qsGo(+r.getAttribute("data-q")); };
+  LT.$("qs").onclick = function (e) { if ((e ? e.target : window.event.srcElement) === LT.$("qs")) closeSearch(); };
+  window.setTimeout(function () { try { reminders(false); } catch (e) { } }, 2500);
   var rt = null;
   window.onresize = function () { if (rt) window.clearTimeout(rt); rt = window.setTimeout(function () { var s = LT.settings(); s.win = { w: document.documentElement.clientWidth, h: document.documentElement.clientHeight }; LT.saveSettings(s); }, 700); };
   show(LT.settings().lastTab || "launcher");

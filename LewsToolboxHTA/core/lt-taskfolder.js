@@ -56,15 +56,25 @@
       catch (e) { res.errors.push(nm + " (" + (e.message || e) + ")"); } }
     return res;
   };
-  /* the picture on the clipboard (e.g. Win+Shift+S) saved as a PNG in <dir>\<sub>; returns the file name, or "" if there was no picture */
-  L.tfPasteShot = function (dir, sub) {
+  /* Ctrl+V: whatever is on the clipboard goes into <dir>\<sub> -
+     files / folders copied in Explorer (Ctrl+C) are copied in; a picture (snip) is saved as a PNG.
+     Returns { kind: "files" | "image" | "", added: [names], errors: [] } */
+  L.tfPaste = function (dir, sub) {
     var d = new Date(), b = "Screenshot " + L.iso(d) + " " + L.pad(d.getHours()) + L.pad(d.getMinutes()) + L.pad(d.getSeconds()), nm = b + ".png", n = 1;
-    while (fso.FileExists(dir + "\\" + sub + "\\" + nm)) nm = b + " (" + (++n) + ").png";   // two in the same second: (2), (3)...
-    var to = dir + "\\" + sub + "\\" + nm;
+    while (fso.FileExists(dir + "\\" + sub + "\\" + nm)) nm = b + " (" + (++n) + ").png";
+    var to = dir + "\\" + sub + "\\" + nm, lst = L.env("%TEMP%") + "\\lt-clip-" + d.getTime() + ".txt";
     L.mkdirs(dir + "\\" + sub);
-    var ps = "Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $i=[Windows.Forms.Clipboard]::GetImage(); if($i){$i.Save('" + to.replace(/'/g, "''") + "',[Drawing.Imaging.ImageFormat]::Png)}";
+    var q = function (s) { return s.replace(/'/g, "''"); };
+    var ps = "Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $f=[Windows.Forms.Clipboard]::GetFileDropList(); " +
+      "if($f.Count){[IO.File]::WriteAllLines('" + q(lst) + "',[string[]]$f,[Text.Encoding]::Unicode)} " +
+      "else{$i=[Windows.Forms.Clipboard]::GetImage(); if($i){$i.Save('" + q(to) + "',[Drawing.Imaging.ImageFormat]::Png)}}";
     L.wsh.Run('powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -Command "' + ps.replace(/"/g, '\\"') + '"', 0, true);
-    return fso.FileExists(to) ? nm : "";
+    if (fso.FileExists(to)) return { kind: "image", added: [nm], errors: [] };
+    if (fso.FileExists(lst)) {
+      var paths = []; try { var t = fso.OpenTextFile(lst, 1, false, -1); paths = (t.AtEndOfStream ? "" : t.ReadAll()).split(/\r?\n/); t.Close(); fso.DeleteFile(lst); } catch (e) { }
+      var r = L.tfAdd(dir, sub, paths, false); r.kind = "files"; return r;
+    }
+    return { kind: "", added: [], errors: [] };
   };
   /* saves _task.json (hidden), Notes.txt and the summary (HTML, then PDF) */
   L.tfSave = function (dir, task, opts) {

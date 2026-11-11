@@ -141,6 +141,10 @@ var LT = (function () {
     if (fso.FolderExists(p)) wsh.Run('explorer.exe "' + p + '"', 1, false);
     else wsh.Run('explorer.exe /select,"' + p + '"', 1, false);
   };
+  /* an email ready to send: an Outlook draft (opens, you check it and press Send); false if there's no Outlook */
+  L.mail = function (to, subject, body) {
+    try { var o = new ActiveXObject("Outlook.Application"), m = o.CreateItem(0); m.To = to || ""; m.Subject = subject || ""; m.Body = body || ""; m.Display(); return true; } catch (e) { return false; }
+  };
   L.copyText = function (t) { try { window.clipboardData.setData("Text", t); return true; } catch (e) { return false; } };
   L.pickFolder = function (title) { try { var f = L.shell().BrowseForFolder(0, title || "Pick a folder", 0x51); return f ? f.Self.Path : null; } catch (e) { return null; } };
   /* file picker: the HTA engine gives the full path from a file input */
@@ -699,6 +703,7 @@ var LT = (function () {
     var h = function (e) {
       e = e || window.event;
       if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57 && L.main()) { L.main().showIndex(e.keyCode - 49); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }
+      if (e.ctrlKey && e.keyCode == 75 && L.main() && L.main().search) { L.main().search(); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }   // Ctrl+K: search everything
       if (e.ctrlKey && e.keyCode == 219 && L.main() && L.main().toggleRail) { L.main().toggleRail(); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }
     };
     if (document.attachEvent) document.attachEvent("onkeydown", h); else document.addEventListener("keydown", h, false);

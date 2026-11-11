@@ -25,7 +25,8 @@ module.exports = async ({ page, out }) => {
   const D = 'C:\\Projects\\Tower 1\\Tasks\\Roof kitchen update';
   ok(await t.evaluate(D => byCode('TL-001').folder == D && ['Reference', 'Incoming', 'Output'].every(s => LT.fso.FolderExists(D + '\\' + s)), D), 'folder made with Reference, Incoming, Output (your typed name)');
   let files = await F();
-  ok(files.includes(D + '\\_task.json') && files.includes(D + '\\Task Summary.html') && files.includes(D + '\\Task Summary.pdf') && files.includes(D + '\\Notes.txt'), '_task.json, Notes.txt, Task Summary.html and .pdf made');
+  const M = D + '\\Reference\\Backup and Ref';
+  ok(files.includes(M + '\\_task.json') && files.includes(M + '\\Task Summary.html') && files.includes(M + '\\Task Summary.pdf') && files.includes(M + '\\Notes.txt') && !files.some(p => /Roof kitchen update\\(Task Summary|Notes|_task)/.test(p)), 'summary, notes and _task.json go in Reference\\Backup and Ref (top of the folder stays clean)');
   ok(await page.evaluate(() => window.__runs.some(c => /msedge\.exe" --headless .*--print-to-pdf=".*Task Summary\.pdf" "file:\/\/\/C:\/Projects\/Tower%201/.test(c))), 'PDF printed by Edge without a window (links kept)');
   ok(await t.evaluate(() => $('tfBody').style.display == '' && /Reference/.test($('tfTabs').innerText) && /Notes/.test($('tfTabs').innerText)), 'the folder window: Reference / Incoming / Output / Notes');
   // add files: copy, then move, and the same name twice
@@ -47,9 +48,9 @@ module.exports = async ({ page, out }) => {
   await page.screenshot({ path: out + '/r_task_folder.png' });
   await t.click('#tfClose'); await page.waitForTimeout(200);
   // the summary
-  const sum = await page.evaluate(D => window.__mockFs.files[(D + '\\Task Summary.html').toLowerCase()].text, D);
-  ok(/href="Reference\/A-501%20Roof%20plan\.pdf"/.test(sum) && /href="Incoming\/Reply%20from%20Sam\.msg"/.test(sum) && /extract fan moves/.test(sum) && /1 of 2 done/.test(sum) && /ACC model/.test(sum), 'summary: links to the files, checklist 1 of 2, references, notes');
-  const notes = await page.evaluate(D => window.__mockFs.files[(D + '\\Notes.txt').toLowerCase()].text, D);
+  const sum = await page.evaluate(D => window.__mockFs.files[(D + '\\Reference\\Backup and Ref\\Task Summary.html').toLowerCase()].text, D);
+  ok(/href="\.\.\/\.\.\/Reference\/A-501%20Roof%20plan\.pdf"/.test(sum) && /href="\.\.\/\.\.\/Incoming\/Reply%20from%20Sam\.msg"/.test(sum) && /extract fan moves/.test(sum) && /1 of 2 done/.test(sum) && /ACC model/.test(sum), 'summary: links to the files, checklist 1 of 2, references, notes');
+  const notes = await page.evaluate(D => window.__mockFs.files[(D + '\\Reference\\Backup and Ref\\Notes.txt').toLowerCase()].text, D);
   ok(/extract fan moves 1\.2 m east/.test(notes), 'Notes.txt has the note');
   // look at the summary page in a real browser
   const html = sum.replace(/^\ufeff/, ''); fs.writeFileSync('/tmp/claude-0/Task Summary.html', html);

@@ -47,11 +47,13 @@
     var draw = function () {
       var h = [];
       for (var i = 0; i < refs.length; i++) { var r = refs[i], fileish = r.kind == "file" || r.kind == "folder", sh = L.refShort(r), ed = el.__edit === i;
+        var gone = false; if (fileish && /^([a-z]:|\\\\)/i.test(r.value || "")) { try { gone = r.kind == "file" ? !L.fso.FileExists(r.value) : !L.fso.FolderExists(r.value); } catch (x) { } }
+        if (gone) sh.where = "\u26a0 not found here any more (renamed or moved?) - \u270e to fix";
         h.push('<div class="rf' + (ed ? " ed" : "") + '" data-ri="' + i + '"><span class="rfi" title="' + NAME[r.kind] + '">' + ICON[r.kind] + '</span>' +
           (ed ? (r.kind == "note" ? '<input type="text" class="rfv" value="' + L.esc(r.value) + '" placeholder="Note">' :
                   '<input type="text" class="rfl" value="' + L.esc(r.label || "") + '" placeholder="Show as (e.g. ' + L.esc(L.refShort({ kind: r.kind, value: r.value }).name) + ')" title="The short name everyone sees"><input type="text" class="rfv" value="' + L.esc(r.value) + '" title="The link / path">') +
                 '<span class="rfe on" title="Done">&#10003;</span>'
-              : '<span class="rfn' + (r.kind == "link" || fileish ? " go" : "") + '" title="' + L.esc(sh.full) + '">' + L.esc(sh.name) + '</span><span class="rfw" title="' + L.esc(sh.full) + '">' + L.esc(sh.where) + "</span>" +
+              : '<span class="rfn' + (r.kind == "link" || fileish ? " go" : "") + '" title="' + L.esc(sh.full) + '">' + L.esc(sh.name) + '</span><span class="rfw' + (gone ? " gone" : "") + '" title="' + L.esc(sh.full) + '">' + L.esc(sh.where) + "</span>" +
                 (fileish ? '<select class="rfs" title="Copy it into the transmittal, or only give its location"><option value="copy"' + (r.send != "link" ? " selected" : "") + '>Send a copy</option><option value="link"' + (r.send == "link" ? " selected" : "") + ">Link only</option></select>" : "") +
                 '<span class="rfe" title="Rename / change the link">&#9998;</span>') +
           '<span class="rfx" title="Remove">&#10005;</span></div>'); }
@@ -94,7 +96,7 @@
   L.REF_CSS = [".rf{display:flex;align-items:center;margin:0 0 4px}.rf .rfi{flex:none;width:22px;text-align:center}",
     ".rf{min-height:28px;padding:2px 4px;border-radius:{r}px}.rf:hover{background:{hover}}",
     ".rf .rfn{flex:0 1 auto;min-width:0;max-width:55%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;margin-right:8px}.rf .rfn.go{color:{accent};cursor:pointer}.rf .rfn.go:hover{text-decoration:underline}",
-    ".rf .rfw{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{muted};font-size:.88em;margin-right:6px}",
+    ".rf .rfw{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:{muted};font-size:.88em;margin-right:6px}.rf .rfw.gone{color:{bad}}",
     ".rf .rfl{flex:0 0 200px;height:26px;margin-right:4px}.rf .rfv{flex:1 1 auto;min-width:80px;height:26px;margin-right:4px}.rf .rfs{flex:none;width:122px;height:26px;margin-right:4px}",
     ".rf .rfo,.rf .rfx,.rf .rfe{flex:none;width:24px;text-align:center;cursor:pointer;color:{muted}}.rf .rfe:hover,.rf .rfe.on{color:{accent}}.rf .rfx:hover{color:{bad}}",
     ".rfadd{display:flex;align-items:center;margin-top:2px}.rfadd .rfk{flex:none;width:110px;height:26px;margin-right:4px}.rfadd .rfnew{flex:1 1 auto;height:26px;margin-right:4px}.rfadd .rfas{flex:0 0 150px;height:26px;margin-right:4px}.rfadd .btn{margin:0 4px 0 0}",

@@ -1,6 +1,7 @@
 // References show a short neat name (no long paths / links); "Show as" and ✎ rename; the full link stays on hover and opens on click
 module.exports = async ({ page, out }) => {
   const ok = (c, w) => console.log((c ? 'PASS ' : 'FAIL ') + w);
+  await page.evaluate(() => { const fs = window.__mockFs, p = 'P:\\5013 Tower 1\\03 WIP\\01 Architecture\\Roof\\Kitchen\\Markups\\2026-11-10\\A-501 Roof kitchen markup rev B.pdf'; fs.files[p.toLowerCase()] = { path: p, text: 'x', time: Date.now() }; let d = p.substring(0, p.lastIndexOf('\\')); while (d) { fs.dirs[d.toLowerCase()] = d; d = d.substring(0, d.lastIndexOf('\\')); } });
   await page.click('.nb[data-k="tracker"]'); await page.waitForTimeout(500); await page.mouse.move(900, 600);
   const t = page.frame({ url: /tracker\.html/ });
   await t.click('#bDetail'); await t.fill('#eTitle', 'Roof kitchen update');

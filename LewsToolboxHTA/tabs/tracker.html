@@ -451,7 +451,7 @@ function tfNotes() {
 }
 function closeTF() {
   $("tf").style.display = "none"; if (tfTimer) { window.clearInterval(tfTimer); tfTimer = null; }
-  if (tfTask && tfTask.folder && tfDirty) { var r = LT.tfSave(tfTask.folder, tfTask); LT.toast("Summary updated" + (r.pdf ? " (HTML + PDF)" : " (HTML)")); }
+  if (tfTask && tfTask.folder && tfDirty) { var r = LT.tfSave(tfTask.folder, tfTask); LT.toast("Summary updated" + (r.pdf ? " (HTML + PDF)" : r.locked ? " (HTML - the PDF is open, close it and Update again)" : " (HTML)")); }
   render();
 }
 /* a task folder picked in Explorer: open its task, or add it as a task (made on another PC, or before) */
@@ -568,8 +568,8 @@ $("tfBrowse").onclick = function () { var f = LT.pickFolder("Where should this t
 $("tfMakeB").onclick = makeTF; $("tfCancel").onclick = function () { $("tf").style.display = "none"; };
 $("tfClose").onclick = closeTF;
 $("tfOpen").onclick = function () { try { LT.open(tfTask.folder + (tfSub != "Notes" ? "\\" + tfSub : "")); } catch (e) { } };
-$("tfSum").onclick = function () { var p = tfTask.folder + "\\Task Summary.html"; if (!LT.fso.FileExists(p)) LT.tfSave(tfTask.folder, tfTask, { pdf: false }); try { LT.open(p); } catch (e) { } };
-$("tfUpd").onclick = function () { $("tfMsg").innerHTML = "Making the summary..."; var r = LT.tfSave(tfTask.folder, tfTask); tfDirty = false; $("tfMsg").innerHTML = "Summary updated: Task Summary.html" + (r.pdf ? " + Task Summary.pdf" : ' &middot; <span class="warn">no PDF (needs Edge, Chrome or Word)</span>'); };
+$("tfSum").onclick = function () { var p = LT.tfSummaryPath(tfTask.folder); if (!LT.fso.FileExists(p)) LT.tfSave(tfTask.folder, tfTask, { pdf: false }); try { LT.open(p); } catch (e) { } };
+$("tfUpd").onclick = function () { $("tfMsg").innerHTML = "Making the summary..."; var r = LT.tfSave(tfTask.folder, tfTask); tfDirty = false; $("tfMsg").innerHTML = "Summary updated (Reference \\ Backup and Ref): Task Summary.html" + (r.pdf ? " + Task Summary.pdf" : r.locked ? ' &middot; <span class="warn">the PDF is open in a viewer - close it, then Update summary again</span>' : ' &middot; <span class="warn">no PDF (needs Edge, Chrome or Word)</span>'); };
 $("tfRe").onclick = function () { tfShow(tfSub); };
 $("tfTabs").onclick = function (e) { var b = LT.up(e ? e.target : window.event.srcElement, "data-tfs"); if (b) tfShow(b.getAttribute("data-tfs")); };
 $("tfCopy").onclick = function () { tfMode(false); }; $("tfMove").onclick = function () { tfMode(true); };

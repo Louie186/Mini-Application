@@ -3,16 +3,24 @@
      <name>\Reference\   what the work is based on (drawings, screenshots, emails, specs...)
             Incoming\    what comes back (markups, replies)
             Output\      what you / the team produce
-            Notes.txt                 the dated notes, as plain text
-            Task Summary.html / .pdf  a one-page summary with links to every file
-            _task.json (hidden)       lets the Toolbox recognise the folder later
+            Reference\Backup and Ref\  (kept out of the way, so the top of the folder stays clean)
+               Task Summary.html / .pdf  a one-page summary with links to every file (made new on every save)
+               Notes.txt                 the dated notes, as plain text
+               _task.json (hidden)       lets the Toolbox recognise the folder later; _task.backup.json = the one before
+   The files are read from the folders every time, so a file renamed / added / deleted in Explorer shows up as it is.
    Plain ES5 for the HTA (Internet Explorer 11) engine. */
 (function (L) {
   var fso = L.fso, SUBS = ["Reference", "Incoming", "Output"], MARK = "lt-task-folder";
   L.TF_SUBS = SUBS;
-  function jsonPath(dir) { return dir + "\\_task.json"; }
-  L.tfIs = function (dir) { return !!dir && fso.FileExists(jsonPath(dir)); };
-  L.tfRead = function (dir) { var j = L.readJson(jsonPath(dir), null); return j && j.kind == MARK ? j : null; };
+  var META = "Backup and Ref";
+  L.TF_META = META;
+  function metaDir(dir) { return dir + "\\Reference\\" + META; }
+  function jsonPath(dir) { return metaDir(dir) + "\\_task.json"; }
+  L.tfSummaryPath = function (dir) { return metaDir(dir) + "\\Task Summary.html"; };
+  L.tfMetaDir = metaDir;
+  /* recognised by its _task.json (in Reference\Backup and Ref, or at the top in folders made before) */
+  L.tfIs = function (dir) { return !!dir && (fso.FileExists(jsonPath(dir)) || fso.FileExists(dir + "\\_task.json")); };
+  L.tfRead = function (dir) { var j = L.readJson(jsonPath(dir), null) || L.readJson(dir + "\\_task.json", null); return j && j.kind == MARK ? j : null; };
   function hide(p) { try { fso.GetFile(p).Attributes = 2; } catch (e) { } }
   function unhide(p) { try { fso.GetFile(p).Attributes = 0; } catch (e) { } }
   /* makes the folder + its subfolders; returns the full path (or throws with a clear message) */
@@ -21,7 +29,7 @@
     if (!where || !fso.FolderExists(where)) throw new Error("Pick where the folder goes.");
     var dir = where.replace(/[\\\/]+$/, "") + "\\" + name;
     if (fso.FolderExists(dir) && !L.tfIs(dir)) { var n = 0; var e = new Enumerator(fso.GetFolder(dir).Files); for (; !e.atEnd(); e.moveNext()) n++; if (n) throw new Error('"' + name + '" is already there and has files in it. Type another name, or use "Open a task folder" for an existing one.'); }
-    L.mkdirs(dir); for (var i = 0; i < SUBS.length; i++) L.mkdirs(dir + "\\" + SUBS[i]);
+    L.mkdirs(dir); for (var i = 0; i < SUBS.length; i++) L.mkdirs(dir + "\\" + SUBS[i]); L.mkdirs(metaDir(dir));
     return dir;
   };
   /* every file in the three subfolders (and their subfolders): [{ sub, rel, name, path, ext, size, date }] */
@@ -31,7 +39,7 @@
       for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$/i.test(n)) continue;
         var i = n.lastIndexOf("."), dt = null; try { dt = new Date(f.DateLastModified); } catch (x) { }
         out.push({ sub: sub, rel: (rel ? rel + "\\" : "") + n, name: n, path: "" + f.Path, ext: i > 0 ? n.substring(i + 1).toLowerCase() : "", size: +f.Size || 0, date: dt && !isNaN(dt) ? L.iso(dt) : "" }); }
-      var s = new Enumerator(fo.SubFolders); for (; !s.atEnd(); s.moveNext()) if (!(s.item().Attributes & 6)) walk(sub, "" + s.item().Path, (rel ? rel + "\\" : "") + s.item().Name); };
+      var s = new Enumerator(fo.SubFolders); for (; !s.atEnd(); s.moveNext()) if (!(s.item().Attributes & 6) && !(sub == "Reference" && !rel && ("" + s.item().Name).toLowerCase() == META.toLowerCase())) walk(sub, "" + s.item().Path, (rel ? rel + "\\" : "") + s.item().Name); };
     for (var i = 0; i < SUBS.length; i++) walk(SUBS[i], dir + "\\" + SUBS[i], "");
     out.sort(function (a, b) { return a.sub == b.sub ? (a.rel.toLowerCase() < b.rel.toLowerCase() ? -1 : 1) : SUBS.indexOf(a.sub) - SUBS.indexOf(b.sub); });
     return out;
@@ -63,17 +71,24 @@
     opts = opts || {};
     var j = { kind: MARK, v: 1, app: "Lew's Toolbox", id: task.id, code: task.code, title: task.title, project: task.project || "", who: task.who || "", due: task.due || "", status: task.status || "", priority: task.priority || "",
       created: task.created || "", description: task.notes || "", subs: task.subs || [], refs: task.refs || [], notes: task.fnotes || [], folder: dir, saved: L.today() };
-    unhide(jsonPath(dir)); L.saveJson(jsonPath(dir), j); hide(jsonPath(dir));
-    var nt = []; for (var i = 0; i < j.notes.length; i++) nt.push(j.notes[i].at + "\r\n" + j.notes[i].text + "\r\n"); L.writeUtf8(dir + "\\Notes.txt", (j.title ? j.code + " " + j.title + " - notes\r\n\r\n" : "") + nt.join("\r\n"), true);
-    var html = dir + "\\Task Summary.html"; L.writeUtf8(html, L.tfSummary(dir, task), true);
-    var pdf = opts.pdf === false ? "" : L.tfPdf(html, dir + "\\Task Summary.pdf");
-    return { html: html, pdf: pdf };
+    var md = metaDir(dir); L.mkdirs(md);
+    var old = ["_task.json", "Notes.txt", "Task Summary.html", "Task Summary.pdf"];   // folders made before: their files move into Backup and Ref
+    for (var o = 0; o < old.length; o++) { var op = dir + "\\" + old[o]; if (fso.FileExists(op)) { try { unhide(op); if (fso.FileExists(md + "\\" + old[o])) fso.DeleteFile(op, true); else fso.MoveFile(op, md + "\\" + old[o]); } catch (x) { } } }
+    var jp = jsonPath(dir), bp = md + "\\_task.backup.json";
+    if (fso.FileExists(jp)) { try { unhide(bp); unhide(jp); fso.CopyFile(jp, bp, true); hide(bp); } catch (x) { } }   // the one before, just in case
+    unhide(jp); L.saveJson(jp, j); hide(jp);
+    var nt = []; for (var i = 0; i < j.notes.length; i++) nt.push(j.notes[i].at + "\r\n" + j.notes[i].text + "\r\n"); L.writeUtf8(md + "\\Notes.txt", (j.title ? j.code + " " + j.title + " - notes\r\n\r\n" : "") + nt.join("\r\n"), true);
+    var html = L.tfSummaryPath(dir); L.writeUtf8(html, L.tfSummary(dir, task), true);
+    var pdf = "", locked = false;
+    if (opts.pdf !== false) { var pp = md + "\\Task Summary.pdf"; pdf = L.tfPdf(html, pp); locked = !pdf && fso.FileExists(pp); }
+    return { html: html, pdf: pdf, locked: locked };
   };
   /* PDF: printed by Edge (or Chrome) without a window - links stay clickable. Word is the backup. */
   L.tfPdf = function (html, pdf) {
     var env = function (s) { try { return L.env(s); } catch (e) { return ""; } }, cands = [env("%ProgramFiles(x86)%") + "\\Microsoft\\Edge\\Application\\msedge.exe", env("%ProgramFiles%") + "\\Microsoft\\Edge\\Application\\msedge.exe",
       env("%ProgramFiles%") + "\\Google\\Chrome\\Application\\chrome.exe", env("%ProgramFiles(x86)%") + "\\Google\\Chrome\\Application\\chrome.exe", env("%LOCALAPPDATA%") + "\\Google\\Chrome\\Application\\chrome.exe"];
     try { if (fso.FileExists(pdf)) fso.DeleteFile(pdf, true); } catch (e) { }
+    if (fso.FileExists(pdf)) return "";   // still there = open in a PDF viewer: can't replace it now
     for (var i = 0; i < cands.length; i++) if (cands[i] && fso.FileExists(cands[i])) {
       L.wsh.Run('"' + cands[i] + '" --headless --disable-gpu --no-pdf-header-footer --print-to-pdf="' + pdf + '" "file:///' + html.replace(/\\/g, "/").replace(/ /g, "%20") + '"', 0, true);
       if (fso.FileExists(pdf)) return pdf; }
@@ -82,7 +97,8 @@
   };
   /* ---------- the summary page ---------- */
   function e(s) { return L.esc(s == null ? "" : s); }
-  function href(rel) { return rel.replace(/\\/g, "/").split("/").map(encodeURIComponent).join("/"); }
+  /* the summary lives in Reference\Backup and Ref\, so the links go two folders up; names with & # % spaces are encoded */
+  function href(rel) { return "../../" + rel.replace(/\\/g, "/").split("/").map(encodeURIComponent).join("/"); }
   function size(n) { return n >= 1048576 ? (Math.round(n / 104857.6) / 10) + " MB" : n >= 1024 ? Math.round(n / 1024) + " KB" : n + " B"; }
   function date(iso) { var d = L.parseIso(iso); return d ? d.getDate() + " " + L.MON[d.getMonth()] + " " + d.getFullYear() : (iso || "&ndash;"); }
   var KIND = { pdf: "PDF", dwg: "DWG", dxf: "DXF", rvt: "Revit", rfa: "Revit family", ifc: "IFC", nwd: "Navisworks", nwc: "Navisworks", png: "Image", jpg: "Image", jpeg: "Image", gif: "Image", bmp: "Image", msg: "Email", eml: "Email", docx: "Word", doc: "Word", xlsx: "Excel", xls: "Excel", xlsm: "Excel", csv: "CSV", txt: "Text", zip: "ZIP" };
@@ -113,6 +129,8 @@
     var refs = (t.refs || []).slice(0); for (var r2 = 0; r2 < (t.subs || []).length; r2++) refs = refs.concat(t.subs[r2].refs || []);
     if (refs.length) { h.push('<div class="sec"><h2>References</h2><table><tr><th>Type</th><th>Reference</th></tr>');
       for (var r = 0; r < refs.length; r++) { var x2 = refs[r], lab = x2.kind == "drawing" ? L.refLabel(x2) : L.refShort ? L.refShort(x2).name : x2.value, link = x2.kind == "link" ? (/^[a-z]+:/i.test(x2.value) ? x2.value : "https://" + x2.value) : x2.kind == "file" || x2.kind == "folder" ? "file:///" + x2.value.replace(/\\/g, "/") : "";
+        var gone = (x2.kind == "file" && /^([a-z]:|\\\\)/i.test(x2.value) && !fso.FileExists(x2.value)) || (x2.kind == "folder" && /^([a-z]:|\\\\)/i.test(x2.value) && !fso.FolderExists(x2.value));
+        if (gone) { h.push("<tr><td>" + e(L.REF_NAME ? L.REF_NAME[x2.kind] : x2.kind) + '</td><td><span class="muted" title="' + e(x2.value) + '">' + e(lab) + ' &nbsp;&#9888; not found (renamed or moved?)</span></td></tr>'); continue; }
         h.push("<tr><td>" + e(L.REF_NAME ? L.REF_NAME[x2.kind] : x2.kind) + "</td><td>" + (link ? '<a href="' + e(link) + '" title="' + e(x2.value) + '">' + e(lab) + "</a>" : e(x2.kind == "note" ? x2.value : lab)) + "</td></tr>"); }
       h.push("</table></div>"); }
     for (var s = 0; s < SUBS.length; s++) { var fs = by[SUBS[s]] || [];

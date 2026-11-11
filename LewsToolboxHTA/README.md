@@ -121,13 +121,15 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 
 - In Tasks: right-click a task → **📁 Make a task folder…** (or **📁 Task folder…** in the task window)
   - **Where:** you choose every time (Browse…) · **Folder name:** you type it (the task's name is suggested)
-  - It makes: `Reference\` (what it's based on) · `Incoming\` (what comes back) · `Output\` (what you produce) · `Notes.txt` · **Task Summary.html** + **Task Summary.pdf** · a hidden `_task.json`
+  - It makes: `Reference\` (what it's based on) · `Incoming\` (what comes back) · `Output\` (what you produce)
+  - Kept out of the way in `Reference\Backup and Ref\`: **Task Summary.html** + **.pdf**, `Notes.txt`, and the hidden `_task.json` (+ `_task.backup.json`, the one before). Folders made before are tidied into it on the next save
+- **Changed in Explorer?** The Toolbox reads the folders every time: a file you rename, add or delete in Explorer shows up as it is (the window checks every few seconds; **Read again** at once). A task reference pointing to an old name says **⚠ not found (renamed or moved?)** – ✎ to fix
 - **Filling it** (tabs Reference / Incoming / Output / Notes):
   - Drag files from Explorer, or emails from Outlook, into the box (Windows: **Ctrl** = copy, **Shift** = move)
   - **+ Add files…** / **+ Add a folder…** – choose **Copy** or **Move** (remembered). The same name twice gets (2), (3)…
   - **📋 Paste screenshot** – take a snip (Win+Shift+S), click it: saved as `Screenshot <date time>.png`
   - **📝 Notes** – type or paste (Teams / email text, a call, a decision); each note gets the date and time
-- **Task Summary** – one professional page: details, description, notes, checklist, references, and every file of Reference / Incoming / Output **with links**. Updated when you close the window, or **↻ Update summary (HTML + PDF)**. The PDF is printed by Edge (or Chrome, or Word) without opening a window
+- **Task Summary** – made new on every save (always the folder as it is now), one professional page: details, description, notes, checklist, references, and every file of Reference / Incoming / Output **with links**. Updated when you close the window (if something changed), or **↻ Update summary (HTML + PDF)**. Open it with **📄 Open the summary** – the links open the files (the HTML keeps working if you move the folder; the PDF is made again on the next save). If the PDF is open in a viewer, close it and update again. The PDF is printed by Edge (or Chrome, or Word) without opening a window
 - **📂 Open a task folder…** (top of Tasks) – pick any task folder: its task opens. If it isn't in your Tasks (another PC, or deleted), it's added back from the folder
 - The task shows **📁 folder** in the list (click it). **Delegate this task**: the files in **Reference** go along as references (copied into the transmittal)
 

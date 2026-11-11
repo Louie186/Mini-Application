@@ -51,6 +51,7 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
 </style>
 <script src="../core/lt-core.js"></script>
 <script src="../core/lt-refs.js"></script>
+<script src="../core/lt-transmittal.js"></script>
 </head>
 <body>
 <div id="app">
@@ -107,6 +108,8 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
   <label><input type="checkbox" id="sXl" checked style="height:auto"> Excel task sheet (.xlsx) &ndash; yellow boxes to fill in, drop-down status</label>
   <label><input type="checkbox" id="sPk" checked style="height:auto"> HTML task pack (.html) &ndash; opens in any browser, phone friendly, sends a reply</label>
   <label><input type="checkbox" id="sSi" style="height:auto"> Simple Excel table (.xlsx) &ndash; plain rows</label>
+  <div class="h">Transmittal</div>
+  <label><input type="checkbox" id="sTr" checked style="height:auto"> Make a transmittal for each person (TR-...) &ndash; a folder with the transmittal sheet, their task pack and the reference files, ready to send</label>
   <div class="muted" style="margin-top:8px">Files get today's date and time in their name, in a new folder under exports\Delegate. Then attach them to an email / Teams.</div>
   <div class="acts"><span class="sp"></span><button class="btn" id="sCancel">Cancel</button><button class="btn primary" id="sOk">Make the files</button></div>
 </div></div>
@@ -562,14 +565,14 @@ function doSend() {
   if (!xl && !pk && !si) { alert("Tick at least one file type."); return; }
   if (!ppl.length && !$("sAll").checked) { alert("Tick at least one person, or “One file with everything”."); return; }
   $("send").style.display = "none";
-  makeFiles(sendPool, ppl, $("sAll").checked, xl, pk, si);
+  makeFiles(sendPool, ppl, $("sAll").checked, xl, pk, si, $("sTr").checked);
 }
-function makeFiles(pool, ppl, everyone, xl, pk, si) {
+function makeFiles(pool, ppl, everyone, xl, pk, si, tr) {
   var stamp = LT.stamp(), folder = sentRoot() + "\\" + stamp, project = data.project || "Tasks", by = LT.settings().userName || "", made = [], errors = [];
   for (var p = 0; p < pool.length; p++) if (pool[p].project) { project = pool[p].project; break; }
   var targets = ppl.slice(0); if (everyone || !targets.length) targets.push(null);
   LT.mkdirs(folder);
-  var warn = [], copied = copyRefs(pool, folder, warn);
+  var warn = [], copied = copyRefs(pool, folder, warn), trs = [];
   for (var i = 0; i < targets.length; i++) {
     var who = targets[i], plan = planFor(pool, who); if (!plan.length) continue;
     var label = who || "Everyone", exportId = LT.uid("x"), base = folder + "\\Tasks_" + LT.safeName(label).replace(/ /g, "_") + "_" + LT.safeName(project).replace(/ /g, "_") + "_" + stamp;
@@ -578,16 +581,22 @@ function makeFiles(pool, ppl, everyone, xl, pk, si) {
     if (si) { try { buildSimple(base + "_simple.xlsx", plan, project, by, label); made.push(base + "_simple.xlsx"); } catch (e) { errors.push("Simple Excel for " + label + ": " + (e.message || e)); } }
     if (pk) { try { buildPack(base + ".html", plan, project, by, label, who || "", exportId, team, copied); made.push(base + ".html"); } catch (e) { errors.push("Task pack for " + label + ": " + (e.message || e)); } }
     var codes = []; for (var c = 0; c < plan.length; c++) codes.push(plan[c].code);
+    if (tr && who) { var mine = []; for (var mm = made.length - 1; mm >= 0 && made[mm].indexOf(base) == 0; mm--) mine.unshift(made[mm]);
+      try { var res = transmittalFor(who, plan, project, mine, folder, copied); trs.push(res);
+        for (var tt = 0; tt < pool.length; tt++) if (codes.indexOf(pool[tt].code) >= 0) { pool[tt].tr = (pool[tt].tr ? pool[tt].tr + ", " : "") + res.no; pool[tt].history.push(stampNow() + "  Transmittal " + res.no + " to " + who); }
+      } catch (e) { errors.push("Transmittal for " + who + ": " + (e.message || e)); } }
     data.issued.push({ exportId: exportId, when: LT.today() + " " + stampNow().split(" ")[2], to: label, folder: folder, codes: codes });
     for (var t = 0; t < pool.length; t++) for (var c2 = 0; c2 < codes.length; c2++) if (pool[t].code == codes[c2]) pool[t].history.push(stampNow() + "  Sent to " + label);
   }
   save(); render();
+  for (var tl = 0; tl < pool.length; tl++) tellTasks(pool[tl]);
   if (warn.length) errors.push("These references weren't found, so they're not copied (the pack still names them):\n  " + warn.join("\n  "));
   if (errors.length) alert("Some files couldn't be made:\n" + errors.join("\n") + (/Automation|ActiveX|Excel/i.test(errors.join(" ")) ? "\n\nExcel files need Microsoft Excel on this PC. The HTML task pack works without it." : ""));
   if (!made.length) return null;
-  try { LT.open(folder); } catch (e) { }
+  try { LT.open(trs.length == 1 ? trs[0].dir : folder); } catch (e) { }
   var nm = []; for (var m = 0; m < made.length; m++) nm.push(fso.GetFileName(made[m]));
-  alert("Made " + made.length + " file(s):\n" + nm.join("\n") + "\n\nThe folder is open – attach the files to an email or Teams message.\n\nWhen they reply:\n• Excel: they save and send the file back → Load replies\n• HTML pack: they press Save reply and send you the .txt (or paste the text) → Load replies / Paste reply");
+  var tl2 = []; for (var q = 0; q < trs.length; q++) tl2.push(trs[q].no + " → " + trs[q].to + "   (" + trs[q].dir + ")");
+  alert("Made " + made.length + " file(s):\n" + nm.join("\n") + (trs.length ? "\n\nTransmittals (send these folders):\n" + tl2.join("\n") : "") + "\n\nThe folder is open – attach the files to an email or Teams message.\n\nWhen they reply:\n• Excel: they save and send the file back → Load replies\n• HTML pack: they press Save reply and send you the .txt (or paste the text) → Load replies / Paste reply");
   return folder;
 }
 
@@ -754,6 +763,21 @@ function packRefs(refs, copied) {
     else if (r.kind == "file" || r.kind == "folder") h = c ? "References/" + encodeURIComponent(c) : "file:///" + r.value.replace(/\\/g, "/");
     o.push({ k: r.kind, t: r.kind == "note" ? r.value : LT.refLabel(r) + (c ? "" : r.kind == "file" || r.kind == "folder" ? "  (" + r.value + ")" : ""), h: h }); }
   return o;
+}
+/* one transmittal for a person: their task pack(s), the reference files in their part, and the drawings named.
+   The folder keeps the pack's References\ links working (same names as next to the pack). */
+function transmittalFor(who, plan, project, packs, folder, copied) {
+  var items = [], extra = [], seen = {}, codes = [], logs = [];
+  for (var p = 0; p < packs.length; p++) { var nm = fso.GetFileName(packs[p]); extra.push([packs[p], nm]); items.push({ number: nm.replace(/\.[^.]+$/, ""), title: "Task pack", rev: "", types: nm.substring(nm.lastIndexOf(".") + 1), files: [] }); }
+  for (var i = 0; i < plan.length; i++) { var t = plan[i], rs = (t.refs || []).slice(0); codes.push(t.code); if (t.log) logs.push(t.log);
+    for (var j = 0; j < t.subs.length; j++) rs = rs.concat(t.subs[j].refs || []);
+    for (var k = 0; k < rs.length; k++) { var r = rs[k], key = r.kind + "|" + (r.value || "").toLowerCase(); if (seen[key]) continue; seen[key] = 1;
+      if (r.kind == "drawing") { var d = null; try { var R = LT.register(); d = R && R.find(r.value); } catch (e) { } items.push({ number: r.value, title: d ? d.title : "", rev: "", types: "", files: [] }); }
+      else if ((r.kind == "file" || r.kind == "folder") && copied[(r.value || "").toLowerCase()]) { var cn = copied[r.value.toLowerCase()], st = cn.replace(/\.[^.]+$/, "");
+        extra.push([folder + "\\References\\" + cn, "References\\" + cn]);
+        items.push({ number: st, title: r.label || "Reference" + (r.kind == "folder" ? " (folder)" : ""), rev: "", types: r.kind == "folder" ? "folder" : cn.substring(cn.lastIndexOf(".") + 1).toLowerCase(), files: [] }); } } }
+  var res = LT.trMake({ project: project, to: who, attn: "", purpose: "For action", notes: "Tasks " + codes.join(", ") + (logs.length ? "  (" + logs.join(", ") + ")" : "") + " – see the task pack", items: items, tasks: codes }, { extra: extra });
+  res.to = who; return res;
 }
 /* the lead's team for this person's file: members of every group they lead that has a task in it */
 function teamFor(plan, who) {

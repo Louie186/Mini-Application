@@ -30,8 +30,15 @@ module.exports = async ({ page, out }) => {
   const files = await page.evaluate(() => Object.values(window.__mockFs.files).map(x => x.path).filter(p => /\\Delegate\\/.test(p)).sort());
   console.log('   files:', files.map(p => p.split('\\Delegate\\')[1]).join(', '));
   ok(files.some(p => /References\\Markup\.pdf$/.test(p)) && files.some(p => /References\\Markup \(2\)\.pdf$/.test(p)) && !files.some(p => /Brief/.test(p)), 'copies: Markup.pdf and Markup (2).pdf in References; Brief.docx is link only (not copied)');
+  // a transmittal for Sam: sheet + pack + the reference copies (References\ kept so the pack's links work)
+  const trFiles = await page.evaluate(() => Object.values(window.__mockFs.files).map(x => x.path).filter(p => /\\Transmittals\\/.test(p)).sort());
+  console.log('   transmittal:', trFiles.map(p => p.split('\\Transmittals\\')[1]).join(', '));
+  ok(trFiles.some(p => /TR-001\\TR-001_Sam_.*\.xlsx$/.test(p)) && trFiles.some(p => /TR-001\\Tasks_Sam_.*\.html$/.test(p)) && trFiles.some(p => /TR-001\\References\\Markup \(2\)\.pdf$/.test(p)), 'TR-001 folder: transmittal sheet, Sam\'s task pack, References\\ copies');
+  const trLog = await d.evaluate(() => LT.trLoad().log[0]);
+  ok(trLog && trLog.to == 'Sam' && trLog.purpose == 'For action' && /T001/.test(trLog.notes) && /TL-001/.test(trLog.notes) && trLog.items.some(i => i.title == 'Task pack'), 'logged in Transmittal: to Sam, For action, notes name T001 / TL-001');
+  ok(await d.evaluate(() => data.tasks[0].tr == 'TR-001' && /Transmittal TR-001 to Sam/.test(data.tasks[0].history.join())), 'Delegate task remembers TR-001');
   // Tasks hears about it
-  ok(await tk.evaluate(() => { var t = byCode('TL-001'); return t.delegated && t.delegated.code == 'T001' && /Sam/.test(t.delegated.to); }), 'Tasks: TL-001 delegated (T001, Sam)');
+  ok(await tk.evaluate(() => { var t = byCode('TL-001'); return t.delegated && t.delegated.code == 'T001' && /Sam/.test(t.delegated.to) && t.delegated.tr == 'TR-001'; }), 'Tasks: TL-001 delegated (T001, Sam, TR-001)');
   // the lead's pack
   const pk = files.find(p => /Tasks_Sam_.*\.html$/.test(p));
   fs.writeFileSync('/tmp/claude-0/pack-lead.html', await page.evaluate(p => window.__mockFs.files[p.toLowerCase()].text, pk));

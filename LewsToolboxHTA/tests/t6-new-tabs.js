@@ -65,7 +65,7 @@ module.exports = async ({ page, out }) => {
   ok(await page.evaluate(() => Object.keys(window.__mockFs.files).some(k => /transmittals\\tr-001\\tr-001_client_ltd_.*\.xlsx$/.test(k)) && Object.keys(window.__mockFs.files).some(k => /tr-001\\5013-keo-t1-zz-dr-a-10101-p02\.pdf$/.test(k))), 'Transmittal: TR-001 made, files copied');
   ok(await f.evaluate(() => store.next == 2 && store.log[0].items.length == 2 && store.log[0].items[0].rev == 'P02'), 'Transmittal: logged, next is TR-002');
   // Workload
-  f = await go('workload');
+  await go('delegate'); await page.frame({ url: /delegate\.html/ }).click('[data-v="workload"]'); await page.waitForTimeout(700); f = page.frame({ url: /workload\.html/ });   // Workload now lives inside Delegate
   ok(await f.evaluate(() => { var it = items.filter(x => x.who[0] == 'Ben'), s = 0; for (var w = 0; w < weeks.length; w++) s += hoursFor('Ben', w).h; var a = it.find(x => x.code == 'T001.2'); return s == 46 && hoursFor('Ben', a.week).h >= 16; }), 'Workload: Ben 46h across the weeks, each task in its due week');
   await page.screenshot({ path: out + '/h_workload.png' });
   // Weekly report

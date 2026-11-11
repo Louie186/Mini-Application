@@ -27,6 +27,7 @@
 .right{float:right}
 </style>
 <script src="../core/lt-core.js"></script>
+<script src="../core/lt-transmittal.js"></script>
 </head>
 <body>
 <div id="app">
@@ -35,7 +36,7 @@
     <div class="fld"><label>Project</label><input type="text" id="hProj"></div>
     <div class="fld"><label>To (company)</label><input type="text" id="hTo" list="toList"></div>
     <div class="fld"><label>Attention (person)</label><input type="text" id="hAttn"></div>
-    <div class="fld"><label>Purpose of issue</label><select id="hPurp"><option>For information</option><option>For comment</option><option>For review and approval</option><option>For coordination</option><option>For tender</option><option>For construction</option><option>As built</option></select></div>
+    <div class="fld"><label>Purpose of issue</label><select id="hPurp"><option>For information</option><option>For action</option><option>For comment</option><option>For review and approval</option><option>For coordination</option><option>For tender</option><option>For construction</option><option>As built</option></select></div>
     <div class="fld w"><label>Notes</label><input type="text" id="hNotes" placeholder="optional"></div>
   </div>
   <div class="step">
@@ -54,10 +55,9 @@
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso, store, docs = [];
 var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
-function FILE() { return LT.dataPath("transmittals.json"); }
-function load() { store = LT.readJson(FILE(), null) || {}; store.next = store.next || 1; store.prefix = store.prefix || "TR-"; store.log = store.log || []; store.project = store.project || ""; store.out = store.out || ""; }
-function save() { try { LT.saveJson(FILE(), store); } catch (e) { alert("Couldn't save the transmittal log."); } }
-function no(n) { var s = "" + n; while (s.length < 3) s = "0" + s; return store.prefix + s; }
+function load() { store = LT.trLoad(); }
+function save() { try { LT.trSave(store); } catch (e) { alert("Couldn't save the transmittal log."); } }
+function no(n) { return LT.trNo(store, n); }
 function split(stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; }
 function header() {
   $("noLbl").innerHTML = "Transmittal " + esc(no(store.next)); var d = new Date(); $("dateLbl").innerHTML = d.getDate() + " " + LT.MON[d.getMonth()] + " " + d.getFullYear();
@@ -65,7 +65,7 @@ function header() {
   var seen = {}, h = ""; for (var i = store.log.length - 1; i >= 0; i--) { var t = store.log[i].to; if (t && !seen[t]) { seen[t] = 1; h += '<option value="' + esc(t) + '">'; } } $("toList").innerHTML = h;
   $("outLbl").innerHTML = $("copyFiles").checked ? "&rarr; " + esc(outDir()) : "";
 }
-function outDir() { return (store.out || LT.exportsDir() + "\\Transmittals") + "\\" + no(store.next); }
+function outDir() { return LT.trDir(store, no(store.next)); }
 
 /* ---------- documents ---------- */
 /* adds files, one row per drawing + revision, with all its file types */
@@ -118,46 +118,14 @@ function render() {
 function make() {
   if (!docs.length) { alert("Add the documents first."); return; }
   if (!LT.trim($("hTo").value) && !confirm("No recipient (To) - make it anyway?")) return;
-  var t = { no: no(store.next), date: LT.today(), project: LT.trim($("hProj").value), to: LT.trim($("hTo").value), attn: LT.trim($("hAttn").value), purpose: $("hPurp").value, notes: LT.trim($("hNotes").value), by: LT.settings().userName || "", items: [] };
+  var t = { project: LT.trim($("hProj").value), to: LT.trim($("hTo").value), attn: LT.trim($("hAttn").value), purpose: $("hPurp").value, notes: LT.trim($("hNotes").value), items: [] };
   for (var i = 0; i < docs.length; i++) t.items.push({ number: docs[i].number, title: docs[i].title, rev: docs[i].rev, types: docs[i].types.join(", "), files: docs[i].files });
-  var dir = (store.out || LT.exportsDir() + "\\Transmittals") + "\\" + t.no, base = dir + "\\" + t.no + "_" + LT.safeName(t.to || "Transmittal").replace(/ /g, "_") + "_" + LT.today(), made = null, copied = 0, errs = [];
-  LT.mkdirs(dir);
-  try { made = excel(base + ".xlsx", t); } catch (e) { try { made = csv(base + ".csv", t); LT.toast("Excel isn't available - saved as CSV"); } catch (e2) { alert("Couldn't make the transmittal:\n" + (e.message || e)); return; } }
-  if ($("copyFiles").checked) for (var k = 0; k < docs.length; k++) for (var f = 0; f < docs[k].files.length; f++) { var src = docs[k].files[f], to = dir + "\\" + fso.GetFileName(src);
-    try { if (fso.FileExists(to)) throw new Error("already there"); fso.CopyFile(src, to, false); copied++; } catch (e) { errs.push(fso.GetFileName(src) + ": " + (e.message || e)); } }
-  t.file = made; store.log.push(t); store.next++; store.project = t.project; save();
-  try { LT.open(dir); } catch (e) { }
-  alert(t.no + " is ready:\n" + fso.GetFileName(made) + (copied ? "\n\n" + copied + " file(s) copied into the transmittal folder." : "") + (errs.length ? "\n\nNot copied (" + errs.length + "):\n" + errs.slice(0, 10).join("\n") : "") + "\n\nThe next one will be " + no(store.next) + ".");
+  var r; try { r = LT.trMake(t, { copy: $("copyFiles").checked }); } catch (e) { alert("Couldn't make the transmittal:\n" + (e.message || e)); return; }
+  if (t.csv) LT.toast("Excel isn't available - saved as CSV");
+  load();
+  try { LT.open(r.dir); } catch (e) { }
+  alert(r.no + " is ready:\n" + fso.GetFileName(r.file) + (r.copied ? "\n\n" + r.copied + " file(s) copied into the transmittal folder." : "") + (r.errors.length ? "\n\nNot copied (" + r.errors.length + "):\n" + r.errors.slice(0, 10).join("\n") : "") + "\n\nThe next one will be " + no(store.next) + ".");
   docs = []; $("hNotes").value = ""; header(); render();
-}
-function csv(path, t) {
-  var rows = [["TRANSMITTAL", t.no], ["Project", t.project], ["To", t.to], ["Attention", t.attn], ["From", t.by], ["Date", t.date], ["Purpose of issue", t.purpose], ["Notes", t.notes], [], ["No.", "Drawing / document number", "Title", "Rev", "Format"]];
-  for (var i = 0; i < t.items.length; i++) rows.push([i + 1, t.items[i].number, t.items[i].title, t.items[i].rev, t.items[i].types]);
-  rows.push([], ["Issued by", t.by, "Received by", ""]); LT.writeCsv(path, rows); return path;
-}
-function excel(path, t) {
-  var xl = null, wb = null;
-  try {
-    xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
-    wb = xl.Workbooks.Add(); while (wb.Worksheets.Count > 1) wb.Worksheets(wb.Worksheets.Count).Delete();
-    var ws = wb.Worksheets(1); ws.Name = "Transmittal";
-    var W = [6, 38, 50, 8, 14]; for (var c = 0; c < W.length; c++) ws.Columns(c + 1).ColumnWidth = W[c];
-    ws.Cells(1, 1).Value = "TRANSMITTAL"; ws.Cells(1, 1).Font.Size = 18; ws.Cells(1, 1).Font.Bold = true;
-    ws.Cells(1, 5).Value = t.no; ws.Cells(1, 5).Font.Size = 14; ws.Cells(1, 5).Font.Bold = true; ws.Cells(1, 5).HorizontalAlignment = -4152;
-    var head = [["Project", t.project], ["To", t.to], ["Attention", t.attn], ["From", t.by], ["Date", ""], ["Purpose of issue", t.purpose]];
-    for (var i = 0; i < head.length; i++) { ws.Cells(3 + i, 1).Value = head[i][0]; ws.Cells(3 + i, 1).Font.Bold = true; ws.Cells(3 + i, 2).Value = head[i][1]; }
-    var d = LT.parseIso(t.date); ws.Cells(7, 2).Formula = "=DATE(" + d.getFullYear() + "," + (d.getMonth() + 1) + "," + d.getDate() + ")"; ws.Cells(7, 2).Value2 = ws.Cells(7, 2).Value2; ws.Cells(7, 2).NumberFormat = "dd mmm yyyy"; ws.Cells(7, 2).HorizontalAlignment = -4131;
-    var r = 10, hdr = ["No.", "Drawing / document number", "Title", "Rev", "Format"];
-    for (var h = 0; h < hdr.length; h++) { var hc = ws.Cells(r, h + 1); hc.Value = hdr[h]; hc.Font.Bold = true; hc.Font.Color = 0xFFFFFF; hc.Interior.Color = 0x7E3E5B; }
-    for (var k = 0; k < t.items.length; k++) { r++; var it = t.items[k]; ws.Cells(r, 1).Value = k + 1; ws.Cells(r, 2).NumberFormat = "@"; ws.Cells(r, 2).Value = it.number; ws.Cells(r, 3).Value = it.title; ws.Cells(r, 4).NumberFormat = "@"; ws.Cells(r, 4).Value = it.rev; ws.Cells(r, 5).Value = it.types; ws.Cells(r, 3).WrapText = true; }
-    try { var rg = ws.Range("A10:E" + r); rg.Borders.LineStyle = 1; rg.Borders.Color = 0xE2D7D0; } catch (e) { }
-    r += 2; if (t.notes) { ws.Cells(r, 1).Value = "Notes"; ws.Cells(r, 1).Font.Bold = true; ws.Cells(r, 2).Value = t.notes; r += 2; }
-    ws.Cells(r, 1).Value = "Issued by"; ws.Cells(r, 2).Value = t.by + "   ____________________"; ws.Cells(r, 3).Value = "Received by   ____________________   Date  __________";
-    ws.Range("A" + r + ":C" + r).Font.Bold = true;
-    try { ws.PageSetup.Orientation = 1; ws.PageSetup.Zoom = false; ws.PageSetup.FitToPagesWide = 1; ws.PageSetup.FitToPagesTall = false; } catch (e) { }
-    if (fso.FileExists(path)) fso.DeleteFile(path);
-    wb.SaveAs(path, 51); return path;
-  } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
 }
 function logMenu(x, y) {
   var m = [];

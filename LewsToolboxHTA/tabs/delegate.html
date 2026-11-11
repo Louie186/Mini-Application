@@ -123,6 +123,7 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
   <h3 id="gTitle">Group</h3>
   <div class="row2"><div class="fld"><label>Group name</label><input type="text" id="gName" placeholder="e.g. MEP Team"></div><div class="fld"><label>Lead (gets the group's tasks)</label><input type="text" id="gLead" list="pplList"></div></div>
   <div class="fld"><label>Members (comma between names) &ndash; the lead picks from these for each item</label><input type="text" id="gMem"></div>
+  <div class="fld"><label>Team folder (shared) &ndash; optional: the group's Team Board goes here (a network drive, or a synced SharePoint / OneDrive folder)</label><div style="display:flex"><input type="text" id="gFolder" style="flex:1 1 auto;margin-right:6px" placeholder="(no Team Board)"><button class="btn" id="gBrowse" style="margin:0">Browse...</button></div></div>
   <div class="acts"><button class="btn" id="gDel">Delete group</button><span class="sp"></span><button class="btn" id="gCancel">Cancel</button><button class="btn primary" id="gOk">Save</button></div>
 </div></div>
 
@@ -261,6 +262,11 @@ function writeFeed() {
     feed.push({ id: t.id, code: t.code, log: t.log || "", to: whoLabel(t), tr: t.tr || "", progress: t.subs.length ? done + "/" + t.subs.length + " done" : "",
       title: t.code + " " + t.title + (t.subs.length ? "  (" + done + "/" + t.subs.length + " done)" : ""), who: groupOf(t.who) ? whoLabel(t) : w2.join(", "), due: dues[0] || t.due || "", status: st, project: t.project || "" });
   }
+  /* items added under a task from the Tasks tab (s.log = TL-...): report them too */
+  var bylog = {};
+  for (var a = 0; a < data.tasks.length; a++) for (var b = 0; b < data.tasks[a].subs.length; b++) { var x = data.tasks[a].subs[b]; if (!x.log) continue; var e = bylog[x.log] || (bylog[x.log] = { t: data.tasks[a], n: 0, done: 0, who: [], due: "" }); e.n++; if (x.status == "Completed") e.done++; else { if (x.who) e.who.push(x.who); if ((x.due || "") && (!e.due || x.due < e.due)) e.due = x.due; } }
+  for (var lg in bylog) if (bylog.hasOwnProperty(lg)) { var E = bylog[lg];
+    feed.push({ id: E.t.id + ":" + lg, code: E.t.code, log: lg, to: whoLabel(E.t), tr: E.t.tr || "", progress: E.done + "/" + E.n + " done", title: E.t.code + " " + E.t.title, who: E.who.join(", ") || whoLabel(E.t), due: E.due || E.t.due || "", status: E.done == E.n ? "Completed" : E.done ? "In progress" : "Not started", project: E.t.project || "" }); }
   LT.saveJson(LT.dataPath("delegate-feed.json"), feed);
 }
 
@@ -297,6 +303,8 @@ function render() {
   h = '<button class="btn' + (view == "list" ? " on" : "") + '" data-v="list">&#9776; Tasks &nbsp;' + open + '</button><button class="btn' + (view == "board" ? " on" : "") + '" data-v="board">&#9638; Board</button><button class="btn' + (view == "cal" ? " on" : "") + '" data-v="cal">&#128197; Calendar</button><button class="btn' + (view == "team" ? " on" : "") + '" data-v="team">&#128101; Team &amp; groups</button><button class="btn' + (view == "workload" ? " on" : "") + '" data-v="workload">&#128202; Workload</button>';
   if (LT.settings().trackerFolder) h += '<button class="btn' + (view == "web" ? " on" : "") + '" data-v="web">&#127760; Lew\'s Tracker &nbsp;' + web.length + "</button>";
   if (nLate) h += '<span class="lbl bad" style="font-weight:bold">' + nLate + " late</span>";
+  var bst = boardState(); if (bst.replies) h += '<button class="btn primary" id="bBrep" title="Replies the team saved in the _Replies folder of their Team Board">&#128229; ' + bst.replies + " repl" + (bst.replies == 1 ? "y" : "ies") + " on team boards</button>";
+  if (bst.stale.length) h += '<button class="btn" id="bBpub" title="Tasks changed since the Team Board was last updated: ' + esc(bst.stale.join(", ")) + '">&#128204; Update team board' + (bst.stale.length > 1 ? "s" : "") + " (" + esc(bst.stale.join(", ")) + ")</button>";
   if (data.imports.length) { var li = data.imports[data.imports.length - 1]; h += '<span class="lbl muted">Last reply: ' + esc(li.from) + ", " + esc(li.when) + "</span>"; }
   $("views").innerHTML = h;
   $("filters").style.display = view == "workload" ? "none" : "";
@@ -453,9 +461,9 @@ function team() {
   var ws = todayD(); ws = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - ((ws.getDay() + 6) % 7));
   var w1 = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 7), w2 = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() + 14);
   var gh = ['<div class="h" style="margin:10px 12px 6px">Groups <button class="btn small" id="gAdd" style="margin:0 0 0 8px">+ Group</button> <span class="muted" style="font-weight:normal">a group\'s task goes to its lead, who assigns the items to the members &middot; double-click to edit</span></div>'];
-  if (data.groups.length) { gh.push('<table class="grid"><tr><th>Group</th><th>Lead</th><th>Members</th><th>Open tasks</th></tr>');
+  if (data.groups.length) { gh.push('<table class="grid"><tr><th>Group</th><th>Lead</th><th>Members</th><th>Open tasks</th><th>Team Board</th></tr>');
     for (var gi = 0; gi < data.groups.length; gi++) { var G = data.groups[gi], on = 0; for (var ti = 0; ti < data.tasks.length; ti++) if (same(data.tasks[ti].who, G.name) && statusOf(data.tasks[ti]) != "Completed") on++;
-      rowMap.push({ group: G }); gh.push('<tr data-r="' + (rowMap.length - 1) + '"><td><b>' + esc(G.name) + "</b></td><td>" + esc(G.lead) + "</td><td>" + esc((G.members || []).join(", ")) + "</td><td>" + on + "</td></tr>"); }
+      rowMap.push({ group: G }); gh.push('<tr data-r="' + (rowMap.length - 1) + '"><td><b>' + esc(G.name) + "</b></td><td>" + esc(G.lead) + "</td><td>" + esc((G.members || []).join(", ")) + "</td><td>" + on + "</td><td>" + boardCell(G) + "</td></tr>"); }
     gh.push("</table>"); }
   gh.push('<div class="h" style="margin:14px 12px 6px">People</div>');
   var h = [gh.join("") + '<table class="grid"><tr><th>Person</th><th>Open items</th><th>Late</th><th>Due this week</th><th>Due next week</th><th>Done</th><th>Load</th></tr>'], ppl = people();
@@ -482,14 +490,15 @@ function logged() { var tr = LT.readJson(LT.dataPath("tracker.json"), null) || {
   return out; }
 function fromMenu(x, y) {
   var l = logged(), m = [];
-  for (var i = 0; i < l.length && i < 30; i++) (function (t) { m.push({ label: "<b>" + esc(t.code) + "</b> " + esc(t.title) + ' <span class="muted">&rarr; ' + esc(t.who) + (t.due ? " &middot; due " + esc(LT.fmtDate(t.due)) : "") + "</span>", fn: function () { fromLog(t); } }); })(l[i]);
+  for (var i = 0; i < l.length && i < 30; i++) (function (t) { m.push({ label: "<b>" + esc(t.code) + "</b> " + esc(t.title) + ' <span class="muted">&rarr; ' + esc(t.who) + (t.due ? " &middot; due " + esc(LT.fmtDate(t.due)) : "") + "</span>", fn: function () { fromLogAsk(t, x, y); } }); })(l[i]);
   if (!m.length) m.push({ label: '<span class="muted">Nothing to hand out &ndash; in the Tasks tab, fill in "Who does it" on a task</span>', fn: function () { } });
   m.push("-", { label: "Open the Tasks tab", fn: function () { if (LT.main()) LT.main().send("tracker", "view", "todel"); } });
   LT.menu(x, y, m);
 }
 /* a task from the Tasks tab (TL-...) becomes a Delegate task (T...) with its checklist and references, then Send opens */
-function fromLog(L) {
+function fromLog(L, under) {
   for (var d = 0; d < data.tasks.length; d++) if (data.tasks[d].log && data.tasks[d].log == L.code) { view = "list"; render(); openSend(data.tasks[d]); return data.tasks[d]; }
+  if (under) return fromLogUnder(L, under);
   var g = groupOf(L.who), st = stampNow() + " · me";
   var t = { id: LT.uid("t"), code: nextCode(), log: L.code, title: L.title, group: g ? g.name : "", project: L.project || data.project, who: L.who, due: L.due || "", status: "Not started", notes: L.notes || "",
     refs: copy(L.refs || []), created: LT.today(), updated: st, history: [st + "  From Tasks " + L.code + (g ? "  (group " + g.name + ", lead " + g.lead + ")" : "")], subs: [] };
@@ -502,8 +511,36 @@ function fromLog(L) {
     t.folder = L.folder; t.history.push(st + "  Reference files from the task folder: " + L.folder); }
   data.tasks.push(t); save(); view = "list"; render();
   tellTasks(t);
+  if (g && g.folder) { publishBoard(g, true); LT.toast(t.code + " is on the " + g.name + " Team Board"); }
   openSend(t);
   return t;
+}
+/* the Tasks task becomes item(s) under a task the group is already doing (its checklist items each become one, else one item) */
+function fromLogUnder(L, p) {
+  var st = stampNow() + " · me", made = [], refs = copy(L.refs || []), g = groupOf(p.who);
+  if (L.folder && fso.FolderExists(L.folder)) { var tf = LT.tfFiles(L.folder); for (var f = 0; f < tf.length; f++) if (tf[f].sub == "Reference") refs.push({ kind: "file", value: tf[f].path, label: "", send: "copy" }); }
+  var src = (L.subs || []).length ? L.subs : [{ title: L.title, who: "", due: L.due, refs: [] }];
+  for (var i = 0; i < src.length; i++) { var x = src[i];
+    var s = { id: LT.uid("s"), code: nextSub(p), title: (L.subs || []).length ? L.title + " \u2013 " + x.title : x.title, who: x.who || (g ? "" : L.who), due: x.due || L.due || "", status: x.status == "Done" ? "Completed" : "Not started",
+      notes: i == 0 && L.notes ? L.notes : "", refs: copy(x.refs || []).concat(i == 0 ? refs : []), updated: st, log: L.code };
+    p.subs.push(s); made.push(s.code); }
+  p.history.push(st + "  From Tasks " + L.code + ": added " + made.join(", ")); p.updated = st;
+  if (p.status == "Completed") p.status = "In progress";
+  save(); view = "list"; render();
+  if (LT.main() && LT.main().post) LT.main().post("tracker", "delegated", JSON.stringify({ log: L.code, code: made.join(", "), to: whoLabel(p), tr: "" }));
+  if (g && g.folder) { publishBoard(g, true); LT.toast(made.join(", ") + " added under " + p.code + " \u2013 on the Team Board"); }
+  else LT.toast(made.join(", ") + " added under " + p.code);
+  return p;
+}
+/* a group with a Team Board already doing tasks: the new one can be its own task, or an item under one of them */
+function fromLogAsk(L, x, y) {
+  var g = groupOf(L.who), open = [];
+  if (g) for (var i = 0; i < data.tasks.length; i++) if (same(data.tasks[i].who, g.name) && statusOf(data.tasks[i]) != "Completed") open.push(data.tasks[i]);
+  if (!open.length) { fromLog(L); return; }
+  var m = [{ label: '<span class="muted">' + esc(L.code) + " " + esc(L.title) + " &rarr; " + esc(g.name) + " is already doing " + open.length + " task(s). Add it as:</span>", fn: function () { } },
+    { label: "<b>+ A new task</b> (" + esc(L.code) + " becomes T" + "&hellip;)", fn: function () { fromLog(L); } }, "-"];
+  for (var k = 0; k < open.length && k < 20; k++) (function (p) { m.push({ label: "&#8627; An item under <b>" + esc(p.code) + "</b> " + esc(p.title), fn: function () { fromLog(L, p); } }); })(open[k]);
+  LT.menu(x, y, m);
 }
 /* the Tasks tab learns it's delegated (now if it's open; otherwise from delegate-feed.json when it opens) */
 function tellTasks(t) { if (t.log && LT.main() && LT.main().post) LT.main().post("tracker", "delegated", JSON.stringify({ log: t.log, code: t.code, to: whoLabel(t), tr: t.tr || "" })); }
@@ -511,7 +548,7 @@ function tellTasks(t) { if (t.log && LT.main() && LT.main().post) LT.main().post
 /* ---------- groups ---------- */
 var gEditing = null;
 function editGroup(G) {
-  gEditing = G; $("gTitle").innerHTML = G ? "Edit group" : "New group"; $("gName").value = G ? G.name : ""; $("gLead").value = G ? G.lead : ""; $("gMem").value = G ? (G.members || []).join(", ") : "";
+  gEditing = G; $("gTitle").innerHTML = G ? "Edit group" : "New group"; $("gName").value = G ? G.name : ""; $("gLead").value = G ? G.lead : ""; $("gMem").value = G ? (G.members || []).join(", ") : ""; $("gFolder").value = G ? G.folder || "" : "";
   var pp = people(), dl = ""; for (var i = 0; i < pp.length; i++) dl += '<option value="' + esc(pp[i]) + '">'; $("pplList").innerHTML = dl;
   $("gDel").style.display = G ? "" : "none"; $("gdlg").style.display = "block"; $("gName").focus();
 }
@@ -521,8 +558,10 @@ function saveGroup() {
   var other = groupOf(n); if (other && other !== gEditing) { alert('There is already a group called "' + n + '".'); return; }
   var mm = []; for (var i = 0; i < m.length; i++) if (!same(m[i], l)) mm.push(m[i]);
   if (gEditing && !same(gEditing.name, n)) for (var t = 0; t < data.tasks.length; t++) if (same(data.tasks[t].who, gEditing.name)) data.tasks[t].who = n;   // renamed: its tasks follow
-  var G = gEditing || {}; G.name = n; G.lead = l; G.members = mm; if (!gEditing) data.groups.push(G);
+  var gf = LT.trim($("gFolder").value).replace(/[\\\/]+$/, ""); if (gf && !fso.FolderExists(gf)) { alert("The team folder isn't there:\n" + gf + "\n\nPick it with Browse... (it must exist and you must be able to save in it)."); return; }
+  var G = gEditing || {}, newBoard = gf && gf != (G.folder || ""); G.name = n; G.lead = l; G.members = mm; G.folder = gf; if (!gEditing) data.groups.push(G);
   $("gdlg").style.display = "none"; save(); render();
+  if (newBoard && confirm("Make the Team Board for " + n + " in\n" + gf + "\nnow?")) publishBoard(G);
 }
 
 /* ---------- row menu ---------- */
@@ -589,6 +628,7 @@ function saveEdit() {
   t.updated = stampNow() + " · me"; t.history = t.history || []; t.history.push(stampNow() + (editing ? "  Edited" : "  Created"));
   if (editing) data.tasks[data.tasks.indexOf(editing)] = t; else data.tasks.push(t);
   $("dlg").style.display = "none"; save(); render();
+  var gb = groupOf(t.who); if (gb && gb.folder && gb.boardAt) publishBoard(gb, true);   // its Team Board follows
 }
 
 /* ---------- send ---------- */
@@ -784,12 +824,13 @@ function utf8(s) { return unescape(encodeURIComponent(s)); }
 function scramble(text, key) { var u = utf8(text), out = []; for (var i = 0; i < u.length; i++) out.push(String.fromCharCode(u.charCodeAt(i) ^ key.charCodeAt(i % key.length))); return window.btoa(out.join("")); }
 function randKey() { var s = ""; while (s.length < 24) { var c = String.fromCharCode(33 + Math.floor(Math.random() * 90)); if (c != '"' && c != "\\" && c != "<" && c != ">") s += c; } return s; }
 function ascii(s) { return ("" + s).replace(/[^\x20-\x7e]/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
-function buildPack(path, tasks, project, by, label, person, exportId, team, copied) {
+function buildPack(path, tasks, project, by, label, person, exportId, team, copied, extra) {
   var list = [];
   for (var i = 0; i < tasks.length; i++) { var t = tasks[i], subs = [];
-    for (var j = 0; j < t.subs.length; j++) subs.push({ code: t.subs[j].code, title: t.subs[j].title, who: t.subs[j].who || "", due: t.subs[j].due || t.due || "", status: t.subs[j].status, notes: t.subs[j].notes || "", refs: packRefs(t.subs[j].refs, copied) });
-    list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", subs: subs, refs: packRefs(t.refs, copied) }); }
+    for (var j = 0; j < t.subs.length; j++) subs.push({ code: t.subs[j].code, title: t.subs[j].title, who: t.subs[j].who || "", due: t.subs[j].due || t.due || "", status: t.subs[j].status, notes: t.subs[j].notes || "", refs: packRefs(t.subs[j].refs, copied), isNew: !!t.subs[j].isNew });
+    list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", subs: subs, refs: packRefs(t.refs, copied).concat(t.boardRefs || []), isNew: !!t.isNew }); }
   var pack = { id: exportId, projectId: "toolbox", project: project, by: by, at: LT.today(), label: label, person: person, MARK: MARK, tasks: list, team: team || [] };
+  if (extra) for (var xk in extra) if (extra.hasOwnProperty(xk)) pack[xk] = extra[xk];
   var src = runtime(); src = src.substring(src.indexOf("{") + 1, src.lastIndexOf("}"));
   var key = randKey(), blob = scramble(src + "\u0000" + JSON.stringify(pack), key);
   var html = '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
@@ -821,7 +862,7 @@ function packRefs(refs, copied) {
   for (var i = 0; i < (refs || []).length; i++) { var r = refs[i], c = copied[(r.value || "").toLowerCase()], h = "";
     if (r.kind == "link") h = /^[a-z]+:/i.test(r.value) ? r.value : "https://" + r.value;
     else if (r.kind == "drawing") h = LT.drawingLink(r.value);
-    else if (r.kind == "file" || r.kind == "folder") h = c ? "References/" + encodeURIComponent(c) : "file:///" + r.value.replace(/\\/g, "/");
+    else if (r.kind == "file" || r.kind == "folder") h = c ? (c.charAt(0) == "@" ? relLink(c.substring(1)) : "References/" + encodeURIComponent(c)) : "file:///" + r.value.replace(/\\/g, "/");
     o.push({ k: r.kind, t: r.kind == "note" ? r.value : r.kind == "drawing" ? LT.refLabel(r) : LT.refShort(r).name, h: h }); }   // short name; the link / path is in the link itself
   return o;
 }
@@ -947,10 +988,91 @@ function applyReplies(reps) {
   }
   var lines = []; for (var l = 0; l < Math.min(25, real.length); l++) lines.push("• " + real[l].text);
   if (!confirm(real.length + " change(s):\n\n" + lines.join("\n") + (real.length > 25 ? "\n… and " + (real.length - 25) + " more" : "") +
-    (nf.length ? "\n\nNot found here (skipped, " + nf.length + "):\n" + nf.slice(0, 8).join("\n") : "") + (msgs.length ? "\n\n" + msgs.join("\n") : "") + "\n\nApply these changes?")) return 0;
+    (nf.length ? "\n\nNot found here (skipped, " + nf.length + "):\n" + nf.slice(0, 8).join("\n") : "") + (msgs.length ? "\n\n" + msgs.join("\n") : "") + "\n\nApply these changes?")) return -1;
   for (var b = 0; b < ch.length; b++) ch[b].run();
   save(); render();
   return real.length;
+}
+
+/* ---------- Team Board: a group's shared folder, kept by the Toolbox ----------
+   <team folder>\Team Board - <group>.html   the board the team opens (their tasks, items, references, who / due / status; NEW marks)
+                \T001 <task title>\Reference  reference files copied here (zips also unzipped)   \Output = for the team's work
+                \_Replies                     the team saves their reply here (the board's Save reply); the Toolbox loads it
+                \_board.json                  what the Toolbox needs (first seen dates for NEW, last update) */
+function boardPage(g) { return g.folder + "\\Team Board - " + LT.safeName(g.name) + ".html"; }
+function relLink(rel) { var p = rel.split("/"); for (var i = 0; i < p.length; i++) p[i] = encodeURIComponent(p[i]); return p.join("/"); }
+function boardTasks(g) { var o = []; for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (same(t.who, g.name) || same(t.group, g.name)) o.push(t); } return o; }
+function boardSig(g) { var ts = boardTasks(g), a = []; for (var i = 0; i < ts.length; i++) { var t = ts[i], s = [t.code, t.title, t.due, t.status, t.notes, (t.refs || []).length]; for (var j = 0; j < t.subs.length; j++) s.push(t.subs[j].code, t.subs[j].title, t.subs[j].who, t.subs[j].due, t.subs[j].status, (t.subs[j].refs || []).length); a.push(s.join("|")); } return a.join("\n"); }
+function boardCell(G) {
+  var i = data.groups.indexOf(G);
+  if (!G.folder) return '<span class="muted">none</span> <button class="btn small" data-bset="' + i + '">Set a team folder...</button>';
+  var ok = fso.FolderExists(G.folder), sh = LT.refShort({ kind: "folder", value: G.folder });
+  return '<span title="' + esc(G.folder) + '">&#128193; ' + esc(sh.name) + "</span>" + (ok ? "" : ' <span class="bad">(not reachable)</span>') + '<br><button class="btn small" data-bpub="' + i + '">&#128204; Update board</button><button class="btn small" data-bopen="' + i + '">Open</button>' +
+    (G.boardAt ? ' <span class="muted">updated ' + esc(G.boardAt) + "</span>" : "");
+}
+function boardState() {
+  var o = { replies: 0, stale: [] };
+  for (var i = 0; i < data.groups.length; i++) { var g = data.groups[i]; if (!g.folder) continue;
+    try { var rd = g.folder + "\\_Replies"; if (fso.FolderExists(rd)) { var e = new Enumerator(fso.GetFolder(rd).Files); for (; !e.atEnd(); e.moveNext()) if (/\.txt$/i.test("" + e.item().Name)) o.replies++; } } catch (x) { }
+    if (g.boardAt && g.boardSig != boardSig(g)) o.stale.push(g.name); }
+  return o;
+}
+/* copy a reference file / folder into <task folder>\Reference (only if new or changed); a .zip is also unzipped next to it */
+function boardCopy(r, dir, used, warn) {
+  var isDir = r.kind == "folder", ok = isDir ? fso.FolderExists(r.value) : fso.FileExists(r.value); if (!ok) { warn.push(r.value); return ""; }
+  var nm = LT.refBase(r.value), b = nm, n = 1; while (used[nm.toLowerCase()] && used[nm.toLowerCase()] != r.value.toLowerCase()) { n++; var dot = isDir ? -1 : b.lastIndexOf("."); nm = dot > 0 ? b.substring(0, dot) + " (" + n + ")" + b.substring(dot) : b + " (" + n + ")"; }
+  used[nm.toLowerCase()] = r.value.toLowerCase();
+  var to = dir + "\\" + nm;
+  try { LT.mkdirs(dir);
+    if (isDir) fso.CopyFolder(r.value, to, true);
+    else { var same0 = false; try { var a = fso.GetFile(r.value), c = fso.GetFile(to); same0 = +a.Size == +c.Size && +new Date(a.DateLastModified) == +new Date(c.DateLastModified); } catch (x) { } if (!same0) fso.CopyFile(r.value, to, true);
+      if (/\.zip$/i.test(nm)) { var ud = dir + "\\" + nm.replace(/\.zip$/i, ""); if (!fso.FolderExists(ud)) LT.wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Expand-Archive -LiteralPath \'' + to.replace(/'/g, "''") + "' -DestinationPath '" + ud.replace(/'/g, "''") + '\' -Force"', 0, true); } }
+  } catch (e) { warn.push(nm + " (" + (e.message || e) + ")"); return ""; }
+  return nm;
+}
+function publishBoard(g, quiet) {
+  if (!g || !g.folder) return false;
+  if (!fso.FolderExists(g.folder)) { if (!quiet) alert("The team folder of " + g.name + " can't be reached:\n" + g.folder + "\n\n(Network drive not connected? Or pick it again: double-click the group.)"); else LT.toast("Team Board not updated - " + g.name + "'s folder can't be reached"); return false; }
+  var root = g.folder, recP = root + "\\_board.json", rec = LT.readJson(recP, null) || {}, first = rec.first || {}, today = LT.today(), warn = [], list = [], now = LT.now();
+  var start = rec.start || now, week = now - 7 * 864e5, ts = boardTasks(g), copied = {};   // NEW = first put on the board after the board was made, in the last 7 days
+  for (var i = 0; i < ts.length; i++) { var t = ts[i], name = LT.safeName(t.code + " " + t.title).substring(0, 70), dir = root + "\\" + name;
+    /* the task was renamed: its folder follows */
+    if (!fso.FolderExists(dir)) { try { var e = new Enumerator(fso.GetFolder(root).SubFolders); for (; !e.atEnd(); e.moveNext()) { var fn = "" + e.item().Name; if (fn.indexOf(t.code + " ") == 0) { fso.MoveFolder(root + "\\" + fn, dir); break; } } } catch (x) { } }
+    LT.mkdirs(dir + "\\Reference"); LT.mkdirs(dir + "\\Output");
+    var used = {}, rs = (t.refs || []).slice(0); for (var j = 0; j < t.subs.length; j++) rs = rs.concat(t.subs[j].refs || []);
+    for (var k = 0; k < rs.length; k++) { var r = rs[k]; if (!LT.refCopies(r) || copied[(r.value || "").toLowerCase() + "|" + t.code]) continue; var nm = boardCopy(r, dir + "\\Reference", used, warn); if (nm) copied[(r.value || "").toLowerCase()] = "@" + name + "/Reference/" + nm; }
+    var c = copy(t); if (!(first[t.code] > 0)) first[t.code] = now; c.isNew = first[t.code] > start && first[t.code] >= week;
+    for (var q = 0; q < c.subs.length; q++) { var sc = c.subs[q].code; if (!(first[sc] > 0)) first[sc] = now; c.subs[q].isNew = !c.isNew && first[sc] > start && first[sc] >= week; }
+    c.boardRefs = [{ k: "folder", t: "Task folder (Reference / Output)", h: relLink(name) + "/" }];
+    try { var oe = new Enumerator(fso.GetFolder(dir + "\\Output").Files); for (; !oe.atEnd(); oe.moveNext()) c.boardRefs.push({ k: "file", t: "Output: " + oe.item().Name, h: relLink(name + "/Output/" + oe.item().Name) }); } catch (x) { }
+    list.push(c); }
+  /* pack links: a reference copied for any task points to that copy */
+  LT.mkdirs(root + "\\_Replies");
+  var me = LT.settings().userName || "", team = [g.lead].concat(g.members || []);
+  buildPack(boardPage(g), list, data.project || (ts[0] && ts[0].project) || "", me, g.name, "", "board:" + g.name, team, copied,
+    { board: { group: g.name, at: today + " " + stampNow().split(" ")[2], replies: "_Replies" } });
+  if (!fso.FileExists(root + "\\How to use the Team Board.txt")) LT.writeUtf8(root + "\\How to use the Team Board.txt", "Team Board - " + g.name + "\r\n\r\n1. Open \"Team Board - " + g.name + ".html\" (Chrome or Edge). Refresh it to see new tasks (marked NEW).\r\n2. Each task has its own folder here: Reference = files you need, Output = put your work here.\r\n3. Click To do / Doing / Done on each line, add notes, then press \"Save reply\" and save the file into the _Replies folder.\r\n   " + (me || "The coordinator") + "'s Toolbox picks it up from there.\r\n", true);
+  rec.first = first; rec.at = today; rec.start = start; LT.saveJson(recP, rec);
+  var found = false; for (var z = 0; z < data.issued.length; z++) if (data.issued[z].exportId == "board:" + g.name) { data.issued[z].to = g.lead; data.issued[z].when = LT.today(); found = true; }
+  if (!found) data.issued.push({ exportId: "board:" + g.name, when: LT.today(), to: g.lead, folder: root, codes: [] });
+  g.boardAt = LT.fmtDate(today) + " " + stampNow().split(" ")[2]; g.boardSig = boardSig(g); save(); if (view == "team") render();
+  if (!quiet) LT.toast("Team Board updated: " + list.length + " task(s)" + (warn.length ? " - " + warn.length + " reference(s) not found" : ""));
+  if (warn.length && !quiet) alert("These references couldn't be copied to the Team Board:\n" + warn.slice(0, 12).join("\n"));
+  return true;
+}
+/* replies the team saved into <team folder>\_Replies: load them (you see the changes first), then they move to _Replies\Loaded */
+function boardReplies() {
+  var any = 0;
+  for (var i = 0; i < data.groups.length; i++) { var g = data.groups[i], rd = g.folder ? g.folder + "\\_Replies" : ""; if (!rd || !fso.FolderExists(rd)) continue;
+    var files = [], e = new Enumerator(fso.GetFolder(rd).Files); for (; !e.atEnd(); e.moveNext()) if (/\.txt$/i.test("" + e.item().Name)) files.push("" + e.item().Path);
+    for (var k = 0; k < files.length; k++) { var rep; any++;
+      try { rep = readFile(files[k]); } catch (x) { alert("Couldn't read " + fso.GetFileName(files[k]) + ":\n" + (x.message || x)); continue; }
+      rep.file = g.name + " board: " + fso.GetFileName(files[k]);
+      var r = applyReplies([rep]); if (r < 0) continue;   // you said no: it stays, ask again later
+      try { LT.mkdirs(rd + "\\Loaded"); var to = rd + "\\Loaded\\" + fso.GetFileName(files[k]); if (fso.FileExists(to)) fso.DeleteFile(to, true); fso.MoveFile(files[k], to); } catch (x) { } }
+    if (g.boardAt) publishBoard(g, true); }
+  if (!any) LT.toast("No replies waiting on the team boards");
+  render();
 }
 
 /* ---------- other ---------- */
@@ -991,7 +1113,7 @@ function look() { LT.applyLook(["tr.task td{background:{chip}}", ".chp{backgroun
   ".ev{background:{chip};color:{text};border-left:3px solid {muted};border-radius:{r}px}.ev.ip{border-left-color:{warn}}.ev.ok{border-left-color:{ok};color:{muted};text-decoration:line-through}.ev.lt{border-left-color:{bad};color:{bad}}",
   ".evm{color:{accent}}"]); }
 $("bFrom").onclick = function (e) { var r = this.getBoundingClientRect(); fromMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
-$("gOk").onclick = saveGroup; $("gCancel").onclick = function () { $("gdlg").style.display = "none"; };
+$("gOk").onclick = saveGroup; $("gBrowse").onclick = function () { var f = LT.pickFolder("The group's shared team folder (its Team Board goes here)"); if (f) $("gFolder").value = f; }; $("gCancel").onclick = function () { $("gdlg").style.display = "none"; };
 $("gDel").onclick = function () { if (gEditing && confirm('Delete the group "' + gEditing.name + '"? Its tasks stay (assigned to "' + gEditing.name + '").')) { data.groups.splice(data.groups.indexOf(gEditing), 1); $("gdlg").style.display = "none"; save(); render(); } };
 $("bSend").onclick = function () { openSend(null); };
 $("bLoad").onclick = loadReplies;
@@ -1006,7 +1128,8 @@ $("cList").onclick = function (e) { var t = e ? e.target : window.event.srcEleme
 $("cAll").onclick = function () { var a = []; for (var i = 0; i < chaseList.length; i++) a.push("=== " + chaseList[i].who + " ===\r\n" + $("cht" + i).value); if (LT.copyText(a.join("\r\n\r\n"))) LT.toast("All " + chaseList.length + " messages copied"); };
 $("bPaste").onclick = function () { $("pText").value = ""; $("paste").style.display = "block"; $("pText").focus(); };
 $("bMore").onclick = function (e) { var r = this.getBoundingClientRect(); moreMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
-$("views").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { view = b.getAttribute("data-v"); if (view == "web") loadWeb(); render(); } };
+$("views").onclick = function (e) { var el = e.target || e.srcElement; if (el.id == "bBrep") { boardReplies(); return; } if (el.id == "bBpub") { var st = boardState().stale; for (var i = 0; i < data.groups.length; i++) if (st.indexOf(data.groups[i].name) >= 0) publishBoard(data.groups[i], true); render(); return; }
+  var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { view = b.getAttribute("data-v"); if (view == "web") loadWeb(); render(); } };
 $("person").onchange = render; $("search").onkeyup = render; $("hideDone").onclick = render;
 /* board + calendar: drag and drop (works in the HTA's Internet Explorer engine too) */
 function dropTarget(el) { return view == "board" ? LT.up(el, "data-st") : view == "cal" ? LT.up(el, "data-day") : null; }
@@ -1018,6 +1141,10 @@ $("main").ondragenter = function (e) { e = e || window.event; var t = dropTarget
 $("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); if (overEl) { mark(overEl, false); overEl = null; } dropOn(e.target || e.srcElement); return false; };
 $("main").ondragend = function () { dragI = null; if (overEl) { mark(overEl, false); overEl = null; } };
 $("main").onclick = function (e) { var el0 = e ? e.target : window.event.srcElement; if (el0 && el0.id == "gAdd") { editGroup(null); return; }
+  var bp = LT.up(el0, "data-bpub"), bo = LT.up(el0, "data-bopen"), bs = LT.up(el0, "data-bset");
+  if (bp) { publishBoard(data.groups[+bp.getAttribute("data-bpub")]); return; }
+  if (bo) { var G0 = data.groups[+bo.getAttribute("data-bopen")]; try { LT.open(boardPage(G0)); } catch (x) { LT.open(G0.folder); } return; }
+  if (bs) { editGroup(data.groups[+bs.getAttribute("data-bset")]); return; }
   var el = e ? e.target : window.event.srcElement, b = LT.up(el, "data-mon"), o = LT.up(el, "data-open");
   if (b) { var v = +b.getAttribute("data-mon"), n = todayD(); calMonth = v ? new Date(calMonth.getFullYear(), calMonth.getMonth() + v, 1) : new Date(n.getFullYear(), n.getMonth(), 1); render(); }
   else if (o) { calOpen = calOpen == o.getAttribute("data-open") ? "" : o.getAttribute("data-open"); render(); } };

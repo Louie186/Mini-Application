@@ -5,6 +5,8 @@
 //   t.refs / item.refs = list of references (k = kind, t = text, h = link), shown under the task / item
 //   (no curly brackets in these top comments: the Delegate tab cuts the page out of this file at the first one)
 //   P.team = [names]  this pack goes to a group's lead: each item gets an "Assign to" box; the reply sends row.who
+//   t.isNew / item.isNew = added lately: a NEW tag.  P.board = a Team Board in a shared folder (group, at, replies = the replies folder):
+//   a line at the top says so, and Save reply asks where to save (pick the replies folder) where the browser can
   function runtime(P) {
     var KEY = 'ltpack:' + (P.projectId || '') + ':' + (P.person || P.label || P.id);
     var BASE = {};
@@ -106,7 +108,7 @@
       var title = l.n ? l.n.title : (l.base === l.t ? 'Status of this task' : l.base.title), lt = late(l);
       return '<div class="it' + (st === 'Completed' ? ' done' : '') + (l.n ? ' new' : '') + '">' +
         '<div class="sts">' + ST.map(function (s, i) { return '<button class="s' + i + (s[0] === st ? ' on' : '') + '" data-st="' + key + '" data-v="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div>' +
-        '<div class="nm"><span>' + esc(title) + '</span>' + (l.n ? '<span class="tag">NEW</span>' : '') + (!l.n && l.base && l.base.info ? '<small class="inf">' + esc(l.base.info) + '</small>' : '') +
+        '<div class="nm"><span>' + esc(title) + '</span>' + (l.n || (!l.n && l.base !== l.t && l.base.isNew) ? '<span class="tag">NEW</span>' : '') + (!l.n && l.base && l.base.info ? '<small class="inf">' + esc(l.base.info) + '</small>' : '') +
         '<small class="' + (lt ? 'late' : '') + '">' + (l.due ? (lt ? 'overdue ' : '') + esc(fmt(l.due)) : '') + '</small>' + whoHtml(l) +
         (!l.n && l.base !== l.t ? refsHtml(l.base.refs) : '') +
         (notes && !OPEN[key] ? '<em>\u270e ' + esc(notes) + '</em>' : '') + '</div>' +
@@ -126,7 +128,8 @@
       var pct = all.length ? Math.round(done / all.length * 100) : 0;
       var h = '<div class="top"><div class="row1"><h1>TASKS FOR ' + esc((P.label || '').toUpperCase()) + '</h1><span class="sub">' + esc(P.project) + ' \u00b7 from ' + esc(P.by || '\u2014') + ' \u00b7 ' + esc(fmt(P.at)) + '</span></div>' +
         '<div class="prog"><span>' + done + ' of ' + all.length + ' done' + (lateN ? ' \u00b7 <b>' + lateN + ' overdue</b>' : '') + '</span><div class="bar"><i style="width:' + pct + '%"></i></div><span>' + pct + '%</span></div></div><div class="wrap">';
-      if (S.help) h += '<div class="help"><span>\ud83d\udc4b Click <b>To do / Doing / Done</b> on each line \u00b7 <b>\u270e</b> adds a note \u00b7 then <b>\ud83d\udce4 Save reply</b> and send the file to ' + esc(P.by || 'me') + '.</span><button data-help="0">Got it</button></div>';
+      if (P.board) h += '<div class="help" style="background:#eef4ff;border-color:#b9cdf5"><span>\ud83d\udccc <b>Team Board</b> \u00b7 updated ' + esc(P.board.at || '') + ' \u00b7 refresh this page to see new tasks \u00b7 each task\u2019s files are in its own folder next to this page \u00b7 <b>Save reply</b> into the <b>' + esc(P.board.replies || '_Replies') + '</b> folder</span></div>';
+      if (S.help) h += '<div class="help"><span>\ud83d\udc4b Click <b>To do / Doing / Done</b> on each line \u00b7 <b>\u270e</b> adds a note \u00b7 then <b>\ud83d\udce4 Save reply</b> and ' + (P.board ? 'save it in the <b>' + esc(P.board.replies || '_Replies') + '</b> folder' : 'send the file to ' + esc(P.by || 'me')) + '.</span><button data-help="0">Got it</button></div>';
       h += '<div class="bar2"><input id="q" placeholder="Search\u2026" value="' + esc(S.q) + '">' + [['all', 'All'], ['open', 'To do'], ['done', 'Done']].map(function (f) { return '<button class="chip' + (S.filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' + f[1] + '</button>'; }).join('') +
         '<button class="chip panelbtn' + (S.panel === 'task' ? ' on' : '') + '" data-panel="task">+ New task</button><button class="chip panelbtn' + (S.panel === 'msg' ? ' on' : '') + '" data-panel="msg">\ud83d\udcac Message' + (S.msg ? ' \u2713' : '') + '</button></div>';
       if (S.panel === 'task') h += '<div class="card panelcard"><div class="panel"><input id="ntT" placeholder="Task name \u2014 something extra you are working on"><textarea id="ntI" placeholder="Items \u2014 one per line (optional)"></textarea>' +
@@ -137,7 +140,7 @@
         if (!ls.length && (S.q || S.filter !== 'all')) return;
         var dn = mine.filter(function (l) { return stOf(l) === 'Completed'; }).length;
         var tlate = t.due && t.due < TODAY && dn < mine.length;
-        h += '<div class="card"><div class="ch"><span class="code">' + esc(t.code) + '</span><b>' + esc(t.title) + '</b>' + (t.group ? '<span class="grp">' + esc(t.group) + '</span>' : '') +
+        h += '<div class="card"><div class="ch"><span class="code">' + esc(t.code) + '</span><b>' + esc(t.title) + '</b>' + (t.isNew ? '<span class="tag">NEW</span>' : '') + (t.group ? '<span class="grp">' + esc(t.group) + '</span>' : '') +
           '<span class="cnt">' + dn + '/' + mine.length + '</span><span class="due' + (tlate ? ' late' : '') + '">' + (t.due ? (tlate ? 'overdue ' : 'due ') + esc(fmt(t.due)) : '') + '</span></div>' +
           (t.notes ? '<div class="lew">\ud83d\udcdd ' + esc(t.notes) + '</div>' : '') + (t.refs && t.refs.length ? '<div class="lew">' + refsHtml(t.refs) + '</div>' : '') + ls.map(itemHtml).join('') +
           '<div class="add"><input data-addin="' + esc(t.code) + '" placeholder="+ add an item\u2026"><button data-add="' + esc(t.code) + '">Add</button></div></div>';
@@ -148,7 +151,7 @@
           '<span class="due">' + (nt.due ? 'due ' + esc(fmt(nt.due)) : '') + '</span></div>' + ls.map(itemHtml).join('') +
           '<div class="add"><input data-addin="t:' + nt.lid + '" placeholder="+ add an item\u2026"><button data-add="t:' + nt.lid + '">Add</button></div></div>';
       });
-      h += '</div><div class="foot"><div class="in"><span class="hint"><span class="saved' + (saveOk ? '' : ' no') + '">' + (saveOk ? '\u2713 Kept on this computer' : '\u26a0 Not kept \u2014 save a reply now') + '</span> \u00b7 press <b>Save reply</b> and send the file back</span>' +
+      h += '</div><div class="foot"><div class="in"><span class="hint"><span class="saved' + (saveOk ? '' : ' no') + '">' + (saveOk ? '\u2713 Kept on this computer' : '\u26a0 Not kept \u2014 save a reply now') + '</span> \u00b7 press <b>Save reply</b> and ' + (P.board ? 'save it in the ' + esc(P.board.replies || '_Replies') + ' folder' : 'send the file back') + '</span>' +
         '<button class="main" data-act="reply">\ud83d\udce4 Save reply</button><button data-act="copy">\ud83d\udccb Copy</button><button data-act="print">\ud83d\udda8</button><button data-act="csv" title="Download as Excel (CSV)">\u2b07 Excel</button></div></div>';
       document.getElementById('app').innerHTML = h;
     }
@@ -227,6 +230,12 @@
       }
       else if ((a('data-act') === 'reply' || a('data-act') === 'copy') && !S.name && !P.person) {   // group file: whose reply is this?
         var nmv = prompt('Your name (so ' + (P.by || 'they') + ' knows who this is from):', ''); if (nmv && nmv.trim()) { S.name = nmv.trim(); save(); el.click(); }
+      }
+      else if (a('data-act') === 'reply' && P.board && window.showSaveFilePicker) {   // a Team Board: save straight into the _Replies folder
+        var rn = 'Reply_' + fileName(S.name || P.label) + '_' + TODAY + '_' + (function () { var d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0'); })() + '.txt', rt = reply();
+        window.showSaveFilePicker({ suggestedName: rn, id: 'ltreplies', types: [{ description: 'Reply', accept: { 'text/plain': ['.txt'] } }] })
+          .then(function (h) { return h.createWritable().then(function (w) { return w.write(rt).then(function () { return w.close(); }); }); })
+          .then(function () { alert('Saved. Make sure it is in the ' + (P.board.replies || '_Replies') + ' folder next to this page.'); }, function (e) { if (!e || e.name !== 'AbortError') download(rn, rt, 'text/plain'); });
       }
       else if (a('data-act') === 'reply') download('Reply_' + fileName(S.name || P.label) + '_' + TODAY + '_' + (function () { var d = new Date(); return String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0'); })() + '.txt', reply(), 'text/plain');
       else if (a('data-act') === 'copy') { var txt = reply(); (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { alert('Copied. Now paste it into an email or Teams message to ' + (P.by || 'me') + '.'); }, function () { showCopy(txt); }); }

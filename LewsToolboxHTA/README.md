@@ -63,6 +63,7 @@ The side menu follows the way the work flows: **WORK** (log it → hand it out �
   - **files or folders copied in Explorer** (Ctrl+C) → copied in (the originals stay)
   - no task folder yet? It offers to make one, then pastes straight in
   - Ctrl+V while typing in a box is the normal paste
+- **What's new** – after an update, a short list of the new things (once). Settings → Reminders → **What's new** shows it again
 - **Reminder on opening** (in the side menu) – once a day: your tasks due today, your late tasks, and who on the team has late work. **Chase up** goes straight to Delegate → Chase up. Turn it off / show it now: **Settings → Reminders**
 - **Copy as email** – right-click a task → **✉ Copy as email** (or **✉ Email it** = an Outlook draft): subject, greeting, details, checklist, references and the task folder, ready to send
 
@@ -136,6 +137,8 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Repeat** daily / weekdays / weekly / monthly: tick it done and the next one is made
 - **Time:** right-click → Start timer (shown at the top), or Add time (`1.5` or `0:45`)
 - **Export ▾:** copy this week's summary for email / Teams, or CSV for Excel (with checklist and references)
+- **Templates** – right-click a task → **📑 Save as template…** (its checklist, who, references and how many days it usually takes). **📑 From template ▾** (top) starts a new task from one, due that many days from today. Delete a template from the same menu
+- **Close-out pack** – right-click a task (or **📦 Close-out pack** in its folder window): a zip of its **Output** folder + the summary (PDF + HTML) + notes, saved in the task folder as `<ID> <task> - close-out <date>.zip`
 
 ### Task folders (everything about one task in one place)
 
@@ -149,6 +152,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
   - **+ Add files…** / **+ Add a folder…** – choose **Copy** or **Move** (remembered). The same name twice gets (2), (3)…
   - **📋 Paste (Ctrl+V)** – a snip (Win+Shift+S) is saved as `Screenshot <date time>.png`; files copied in Explorer (Ctrl+C) are copied in. Goes into the folder you're looking at
   - In the task window: **📋 Paste screenshot / files** (saves the task, then pastes into Reference)
+  - **🕘 Timeline** – everything that happened, newest first: created (or from a template), status changes, delegated (with the TR number), progress and replies from Delegate, chased, files added, close-out. Also in the summary
   - **📝 Notes** – type or paste (Teams / email text, a call, a decision); each note gets the date and time
 - **Task Summary** – made new on every save (always the folder as it is now), one professional page: details, description, notes, checklist, references, and every file of Reference / Incoming / Output **with links**. Updated when you close the window (if something changed), or **↻ Update summary (HTML + PDF)**. Open it with **📄 Open the summary** – the links open the files (the HTML keeps working if you move the folder; the PDF is made again on the next save). If the PDF is open in a viewer, close it and update again. The PDF is printed by Edge (or Chrome, or Word) without opening a window
 - **📂 Open a task folder…** (top of Tasks) – pick any task folder: its task opens. If it isn't in your Tasks (another PC, or deleted), it's added back from the folder
@@ -171,6 +175,18 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Group tasks go to the group's lead** (on): the lead gets one message with the member's name on each item. Off: each member is chased directly
 - **📋 Copy** (for Teams) or **✉ Email (Outlook)** – a draft to that person, you check it and press Send. **Copy all** = every message at once
 - Each chase is noted in the task's **History** ("Chased up Kim (email)")
+
+**📌 Team Board** (a shared folder for a group – the team opens one page, the Toolbox does all the filing)
+- Double-click a group → **Team folder (shared)** → Browse… (a network drive, or a synced SharePoint / OneDrive folder). The board is made straight away
+- In that folder:
+  - `Team Board - <group>.html` – the page the team opens (Chrome / Edge): every task and item, who, due, status, references (click to open), **NEW** on what you added in the last 7 days
+  - `T001 <task>\Reference` – the reference files, copied in (a `.zip` is unzipped next to it) · `T001 <task>\Output` – for the team's work (listed on the board)
+  - `_Replies` – the team presses **Save reply** and saves the file here (Edge / Chrome ask where – pick `_Replies`)
+- **Adding work later** (e.g. the team has T001–T005 and you have task 6): make it in **Tasks** as usual (notes, references, task folder) → Delegate → **📥 From Tasks…** → pick it. Because the group is busy it asks: **+ A new task** or **↳ An item under T00x**. Either way it's copied onto the board straight away – the team refreshes the page and sees it marked NEW
+- **📥 N replies on team boards** (top of Delegate) – loads the replies in `_Replies` (you see every change first), then moves them to `_Replies\Loaded` and updates the board
+- **📌 Update team board** appears when you changed something (status, items, dates) since the last update. Saving a task in the edit window updates it by itself
+- **Team & groups** shows each group's board: **Update board** · **Open**
+- Can't reach the folder (drive not connected)? It says so; nothing is lost – update later
 
 **Groups and leads** (view **👥 Team & groups** → **+ Group**, double-click to edit)
 - A group = name, **lead**, members. A task for the group goes **only to the lead**
@@ -219,6 +235,9 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **Column widths:** drag the edge of a heading (all but Drawing); double-click the edge = back to normal. Remembered on this PC
 - **Export ▾:** Excel with Number, Description, Tower, Typology, Model (like the generated list), or with revision / section / status; copy the MIDP changes for email / Teams
 - **History ▾:** every MIDP loaded, with its changes
+- **📋 Status** view – where every sheet is: **Not started · In progress · Checked · Issued**, with counts, a progress bar and **% issued** (click a count to see only those)
+  - **Issued** comes by itself from the Transmittal log (the last rev, TR number and date). Set the others: click the status, or tick rows → **Set status ▾**. A status you set after the last issue wins (e.g. being revised again)
+- **Online link** – double-click a drawing → **Online link** (ACC / SharePoint / BIM 360). It shows as **🔗 link** in the list; drawing references in Tasks / Delegate then open it, and summaries, packs and emails include it
 - **Folder Check** looks drawings up here (Contents & checklist: Checklist ▾ → Drawing Register)
 - Nothing about a project is written into the program – each project lives in `register\` in your data folder
 
@@ -322,6 +341,11 @@ The folder comes first – "what's in here?"
 1. Project, **To**, Attention, Purpose of issue, Notes
 2. Documents: **From a folder**, **Paste a list**, or Folder Check (Submission check) → Report ▾ → **Make a transmittal** – and **Delegate** makes one for each person by itself. **Fill titles from my list** uses the list set up in Folder Check
 3. **Make the transmittal** – Excel issue sheet (CSV without Excel), numbered **TR-001, TR-002…**; tick *also copy the files* to put the files in the transmittal folder
+- **Revision check** (the last column), from the Transmittal log and the files' folder:
+  - **⚠ Lower than C01 already issued (TR-001)** – red
+  - **⚠ C02 is in the folder – newer than C01** – red (you picked an old file)
+  - **Same rev as TR-003 – a re-issue?** – amber · **↑ from C01** – green · **First issue**
+  - Order of revisions: P (preliminary) → T (tender) → C (construction) → A (as built), then the number. **Make the transmittal** asks first if anything is red
 - **Sent log ▾**: reopen or reuse a past transmittal, numbering / prefix, where transmittals are saved, export the log
 
 ## Superseded

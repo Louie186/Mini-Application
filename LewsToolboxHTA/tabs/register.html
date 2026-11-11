@@ -47,6 +47,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
 #pkList .n{float:right;margin-left:8px}
 </style>
 <script src="../core/lt-core.js"></script>
+<script src="../core/lt-transmittal.js"></script>
 </head>
 <body>
 <div id="app">
@@ -62,7 +63,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
     <input type="text" id="search" placeholder="Search number / title / section" style="width:220px;margin:0 8px 6px 0"><button class="btn small" id="fClear" style="display:none">&#10005; Clear filters</button>
   </div>
   <div id="sum" class="muted"></div>
-  <div id="tickBar"><span class="lbl big" id="tickN"></span><button class="btn small primary" id="bSet">Set Tower / Typology...</button><button class="btn small" id="bAccept">&#10004; Accept the guesses</button><button class="btn small" id="bUntick">Clear ticks</button></div>
+  <div id="tickBar"><span class="lbl big" id="tickN"></span><button class="btn small primary" id="bSet">Set Tower / Typology...</button><button class="btn small" id="bStat" style="display:none">Set status &#9662;</button><button class="btn small" id="bAccept">&#10004; Accept the guesses</button><button class="btn small" id="bUntick">Clear ticks</button></div>
   <div id="res"></div>
   <div id="empty" style="display:none">
     <h2>Drawing Register</h2>
@@ -357,7 +358,8 @@ function pickList() {
 }
 function pickHide() { $("pick").style.display = "none"; pickKey = ""; }
 function pass(k, d, s) {
-  if (view == "midp" && s.gone) return false; if (view == "changes" && !P.changes[k]) return false; if (view == "check" && !s.check) return false; if (view == "gone" && !s.gone) return false;
+  if ((view == "midp" || view == "status") && s.gone) return false;
+  if (view == "status" && stF && dStat(k, d).st != stF) return false; if (view == "changes" && !P.changes[k]) return false; if (view == "check" && !s.check) return false; if (view == "gone" && !s.gone) return false;
   var q = LT.trim($("search").value).toLowerCase();
   for (var f in F) if (F.hasOwnProperty(f) && keys(F[f]).length && !F[f][d[f] || "(empty)"]) return false;
   if (q) { var all = (d.num + " " + d.title + " " + (d.cat || "")).toLowerCase(), ws = q.split(/\s+/); for (var w = 0; w < ws.length; w++) if (ws[w] && all.indexOf(ws[w]) < 0) return false; }
@@ -367,7 +369,7 @@ function order(D) { var a = [], seen = {}, o = P.order || []; for (var i = 0; i 
   var rest = []; for (var k in D) if (D.hasOwnProperty(k) && !seen[k]) rest.push(k); rest.sort(); return a.concat(rest); }
 function render() {
   if (!P) return;
-  var n = counts(), V = [["midp", "In the MIDP", n.midp], ["changes", "Changes in the last MIDP", n.changes], ["check", "To check", n.check], ["gone", "Removed from the MIDP", n.gone], ["all", "Everything", n.all]], vh = "";
+  var n = counts(), V = [["midp", "In the MIDP", n.midp], ["changes", "Changes in the last MIDP", n.changes], ["check", "To check", n.check], ["status", "&#128203; Status", n.midp], ["gone", "Removed from the MIDP", n.gone], ["all", "Everything", n.all]], vh = "";
   for (var v = 0; v < V.length; v++) vh += '<span class="chip' + (view == V[v][0] ? " on" : "") + '" data-v="' + V[v][0] + '">' + V[v][1] + " " + V[v][2] + "</span>";
   $("views").innerHTML = vh;
   $("sum").innerHTML = P.last ? "Last MIDP: <b>" + esc(P.last.file) + "</b> &middot; loaded " + esc(P.last.date) + " &middot; " + P.last.count + " drawings" + (P.history[0] ? " &middot; " + P.history[0].nw + " new, " + P.history[0].gone + " removed, " + P.history[0].chg + " titles changed" : "") + (n.check ? ' &middot; <span class="warn">' + n.check + " to check</span>" : "") + (P.models.length ? "" : ' &middot; <span class="muted">no models table yet (Setup)</span>')
@@ -375,7 +377,9 @@ function render() {
   var D = P.drawings, ks = order(D), W = colW(), longest = 10;
   for (var z = 0; z < ks.length; z++) if (D[ks[z]].num.length > longest) longest = D[ks[z]].num.length;
   var fs = LT.themeVars().fs || 13, wNo = Math.round(longest * fs * 0.66) + 22, tot = 34 + wNo, cg = '<colgroup><col style="width:34px"><col style="width:' + wNo + 'px">', th = "";
-  for (var c = 0; c < COLS.length; c++) { var cc = COLS[c]; tot += W[cc[0]]; cg += '<col data-c="' + cc[0] + '" style="width:' + W[cc[0]] + 'px">'; th += "<th>" + cc[1] + '<span class="rz" data-rz="' + cc[0] + '" title="Drag to change the width (double-click = back to normal)"></span></th>'; }
+  var CL = cols(); ISS = LT.trIssued();
+  if (view == "status") $("sum").innerHTML = statusSummary();
+  for (var c = 0; c < CL.length; c++) { var cc = CL[c]; tot += W[cc[0]]; cg += '<col data-c="' + cc[0] + '" style="width:' + W[cc[0]] + 'px">'; th += "<th>" + cc[1] + '<span class="rz" data-rz="' + cc[0] + '" title="Drag to change the width (double-click = back to normal)"></span></th>'; }
   var h = ['<table class="grid" id="tbl" style="width:' + tot + 'px">' + cg + '</colgroup><tr><th class="tk"><input type="checkbox" id="tkAll" style="height:auto" title="Tick all shown"></th><th>Drawing</th>' + th + "</tr>"];
   shown = []; var max = 2000;
   for (var i = 0; i < ks.length; i++) { var k = ks[i], d = D[k], s = stat(k, d); if (!pass(k, d, s)) continue; shown.push(k); if (shown.length > max) continue;
@@ -386,14 +390,35 @@ function render() {
     if (d.link) note.push('<span class="lnk" data-lnk="' + esc(k) + '" title="' + esc(d.link) + '">&#128279; link</span>');
     if (!d.typo && !s.gone) note.push('<span class="bad">set Tower / Typology</span>');
     else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
-    h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td><td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + esc(modelOf(d)) + "</td><td>" + note.join(" ") + "</td></tr>"); }
+    h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td>" + (view == "status" ? stCell(k, d) : "") + "<td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + esc(modelOf(d)) + "</td><td>" + note.join(" ") + "</td></tr>"); }
   h.push("</table>");
   if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
   if ($("tkAll")) { var all = shown.length > 0; for (var ta = 0; ta < shown.length && all; ta++) if (!ticked[shown[ta]]) all = false; $("tkAll").checked = all; }
   tickBar();
 }
-function tickBar() { var n = keys(ticked).length; $("tickBar").style.display = n ? "block" : "none"; $("tickN").innerHTML = n + " ticked:"; }
+/* ---------- drawing status: Not started / In progress / Checked (you set) / Issued (from the transmittal log) ---------- */
+var ST_LIST = ["Not started", "In progress", "Checked", "Issued"], ISS = {}, stF = "";
+function dStat(k, d) {
+  var x = ISS[k] || ISS[(d.num || "").toUpperCase()];
+  if (x && (!d.st || !d.stAt || d.stAt <= x.last.date)) return { st: "Issued", x: x, text: "Issued " + (x.last.rev || "") + " \u00b7 " + x.last.no + " \u00b7 " + LT.fmtDate(x.last.date) };
+  var st = d.st || "Not started"; return { st: st, x: x, text: st + (x ? "  (issued " + (x.last.rev || "") + " " + x.last.no + ")" : "") };
+}
+function stCell(k, d) { var s = dStat(k, d); return '<td class="st st' + ST_LIST.indexOf(s.st) + ' nw" data-st="' + esc(k) + '" title="' + esc(s.text) + ' - click to change">' + esc(s.text) + "</td>"; }
+function statusSummary() {
+  var D = P.drawings, n = [0, 0, 0, 0], tot = 0;
+  for (var k in D) if (D.hasOwnProperty(k) && D[k].inMidp !== false) { tot++; n[ST_LIST.indexOf(dStat(k, D[k]).st)]++; }
+  var h = '<span class="lbl">Every drawing in the MIDP (' + tot + "):</span>";
+  for (var i = 0; i < 4; i++) h += '<span class="chip stc st' + i + (stF == ST_LIST[i] ? " on" : "") + '" data-stf="' + ST_LIST[i] + '">' + ST_LIST[i] + " " + n[i] + "</span>";
+  h += '<span class="stbar">'; for (var j = 0; j < 4; j++) if (n[j]) h += '<i class="st' + j + '" style="width:' + (n[j] * 100 / tot).toFixed(1) + '%"></i>'; h += "</span>";
+  return h + ' <b>' + (tot ? Math.round(n[3] * 100 / tot) : 0) + "% issued</b>" + (stF ? ' <span class="chip" data-stf="">&#10005; all</span>' : "");
+}
+function setStat(ks, st) { for (var i = 0; i < ks.length; i++) { var d = P.drawings[ks[i]]; d.st = st == "Not started" ? "" : st; d.stAt = LT.today(); } saveP(); render(); LT.toast(ks.length + " drawing(s): " + st); }
+function statMenu(ks, x, y) { var m = [{ label: '<span class="muted">' + ks.length + " drawing(s)</span>", fn: function () { } }];
+  for (var i = 0; i < 3; i++) (function (s) { m.push({ label: s, fn: function () { setStat(ks, s); } }); })(ST_LIST[i]);
+  m.push({ label: '<span class="muted">Issued = when it goes out on a transmittal</span>', fn: function () { } }); LT.menu(x, y, m); }
+function cols() { return view == "status" ? [COLS[0], ["st", "Status", 230]].concat(COLS.slice(1)) : COLS; }
+function tickBar() { var n = keys(ticked).length; $("bStat").style.display = view == "status" ? "" : "none"; $("tickBar").style.display = n ? "block" : "none"; $("tickN").innerHTML = n + " ticked:"; }
 
 /* ---------- editing ---------- */
 function opts(el, list, target) { var h = ""; for (var i = 0; i < list.length && i < 40; i++) h += '<span class="chipO" data-o="' + esc(list[i]) + '">' + esc(list[i]) + "</span>"; $(el).innerHTML = h; $(el).onclick = function (e) { var o = LT.up(e.target || e.srcElement, "data-o"); if (o) { $(target).value = o.getAttribute("data-o"); if (target == "edTower") typoOpts(); hint(); } }; }
@@ -564,7 +589,7 @@ $("pkDone").onclick = pickHide;
   if (document.attachEvent) document.attachEvent("onmousedown", h); else document.addEventListener("mousedown", h, false); })();
 /* column widths: drag the edge of a heading (not Drawing); remembered on this PC */
 var COLS = [["rev", "Rev", 60], ["title", "Title", 360], ["cat", "Section", 200], ["tower", "Tower", 70], ["typo", "Typology", 120], ["model", "Model", 250], ["note", "Note", 200]], drag = null;
-function colW() { var s = LT.settings(), w = s.regCols || {}, o = {}; for (var i = 0; i < COLS.length; i++) o[COLS[i][0]] = w[COLS[i][0]] || COLS[i][2]; return o; }
+function colW() { var s = LT.settings(), w = s.regCols || {}, o = {}, C = COLS.concat([["st", "Status", 230]]); for (var i = 0; i < C.length; i++) o[C[i][0]] = w[C[i][0]] || C[i][2]; return o; }
 function saveColW(o) { var s = LT.settings(); s.regCols = o; LT.saveSettings(s); }
 $("res").onmousedown = function (e) {
   e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || !t.getAttribute("data-rz")) return;
@@ -577,11 +602,12 @@ $("res").onmousedown = function (e) {
   var upf = function () { if (!drag) return; if (drag.now) { drag.W[drag.c] = drag.now; saveColW(drag.W); } drag = null; };
   if (document.attachEvent) { document.attachEvent("onmousemove", mv); document.attachEvent("onmouseup", upf); } else { document.addEventListener("mousemove", mv, false); document.addEventListener("mouseup", upf, false); }
 })();
-$("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.getAttribute && t.getAttribute("data-rz")) { var W = colW(); for (var i = 0; i < COLS.length; i++) if (COLS[i][0] == t.getAttribute("data-rz")) W[COLS[i][0]] = COLS[i][2]; saveColW(W); render(); return; }
+$("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.getAttribute && t.getAttribute("data-rz")) { var W = colW(), CL = cols(); for (var i = 0; i < CL.length; i++) if (CL[i][0] == t.getAttribute("data-rz")) W[CL[i][0]] = CL[i][2]; saveColW(W); render(); return; }
   var tr = LT.up(t, "data-k"); if (tr) edit([tr.getAttribute("data-k")]); };
 $("res").onclick = function (e) {
   e = e || window.event; var t = e.target || e.srcElement;
   if (t.id == "tkAll") { ticked = {}; if (t.checked) for (var i = 0; i < shown.length; i++) ticked[shown[i]] = 1; render(); return; }
+  var sc = LT.up(t, "data-st"); if (sc) { var sk = sc.getAttribute("data-st"); statMenu(ticked[sk] ? keys(ticked) : [sk], e.clientX, e.clientY); return; }
   var lnk = LT.up(t, "data-lnk"); if (lnk) { try { LT.open(P.drawings[lnk.getAttribute("data-lnk")].link); } catch (x) { } return; }
   var td = t; while (td && td.tagName != "TD") td = td.parentNode; if (!td || td.className.indexOf("tk") < 0) return;
   var tr = LT.up(td, "data-k"); if (!tr) return; var k = tr.getAttribute("data-k"), pos = -1; for (var j = 0; j < shown.length; j++) if (shown[j] == k) pos = j;
@@ -596,11 +622,14 @@ $("res").oncontextmenu = function (e) {
     { label: "&#10004; Accept the guess" + (ks.length > 1 ? "es (" + ks.length + ")" : ""), fn: function () { accept(ks); } },
     { label: "Guess again", fn: function () { var o = {}; for (var i = 0; i < ks.length; i++) { o[ks[i]] = 1; P.drawings[ks[i]].ok = false; P.drawings[ks[i]].how = ""; } guessAll(o); saveP(); render(); } },
     P.drawings[k].link ? { label: "&#128279; Open the online link", fn: function () { try { LT.open(P.drawings[k].link); } catch (x) { } } } : { label: "&#128279; Add an online link...", fn: function () { edit([k]); } },
+    { label: "Status &#9656;", fn: function () { statMenu(ks, e.clientX, e.clientY); } },
     "-", { label: "Copy the number", fn: function () { LT.copyText(P.drawings[k].num); LT.toast("Copied"); } }]);
   if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
 };
-$("bSet").onclick = function () { edit(keys(ticked)); }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
-function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
+$("bSet").onclick = function () { edit(keys(ticked)); };
+$("bStat").onclick = function (e) { var a = at(this); statMenu(keys(ticked), a[0], a[1]); stop(e); };
+$("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-stf"); if (c) { stF = c.getAttribute("data-stf"); render(); } }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".stc{cursor:pointer;margin-right:6px}.stbar{display:inline-block;vertical-align:middle;width:180px;height:10px;margin:0 8px;background:{chip};border-radius:5px;overflow:hidden;white-space:nowrap}.stbar i{display:inline-block;height:10px}", "td.st{cursor:pointer;font-weight:bold}td.st0{color:{muted};font-weight:normal}td.st1{color:{warn}}td.st2{color:{accent}}td.st3{color:{ok}}.stbar i.st0{background:{line}}.stbar i.st1{background:{warn}}.stbar i.st2{background:{accent}}.stbar i.st3{background:{ok}}.chip.st3{color:{ok}}.chip.st1{color:{warn}}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
 window.ltTheme = look; window.ltReload = loadAll; window.ltShown = function () { if (P) render(); };
 /* from search (Ctrl+K): show that drawing */
 window.ltReceive = function (what, value) { if (what == "find" && P) { $("search").value = value; fillFilters(); render(); } };

@@ -54,11 +54,10 @@
 <datalist id="toList"></datalist>
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso, store, docs = [];
-var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
 function load() { store = LT.trLoad(); }
 function save() { try { LT.trSave(store); } catch (e) { alert("Couldn't save the transmittal log."); } }
 function no(n) { return LT.trNo(store, n); }
-function split(stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; }
+function split(stem) { return LT.trSplit(stem); }
 function header() {
   $("noLbl").innerHTML = "Transmittal " + esc(no(store.next)); var d = new Date(); $("dateLbl").innerHTML = d.getDate() + " " + LT.MON[d.getMonth()] + " " + d.getFullYear();
   if (!$("hProj").value) $("hProj").value = store.project;
@@ -106,18 +105,20 @@ function fillTitles(quiet) {
   render(); if (n || !quiet) LT.toast(n + " title(s) filled from your list");
 }
 function render() {
-  var h = ['<table class="grid"><tr><th style="width:40px">No.</th><th>Drawing / document number</th><th>Title</th><th style="width:70px">Rev</th><th style="width:110px">Format</th><th style="width:30px"></th></tr>'];
-  for (var i = 0; i < docs.length; i++) { var d = docs[i];
-    h.push("<tr><td>" + (i + 1) + '</td><td><input type="text" data-i="' + i + '" data-k="number" value="' + esc(d.number) + '"></td><td><input type="text" data-i="' + i + '" data-k="title" value="' + esc(d.title) + '"></td><td><input type="text" data-i="' + i + '" data-k="rev" value="' + esc(d.rev) + '"></td><td><input type="text" data-i="' + i + '" data-k="types" value="' + esc(d.types.join(", ")) + '"></td><td><button class="btn small" data-rm="' + i + '" style="margin:0">&#10005;</button></td></tr>'); }
+  var h = ['<table class="grid nonum"><tr><th style="width:40px">No.</th><th>Drawing / document number</th><th>Title</th><th style="width:70px">Rev</th><th style="width:110px">Format</th><th style="width:260px">Revision check</th><th style="width:30px"></th></tr>'], iss = LT.trIssued(store), nBad = 0;
+  for (var i = 0; i < docs.length; i++) { var d = docs[i], rc = LT.revCheck(iss, d.number, d.rev, d.files); d.check = rc; if (rc.level == "bad") nBad++;
+    h.push("<tr><td>" + (i + 1) + '</td><td><input type="text" data-i="' + i + '" data-k="number" value="' + esc(d.number) + '"></td><td><input type="text" data-i="' + i + '" data-k="title" value="' + esc(d.title) + '"></td><td><input type="text" data-i="' + i + '" data-k="rev" value="' + esc(d.rev) + '"></td><td><input type="text" data-i="' + i + '" data-k="types" value="' + esc(d.types.join(", ")) + '"></td><td class="rc ' + rc.level + '">' + esc(rc.text) + '</td><td><button class="btn small" data-rm="' + i + '" style="margin:0">&#10005;</button></td></tr>'); }
   h.push("</table>");
   $("docs").innerHTML = docs.length ? h.join("") : '<div class="muted" style="padding:24px;line-height:1.8">Add the documents: <b>From a folder</b>, <b>Paste a list</b>, or in <b>Folder Check</b> (Submission check) use <b>Report &#9662; &gt; Make a transmittal</b>. Delegating a task in <b>Delegate</b> makes one by itself.<br>Titles can be filled from your list (the one set up in Folder Check).</div>';
-  $("cnt").innerHTML = docs.length ? docs.length + " document(s)" : "";
+  $("cnt").innerHTML = docs.length ? docs.length + " document(s)" + (nBad ? ' &middot; <span class="bad">&#9888; ' + nBad + " revision problem" + (nBad > 1 ? "s" : "") + "</span>" : "") : "";
 }
 
 /* ---------- make it ---------- */
 function make() {
   if (!docs.length) { alert("Add the documents first."); return; }
   if (!LT.trim($("hTo").value) && !confirm("No recipient (To) - make it anyway?")) return;
+  var bad = []; for (var b = 0; b < docs.length; b++) if (docs[b].check && docs[b].check.level == "bad") bad.push(docs[b].number + " " + docs[b].rev + ": " + docs[b].check.text.replace(/^\u26a0 /, ""));
+  if (bad.length && !confirm("Revision check - " + bad.length + " problem(s):\n\n" + bad.slice(0, 12).join("\n") + (bad.length > 12 ? "\n..." : "") + "\n\nMake the transmittal anyway?")) return;
   var t = { project: LT.trim($("hProj").value), to: LT.trim($("hTo").value), attn: LT.trim($("hAttn").value), purpose: $("hPurp").value, notes: LT.trim($("hNotes").value), items: [] };
   for (var i = 0; i < docs.length; i++) t.items.push({ number: docs[i].number, title: docs[i].title, rev: docs[i].rev, types: docs[i].types.join(", "), files: docs[i].files });
   var r; try { r = LT.trMake(t, { copy: $("copyFiles").checked }); } catch (e) { alert("Couldn't make the transmittal:\n" + (e.message || e)); return; }
@@ -145,9 +146,9 @@ $("bFolder").onclick = fromFolder; $("bPaste").onclick = pasteList; $("bTitles")
 $("bMake").onclick = make; $("copyFiles").onclick = header;
 $("bNew").onclick = function () { if (docs.length && !confirm("Clear the documents and start a new transmittal?")) return; docs = []; $("hTo").value = ""; $("hAttn").value = ""; $("hNotes").value = ""; render(); };
 $("bLog").onclick = function (e) { var r = this.getBoundingClientRect(); logMenu(r.left - 200, r.bottom + 2); (e || window.event).cancelBubble = true; };
-$("docs").onchange = function (e) { var t = e.target || e.srcElement, i = t.getAttribute && t.getAttribute("data-i"); if (i == null) return; var k = t.getAttribute("data-k"); docs[+i][k] = k == "types" ? LT.trim(t.value).split(/\s*,\s*/) : LT.trim(t.value); };
+$("docs").onchange = function (e) { var t = e.target || e.srcElement, i = t.getAttribute && t.getAttribute("data-i"); if (i == null) return; var k = t.getAttribute("data-k"); docs[+i][k] = k == "types" ? LT.trim(t.value).split(/\s*,\s*/) : k == "rev" ? LT.trim(t.value).toUpperCase() : LT.trim(t.value); if (k == "rev" || k == "number") render(); };
 $("docs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-rm"); if (b) { docs.splice(+b.getAttribute("data-rm"), 1); render(); } };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#docs{background:{panel}}"]); }
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#docs{background:{panel}}", "td.rc{font-size:.88em}td.rc.bad{color:{bad};font-weight:bold}td.rc.warn{color:{warn}}td.rc.ok{color:{ok}}td.rc.new{color:{muted}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); header(); };
 /* from Folder Check (Submission check view): "add-files" with a JSON list of file paths */
 window.ltReceive = function (what, value) { if (what == "add-files") { try { var n = addFiles(JSON.parse(value)); LT.toast(n + " document(s) added from Folder Check"); fillTitles(true); } catch (e) { } } };

@@ -8,6 +8,42 @@
   L.trSave = function (s) { L.saveJson(L.trFile(), s); };
   L.trNo = function (s, n) { var x = "" + (n == null ? s.next : n); while (x.length < 3) x = "0" + x; return s.prefix + x; };
   L.trDir = function (s, no) { return (s.out || L.exportsDir() + "\\Transmittals") + "\\" + no; };
+  /* ---------- revisions ----------
+     "C02" -> { p: "C", n: 2 }. Order of the letters: P (preliminary) < T (tender) < C (construction) < A (as built); other letters after, A-Z.
+     L.revCmp(a, b) < 0 when a is older. */
+  var RORD = { P: 1, S: 1, D: 1, T: 2, C: 3, A: 4 };
+  function rp(r) { var m = /^([A-Z]*)\s*(\d*)$/i.exec(L.trim(r || "")); if (!m) return { p: L.trim(r || "").toUpperCase(), n: 0 }; return { p: m[1].toUpperCase(), n: +m[2] || 0 }; }
+  function rank(p) { return p ? (RORD[p] || 10 + p.charCodeAt(0)) : 0; }
+  L.revCmp = function (a, b) { var x = rp(a), y = rp(b); if (x.p != y.p) return rank(x.p) - rank(y.p); return x.n - y.n; };
+  var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
+  /* "A-101-C02" -> { base: "A-101", rev: "C02" } (the revision is the last part after - or _) */
+  L.trSplit = function (stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; };
+  /* every drawing ever issued: { "A-101": { rev: highest rev, no: "TR-005", date, last: { rev, no, date } } } */
+  L.trIssued = function (s) {
+    s = s || L.trLoad(); var o = {};
+    for (var i = 0; i < s.log.length; i++) { var t = s.log[i]; for (var k = 0; k < (t.items || []).length; k++) { var it = t.items[k], key = L.trim(it.number || "").toUpperCase(); if (!key) continue;
+      var x = o[key] || (o[key] = { rev: "", no: "", date: "", last: null, count: 0 }); x.count++; x.last = { rev: it.rev || "", no: t.no, date: t.date };
+      if (!x.no || L.revCmp(it.rev, x.rev) >= 0) { x.rev = it.rev || ""; x.no = t.no; x.date = t.date; } } }
+    return o;
+  };
+  /* before issuing: is this revision right? { level: "bad" | "warn" | "ok" | "new", text }
+     - lower than one already issued, or a newer revision of it is in the same folder = bad
+     - the same revision as already issued = warn (a re-issue?) */
+  L.revCheck = function (issued, number, rev, files) {
+    var key = L.trim(number || "").toUpperCase(), x = issued[key], res = null;
+    if (x && x.rev && rev && L.revCmp(rev, x.rev) < 0) res = { level: "bad", text: "\u26a0 Lower than " + x.rev + " already issued (" + x.no + ")" };
+    else if (x && L.trim(rev).toUpperCase() == L.trim(x.rev).toUpperCase()) res = { level: "warn", text: "Same rev as " + x.no + " (" + L.fmtDate(x.date) + ") \u2013 a re-issue?" };
+    else if (x) res = { level: "ok", text: "\u2191 from " + (x.rev || "(no rev)") + " (" + x.no + ")" };
+    else res = { level: "new", text: "First issue" };
+    var dirs = {}, newer = "";
+    for (var i = 0; i < (files || []).length; i++) { var d = fso.GetParentFolderName(files[i]); if (d && !dirs[d.toLowerCase()]) { dirs[d.toLowerCase()] = d; } }
+    for (var dk in dirs) if (dirs.hasOwnProperty(dk)) { try { var e = new Enumerator(fso.GetFolder(dirs[dk]).Files);
+      for (; !e.atEnd(); e.moveNext()) { var n = "" + e.item().Name, j = n.lastIndexOf("."), sp = L.trSplit(j > 0 ? n.substring(0, j) : n);
+        if (sp.base.toUpperCase() == key && sp.rev && rev && L.revCmp(sp.rev, rev) > 0 && (!newer || L.revCmp(sp.rev, newer) > 0)) newer = sp.rev; } } catch (e2) { } }
+    if (newer) res = { level: "bad", text: "\u26a0 " + newer + " is in the folder \u2013 newer than " + rev };
+    return res;
+  };
+
   /* t = { project, to, attn, purpose, notes, items: [...], tasks? }; opts.copy = copy each item's files in;
      opts.extra = [[source, path inside the transmittal folder], ...] (e.g. a task pack and its References\ files).
      Returns { no, dir, file, copied, errors }. Excel makes the sheet; without Excel a CSV is made. */

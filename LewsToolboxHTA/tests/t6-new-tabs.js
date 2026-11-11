@@ -36,7 +36,7 @@ module.exports = async ({ page, out }) => {
   ok(await page.evaluate(() => !!window.__mockFs.dirs['c:\\projects\\5013 tower 1\\01 wip\\coordination\\clash reports']), 'Folders: project tree created');
   ok(await f.evaluate(() => $('bMake').disabled), 'Folders: nothing left to make the second time');
   // Naming
-  f = await go('naming');
+  await go('check'); await page.mouse.move(900, 600); await page.frame({ url: /check\.html/ }).click('[data-fv="naming"]'); await page.waitForTimeout(700); f = page.frame({ url: /naming\.html/ });   // a view inside Folder Check
   await f.evaluate(() => { folder = 'C:\\Print'; }); await f.click('#bRun');
   const nm = await f.evaluate(() => results.map(r => r.name + ': ' + (r.probs.join(' / ') || 'OK')));
   console.log('   ' + nm.join('\n   '));
@@ -51,7 +51,7 @@ module.exports = async ({ page, out }) => {
   await f.click('#bUndo'); await page.waitForTimeout(200);
   ok(await page.evaluate(() => !!window.__mockFs.files['c:\\print\\5013-keo-t1-zz-dr-a-10101-p01.pdf']), 'Superseded: undo puts them back');
   // Compare
-  f = await go('compare');
+  await go('check'); await page.mouse.move(900, 600); await page.frame({ url: /check\.html/ }).click('[data-fv="compare"]'); await page.waitForTimeout(700); f = page.frame({ url: /compare\.html/ });   // a view inside Folder Check
   await f.evaluate(() => { cfg.a = { kind: 'folder', path: 'C:\\Sub1' }; cfg.b = { kind: 'folder', path: 'C:\\Sub2' }; paths(); }); await f.click('#bRun');
   const cmp = await f.evaluate(() => result.map(r => r.base.slice(-5) + ':' + r.st).join(' '));
   console.log('   ' + cmp);

@@ -102,6 +102,8 @@ var LT = (function () {
   L.copyText = function (t) { try { window.clipboardData.setData("Text", t); return true; } catch (e) { return false; } };
   L.pickFolder = function (title) { try { var f = L.shell().BrowseForFolder(0, title || "Pick a folder", 0x51); return f ? f.Self.Path : null; } catch (e) { return null; } };
   /* file picker: the HTA engine gives the full path from a file input */
+  /* a view inside Folder Check picked a folder: the other views use it too */
+  L.folderPicked = function (f) { try { if (f && window.parent !== window && window.parent.ltFolderPicked) window.parent.ltFolderPicked(f); } catch (e) { } };
   L.pickFile = function (cb) {
     var inp = document.createElement("input"); inp.type = "file"; inp.style.display = "none"; document.body.appendChild(inp);
     inp.onchange = function () { var v = inp.value; try { document.body.removeChild(inp); } catch (e) { } if (v) cb(v); };

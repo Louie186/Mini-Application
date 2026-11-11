@@ -101,7 +101,7 @@ module.exports = async ({ page, out }) => {
   ok(await f.evaluate(() => colW().title == 360), 'double-click the edge = back to normal');
   ok(await f.evaluate(() => !document.querySelector('.rz[data-rz="no"]') && document.querySelectorAll('.rz').length == 7), 'Drawing column has no drag edge; the 7 others do');
   // other tabs use it
-  await page.click('.nb[data-k="contents"]'); await page.waitForTimeout(300);
+  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(400); await page.mouse.move(900, 600); await page.frame({ url: /check\.html/ }).click('[data-fv="contents"]'); await page.waitForTimeout(700);   // a view inside Folder Check
   const c = page.frame({ url: /contents\.html/ });
   await c.evaluate(() => { top.__nextFolder = 'C:\\Sub'; }); await c.click('#bFolder'); await page.waitForTimeout(200);
   ok(await c.evaluate(() => document.getElementById('aReg').style.display != 'none'), 'Folder Contents offers the Drawing Register');
@@ -118,7 +118,7 @@ module.exports = async ({ page, out }) => {
   await c.evaluate(() => { useRef('none'); });
   ok(await c.evaluate(() => result.rows.length == 2 && regUsed == 2 && /<th>Tower/.test(document.getElementById('res').innerHTML)), '"None" still shows Tower / Typology / Model from the register');
   await page.screenshot({ path: out + '/j_contents_reg.png' });
-  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(300);
+  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(300); await page.mouse.move(900, 600); await page.frame({ url: /check\.html/ }).click('[data-fv="sub"]');   // Folder Check remembers the last view
   const k = page.frame({ url: /check\.html/ });
   await page.evaluate(() => { const fs = window.__mockFs, p = 'C:\\Lists\\Short.csv'; fs.files[p.toLowerCase()] = { path: p, text: 'Number,Title\r\n9001-ABC-T1-ZZ-PLN-INT-10100,A\r\n9001-ABC-T2-ZZ-PLN-INT-20101,B\r\n', time: Date.now() }; });
   await k.evaluate(() => { cfg.folder = 'C:\\Sub'; readList('C:\\Lists\\Short.csv', true); cfg.list = 'C:\\Lists\\Short.csv'; saveCfg(); showPaths(); });
@@ -127,7 +127,7 @@ module.exports = async ({ page, out }) => {
   // date picker in Delegate
   await page.click('.nb[data-k="delegate"]'); await page.waitForTimeout(300);
   const dg = page.frame({ url: /delegate\.html/ });
-  await dg.click('#bNew'); await page.waitForTimeout(200);
+  await page.mouse.move(900, 600); await dg.evaluate(() => edit(null)); await page.waitForTimeout(200);   // '+ New task here' is under More now
   await dg.click('#eDue'); await page.waitForTimeout(100);
   ok(await dg.evaluate(() => document.getElementById('datePop').style.display == 'block'), 'clicking the due date opens the calendar');
   await page.screenshot({ path: out + '/j_datepick.png' });

@@ -4,12 +4,9 @@
 <meta http-equiv="x-ua-compatible" content="ie=edge">
 <meta charset="utf-8">
 <title>What Changed</title>
-<meta name="lt-order" content="7.3">
-<meta name="lt-group" content="Drawings">
-<meta name="lt-icon" content="&#128260;">
 <meta name="lt-desc" content="Compares the last submission with this one: what is new, revised (P01 to P02), removed, or changed without a new revision.">
 <!--
-  Lew's Toolbox - What changed: compares two submissions (folders, or lists in Excel / CSV) drawing by drawing:
+  Lew's Toolbox - (a view inside the Folder Check tab) What changed: compares two submissions (folders, or lists in Excel / CSV) drawing by drawing:
   New, Removed, Revised (P01 -> P02), Unchanged, and "same revision but the file changed".
   Remembers the last two picks in compare.json.
 -->
@@ -25,7 +22,7 @@
 #cards span{display:inline-block;margin:0 16px 6px 0;font-weight:bold;cursor:pointer}
 .right{float:right}
 </style>
-<script src="../core/lt-core.js"></script>
+<script src="../../core/lt-core.js"></script>
 </head>
 <body>
 <div id="app">
@@ -122,7 +119,7 @@ function summary() {
 $("app").onclick = function (e) {
   var t = e.target || e.srcElement, p = LT.up(t, "data-pick"), f = LT.up(t, "data-f");
   if (p) { var side = p.getAttribute("data-pick"), kind = p.getAttribute("data-k");
-    if (kind == "folder") { var d = LT.pickFolder(side == "a" ? "Pick the BEFORE folder (last submission)" : "Pick the NOW folder (this submission)"); if (d) { cfg[side] = { kind: "folder", path: d }; save(); paths(); } }
+    if (kind == "folder") { var d = LT.pickFolder(side == "a" ? "Pick the BEFORE folder (last submission)" : "Pick the NOW folder (this submission)"); if (d) { cfg[side] = { kind: "folder", path: d }; save(); paths(); if (side == "b") LT.folderPicked(d); } }
     else LT.pickFile(function (fp) { cfg[side] = { kind: "list", path: fp }; save(); paths(); }); }
   else if (f) { filter = f.getAttribute("data-f"); render(); }
 };
@@ -132,6 +129,8 @@ $("bCsv").onclick = function () { if (!result) { alert("Compare first."); return
   var f = LT.exportsDir() + "\\WhatChanged_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f); };
 function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{background:{panel}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); paths(); };
+/* from Folder Check: the folder picked in another view becomes "Now" (this submission) */
+window.ltReceive = function (what, value) { if (what == "open-folder" && LT.fso.FolderExists(value) && !(cfg.b && cfg.b.kind == "folder" && cfg.b.path == value)) { cfg.b = { kind: "folder", path: value }; save(); paths(); } };
 look(); load(); if (cfg.only) $("only").value = cfg.only; paths(); render(); LT.tabKeys();
 </script>
 </body>

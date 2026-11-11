@@ -3,13 +3,16 @@
 <head>
 <meta http-equiv="x-ua-compatible" content="ie=edge">
 <meta charset="utf-8">
-<title>Submission Check</title>
+<title>Folder Check</title>
 <meta name="lt-order" content="7">
 <meta name="lt-group" content="Drawings">
 <meta name="lt-icon" content="&#9989;">
-<meta name="lt-desc" content="Before you send a submission: checks the folder against your drawing list - what is missing, wrong revision, missing PDF / DWG, and files that are not on the list.">
+<meta name="lt-desc" content="One folder, four checks: Submission (against your list: missing, wrong revision, missing PDF / DWG, not on the list), Contents &amp; checklist (what&#39;s in it, what&#39;s finished / remaining), Names (naming rule) and Compare (with the last submission).">
 <!--
-  Lew's Toolbox - Submission Check: compares a submission folder (and its subfolders) with your list (Excel / CSV).
+  Lew's Toolbox - Folder Check (was Submission Check, Folder Contents, Naming Checker and What Changed):
+  the Submission check view is this page; the other views are pages in tabs\parts shown in a frame below the view bar.
+  A folder picked in any view is passed to the others (LT.folderPicked -> ltFolderPicked).
+  Submission check: compares a submission folder (and its subfolders) with your list (Excel / CSV).
   Checks: file count, each listed file found / missing / wrong revision / missing file type / wrong folder / listed twice,
   files not on the list, empty files, upper/lower case differences.
   Remembers the folder, list and columns in check.json.
@@ -18,6 +21,8 @@
 #app{display:flex;flex-direction:column;height:100%}
 .step{flex:none;padding:10px 14px 4px}
 #res{flex:1 1 auto;overflow:auto;min-height:0}
+#fcv{flex:none;padding:8px 12px 2px}
+#vOther{flex:1 1 auto;min-height:0;display:none}#vOther iframe{display:block;width:100%;height:100%;border:0}
 .num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
 .lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
 .big{font-weight:bold}
@@ -33,6 +38,7 @@
 </head>
 <body>
 <div id="app">
+  <div id="fcv" class="bar"><button class="btn" data-fv="sub">&#9989; Submission check</button><button class="btn" data-fv="contents">&#128269; Contents &amp; checklist</button><button class="btn" data-fv="naming">&#127991; Names</button><button class="btn" data-fv="compare">&#128260; Compare</button></div>
   <div class="step bar">
     <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Submission folder...</button><span class="path big" id="folderLbl"></span>
     <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
@@ -59,6 +65,7 @@
   </div>
   <div id="sum"><div id="sumTxt" class="muted">Pick the submission folder and your list, then &#9654; Check.</div><div id="types"></div></div>
   <div id="res"></div>
+  <div id="vOther"></div>
 </div>
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso;
@@ -347,10 +354,27 @@ $("bFix").onclick = function () { if (cfg.folder && LT.main()) LT.main().send("f
 $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-s"); if (!tr) return; var o = shown[+tr.getAttribute("data-s")]; try { if (o.full) LT.showInFolder(o.full); else if (o.files && o.files.length) LT.showInFolder(o.files[0].full); else LT.open(cfg.folder); } catch (x) { } };
 
 /* called by the main window */
-window.ltTheme = function () { look(); };
+window.ltTheme = function () { look(); for (var n in subFrames) if (subFrames.hasOwnProperty(n)) { try { subFrames[n].contentWindow.ltTheme(); } catch (e) { } } };
 window.ltReload = function () { loadCfg(); table = null; showPaths(); $("remTop").checked = cfg.remTop !== false; };
-window.ltReceive = function (what, value) { if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); } };
-look(); loadCfg(); $("remTop").checked = cfg.remTop !== false;
+window.ltReceive = function (what, value) { if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); setView("sub"); } };
+/* ---------- the four views ---------- */
+var subFrames = {};
+function setView(v) {
+  cfg.view = v; saveCfg();
+  var bs = $("fcv").getElementsByTagName("button"); for (var i = 0; i < bs.length; i++) bs[i].className = "btn" + (bs[i].getAttribute("data-fv") == v ? " on" : "");
+  var kids = $("app").children; for (var k = 0; k < kids.length; k++) if (kids[k].id != "fcv" && kids[k].id != "vOther") kids[k].style.display = v == "sub" ? "" : "none";
+  $("vOther").style.display = v == "sub" ? "none" : "block";
+  for (var n in subFrames) if (subFrames.hasOwnProperty(n)) subFrames[n].style.display = n == v ? "block" : "none";
+  if (v == "sub") return;
+  if (!subFrames[v]) { $("vOther").insertAdjacentHTML("beforeend", '<iframe application="yes" id="fc_' + v + '" src="parts/' + v + '.html"></iframe>'); subFrames[v] = $("fc_" + v);
+    subFrames[v].onload = function () { share(v); }; return; }
+  share(v);
+}
+/* the folder picked in another view goes to this one (if it's different) */
+function share(v) { try { var w = subFrames[v].contentWindow; if (cfg.folder && w.ltReceive && (v == "compare" || !w.cfg || w.cfg.folder != cfg.folder) && !(v == "naming" && w.folder == cfg.folder)) w.ltReceive("open-folder", cfg.folder); } catch (e) { } }
+window.ltFolderPicked = function (f) { cfg.folder = f; saveCfg(); showPaths(); };
+$("fcv").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-fv"); if (b) setView(b.getAttribute("data-fv")); };
+look(); loadCfg(); $("remTop").checked = cfg.remTop !== false; setView(cfg.view || "sub");
 if (cfg.list && fso.FileExists(cfg.list)) { try { if (!/\.(xlsx|xlsm|xls)$/i.test(cfg.list)) readList(cfg.list, false); } catch (e) { } }
 showPaths(); LT.tabKeys();
 </script>

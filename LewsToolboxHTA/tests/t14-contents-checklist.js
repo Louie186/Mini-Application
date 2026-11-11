@@ -6,7 +6,7 @@ module.exports = async ({ page, out }) => {
     const P = '5013-KEO-T1-ZZ-PLN-INT-';
     [P + '10100-T1.pdf', P + '10100-T1.dwg', P + '10101-T1.pdf', 'CAD\\' + P + '10110-T2.dwg', 'CAD\\' + P + '10110-T2.pdf', P + '19999-T1.pdf', '20261101_' + P + '10120-T1.pdf', '20261101_' + P + '10120-T1.dwg'].forEach(n => add('C:\\Sub\\' + n, 'x'));
   });
-  await page.click('.nb[data-k="contents"]'); await page.waitForTimeout(400);
+  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(400); await page.mouse.move(900, 600); await page.frame({ url: /check\.html/ }).click('[data-fv="contents"]'); await page.waitForTimeout(700);   // a view inside Folder Check
   const f = page.frame({ url: /contents\.html/ });
   await f.evaluate(() => { top.__nextFolder = 'C:\\Sub'; });
   await f.click('#bFolder'); await page.waitForTimeout(200);

@@ -4,12 +4,9 @@
 <meta http-equiv="x-ua-compatible" content="ie=edge">
 <meta charset="utf-8">
 <title>Naming Checker</title>
-<meta name="lt-order" content="7.2">
-<meta name="lt-group" content="Drawings">
-<meta name="lt-icon" content="&#127991;">
 <meta name="lt-desc" content="Checks that every file name follows your naming rule (e.g. ISO 19650) and tells you which part of a name is wrong.">
 <!--
-  Lew's Toolbox - Naming checker: checks every file name in a folder against your naming rule
+  Lew's Toolbox - (a view inside the Folder Check tab) Naming checker: checks every file name in a folder against your naming rule
   (e.g. ISO 19650: Project-Originator-Volume-Level-Type-Role-Number-Revision) and says which part is wrong.
   Rules are saved in naming.json. "Fix in Bulk Files" hands the folder over.
 -->
@@ -28,7 +25,7 @@
 .pt{display:inline-block;padding:1px 4px;margin-right:1px;border-radius:3px}
 .right{float:right}
 </style>
-<script src="../core/lt-core.js"></script>
+<script src="../../core/lt-core.js"></script>
 </head>
 <body>
 <div id="app">
@@ -157,7 +154,7 @@ $("bFromEx").onclick = fromExample;
 $("bSaveRule").onclick = function () { var p = readRule(); if (!p) return; if (!p.length) { alert("Add at least one part."); return; } var r = rule(); r.parts = p; r.sep = $("sep").value || "-"; r.revOptional = $("revOpt").checked; save(); fillPick(); $("ruleBox").style.display = "none"; LT.toast("Rule saved"); if (results) run(); };
 $("parts").onclick = function (e) { var t = e.target || e.srcElement, rm = LT.up(t, "data-rm"), upb = LT.up(t, "data-up"), tr = LT.up(t, "data-rm") || upb; if (!tr) return; var row = tr.parentNode.parentNode;
   if (rm) row.parentNode.removeChild(row); else if (upb && row.previousSibling && row.previousSibling.previousSibling) row.parentNode.insertBefore(row, row.previousSibling); };
-$("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder to check"); if (f) { folder = f; store.folder = f; save(); $("folderLbl").innerHTML = esc(f); } };
+$("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder to check"); if (f) { folder = f; store.folder = f; save(); $("folderLbl").innerHTML = esc(f); LT.folderPicked(f); } };
 $("bRun").onclick = run; $("show").onchange = render; $("bCsv").onclick = exportCsv;
 $("bFix").onclick = function () { if (folder && LT.main()) LT.main().send("files", "open-folder", folder); else alert("Pick the folder first."); };
 $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-f"); if (tr) try { LT.showInFolder(results[+tr.getAttribute("data-f")].full); } catch (x) { } };

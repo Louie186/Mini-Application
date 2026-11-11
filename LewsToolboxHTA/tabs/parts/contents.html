@@ -4,12 +4,9 @@
 <meta http-equiv="x-ua-compatible" content="ie=edge">
 <meta charset="utf-8">
 <title>Folder Contents</title>
-<meta name="lt-order" content="7.1">
-<meta name="lt-group" content="Drawings">
-<meta name="lt-icon" content="&#128269;">
 <meta name="lt-desc" content="Pick a folder and a checklist: see at a glance what is finished, what is still missing, and what is in the folder but not on the list. Also every drawing once, with its revisions and file types (pdf, dwg, rvt...).">
 <!--
-  Lew's Toolbox - Folder Contents: the folder comes first. Every drawing in it (and its subfolders) is shown once,
+  Lew's Toolbox - (a view inside the Folder Check tab) Folder Contents: the folder comes first. Every drawing in it (and its subfolders) is shown once,
   with its revisions, file types and folders, plus Description / Tower / Typology / Model looked up in a reference list
   (the Submission Check list, another Excel / CSV, or none). Settings: contents.json.
 -->
@@ -34,7 +31,7 @@
 .st{display:inline-block;padding:1px 8px;font-weight:bold;font-size:.9em;white-space:nowrap}
 #pasteDlg .card{width:620px}#pText{width:100%;height:300px;font-family:Consolas,'Lucida Console',monospace}
 </style>
-<script src="../core/lt-core.js"></script>
+<script src="../../core/lt-core.js"></script>
 </head>
 <body>
 <div id="app">
@@ -112,7 +109,7 @@ function paths() {
   $("subs").checked = cfg.subs; $("need").value = cfg.need || ""; $("needBox").style.display = cfg.refKind && cfg.refKind != "none" ? "" : "none";
 }
 function countLines(t) { var n = 0, l = ("" + (t || "")).split(/\r?\n/); for (var i = 0; i < l.length; i++) if (LT.trim(l[i])) n++; return n; }
-function pickFolder() { var f = LT.pickFolder("Pick the folder with the drawings"); if (!f) return; cfg.folder = f; save(); paths(); if (!cfg.refKind) askRef(); else run(); }
+function pickFolder() { var f = LT.pickFolder("Pick the folder with the drawings"); if (!f) return; cfg.folder = f; save(); paths(); LT.folderPicked(f); if (!cfg.refKind) askRef(); else run(); }
 function reg() { try { return LT.register(); } catch (e) { return null; } }
 function askRef() { var R = reg(); $("aReg").style.display = R ? "" : "none"; $("aRegName").innerHTML = R ? esc(R.name) + " &middot; " + R.count() + " drawings" : ""; var c = checkList(); $("aCheck").style.display = c ? "" : "none"; $("aCheckName").innerHTML = c ? esc(fso.GetFileName(c.list)) : ""; $("ask").style.display = "block"; }
 
@@ -342,7 +339,7 @@ function exportMenu(x, y) {
     { label: "&#128203; Copy what's remaining (for email / Teams)", fn: function () { if (!result || !result.items) { alert("Pick a folder and a checklist first."); return; } if (LT.copyText(remainingText())) LT.toast("Remaining list copied"); } },
     { label: "&#128203; Copy summary (for email / Teams)", fn: function () { if (!result) { alert("Pick a folder first."); return; } if (LT.copyText(summaryText())) LT.toast("Summary copied"); } },
     "-",
-    { label: "Check this folder in Submission Check", fn: function () { if (LT.main() && cfg.folder) LT.main().send("check", "check-folder", cfg.folder); } },
+    { label: "Check this folder (Submission check view)", fn: function () { if (LT.main() && cfg.folder) LT.main().send("check", "check-folder", cfg.folder); } },
     { label: "Open this folder in Bulk Files", fn: function () { if (LT.main() && cfg.folder) LT.main().send("files", "open-folder", cfg.folder); } }]);
 }
 

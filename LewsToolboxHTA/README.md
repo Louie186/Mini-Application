@@ -17,25 +17,34 @@ No install, no build step.
 
 ## Tabs
 
+The side menu follows the way the work flows: **WORK** (log it → hand it out → send it), **DRAWINGS**, **FILES**.
+
 | Tab | What it does |
 |---|---|
 | 🏠 Home | Start of the day: today's tasks, waiting on others, next 2 weeks, recent files, team this week |
 | 🚀 Launcher | Your full QuickLaunch, inside the Toolbox |
-| 📁 Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
-| 🗂 Tracker | Your work list: Today / Week / Overdue / Board, repeats, timer |
-| 📋 Delegate | Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
+| **WORK** | |
+| 🗂 Tasks | Every task starts here: your own to-dos and work to hand out – description, checklist, who (a person or a group), references |
+| 📋 Delegate | Hand tasks out from Tasks: task packs with the references, groups with a lead, replies back · Board, Calendar, Team & groups, Workload |
+| 📨 Transmittal | Numbered issue sheets (TR-001…) and their log – delegating makes one for each person by itself |
+| **DRAWINGS** | |
 | 📘 Drawing Register | Load each new MIDP: new / removed / retitled drawings, and every drawing's Tower / Typology / Model |
-| ✅ Submission Check | Folder vs your list: missing, wrong revision, missing type, extra files |
 | 🔎 Find Drawings | Where is this drawing? Every file of it in one or more folders: revision, type, location |
-| 🔍 Folder Contents | Pick a folder: every drawing once, its revisions, file types, and Tower / Typology / Model from your list |
-| 🏷 Naming Checker | Every file name vs your naming rule (ISO 19650 style), part by part |
-| 🔄 What Changed | Two submissions compared: new, revised, removed, same rev but changed |
-| 📨 Transmittal | Issue sheet (Excel) with numbering, log, copy files to the transmittal folder |
+| ✅ Folder Check | One folder, four views: **Submission check** · **Contents & checklist** · **Names** · **Compare** |
 | 🗄 Superseded | Printed sheets: latest revision stays, older ones move to "Superseded" |
+| **FILES** | |
+| 📁 Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
 | 📂 Project Folders | Your standard folder tree for a new project in one click |
 | 📊 Weekly Report | One click: done, delegated, sent, next week, team load – copy / email / save |
-| 👥 Team Workload | Hours per task and per person per week, as a heat-map |
 | ⚙ Settings | Looks, data folder, Launcher list, links, taskbar shortcut |
+
+## The workflow: Tasks → Delegate → Transmittal
+
+1. **Tasks** – log the task: what, description, checklist, **who does it** (a person or a group) and **references** (links, files, folders, drawings, notes – for the task and for each checklist item)
+2. **Delegate** – **📥 From Tasks…** (or right-click the task in Tasks → **Delegate this task…**). The task comes across with everything, and **Send** opens
+   - A **person** gets their own task pack. A **group** goes to its **lead**, who picks who does each item
+3. **Make the files** – each person (or lead) gets a **transmittal folder** (TR-…): the transmittal sheet, their task pack and the reference files. Send that folder
+4. Replies come back in **Delegate** (Load replies / Paste reply). **Tasks** shows who has it, how far it is (2/5 done), and marks it done when it's completed
 
 ## Looks and the side menu
 
@@ -86,37 +95,56 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 
 **Check** column: green OK · orange warning (still runs) · red problem (skipped). **Never overwrites, never deletes.** **Undo last run** puts things back; a CSV log is saved for every run.
 
-## Tracker
+## Tasks
 
-- **Quick add:** type and press **Enter**. Words it understands: `today`, `tomorrow`, `mon` … `sun`, `next week`, `25/11` (due date), `#Tower1` (project, `_` for spaces), `!` / `!low` (priority), `@Sam` (waiting on Sam)
+- **Quick add:** type and press **Enter**. Words it understands: `today`, `tomorrow`, `mon` … `sun`, `next week`, `25/11` (due date), `#Tower1` (project, `_` for spaces), `!` / `!low` (priority), `@Sam` (waiting on Sam), `&MEP_Team` (who does it)
   - Example: `Check RFI drawings fri #Tower1 !`. Added in **Today** with no date = due today
-- **+ Detailed…** for every field (project, due – click it for a calendar, priority, status, waiting on, repeat, notes, time)
-- **Views:** Today · This week · Overdue (red) · All open · **Board** (drag cards between To do / Doing / Waiting / Done) · Done
-- Tick = done · double-click = edit · right-click = status, due date, timer, add time, duplicate, delete
+- Every task gets an ID: `TL-001`, its checklist items `TL-001.1` …
+- **+ Detailed…** for every field:
+  - **Who does it** – empty = you. A person, or a group (groups are made in Delegate → Team & groups)
+  - **Description / notes**, project, due (click it for a calendar), priority, status, repeat, time
+  - **References for the whole task** – pick 🔗 Link · 📄 File · 📁 Folder · 📐 Drawing · 📝 Note, type or **Browse…**, **+ Add**
+    - Files and folders: **Send a copy** (copied into the transmittal) or **Link only** (already on a shared drive)
+    - Drawings: several at once (one per line, or `,` between). The title comes from the Drawing Register
+  - **Checklist** – items with their own person, date, status and **📎 references** (click 📎 on the item)
+  - **📋 Save and delegate** – saves, then hands it to Delegate
+- **Views:** Today · This week · Overdue (red) · **To delegate** · **Waiting on others** · All open · **Board** · Done
+- Tick = done · double-click = edit · right-click = **Delegate this task…**, status, due date, timer, add time, duplicate, delete
 - **Repeat** daily / weekdays / weekly / monthly: tick it done and the next one is made
 - **Time:** right-click → Start timer (shown at the top), or Add time (`1.5` or `0:45`)
-- **Export ▾:** copy this week's summary for email / Teams, or CSV for Excel
-- Delegated tasks (from the Delegate tab) show with 📋 as "Waiting on <name>"
+- **Export ▾:** copy this week's summary for email / Teams, or CSV for Excel (with checklist and references)
 
 ## Delegate
 
-1. **+ New task**: title, group, project, **Assigned to** (comma between names), due date (**click it for a calendar**), notes, and **checklist items** (each with its own person / date). IDs are made for you: `T001`, `T001.1` …
-2. **📤 Send to people…** – tick people and file types. Each person gets only their tasks:
-   - **Excel task sheet** (yellow boxes, Status drop-down, + / − groups, NEW blocks to add work) – made through your Excel
-   - **HTML task pack** – opens in any browser (phone too); they press **Save reply** and send you the .txt
+1. **📥 From Tasks…** – the tasks you logged with someone in "Who does it" and haven't handed out yet. Pick one: it becomes `T001` (with its checklist `T001.1` … and references) and **Send** opens
+   - **More ▾ → + New task here** still makes a task only in Delegate (not in Tasks)
+2. **📤 Send to people…** – tick people and file types. Each person gets only their tasks; a group's task goes to its **lead**
+   - **Excel task sheet** (yellow boxes, Status drop-down, + / − groups, NEW blocks, a **References** column) – made through your Excel
+   - **HTML task pack** – opens in any browser (phone too); references are clickable; they press **Save reply** and send you the .txt
    - **Simple Excel table**
-   - Saved in `exports\Delegate\<date time>`, and the folder opens – attach to email / Teams
+   - **Make a transmittal for each person** (on by default) – see below
+   - Saved in `exports\Delegate\<date time>`; reference copies go into its `References` folder
 3. **⬆ Load replies…** (their Excel file or reply .txt) or **📋 Paste reply…** – you see every change first, then OK. Loading the same reply twice adds nothing
-4. Views: **Tasks** (progress, late in red) · **▦ Board** · **📅 Calendar** · **👥 Team** (open, late, this / next week, Behind / Busy / Has room) · **🌐 Lew's Tracker** (read-only, when linked)
-5. **▦ Board** – drag a card to another column to change its status
-   - A task with items gets its status from its items, so it doesn't move (a message says why)
-6. **📅 Calendar** – drag to another day to change the due date
-   - **Bold** chip = the task's own due date · **↳** chip = only its items due that day
-   - With a person picked, only that person's items move
-   - Every move is written in the task's **History**
+
+**Groups and leads** (view **👥 Team & groups** → **+ Group**, double-click to edit)
+- A group = name, **lead**, members. A task for the group goes **only to the lead**
+- The lead's HTML pack has an **Assign to** box on every item (their team); in the Excel sheet the **Assignee** column is yellow with a drop-down
+- When the lead's reply comes back you see who does what ("Sam assigned T001.2 to Ben"); Team and Workload count each item for that person
+
+**References in the packs**
+- 🔗 links open the web page · 📄 / 📁 **Send a copy** open the copy in `References\` next to the pack · **Link only** opens the original path · 📐 drawings and 📝 notes are listed
+- A reference file that can't be found is named in a message and in the pack, but not copied
+
+**Transmittal for each person** (Send → "Make a transmittal for each person")
+- `TR-…` folder (in the Transmittal tab's folder): the **transmittal sheet**, their **task pack(s)** and their **reference copies** (`References\…`, so the pack's links work there too). Drawings in the references are listed on the sheet
+- Purpose **For action**; notes name the tasks (`T001`, `TL-001`). It's in the Transmittal log, the Delegate task's history and in Tasks
+
+**Views:** **Tasks** (progress, late in red) · **▦ Board** · **📅 Calendar** · **👥 Team & groups** · **📊 Workload** · **🌐 Lew's Tracker** (read-only, when linked)
+- **▦ Board** – drag a card to another column to change its status (a task with items follows its items)
+- **📅 Calendar** – drag to another day to change the due date (**bold** = the task, **↳** = only its items that day; with a person picked, only theirs). Every move is in the task's **History**
 - Every drag shows a message with **Undo** for 6 seconds
-- Right-click a row: status, send this task, history, duplicate, delete. **More ▾**: CSV export, sent / received log, project name, copy Lew's Tracker tasks in
-- Same formats as Lew's Tracker (web app). Open tasks show in the Tracker as "Waiting on <name>"
+- **📊 Workload** – people and hours per week (click a name to change hours, e.g. part-time); type the **hours each open task needs**; the heat-map shows green has room · amber 80–100% · red overloaded. Click a box to see its tasks. **Options ▾**: include your own tasks, hours for tasks with no estimate, weeks to show, export
+- Right-click a row: status, send this task, history, duplicate, delete. **More ▾**: new task here, new group, CSV export, sent / received log, project name, copy Lew's Tracker tasks in
 
 ## Drawing Register
 
@@ -145,10 +173,18 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **Column widths:** drag the edge of a heading (all but Drawing); double-click the edge = back to normal. Remembered on this PC
 - **Export ▾:** Excel with Number, Description, Tower, Typology, Model (like the generated list), or with revision / section / status; copy the MIDP changes for email / Teams
 - **History ▾:** every MIDP loaded, with its changes
-- **Submission Check** and **Folder Contents** look drawings up here (Folder Contents: Reference list ▾ → Drawing Register)
+- **Folder Check** looks drawings up here (Contents & checklist: Checklist ▾ → Drawing Register)
 - Nothing about a project is written into the program – each project lives in `register\` in your data folder
 
-## Submission Check
+## Folder Check
+
+Pick the folder once – every view uses it (and remembers which view you used last):
+- **✅ Submission check** – the folder against your list (revisions, file types, wrong folder, Remaining on top) – below
+- **🔍 Contents & checklist** – what's in the folder, and a quick checklist: finished / remaining – see *Contents & checklist*
+- **🏷 Names** – every file name against your naming rule – see *Names*
+- **🔄 Compare** – this folder ("Now") against the last submission – see *Compare*
+
+### Submission check
 
 1. **Submission folder…** (include subfolders)
 2. **My list (Excel / CSV)…** – any register, transmittal or checklist
@@ -171,6 +207,46 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **Report ▾:** Excel report (through Excel, or CSV if Excel isn't there), copy summary for email / Teams, other notes
 - **Fix names in Bulk Files** opens the folder in Bulk Files. Folder, list and columns are remembered
 
+### Contents & checklist
+
+**Quick checklist check – what's finished, what's still missing**
+1. **Folder...** – the folder to check (subfolders too)
+2. **Checklist ▾** – your list:
+   - **Paste a list** (quickest): one drawing number per line, copied from Excel or an email. A description after it (tab or two spaces) is kept
+   - or your Drawing Register, your Submission check list, or any Excel / CSV
+   - **Each drawing needs:** (optional) e.g. `pdf, dwg` – a drawing only counts as finished when it has all of these
+3. It opens on **Remaining**. The bar on top shows how far you are:
+   - **✔ Finished** (green) · **◐ Lacking** a file type (amber) · **✖ Missing** (red)
+   - Buttons: **Remaining** · **Finished** · **Whole checklist** · **In the folder, not on the checklist**
+- Matches the drawing number with or without the revision, with a date in front, or with the title after it
+- **Export ▾** → CSV of what's shown, or **Copy what's remaining** (for email / Teams)
+- Your checklist, the file types needed and the view are remembered
+
+
+The folder comes first – "what's in here?"
+
+1. **Folder…** (include subfolders). The first time it asks **which list gives the Tower / Typology / Model**:
+   - your **Drawing Register**, the list you use in Submission check, **another Excel / CSV list**, or **none** (just drawings and file types)
+   - Change it any time with **Reference list ▾**; the columns are guessed and can be changed (Sheet, Number, Description, Tower, Typology, Model)
+   - With a **Drawing Register**, any Tower / Typology / Model your list doesn't have comes from the register (even with "none")
+   - File names with extra text work too, e.g. `…-10100-T1 - Title.pdf` or `20261101_…-10100-T1.pdf`
+2. Each drawing is shown **once**: its revisions (`T1, T2`), **file types** (`dwg`, `pdf ×2`, `rvt`), description, Tower, Typology, Model, folder
+   - Top line: drawings, files, found in the list, **not in the list**, more than one revision, and a **count per file type** (click one to show only it)
+3. **Show:** every drawing · not in the reference list · more than one revision · **summary by tower / typology** · other files (not drawings). Filters: Tower, Typology, File type, search
+- **Export ▾:** CSV, copy summary for email / Teams, check this folder in the Submission check view, open it in Bulk Files. Double-click a row to open its folder
+
+### Names
+
+1. **Naming rule** – starts with an ISO 19650 rule (Project-Originator-Volume-Level-Type-Role-Number-Revision). **✎ Change the rule** (per part: any text / N letters / N digits / list of codes / revision) or **Rule ▾ > Set up from an example name**. Keep several rules (one per project)
+2. **Folder** (subfolders, only some types)
+3. **Check names** – each wrong name says which part is wrong ("Type XX is not an allowed code"). **Export (CSV)**, **Fix names in Bulk Files**
+
+### Compare
+
+- **Before** and **Now**: each a folder or a list (Excel / CSV) → **Compare**
+- Matched by drawing number: ➕ **New** · ↻ **Revised** (P01 → P02) · ✖ **Removed** · ⚠ **Same revision, file changed** (folders: re-issued without a new revision?) · Unchanged
+- **Copy summary** for the email "changes since last issue", or **Export (CSV)**
+
 ## Find Drawings
 
 "Where is this drawing?" – for one drawing or a whole list.
@@ -189,56 +265,16 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **Show:** every file / not found only / found only · **latest revision only** · file type
 - **Copy the folders** (full paths), **Export ▾** (CSV, copy the result). Double-click = open the folder; right-click = open the file, copy the location
 
-## Folder Contents
-
-**Quick checklist check – what's finished, what's still missing**
-1. **Folder...** – the folder to check (subfolders too)
-2. **Checklist ▾** – your list:
-   - **Paste a list** (quickest): one drawing number per line, copied from Excel or an email. A description after it (tab or two spaces) is kept
-   - or your Drawing Register, your Submission Check list, or any Excel / CSV
-   - **Each drawing needs:** (optional) e.g. `pdf, dwg` – a drawing only counts as finished when it has all of these
-3. It opens on **Remaining**. The bar on top shows how far you are:
-   - **✔ Finished** (green) · **◐ Lacking** a file type (amber) · **✖ Missing** (red)
-   - Buttons: **Remaining** · **Finished** · **Whole checklist** · **In the folder, not on the checklist**
-- Matches the drawing number with or without the revision, with a date in front, or with the title after it
-- **Export ▾** → CSV of what's shown, or **Copy what's remaining** (for email / Teams)
-- Your checklist, the file types needed and the view are remembered
-
-
-The folder comes first – "what's in here?"
-
-1. **Folder…** (include subfolders). The first time it asks **which list gives the Tower / Typology / Model**:
-   - your **Drawing Register**, the list you use in Submission Check, **another Excel / CSV list**, or **none** (just drawings and file types)
-   - Change it any time with **Reference list ▾**; the columns are guessed and can be changed (Sheet, Number, Description, Tower, Typology, Model)
-   - With a **Drawing Register**, any Tower / Typology / Model your list doesn't have comes from the register (even with "none")
-   - File names with extra text work too, e.g. `…-10100-T1 - Title.pdf` or `20261101_…-10100-T1.pdf`
-2. Each drawing is shown **once**: its revisions (`T1, T2`), **file types** (`dwg`, `pdf ×2`, `rvt`), description, Tower, Typology, Model, folder
-   - Top line: drawings, files, found in the list, **not in the list**, more than one revision, and a **count per file type** (click one to show only it)
-3. **Show:** every drawing · not in the reference list · more than one revision · **summary by tower / typology** · other files (not drawings). Filters: Tower, Typology, File type, search
-- **Export ▾:** CSV, copy summary for email / Teams, check this folder in Submission Check, open it in Bulk Files. Double-click a row to open its folder
-
 ## Home
 
-- Opens first. **Add a task for today** goes straight into the Tracker
-- **Today** (late, due today, doing) · **Waiting on others** (open delegated items, late first) · **Next 2 weeks** (every date from Tracker and Delegate, busy days in red) · **Recent files** (from the Launcher) · **Team this week** (once Team Workload is used)
+- Opens first. **Add a task for today** goes straight into Tasks
+- **Today** (late, due today, doing) · **Waiting on others** (open delegated items, late first) · **Next 2 weeks** (every date from Tasks and Delegate, busy days in red) · **Recent files** (from the Launcher) · **Team this week** (once Delegate → Workload is used)
 - Click anything to jump to its tab
-
-## Naming Checker
-
-1. **Naming rule** – starts with an ISO 19650 rule (Project-Originator-Volume-Level-Type-Role-Number-Revision). **✎ Change the rule** (per part: any text / N letters / N digits / list of codes / revision) or **Rule ▾ > Set up from an example name**. Keep several rules (one per project)
-2. **Folder** (subfolders, only some types)
-3. **Check names** – each wrong name says which part is wrong ("Type XX is not an allowed code"). **Export (CSV)**, **Fix names in Bulk Files**
-
-## What Changed
-
-- **Before** and **Now**: each a folder or a list (Excel / CSV) → **Compare**
-- Matched by drawing number: ➕ **New** · ↻ **Revised** (P01 → P02) · ✖ **Removed** · ⚠ **Same revision, file changed** (folders: re-issued without a new revision?) · Unchanged
-- **Copy summary** for the email "changes since last issue", or **Export (CSV)**
 
 ## Transmittal
 
 1. Project, **To**, Attention, Purpose of issue, Notes
-2. Documents: **From a folder**, **Paste a list**, or Submission Check → Report ▾ → **Make a transmittal**. **Fill titles from my list** uses the list set up in Submission Check
+2. Documents: **From a folder**, **Paste a list**, or Folder Check (Submission check) → Report ▾ → **Make a transmittal** – and **Delegate** makes one for each person by itself. **Fill titles from my list** uses the list set up in Folder Check
 3. **Make the transmittal** – Excel issue sheet (CSV without Excel), numbered **TR-001, TR-002…**; tick *also copy the files* to put the files in the transmittal folder
 - **Sent log ▾**: reopen or reuse a past transmittal, numbering / prefix, where transmittals are saved, export the log
 
@@ -259,23 +295,22 @@ The folder comes first – "what's in here?"
 - **This week / Last week**, tick the parts you want: my work (done, still open, time), delegated work by person (and late items), submissions sent, next week, team load
 - **Copy for email / Teams**, **Open as an email**, or **Save** (text + CSV)
 
-## Team Workload
-
-- **People and hours per week** (click a name to change hours, e.g. part-time). People come from Delegate
-- Type the **hours each open task needs**; the heat-map shows hours per person per week: green has room · amber 80–100% · red overloaded. Click a box to see its tasks
-- **Options ▾**: include your own Tracker tasks, hours for tasks with no estimate, weeks to show, export
-
 ## Settings
 
 - **Hover tips** (on by default): point at a tab in the side menu to see what it does. Settings also lists **what each tab does**
-- Themes (Light, Dark, Blueprint, Retro 8-bit, Retro Grey, Retro Console) and text size – every tab follows
+- Looks (Light, Dark, Blueprint, Retro 8-bit, Retro Grey, Retro Console, Slate, Slate Light) and text size – every tab follows
 - Your name, data folder, Launcher list, Lew's Tracker link, taskbar shortcut
 - `Ctrl+1` … `Ctrl+9` switch tabs
 
 ## For whoever maintains this
 
 - **One tab = one file** in `tabs\`. The main window lists every `tabs\*.html` by itself, using the page's
-  `<title>`, `<meta name="lt-order">`, `<meta name="lt-icon">` and `<meta name="lt-desc">` (the hover tip). Adding or changing a tab needs no other edits
+  `<title>`, `<meta name="lt-order">`, `<meta name="lt-group">` (WORK / DRAWINGS / FILES heading, `-` = a line), `<meta name="lt-icon">` and `<meta name="lt-desc">` (the hover tip). Adding or changing a tab needs no other edits
+- `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload (in Delegate); Contents, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
+- `core\lt-refs.js` – references (editor, labels, plain-text lines) used by Tasks and Delegate
+- `core\lt-transmittal.js` – making a transmittal (`LT.trMake`), used by the Transmittal tab and by Delegate
+- `core\taskpack-runtime.js` – the HTML task pack page; the Toolbox adds references and the lead's "Assign to" (no curly brackets in its top comments)
+- Tasks ↔ Delegate: `LT.main().send("delegate", "from-log", task)`, back with `LT.main().post("tracker", "delegated", …)` (post = no tab switch) and `delegate-feed.json` (code, log, to, tr, progress, status)
 - Date boxes: `LT.datePicker(test)` adds the pop-up calendar (dd/mm/yyyy)
 - `LT.register()` gives the current Drawing Register for look-ups (`find(number or file name)`)
 - Lists are read with `LT.readList` (sheet choice, heading row or none, drawing-number column) and `LT.isCategory` (title rows)

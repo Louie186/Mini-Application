@@ -8,7 +8,7 @@
 <!--
   Lew's Toolbox - (a view inside the Folder Check tab) Folder Contents: the folder comes first. Every drawing in it (and its subfolders) is shown once,
   with its revisions, file types and folders, plus Description / Tower / Typology / Model looked up in a reference list
-  (the Submission Check list, another Excel / CSV, or none). Settings: contents.json.
+  (the Submission check list, another Excel / CSV, or none). Settings: contents.json.
 -->
 <style>
 #app{display:flex;flex-direction:column;height:100%}
@@ -68,7 +68,7 @@
 <div class="ov" id="ask"><div class="card">
   <h3>Which checklist should the folder be checked against?</h3>
   <button class="btn primary" id="aReg">&#128216; My Drawing Register<div class="muted" id="aRegName" style="font-weight:normal;font-size:.9em"></div></button>
-  <button class="btn" id="aCheck">&#9989; The list I use in Submission Check<div class="muted" id="aCheckName" style="font-weight:normal;font-size:.9em"></div></button>
+  <button class="btn" id="aCheck">&#9989; The list I use in the Submission check view<div class="muted" id="aCheckName" style="font-weight:normal;font-size:.9em"></div></button>
   <button class="btn" id="aPaste">&#128203; Paste a list (one drawing number per line)...</button>
   <button class="btn" id="aPick">&#128196; An Excel / CSV list...</button>
   <button class="btn" id="aNone">None &ndash; just show the drawings and their file types</button>
@@ -348,7 +348,7 @@ $("bFolder").onclick = pickFolder; $("bRescan").onclick = function () { run(); }
 $("subs").onclick = function () { cfg.subs = this.checked; save(); if (result) run(); };
 $("bRef").onclick = function (e) { var r = this.getBoundingClientRect(), c = checkList(), R = reg(); LT.menu(r.left, r.bottom + 2, [
   { label: "&#128216; Use my Drawing Register" + (R ? " (" + esc(R.name) + ")" : " (not made yet)"), fn: function () { if (R) useRef("register"); else alert("Make a project in the Drawing Register tab first, or pick a list here."); } },
-  { label: "&#9989; Use my Submission Check list" + (c ? " (" + esc(fso.GetFileName(c.list)) + ")" : " (not set up yet)"), fn: function () { if (c) useRef("check"); else alert("Set up your list in Submission Check first, or pick a list here."); } },
+  { label: "&#9989; Use my Submission check list" + (c ? " (" + esc(fso.GetFileName(c.list)) + ")" : " (not set up yet)"), fn: function () { if (c) useRef("check"); else alert("Set up your list in Submission Check first, or pick a list here."); } },
   { label: "&#128203; Paste a list...", fn: openPaste },
   { label: "&#128196; An Excel / CSV list...", fn: function () { LT.pickFile(function (p) { useRef("file", p); }); } },
   { label: "None &ndash; drawings and file types only", fn: function () { useRef("none"); } }]); (e || window.event).cancelBubble = true; };

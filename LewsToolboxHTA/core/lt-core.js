@@ -29,7 +29,6 @@ var LT = (function () {
   L.settingsFile = function () { return L.env("%APPDATA%") + "\\LewsToolbox\\settings-hta.json"; };
 
   /* ---------- files ---------- */
-  L.exists = function (p) { try { return fso.FileExists(p) || fso.FolderExists(p); } catch (e) { return false; } };
   L.mkdirs = function (p) {
     if (!p || fso.FolderExists(p)) return;
     var parent = fso.GetParentFolderName(p);

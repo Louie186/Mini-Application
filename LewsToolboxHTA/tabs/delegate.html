@@ -191,7 +191,7 @@ function parseDate(s) {
 function dmy(iso) { var d = D(iso); return d ? LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear() : ""; }
 function copy(o) { return JSON.parse(JSON.stringify(o)); }
 
-/* for the Tracker tab: one line per open task, "waiting on" its people */
+/* for the Tasks tab: one line per task, "waiting on" its people, its progress and transmittal */
 function writeFeed() {
   var feed = [];
   for (var i = 0; i < data.tasks.length; i++) {

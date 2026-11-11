@@ -10,7 +10,7 @@
 <meta name="lt-desc" content="Makes a numbered transmittal sheet (TR-001, TR-002...) in Excel for the documents you issue, and keeps a log of everything sent.">
 <!--
   Lew's Toolbox - Transmittal maker: an issue sheet (Excel, or CSV without Excel) from picked files, a pasted list,
-  or the "Found" files of Submission Check. Numbers itself (TR-001...), keeps a log, can copy the files into a
+  or the "Found" files of Folder Check (Submission check view). Numbers itself (TR-001...), keeps a log, can copy the files into a
   transmittal folder. Data: transmittals.json (the Weekly report reads it).
 -->
 <style>
@@ -92,10 +92,10 @@ function pasteList() {
     if (!rev && s.rev) { num = s.base; rev = s.rev; } docs.push({ number: num, title: LT.trim(p[2] || ""), rev: rev.toUpperCase(), types: [], files: [] }); }
   render(); fillTitles(true);
 }
-/* titles from the list Submission Check uses (check.json) */
+/* titles from the list Folder Check (Submission check view) uses (check.json) */
 function fillTitles(quiet) {
   var c = LT.readJson(LT.dataPath("check.json"), null);
-  if (!c || !c.list || !fso.FileExists(c.list) || !c.colTitle) { if (!quiet) alert("Set up your list in Submission Check first (with its Title column) - titles are taken from there."); return; }
+  if (!c || !c.list || !fso.FileExists(c.list) || !c.colTitle) { if (!quiet) alert("Set up your list in Folder Check (Submission check view) first (with its Title column) - titles are taken from there."); return; }
   var need = false; for (var i = 0; i < docs.length; i++) if (!docs[i].title) need = true; if (!need) { if (!quiet) LT.toast("All documents already have a title"); return; }
   if (quiet && /\.(xlsx|xlsm|xls)$/i.test(c.list)) return;     // reading Excel takes a moment - only when asked
   var L; try { L = LT.readList(c.list, c.sheet); } catch (e) { if (!quiet) alert("Couldn't read the list - is it open in Excel?"); return; }
@@ -110,7 +110,7 @@ function render() {
   for (var i = 0; i < docs.length; i++) { var d = docs[i];
     h.push("<tr><td>" + (i + 1) + '</td><td><input type="text" data-i="' + i + '" data-k="number" value="' + esc(d.number) + '"></td><td><input type="text" data-i="' + i + '" data-k="title" value="' + esc(d.title) + '"></td><td><input type="text" data-i="' + i + '" data-k="rev" value="' + esc(d.rev) + '"></td><td><input type="text" data-i="' + i + '" data-k="types" value="' + esc(d.types.join(", ")) + '"></td><td><button class="btn small" data-rm="' + i + '" style="margin:0">&#10005;</button></td></tr>'); }
   h.push("</table>");
-  $("docs").innerHTML = docs.length ? h.join("") : '<div class="muted" style="padding:24px;line-height:1.8">Add the documents: <b>From a folder</b>, <b>Paste a list</b>, or in <b>Submission Check</b> use <b>Report &#9662; &gt; Make a transmittal</b>.<br>Titles can be filled from your list (the one set up in Submission Check).</div>';
+  $("docs").innerHTML = docs.length ? h.join("") : '<div class="muted" style="padding:24px;line-height:1.8">Add the documents: <b>From a folder</b>, <b>Paste a list</b>, or in <b>Folder Check</b> (Submission check) use <b>Report &#9662; &gt; Make a transmittal</b>. Delegating a task in <b>Delegate</b> makes one by itself.<br>Titles can be filled from your list (the one set up in Folder Check).</div>';
   $("cnt").innerHTML = docs.length ? docs.length + " document(s)" : "";
 }
 
@@ -149,8 +149,8 @@ $("docs").onchange = function (e) { var t = e.target || e.srcElement, i = t.getA
 $("docs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-rm"); if (b) { docs.splice(+b.getAttribute("data-rm"), 1); render(); } };
 function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#docs{background:{panel}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); header(); };
-/* from Submission Check: "add-files" with a JSON list of file paths */
-window.ltReceive = function (what, value) { if (what == "add-files") { try { var n = addFiles(JSON.parse(value)); LT.toast(n + " document(s) added from Submission Check"); fillTitles(true); } catch (e) { } } };
+/* from Folder Check (Submission check view): "add-files" with a JSON list of file paths */
+window.ltReceive = function (what, value) { if (what == "add-files") { try { var n = addFiles(JSON.parse(value)); LT.toast(n + " document(s) added from Folder Check"); fillTitles(true); } catch (e) { } } };
 look(); load(); header(); render(); LT.tabKeys();
 </script>
 </body>

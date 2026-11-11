@@ -133,7 +133,9 @@ function loadFeed() {
   if (changed) save();
 }
 function save() { try { LT.saveJson(FILE(), data); } catch (e) { alert("Your tasks couldn't be saved to:\n" + FILE()); } }
-function all() { return data.tasks.concat(feed); }
+/* every task the list draws has all its fields (also ones another tab or an older file put in) */
+function fix(t) { t.subs = t.subs || []; t.refs = t.refs || []; t.who = t.who || ""; t.log = t.log || []; t.notes = t.notes || ""; t.project = t.project || ""; t.waitingOn = t.waitingOn || ""; if (!t.code && !t.fromDelegate) t.code = nextCode(); return t; }
+function all() { for (var i = 0; i < data.tasks.length; i++) fix(data.tasks[i]); return data.tasks.concat(feed); }
 function D(s) { return LT.parseIso(s); }
 function todayD() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
@@ -419,12 +421,12 @@ function weekly() {
 function exportMenu(x, y) {
   LT.menu(x, y, [
     { label: "&#128203; Copy this week's summary (for email / Teams)", fn: function () { if (LT.copyText(weekly())) LT.toast("This week's summary is copied"); } },
-    { label: "Weekly summary &rarr; Excel (CSV)", fn: function () { var rows = [["Weekly summary"]], ls = weekly().split("\r\n"); for (var i = 0; i < ls.length; i++) rows.push([ls[i].replace(/^\s*•\s*/, "")]); var f = LT.exportsDir() + "\\Tracker_week_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } },
+    { label: "Weekly summary &rarr; Excel (CSV)", fn: function () { var rows = [["Weekly summary"]], ls = weekly().split("\r\n"); for (var i = 0; i < ls.length; i++) rows.push([ls[i].replace(/^\s*•\s*/, "")]); var f = LT.exportsDir() + "\\Tasks_week_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } },
     { label: "All tasks &rarr; Excel (CSV)", fn: function () {
       var rows = [["ID", "Task", "Who", "Project", "Due", "Priority", "Status", "Waiting on", "Repeat", "Hours", "Done on", "Created", "Description / notes", "Checklist", "References"]];
       for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i], cl = []; for (var c = 0; c < t.subs.length; c++) cl.push(t.subs[c].code + " " + t.subs[c].title + (t.subs[c].who ? " (" + t.subs[c].who + ")" : "") + (t.subs[c].status == "Done" ? " [done]" : ""));
         rows.push([t.code, t.title, t.who, t.project, t.due, t.priority, statusText(t), t.waitingOn, t.repeat, hours(t) ? Math.round(hours(t) * 100) / 100 : "", t.doneOn, t.created, t.notes, cl.join("\n"), LT.refLines(t.refs).join("\n")]); }
-      var f = LT.exportsDir() + "\\Tracker_all_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } }]);
+      var f = LT.exportsDir() + "\\Tasks_all_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } }]);
 }
 
 /* ---------- events ---------- */

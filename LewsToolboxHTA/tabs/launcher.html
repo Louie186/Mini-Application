@@ -279,14 +279,6 @@ function writeCsv(p,t){
   try{ var s=new ActiveXObject("ADODB.Stream"); s.Type=2; s.Charset="utf-8"; s.Open(); s.WriteText(t); s.SaveToFile(p,2); s.Close(); return; }catch(e){}
   var f=fso.CreateTextFile(p,true,false); f.Write(t.replace(/[^\u0000-\u00ff]/g,"?")); f.Close();
 }
-/* binary file from base64 (used for the app icon) - tries two ways */
-function writeB64(p,b64){
-  try{ var x=new ActiveXObject("MSXML2.DOMDocument"); var el=x.createElement("b"); el.dataType="bin.base64"; el.text=b64;
-    var s=new ActiveXObject("ADODB.Stream"); s.Type=1; s.Open(); s.Write(el.nodeTypedValue); s.SaveToFile(p,2); s.Close(); return; }catch(e){}
-  var ps=DATA+"\\make-icon.ps1";
-  writeText(ps,"[IO.File]::WriteAllBytes('"+p.replace(/'/g,"''")+"',[Convert]::FromBase64String('"+b64+"'))\r\n");
-  runPS(ps);
-}
 /* Run a PowerShell script hidden. Reads the script text and runs it, which works on PCs where
    running .ps1 files is blocked by policy. */
 function runPS(path){

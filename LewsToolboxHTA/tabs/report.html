@@ -5,10 +5,11 @@
 <meta charset="utf-8">
 <title>Weekly Report</title>
 <meta name="lt-order" content="11">
+<meta name="lt-group" content="-">
 <meta name="lt-icon" content="&#128202;">
 <meta name="lt-desc" content="Writes your weekly update in one click: done, delegated, sent, next week and team load - ready to paste into an email.">
 <!--
-  Lew's Toolbox - Weekly report: one click pulls together my work (Tracker), delegated work per person (Delegate),
+  Lew's Toolbox - Weekly report: one click pulls together my work (Tasks), delegated work per person (Delegate),
   submissions sent (Transmittal), next week's deadlines and the team load (Team workload) - ready to copy into an
   email / Teams, open as an email, or save. Only reads the other tabs' files.
 -->
@@ -107,7 +108,7 @@ function build() {
       var pct = pp.hours ? Math.round(h / pp.hours * 100) : 0; ll.push(pp.name + ": " + Math.round(h * 10) / 10 + " of " + pp.hours + " h next week (" + pct + "%)" + (pct > 100 ? " – OVERLOADED" : pct < 50 ? " – has room" : "")); }
     section("Team load next week", ll);
   }
-  if (H.length == 1) { H.push('<div class="muted" style="margin-top:12px">Nothing to report yet for this week &ndash; it fills in from Tracker, Delegate, Transmittal and Team workload.</div>'); T.push("", "Nothing to report."); }
+  if (H.length == 1) { H.push('<div class="muted" style="margin-top:12px">Nothing to report yet for this week &ndash; it fills in from Tasks, Delegate, Transmittal and Team workload.</div>'); T.push("", "Nothing to report."); }
   $("out").innerHTML = H.join(""); text = T.join("\r\n");
 }
 $("week").onchange = build; $("secs").onclick = function (e) { if ((e.target || e.srcElement).tagName == "INPUT") build(); };

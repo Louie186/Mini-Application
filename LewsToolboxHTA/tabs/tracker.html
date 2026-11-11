@@ -3,12 +3,15 @@
 <head>
 <meta http-equiv="x-ua-compatible" content="ie=edge">
 <meta charset="utf-8">
-<title>Tracker</title>
-<meta name="lt-order" content="3">
+<title>Tasks</title>
+<meta name="lt-order" content="2">
+<meta name="lt-group" content="Work">
 <meta name="lt-icon" content="&#128450;">
-<meta name="lt-desc" content="Your own to-do list. Type a task like  Check RFI fri #Tower1 !  and see Today, This week, Overdue, or drag cards on the Board.">
+<meta name="lt-desc" content="Every task starts here: your own to-dos, and work to hand out - with a description, checklist, who does it (a person or a group) and references (links, files, folders, drawings, notes). Delegate it from here.">
 <!--
-  Lew's Toolbox - Tracker: your own work list.
+  Lew's Toolbox - Tasks (was Tracker): the task log. Your own to-dos and tasks to delegate.
+  A task: code TL-001, title, project, due, priority, status, who (empty = me; a person or a group), notes (description),
+  subs (checklist: code TL-001.1, title, who, due, status, refs), refs (see core\lt-refs.js), delegated { code, to, on }.
   Data: tracker.json in the data folder.
   Delegated tasks: if "delegate-feed.json" is in the data folder (the Delegate tab writes it), its tasks show here
   read-only as "Waiting on <name>". Format: [ { "id", "title", "who", "due" (yyyy-mm-dd), "status", "project" } ]
@@ -30,9 +33,15 @@ tr.done td.t{text-decoration:line-through}
 .card2 b{display:block;margin-bottom:2px}
 .card2 .i{font-size:.85em}
 #tm{font-weight:bold}
-#dlg textarea{height:80px}
+#dlg textarea{height:70px}
+#dlg .card{width:900px}
+#subs td{padding:2px 3px}#subs input,#subs select{width:100%;height:26px}#subs .sr{width:62px;text-align:center;cursor:pointer;white-space:nowrap}
+#subRefs{display:none;margin-top:6px;padding:8px}
+.tid{font-family:Consolas,'Lucida Console',monospace;white-space:nowrap}
+.sub{font-size:.85em;margin-top:2px}
 </style>
 <script src="../core/lt-core.js"></script>
+<script src="../core/lt-refs.js"></script>
 </head>
 <body>
 <div id="app">
@@ -55,7 +64,10 @@ tr.done td.t{text-decoration:line-through}
 
 <div class="ov" id="dlg"><div class="card">
   <h3 id="dTitle">Task</h3>
-  <div class="fld"><label>Task</label><input type="text" id="eTitle"></div>
+  <div class="row2">
+    <div class="fld" style="flex:0 0 110px"><label>ID</label><input type="text" id="eCode" disabled></div>
+    <div class="fld"><label>Task</label><input type="text" id="eTitle"></div>
+  </div>
   <div class="row2">
     <div class="fld"><label>Project</label><input type="text" id="eProj" list="projList"></div>
     <div class="fld"><label>Due (click to pick, or type dd/mm/yyyy; empty = no date)</label><input type="text" id="eDue"></div>
@@ -65,19 +77,26 @@ tr.done td.t{text-decoration:line-through}
     <div class="fld"><label>Status</label><select id="eStat"><option>To do</option><option>Doing</option><option>Waiting</option><option>Done</option></select></div>
   </div>
   <div class="row2">
-    <div class="fld"><label>Waiting on</label><input type="text" id="eWho"></div>
-    <div class="fld"><label>Repeat</label><select id="eRep"><option value="">(no repeat)</option><option>Daily</option><option>Weekdays</option><option>Weekly</option><option>Monthly</option></select></div>
+    <div class="fld"><label>Who does it (empty = me; a person or a group)</label><input type="text" id="eAssign" list="pplList" placeholder="me"></div>
+    <div class="fld"><label>Waiting on (for my own tasks)</label><input type="text" id="eWho"></div>
+    <div class="fld" style="flex:0 0 150px"><label>Repeat</label><select id="eRep"><option value="">(no repeat)</option><option>Daily</option><option>Weekdays</option><option>Weekly</option><option>Monthly</option></select></div>
   </div>
-  <div class="fld"><label>Notes</label><textarea id="eNotes" style="width:100%"></textarea></div>
+  <div class="fld"><label>Description / notes</label><textarea id="eNotes" style="width:100%"></textarea></div>
+  <div class="fld"><label>References for the whole task (links, files, folders, drawings, notes)</label><div id="eRefs"></div></div>
+  <div class="fld"><label>Checklist (optional) &ndash; each item can have its own person, date and references</label>
+    <table class="grid" id="subs"></table>
+    <button class="btn small" id="eAddSub" style="margin-top:6px">+ Item</button><button class="btn small" id="ePasteSub" style="margin-top:6px" title="Several items at once: one per line">+ Paste items...</button>
+    <div id="subRefs"><div class="muted" id="subRefsT" style="margin-bottom:4px"></div><div id="subRefsE"></div></div>
+  </div>
   <div class="fld"><label>Time</label><span id="eTime"></span> &nbsp; Add: <input type="text" id="eAddH" style="width:70px" placeholder="1.5 or 0:45"> <button class="btn small" id="eAddB">+ h</button></div>
-  <div class="acts"><button class="btn" id="eDel">Delete</button><span class="sp"></span><button class="btn" id="eCancel">Cancel</button><button class="btn primary" id="eOk">Save</button></div>
+  <div class="acts"><button class="btn" id="eDel">Delete</button><span class="sp"></span><button class="btn" id="eCancel">Cancel</button><button class="btn" id="eDeleg" title="Save, then open it in the Delegate tab to hand it out">&#128203; Save and delegate</button><button class="btn primary" id="eOk">Save</button></div>
 </div></div>
-<datalist id="projList"></datalist>
+<datalist id="projList"></datalist><datalist id="pplList"></datalist>
 
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso;
 var STATUSES = ["To do", "Doing", "Waiting", "Done"], PRIOS = ["High", "Normal", "Low"];
-var VIEWS = [["today", "Today"], ["week", "This week"], ["overdue", "Overdue"], ["open", "All open"], ["board", "Board"], ["done", "Done"]];
+var VIEWS = [["today", "Today"], ["week", "This week"], ["overdue", "Overdue"], ["todel", "To delegate"], ["waiting", "Waiting on others"], ["open", "All open"], ["board", "Board"], ["done", "Done"]];
 var data = { tasks: [], view: "today" }, feed = [], shown = [], editing = null, work = null;
 function FILE() { return LT.dataPath("tracker.json"); }
 function FEED() { return LT.dataPath("delegate-feed.json"); }
@@ -86,16 +105,32 @@ function FEED() { return LT.dataPath("delegate-feed.json"); }
 function load() {
   data = LT.readJson(FILE(), null) || { tasks: [], view: "today" };
   if (!data.tasks) data.tasks = [];
-  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (!t.log) t.log = []; if (STATUSES.indexOf(t.status) < 0) t.status = "To do"; if (PRIOS.indexOf(t.priority) < 0) t.priority = "Normal"; }
+  data.seq = data.seq || 0;
+  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (!t.log) t.log = []; if (STATUSES.indexOf(t.status) < 0) t.status = "To do"; if (PRIOS.indexOf(t.priority) < 0) t.priority = "Normal";
+    t.subs = t.subs || []; t.refs = t.refs || []; t.who = t.who || ""; if (!t.code) t.code = nextCode(); }
   loadFeed();
 }
+function nextCode() { var c; do { data.seq++; c = "TL-" + (data.seq < 10 ? "00" : data.seq < 100 ? "0" : "") + data.seq; } while (byCode(c)); return c; }
+/* every new task (quick add, form, duplicate, repeat) gets its own TL- number; copies get new item numbers too */
+function addTask(t) {
+  if (!t.code || byCode(t.code)) { t.code = nextCode(); for (var i = 0; i < (t.subs || []).length; i++) t.subs[i].code = t.code + "." + (i + 1); }
+  data.tasks.push(t);
+}
+function byCode(c) { for (var i = 0; i < data.tasks.length; i++) if (data.tasks[i].code == c) return data.tasks[i]; return null; }
+/* the Delegate tab writes delegate-feed.json; tasks that came from here (f.log = TL-...) update their own line */
 function loadFeed() {
-  feed = [];
+  feed = []; var changed = false;
   try {
     var a = LT.readJson(FEED(), []) || [];
-    for (var i = 0; i < a.length; i++) { var f = a[i]; var st = f.status || f.Status || ""; if (st == "Done" || st == "Completed") continue;
-      feed.push({ id: "feed:" + (f.id || f.Id || i), title: f.title || f.Title || "", waitingOn: f.who || f.Who || "", due: f.due || f.Due || "", project: f.project || f.Project || "", status: "Waiting", notes: st, priority: "Normal", log: [], fromDelegate: true }); }
+    for (var i = 0; i < a.length; i++) { var f = a[i]; var st = f.status || f.Status || "";
+      var lt = f.log ? byCode(f.log) : null;
+      if (lt) { lt.dprog = f.progress || ""; lt.dwho = f.who || ""; lt.dstatus = st;
+        if (st == "Completed" && lt.status != "Done") { lt.status = "Done"; lt.doneOn = LT.today(); changed = true; }
+        continue; }
+      if (st == "Done" || st == "Completed") continue;
+      feed.push({ id: "feed:" + (f.id || f.Id || i), title: f.title || f.Title || "", waitingOn: f.who || f.Who || "", due: f.due || f.Due || "", project: f.project || f.Project || "", status: "Waiting", notes: st, priority: "Normal", log: [], subs: [], refs: [], who: "", fromDelegate: true }); }
   } catch (e) { }
+  if (changed) save();
 }
 function save() { try { LT.saveJson(FILE(), data); } catch (e) { alert("Your tasks couldn't be saved to:\n" + FILE()); } }
 function all() { return data.tasks.concat(feed); }
@@ -120,11 +155,12 @@ function parseDate(s) {
   if (m) { var y = m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : todayD().getFullYear(); return LT.iso(new Date(y, +m[2] - 1, +m[1])); }
   return null;
 }
+function blank() { return { id: LT.uid("t"), code: "", title: "", project: "", due: "", priority: "Normal", status: "To do", waitingOn: "", who: "", notes: "", repeat: "", created: LT.today(), doneOn: "", log: [], timer: 0, subs: [], refs: [] }; }
 function hrs(a) { a = LT.trim(a || "").toLowerCase().replace("h", ""); var m = /^(\d+):(\d{1,2})$/.exec(a); if (m) return +m[1] + +m[2] / 60; var n = parseFloat(a.replace(",", ".")); return n > 0 ? n : 0; }
 
 /* quick add:  "Check RFI drawings fri #Tower1 !" */
 function parse(text, today) {
-  var t = { id: LT.uid("t"), title: "", project: "", due: "", priority: "Normal", status: "To do", waitingOn: "", notes: "", repeat: "", created: LT.iso(today), doneOn: "", log: [], timer: 0 };
+  var t = blank(); t.created = LT.iso(today);
   var words = [], parts = LT.trim(text).split(/\s+/), days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
   for (var i = 0; i < parts.length; i++) {
     var w = parts[i], l = w.toLowerCase().replace(/[,.]$/, ""), m;
@@ -140,6 +176,7 @@ function parse(text, today) {
       t.due = LT.iso(d); }
     else if (w.charAt(0) == "#" && w.length > 1) t.project = w.substring(1).replace(/_/g, " ");
     else if (w.charAt(0) == "@" && w.length > 1) { t.waitingOn = w.substring(1).replace(/_/g, " "); t.status = "Waiting"; }
+    else if (w.charAt(0) == "&" && w.length > 1) t.who = w.substring(1).replace(/_/g, " ");
     else if (l == "!" || l == "!!" || l == "!high") t.priority = "High";
     else if (l == "!low") t.priority = "Low";
     else words.push(w);
@@ -154,9 +191,11 @@ function pick(view) {
   for (var i = 0; i < a.length; i++) {
     var t = a[i], d = D(t.due), done = t.status == "Done";
     if (proj && t.project != proj) continue;
-    if (words[0]) { var hay = (t.title + " " + t.project + " " + t.notes + " " + t.waitingOn).toLowerCase(), ok = true; for (var w = 0; w < words.length; w++) if (hay.indexOf(words[w]) < 0) ok = false; if (!ok) continue; }
-    if (view == "today" && !(!done && (t.status == "Doing" || (d && d <= today)))) continue;
+    if (words[0]) { var hay = (t.code + " " + t.title + " " + t.project + " " + t.notes + " " + t.waitingOn + " " + t.who).toLowerCase(), ok = true; for (var w = 0; w < words.length; w++) if (hay.indexOf(words[w]) < 0) ok = false; if (!ok) continue; }
+    if (view == "today" && !(!done && (t.status == "Doing" || (d && d <= today)))) continue;   // everything due today, whoever has it (Who column)
     if (view == "week" && !(!done && (t.status == "Doing" || (d && d <= wEnd)))) continue;
+    if (view == "todel" && !(!done && t.who && !t.delegated)) continue;
+    if (view == "waiting" && !(!done && (t.delegated || t.fromDelegate || t.status == "Waiting"))) continue;
     if (view == "overdue" && !overdue(t)) continue;
     if (view == "open" && done) continue;
     if (view == "board" && done && !(D(t.doneOn) && D(t.doneOn) >= addDays(today, -14))) continue;
@@ -189,18 +228,26 @@ function render() {
 }
 function list() {
   shown = pick(data.view);
-  var h = ['<table class="grid"><tr><th></th><th>Task</th><th>Project</th><th>Due</th><th>Priority</th><th>Status</th><th>Hours</th><th>Notes</th></tr>'];
+  var h = ['<table class="grid"><tr><th></th><th>ID</th><th>Task</th><th>Who</th><th>Project</th><th>Due</th><th>Priority</th><th>Status</th><th>Hours</th><th>Notes</th></tr>'];
   for (var i = 0; i < shown.length; i++) {
-    var t = shown[i], st = t.status == "Waiting" && t.waitingOn ? "Waiting on " + t.waitingOn : t.status, hr = hours(t);
+    var t = shown[i], st = statusText(t), hr = hours(t), nd = 0; for (var q = 0; q < t.subs.length; q++) if (t.subs[q].status == "Done") nd++;
+    var extra = (t.subs.length ? '<span class="muted">&#9745; ' + nd + "/" + t.subs.length + "</span> " : "") + LT.refChips(t.refs);
     var dueCls = overdue(t) ? "bad" : (t.due == LT.today() && t.status != "Done" ? "today" : "");
     h.push('<tr data-i="' + i + '" class="' + (t.status == "Done" ? "done" : "") + '"><td class="cb"><input type="checkbox" data-done="' + i + '" style="height:auto"' + (t.status == "Done" ? " checked" : "") + (t.fromDelegate ? " disabled" : "") + '></td>' +
-      '<td class="t">' + (t.fromDelegate ? "&#128203; " : "") + (t.timer ? "&#9201; " : "") + esc(t.title) + (t.repeat ? " &#8635;" : "") + "</td><td>" + esc(t.project) + '</td><td class="' + dueCls + '">' + (t.status == "Done" ? "done " + esc(nice(t.doneOn)) : esc(nice(t.due))) +
-      '</td><td class="' + (t.priority == "High" ? "bad" : "") + '">' + (t.priority == "Normal" ? "" : t.priority) + '</td><td class="' + (t.status == "Doing" ? "ok" : t.status == "Waiting" ? "warn" : "") + '">' + esc(st) +
+      '<td class="tid">' + esc(t.code || "") + '</td><td class="t">' + (t.fromDelegate ? "&#128203; " : "") + (t.timer ? "&#9201; " : "") + esc(t.title) + (t.repeat ? " &#8635;" : "") + (extra ? '<div class="sub">' + extra + "</div>" : "") + "</td><td>" + esc(t.who || (t.fromDelegate ? t.waitingOn : "")) + "</td><td>" + esc(t.project) + '</td><td class="' + dueCls + '">' + (t.status == "Done" ? "done " + esc(nice(t.doneOn)) : esc(nice(t.due))) +
+      '</td><td class="' + (t.priority == "High" ? "bad" : "") + '">' + (t.priority == "Normal" ? "" : t.priority) + '</td><td class="' + (t.status == "Doing" ? "ok" : t.status == "Waiting" || t.delegated ? "warn" : t.who && !t.delegated && t.status != "Done" ? "todel" : "") + '">' + esc(st) +
       "</td><td>" + (hr ? Math.round(hr * 100) / 100 : "") + '</td><td class="muted">' + esc((t.notes || "").replace(/\s+/g, " ")) + "</td></tr>");
   }
   h.push("</table>");
   $("main").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:30px">' + (data.view == "today" ? "Nothing due today &ndash; nice. Type a task above and press Enter." : "Nothing here.") + "</div>";
-  $("hint").innerHTML = shown.length ? "Double-click = edit &middot; tick = done &middot; right-click = more" : "";
+  $("hint").innerHTML = shown.length ? "Double-click = edit &middot; tick = done &middot; right-click = more (Delegate this task...)" + (data.view == "todel" ? " &middot; <b>right-click &gt; Delegate this task</b> to hand it out" : "") : "";
+}
+/* what the Status column says: delegated work shows who has it and how far it is */
+function statusText(t) {
+  if (t.status == "Done") return "Done";
+  if (t.delegated) return "Delegated to " + (t.dwho || t.delegated.to || t.who) + (t.dprog ? " \u00b7 " + t.dprog : "") + (t.delegated.tr ? " \u00b7 " + t.delegated.tr : "");
+  if (t.who) return "To delegate (" + t.who + ")";
+  return t.status == "Waiting" && t.waitingOn ? "Waiting on " + t.waitingOn : t.status;
 }
 function board() {
   shown = pick("board");
@@ -224,14 +271,14 @@ function quickAdd() {
   if (!t.title) { alert("Type what the task is, e.g.  Check RFI drawings fri #Tower1"); return; }
   if ($("proj").value && !t.project) t.project = $("proj").value;
   if (!t.due && data.view == "today") t.due = LT.today();
-  data.tasks.push(t); save(); $("quick").value = ""; render();
+  addTask(t); save(); $("quick").value = ""; render();
   LT.toast("Added: " + t.title + (t.due ? " · due " + nice(t.due) : ""));
 }
 function setStatus(t, st) {
   if (t.fromDelegate) { render(); return; }
   if (t.timer && st == "Done") stopTimer(t);
   var was = t.status == "Done"; t.status = st;
-  if (st == "Done" && !was) { t.doneOn = LT.today(); var n = nextRepeat(t); if (n) { data.tasks.push(n); LT.toast("Repeats – next one is due " + nice(n.due)); } }
+  if (st == "Done" && !was) { t.doneOn = LT.today(); var n = nextRepeat(t); if (n) { addTask(n); LT.toast("Repeats – next one is due " + nice(n.due)); } }
   if (st != "Done") t.doneOn = "";
   save(); render();
 }
@@ -244,15 +291,31 @@ function nextRepeat(t) {
   else if (t.repeat == "Monthly") n = new Date(from.getFullYear(), from.getMonth() + 1, from.getDate());
   else return null;
   if (n < todayD()) n = todayD();
-  var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.due = LT.iso(n); c.log = []; c.timer = 0; c.created = LT.today();
+  var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.delegated = null; c.dprog = c.dwho = ""; for (var j = 0; j < (c.subs || []).length; j++) c.subs[j].status = "To do"; c.due = LT.iso(n); c.log = []; c.timer = 0; c.created = LT.today();
   return c;
 }
 function copy(t) { return JSON.parse(JSON.stringify(t)); }
+/* hand the task to the Delegate tab (it comes back as "delegated" with its Delegate ID) */
+function delegate(t) {
+  if (t.delegated) { if (LT.main()) LT.main().send("delegate", "show-task", t.delegated.code); return; }
+  if (!t.who) { var w = prompt('Who should do "' + t.title + '"?  (a person or a group)', ""); if (!w || !LT.trim(w)) return; t.who = LT.trim(w); save(); render(); }
+  if (LT.main()) LT.main().send("delegate", "from-log", JSON.stringify(t));
+}
+/* people and groups for the "who" boxes: from the Delegate tab's data */
+function people() {
+  var d = LT.readJson(LT.dataPath("delegate.json"), null) || {}, seen = {}, out = [], add = function (n) { n = LT.trim(n); if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; out.push(n); } };
+  var gs = d.groups || []; for (var g = 0; g < gs.length; g++) { add(gs[g].name); add(gs[g].lead); for (var m = 0; m < (gs[g].members || []).length; m++) add(gs[g].members[m]); }
+  var ts = d.tasks || []; for (var i = 0; i < ts.length; i++) { var ws = ("" + (ts[i].who || "")).split(/\s*[,;&\/]\s*/); for (var j = 0; j < ws.length; j++) add(ws[j]); }
+  for (var k = 0; k < data.tasks.length; k++) add(data.tasks[k].who);
+  return out.sort();
+}
 function del(t) { if (t.fromDelegate) return; if (!confirm('Delete the task "' + t.title + '"?')) return; data.tasks.splice(data.tasks.indexOf(t), 1); save(); render(); }
 
 function taskMenu(t, x, y) {
   if (t.fromDelegate) { LT.menu(x, y, [{ label: "From the Delegate tab &ndash; change it there", fn: function () { if (LT.main()) LT.main().show("delegate"); } }]); return; }
-  var m = [{ label: "<b>Edit...</b>", fn: function () { edit(t); } }, "-"];
+  var m = [{ label: "<b>Edit...</b>", fn: function () { edit(t); } },
+    t.delegated ? { label: "&#128203; Delegated (" + esc(t.delegated.code) + ") &ndash; open in Delegate", fn: function () { if (LT.main()) LT.main().send("delegate", "show-task", t.delegated.code); } }
+                : { label: "&#128203; <b>Delegate this task...</b>", fn: function () { delegate(t); } }, "-"];
   for (var i = 0; i < STATUSES.length; i++) (function (s) {
     m.push({ label: s, on: t.status == s, fn: function () { if (s == "Waiting" && !t.waitingOn) { var w = prompt("Who are you waiting on?", ""); if (w == null) return; t.waitingOn = w; } setStatus(t, s); } });
   })(STATUSES[i]);
@@ -263,7 +326,7 @@ function taskMenu(t, x, y) {
   if (t.timer) m.push({ label: "&#9632; Stop timer", fn: function () { stopTimer(t); save(); render(); } });
   else m.push({ label: "&#9201; Start timer", fn: function () { startTimer(t); } });
   m.push({ label: "+ Add time...", fn: function () { var h = hrs(prompt('Hours spent on "' + t.title + '" today (e.g. 1.5 or 0:45):', "")); if (h > 0) { t.log.push({ date: LT.today(), hours: h }); save(); render(); } } }, "-");
-  m.push({ label: "Duplicate", fn: function () { var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.log = []; c.timer = 0; c.created = LT.today(); data.tasks.push(c); save(); render(); } });
+  m.push({ label: "Duplicate", fn: function () { var c = copy(t); c.id = LT.uid("t"); c.status = "To do"; c.doneOn = ""; c.log = []; c.timer = 0; c.created = LT.today(); c.delegated = null; c.dprog = c.dwho = ""; addTask(c); save(); render(); } });
   m.push({ label: "Delete", fn: function () { del(t); } });
   LT.menu(x, y, m);
 }
@@ -283,22 +346,56 @@ function timer() {
 function edit(t) {
   if (t && t.fromDelegate) return;
   editing = t;
-  work = t ? copy(t) : { id: LT.uid("t"), title: "", project: $("proj").value, due: data.view == "today" ? LT.today() : "", priority: "Normal", status: "To do", waitingOn: "", notes: "", repeat: "", created: LT.today(), doneOn: "", log: [], timer: 0 };
-  $("dTitle").innerHTML = t ? "Edit task" : "New task";
+  work = t ? copy(t) : blank(); if (!t) { work.project = $("proj").value; work.due = data.view == "today" ? LT.today() : ""; }
+  $("dTitle").innerHTML = t ? "Edit task" : "New task"; $("eCode").value = work.code || "(new)"; $("eAssign").value = work.who || "";
+  var pp = people(), dl = ""; for (var p = 0; p < pp.length; p++) dl += '<option value="' + esc(pp[p]) + '">'; $("pplList").innerHTML = dl;
+  LT.refEditor($("eRefs"), work.refs); subRef = -1; $("subRefs").style.display = "none"; drawSubs();
+  $("eDeleg").style.display = work.delegated ? "none" : "";
   $("eTitle").value = work.title; $("eProj").value = work.project; $("eDue").value = work.due ? (function (d) { return LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear(); })(D(work.due)) : "";
   $("ePrio").value = work.priority; $("eStat").value = work.status; $("eWho").value = work.waitingOn; $("eRep").value = work.repeat || ""; $("eNotes").value = work.notes || ""; $("eAddH").value = "";
   showTime(); $("eDel").style.display = t ? "" : "none";
   $("dlg").style.display = "block"; $("eTitle").focus();
+}
+/* ---------- checklist in the edit dialog ---------- */
+var subRef = -1;
+function dmyOf(iso) { var d = D(iso); return d ? LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear() : ""; }
+function drawSubs() {
+  var h = ['<tr><th style="width:84px">ID</th><th>Item</th><th style="width:150px">Who</th><th style="width:105px">Due</th><th style="width:84px">Status</th><th class="sr">Refs</th><th style="width:24px"></th></tr>'];
+  for (var i = 0; i < work.subs.length; i++) { var x = work.subs[i];
+    h.push('<tr data-si="' + i + '"' + (i == subRef ? ' class="sel"' : "") + '><td class="tid">' + esc(x.code || "(new)") + '</td><td><input type="text" class="sT" value="' + esc(x.title) + '"></td><td><input type="text" class="sW" list="pplList" value="' + esc(x.who || "") + '" placeholder="' + (work.who ? "(" + esc(work.who) + ")" : "") + '"></td>' +
+      '<td><input type="text" class="sD" value="' + esc(x.dueText != null ? x.dueText : dmyOf(x.due)) + '"></td><td><select class="sS"><option' + (x.status != "Done" ? " selected" : "") + '>To do</option><option' + (x.status == "Done" ? " selected" : "") + '>Done</option></select></td>' +
+      '<td class="sr" data-sref="' + i + '" title="References for this item">&#128206; ' + (x.refs.length || "+") + '</td><td><span class="sx" data-sdel="' + i + '" style="cursor:pointer" title="Remove">&#10005;</span></td></tr>'); }
+  $("subs").innerHTML = work.subs.length ? h.join("") : '<tr><td class="muted">No checklist items.</td></tr>';
+}
+/* what's typed in the checklist rows -> work.subs (before redrawing or saving) */
+function readSubs() {
+  var rows = $("subs").getElementsByTagName("tr");
+  for (var r = 0; r < rows.length; r++) { var si = rows[r].getAttribute("data-si"); if (si == null) continue; var x = work.subs[+si], ins = rows[r].getElementsByTagName("input"), sel = rows[r].getElementsByTagName("select")[0];
+    x.title = LT.trim(ins[0].value); x.who = LT.trim(ins[1].value); x.dueText = ins[2].value; x.status = sel.value; }
+}
+function showSubRefs(i) {
+  readSubs(); subRef = subRef == i ? -1 : i; drawSubs();
+  if (subRef < 0) { $("subRefs").style.display = "none"; return; }
+  var x = work.subs[subRef]; $("subRefsT").innerHTML = "References for <b>" + esc(x.code || "new item") + " " + esc(x.title || "") + "</b> &nbsp;(only this checklist item)";
+  LT.refEditor($("subRefsE"), x.refs, function () { readSubs(); drawSubs(); }); $("subRefs").style.display = "block";
 }
 function showTime() { var h = hours(work); $("eTime").innerHTML = h ? Math.round(h * 100) / 100 + " h logged (" + work.log.length + " entr" + (work.log.length == 1 ? "y" : "ies") + ")" : "No time logged"; }
 function saveEdit() {
   var title = LT.trim($("eTitle").value); if (!title) { alert("Type what the task is."); return; }
   var due = parseDate($("eDue").value); if (due === null) { alert("The due date isn't clear - use dd/mm/yyyy."); return; }
   work.title = title; work.project = LT.trim($("eProj").value); work.due = due; work.priority = $("ePrio").value; work.waitingOn = LT.trim($("eWho").value);
-  work.repeat = $("eRep").value; work.notes = LT.trim($("eNotes").value);
+  work.repeat = $("eRep").value; work.notes = LT.trim($("eNotes").value); work.who = LT.trim($("eAssign").value);
+  readSubs(); var keep = [];
+  for (var i = 0; i < work.subs.length; i++) { var x = work.subs[i]; if (!x.title && !x.refs.length) continue;
+    var sd = parseDate(x.dueText != null ? x.dueText : dmyOf(x.due)); if (sd === null) { alert('The date of "' + x.title + '" isn\'t clear - use dd/mm/yyyy.'); return; }
+    x.due = sd; delete x.dueText; keep.push(x); }
+  work.subs = keep;
+  if (!work.code) work.code = nextCode();
+  var mx = 0; for (var k = 0; k < work.subs.length; k++) if (work.subs[k].code) { var n = +work.subs[k].code.split(".").pop(); if (n > mx) mx = n; }
+  for (var k2 = 0; k2 < work.subs.length; k2++) if (!work.subs[k2].code) work.subs[k2].code = work.code + "." + (++mx);
   var st = $("eStat").value;
   $("dlg").style.display = "none";
-  if (!editing) { work.status = st; if (st == "Done") work.doneOn = LT.today(); data.tasks.push(work); save(); render(); return; }
+  if (!editing) { work.status = st; if (st == "Done") work.doneOn = LT.today(); addTask(work); save(); render(); return; }
   var old = editing.status; work.status = old; data.tasks[data.tasks.indexOf(editing)] = work;
   if (st != old) setStatus(work, st); else { save(); render(); }
 }
@@ -324,13 +421,14 @@ function exportMenu(x, y) {
     { label: "&#128203; Copy this week's summary (for email / Teams)", fn: function () { if (LT.copyText(weekly())) LT.toast("This week's summary is copied"); } },
     { label: "Weekly summary &rarr; Excel (CSV)", fn: function () { var rows = [["Weekly summary"]], ls = weekly().split("\r\n"); for (var i = 0; i < ls.length; i++) rows.push([ls[i].replace(/^\s*•\s*/, "")]); var f = LT.exportsDir() + "\\Tracker_week_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } },
     { label: "All tasks &rarr; Excel (CSV)", fn: function () {
-      var rows = [["Task", "Project", "Due", "Priority", "Status", "Waiting on", "Repeat", "Hours", "Done on", "Created", "Notes"]];
-      for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; rows.push([t.title, t.project, t.due, t.priority, t.status, t.waitingOn, t.repeat, hours(t) ? Math.round(hours(t) * 100) / 100 : "", t.doneOn, t.created, t.notes]); }
+      var rows = [["ID", "Task", "Who", "Project", "Due", "Priority", "Status", "Waiting on", "Repeat", "Hours", "Done on", "Created", "Description / notes", "Checklist", "References"]];
+      for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i], cl = []; for (var c = 0; c < t.subs.length; c++) cl.push(t.subs[c].code + " " + t.subs[c].title + (t.subs[c].who ? " (" + t.subs[c].who + ")" : "") + (t.subs[c].status == "Done" ? " [done]" : ""));
+        rows.push([t.code, t.title, t.who, t.project, t.due, t.priority, statusText(t), t.waitingOn, t.repeat, hours(t) ? Math.round(hours(t) * 100) / 100 : "", t.doneOn, t.created, t.notes, cl.join("\n"), LT.refLines(t.refs).join("\n")]); }
       var f = LT.exportsDir() + "\\Tracker_all_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } }]);
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}"]); }
+function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}"].concat(LT.REF_CSS)); }
 $("bAdd").onclick = quickAdd;
 $("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { quickAdd(); return false; } };
 $("bDetail").onclick = function () { edit(null); };
@@ -348,7 +446,13 @@ $("main").ondragover = function (e) { e = e || window.event; var col = LT.up(e.t
 $("main").ondragenter = function (e) { e = e || window.event; var col = LT.up(e.target || e.srcElement, "data-st"); if (col) { if (e.preventDefault) e.preventDefault(); col.className = "col over"; } return false; };
 $("main").ondragleave = function (e) { e = e || window.event; var col = LT.up(e.target || e.srcElement, "data-st"); if (col) col.className = "col"; };
 $("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); var col = LT.up(e.target || e.srcElement, "data-st"); if (col && dragI != null && shown[dragI]) { var st = col.getAttribute("data-st"), t = shown[dragI]; dragI = null; if (t.status != st) setStatus(t, st); else render(); } return false; };
-$("eOk").onclick = saveEdit; $("eCancel").onclick = function () { $("dlg").style.display = "none"; };
+$("eOk").onclick = function () { saveEdit(); };
+$("eDeleg").onclick = function () { if (!LT.trim($("eAssign").value)) { alert("Fill in who does it first (a person or a group)."); return; } saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) delegate(t); } };
+$("eAddSub").onclick = function () { readSubs(); work.subs.push({ code: "", title: "", who: "", due: "", status: "To do", refs: [] }); drawSubs(); var ins = $("subs").getElementsByTagName("input"); try { ins[ins.length - 3].focus(); } catch (e) { } };
+$("ePasteSub").onclick = function () { var t = prompt("Paste the items - one per line (separate with  ;  if this box joins the lines):", ""); if (!t) return; readSubs(); var ls = t.split(/\r?\n|;/); for (var i = 0; i < ls.length; i++) if (LT.trim(ls[i])) work.subs.push({ code: "", title: LT.trim(ls[i]), who: "", due: "", status: "To do", refs: [] }); drawSubs(); };
+$("subs").onclick = function (e) { var t = e ? e.target : window.event.srcElement, d = LT.up(t, "data-sdel"), r = LT.up(t, "data-sref");
+  if (d) { readSubs(); var i = +d.getAttribute("data-sdel"); work.subs.splice(i, 1); if (subRef == i) { subRef = -1; $("subRefs").style.display = "none"; } else if (subRef > i) subRef--; drawSubs(); }
+  else if (r) showSubRefs(+r.getAttribute("data-sref")); }; $("eCancel").onclick = function () { $("dlg").style.display = "none"; };
 $("eDel").onclick = function () { $("dlg").style.display = "none"; if (editing) del(editing); };
 $("eAddB").onclick = function () { var h = hrs($("eAddH").value); if (h > 0) { work.log.push({ date: LT.today(), hours: h }); $("eAddH").value = ""; showTime(); } };
 $("dlg").onkeydown = function (e) { e = e || window.event; var tg = (e.target || e.srcElement).tagName; if (e.keyCode == 27) $("dlg").style.display = "none"; if (e.keyCode == 13 && tg == "INPUT" && (e.target || e.srcElement).id != "eAddH") saveEdit(); };
@@ -362,8 +466,10 @@ window.ltShown = function () { loadFeed(); render(); try { $("quick").focus(); }
 window.ltReceive = function (what, value) {
   if (what == "add-task" && value) { var v = data.view; data.view = "today"; $("quick").value = value; quickAdd(); data.view = v; save(); render(); }
   else if (what == "view") { data.view = value; save(); render(); }
+  /* from Delegate: the task is handed out  { log: "TL-001", code: "T004", to: "Sam", tr: "TR-005" } */
+  else if (what == "delegated") { var v = JSON.parse(value), t = byCode(v.log); if (t) { t.delegated = { code: v.code, to: v.to, on: LT.today(), tr: v.tr || "" }; if (t.status == "To do") t.status = "Waiting"; save(); render(); } }
 };
-look(); load(); render(); LT.tabKeys(); LT.datePicker(function (i) { return i.id == "eDue"; });
+look(); load(); render(); LT.tabKeys(); LT.datePicker(function (i) { return i.id == "eDue" || /(^| )sD( |$)/.test(i.className); });
 </script>
 </body>
 </html>

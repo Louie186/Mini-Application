@@ -10,7 +10,7 @@
 <!--
   Lew's Toolbox - Home / Today: one screen to start the day.
   Only READS what the other tabs saved (tracker.json, delegate.json, workload.json, transmittals.json, the Launcher list);
-  a task typed here is handed to the Tracker tab, which saves it.
+  a task typed here is handed to the Tasks tab, which saves it.
 -->
 <style>
 #wrap{height:100%;overflow:auto;padding:18px 22px}
@@ -37,7 +37,7 @@
   <div id="date" class="muted"></div>
   <div id="quickRow"><input type="text" id="quick" placeholder="Add a task for today...  e.g.  Check RFI drawings #Tower1 !"> <button class="btn primary" id="bAdd">+ Add</button></div>
   <div id="cols">
-    <div class="box"><h3>&#9728; Today <span class="n muted" id="nToday"></span><span class="go" data-go="tracker">Open Tracker &rsaquo;</span></h3><div id="today"></div></div>
+    <div class="box"><h3>&#9728; Today <span class="n muted" id="nToday"></span><span class="go" data-go="tracker">Open Tasks &rsaquo;</span></h3><div id="today"></div></div>
     <div class="box"><h3>&#9203; Waiting on others <span class="n muted" id="nWait"></span><span class="go" data-go="delegate">Open Delegate &rsaquo;</span></h3><div id="wait"></div></div>
     <div class="box"><h3>&#128197; Next 2 weeks <span class="n muted" id="nNext"></span></h3><div id="next"></div></div>
     <div class="box"><h3>&#128640; Recent files <span class="go" data-go="launcher">Open Launcher &rsaquo;</span></h3><div id="recent"></div></div>
@@ -69,7 +69,7 @@ function render() {
   mine.sort(function (a, b) { return (a.due || "9") < (b.due || "9") ? -1 : 1; });
   var html = "";
   for (var j = 0; j < mine.length && j < 12; j++) { var m = mine[j], late = daysFrom(m.due) < 0;
-    html += '<div class="it"' + link("tracker", "view", "today") + "><b>" + (m.priority == "High" ? '<span class="bad">!</span> ' : "") + esc(m.title) + '</b><div class="s ' + (late ? "bad" : "muted") + '">' + esc([m.project, m.status == "Doing" ? "doing" : "", when(m.due)].filter(Boolean).join(" · ")) + "</div></div>"; }
+    html += '<div class="it"' + link("tracker", "view", "today") + "><b>" + (m.priority == "High" ? '<span class="bad">!</span> ' : "") + esc(m.title) + '</b><div class="s ' + (late ? "bad" : "muted") + '">' + esc([m.who ? "\u2192 " + m.who : "", m.project, m.status == "Doing" ? "doing" : "", when(m.due)].filter(Boolean).join(" · ")) + "</div></div>"; }
   $("today").innerHTML = html || '<div class="empty muted">Nothing due today &ndash; add one above.</div>';
   $("nToday").innerHTML = mine.length ? mine.length : "";
 

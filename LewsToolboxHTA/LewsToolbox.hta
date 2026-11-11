@@ -8,7 +8,7 @@
   showintaskbar="yes" singleinstance="yes" scroll="no" contextmenu="no" innerborder="no" selection="no"
   maximizebutton="yes" minimizebutton="yes" />
 <!--
-  Lew's Toolbox - launcher, tracker, delegation, submission check and bulk files.
+  Lew's Toolbox - launcher, tasks, delegation, transmittals, drawing checks and bulk files.
   Plug and play like QuickLaunch: keep this file with its "core" and "tabs" folders, double-click it.
   Each tab is its own file in "tabs" - this window finds them by itself.
 -->
@@ -23,6 +23,7 @@
 #tabs{flex:1 1 auto;overflow-y:auto}
 .nb{display:block;width:100%;text-align:left;height:34px;margin:0 0 2px;padding:0 10px;cursor:pointer;font:inherit;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none}
 .nb .ic{display:inline-block;width:24px}
+.ng{margin:10px 8px 4px;font-size:.72em;font-weight:bold;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;min-height:1px}#shell.rail .ng{margin:8px 6px}
 #clock{flex:none;text-align:center;padding:8px 0;line-height:1.4}
 #clock b{font-size:1.15em}
 #body{flex:1 1 auto;position:relative;min-width:0}
@@ -63,17 +64,19 @@ function findTabs() {
     if (!/\.html?$/i.test(n)) continue;
     var head = "";
     try { var t = fso.OpenTextFile(f.Path, 1, false, 0); head = t.AtEndOfStream ? "" : t.Read(3000); t.Close(); } catch (x) { continue; }
-    var title = /<title>([^<]*)<\/title>/i.exec(head), order = /<meta name="lt-order" content="(\d+(?:\.\d+)?)"/i.exec(head), icon = /<meta name="lt-icon" content="([^"]*)"/i.exec(head), desc = /<meta name="lt-desc" content="([^"]*)"/i.exec(head);
-    list.push({ key: n.replace(/\.html?$/i, "").toLowerCase(), file: f.Path, title: title ? title[1] : n, order: order ? +order[1] : 99, icon: icon ? icon[1] : "&#9679;", desc: desc ? desc[1] : "" });
+    var title = /<title>([^<]*)<\/title>/i.exec(head), order = /<meta name="lt-order" content="(\d+(?:\.\d+)?)"/i.exec(head), icon = /<meta name="lt-icon" content="([^"]*)"/i.exec(head), desc = /<meta name="lt-desc" content="([^"]*)"/i.exec(head), grp = /<meta name="lt-group" content="([^"]*)"/i.exec(head);
+    list.push({ key: n.replace(/\.html?$/i, "").toLowerCase(), file: f.Path, title: title ? title[1] : n, order: order ? +order[1] : 99, icon: icon ? icon[1] : "&#9679;", desc: desc ? desc[1] : "", group: grp ? grp[1] : "" });
   }
   list.sort(function (a, b) { return a.order - b.order || (a.title < b.title ? -1 : 1); });
   return list;
 }
 
 function renderNav() {
-  var h = "";
-  for (var i = 0; i < tabs.length; i++)
-    h += '<button class="nb' + (tabs[i].key == current ? " on" : "") + '" data-k="' + tabs[i].key + '" title="' + (tipsOn ? "" : LT.esc(tabs[i].title) + (i < 9 ? " (Ctrl+" + (i + 1) + ")" : "")) + '"><span class="ic">' + tabs[i].icon + '</span><span class="tx">' + LT.esc(tabs[i].title) + "</span></button>";
+  var h = "", g = "";
+  for (var i = 0; i < tabs.length; i++) {
+    // a small heading where the group changes (WORK / DRAWINGS / FILES); "-" = just a line
+    if (tabs[i].group != g) { g = tabs[i].group; if (g) h += '<div class="ng">' + (g == "-" ? "" : '<span class="tx">' + LT.esc(g) + "</span>") + "</div>"; }
+    h += '<button class="nb' + (tabs[i].key == current ? " on" : "") + '" data-k="' + tabs[i].key + '" title="' + (tipsOn ? "" : LT.esc(tabs[i].title) + (i < 9 ? " (Ctrl+" + (i + 1) + ")" : "")) + '"><span class="ic">' + tabs[i].icon + '</span><span class="tx">' + LT.esc(tabs[i].title) + "</span></button>"; }
   LT.$("tabs").innerHTML = h || '<div class="muted" style="padding:8px">The "tabs" folder is missing. Keep LewsToolbox.hta together with its "core" and "tabs" folders.</div>';
 }
 
@@ -131,6 +134,7 @@ function look() {
     ".nb:hover{background:{hover}}",
     ".nb.on{background:{hover};border-color:{accent};color:{text}}",
     "#railBtn{background:transparent;color:{muted};border:{bw}px solid {line};border-radius:{r}px}#railBtn:hover{color:{text};border-color:{accent}}",
+    ".ng{color:{muted};border-top:1px solid {line};padding-top:8px}",
     "#clock{color:{text};cursor:default}#clkD{color:{muted};font-size:.85em}",
     "#tip{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#tip .k{margin-top:6px;font-size:.85em;color:{muted}}"
   ];

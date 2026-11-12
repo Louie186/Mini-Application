@@ -129,7 +129,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   <div class="fld" style="margin-top:6px"><label>ACC on this PC (Desktop Connector) &ndash; where an ACC path like <i>Project Files/03 WIP/...rvt</i> is found, e.g. C:\Users\you\DC\ACCDocs\Company\Project</label><div style="display:flex"><input type="text" id="sAcc" style="flex:1 1 auto;margin-right:6px" placeholder="(web links work without this)"><button class="btn" id="sAccB" style="margin:0">Browse...</button></div></div>
   <div class="fld" style="margin-top:6px"><label>Models folder (optional) &ndash; a model with no link opens the file in here whose name has the model's name (.rvt / .nwd / .nwc / .ifc, subfolders too)</label><div style="display:flex"><input type="text" id="sModDir" style="flex:1 1 auto;margin-right:6px"><button class="btn" id="sModDirB" style="margin:0">Browse...</button></div></div>
   <div class="h">Drawings you already have</div>
-  <button class="btn small" id="sListImp">Import an existing drawing list (with Tower / Typology)...</button><span class="muted small">e.g. your last generated list. Imported drawings count as confirmed.</span>
+  <button class="btn small" id="sListImp">Import an existing drawing list (with Tower / Typology)...</button><span class="muted small">e.g. your last generated list. Imported drawings count as confirmed. A <b>Path</b> column (the model's ACC link) makes the Model clickable.</span>
   <div class="acts"><span class="sp"></span><button class="btn" id="sCancel">Cancel</button><button class="btn primary" id="sOk">Save</button></div>
 </div></div>
 
@@ -451,7 +451,7 @@ function lookView() {
     { label: "HTML page (opens anywhere, links clickable)", fn: function () { lookHtml(); } },
     { label: "Copy as text (Tab-separated, for Excel / email)", fn: function () { var s = "Drawing\tDescription\tTower\tTypology\tModel\tLink\r\n"; for (var i2 = 0; i2 < rows.length; i2++) s += [rows[i2].num, rows[i2].desc || rows[i2].title, rows[i2].tower, rows[i2].typo, rows[i2].model, rows[i2].link].join("\t") + "\r\n"; if (LT.copyText(s)) LT.toast("Copied"); } }]); stop(e); };
 }
-function modelRaw(model) { for (var i = 0; i < P.models.length; i++) if (P.models[i].link && up(P.models[i].model) == up(model)) return P.models[i].link; return ""; }
+function modelRaw(model) { for (var i = 0; i < P.models.length; i++) if (P.models[i].link && up(P.models[i].model) == up(model)) return P.models[i].link; return (P.modelLinks || {})[up(model)] || ""; }
 function lookLongest(rows) { var n = 10; for (var i = 0; i < rows.length; i++) if (rows[i].num.length > n) n = rows[i].num.length; return n; }
 function lookBase() { LT.mkdirs(LT.exportsDir()); return LT.exportsDir() + "\\Drawing list_" + LT.safeName(P.name) + "_" + LT.stamp(); }
 function lookExcel() {
@@ -607,9 +607,13 @@ function accept(ks) { var n = 0; for (var i = 0; i < ks.length; i++) { var d = P
 function modelsTxt() { var a = []; for (var i = 0; i < P.models.length; i++) a.push(P.models[i].tower + " | " + P.models[i].typo + " | " + P.models[i].model + (P.models[i].link ? " | " + P.models[i].link : "")); return a.join("\r\n"); }
 /* ---------- where a model opens: its link in the models table, else a file in the models folder named like it ---------- */
 var MF = null;
+/* model -> link from an imported drawing list (its Path column); the models table's own link comes first */
+function setModelLink(model, link) { P.modelLinks = P.modelLinks || {}; P.modelLinks[up(model)] = LT.trim(link); }
 function modelLink(model) {
   model = LT.trim(model || ""); if (!model) return "";
+  var ml = (P.modelLinks || {})[up(model)];
   for (var i = 0; i < P.models.length; i++) if (P.models[i].link && up(P.models[i].model) == up(model)) { var rl = resolveLink(P.models[i].link); if (rl) return rl; }
+  if (ml) { var rl2 = resolveLink(ml); if (rl2) return rl2; }
   var dir = P.setup.modelsDir; if (!dir || !fso.FolderExists(dir)) return "";
   if (!MF || MF.dir != dir) { MF = { dir: dir, files: [] }; var walk = function (d, depth) { var fo; try { fo = fso.GetFolder(d); } catch (e) { return; } var e2 = new Enumerator(fo.Files); for (; !e2.atEnd(); e2.moveNext()) { var n = "" + e2.item().Name; if (/\.(rvt|nwd|nwc|ifc)$/i.test(n) && !/\.\d{4}\.rvt$/i.test(n)) MF.files.push({ n: up(n), p: "" + e2.item().Path }); }
       if (depth < 4) { var s = new Enumerator(fo.SubFolders); for (; !s.atEnd(); s.moveNext()) walk("" + s.item().Path, depth + 1); } }; walk(dir, 0); }
@@ -662,13 +666,13 @@ function startImport(kind) {
   LT.pickFile(function (p) {
     try { var L = kind == "models" ? readModels(p) : LT.readList(p, ""); } catch (e) { alert("Couldn't read that file - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return; }
     imp = { kind: kind, path: p, L: L }; impCols(true); $("impH").innerHTML = kind == "list" ? "Import drawings: " + esc(fso.GetFileName(p)) : "Import the models table: " + esc(fso.GetFileName(p));
-    $("iNumF").style.display = $("iTitleF").style.display = kind == "list" ? "" : "none"; $("iLinkF").style.display = kind == "models" ? "" : "none"; $("ovImp").style.display = "block";
+    $("iNumF").style.display = $("iTitleF").style.display = kind == "list" ? "" : "none"; $("iLinkF").style.display = ""; $("ovImp").style.display = "block";
   });
 }
 function impHead(re, not) { var h = imp.L.head; for (var i = 0; i < h.length; i++) if (re.test(h[i]) && !(not && not.test(h[i]))) return h[i]; return ""; }
 function impCols(guess) {
   var L = imp.L, c;
-  if (imp.kind == "list") c = LT.listColumns(L, imp.c || {}, guess);
+  if (imp.kind == "list") { c = LT.listColumns(L, imp.c || {}, guess); if (guess || c.link == null) c.link = impHead(/^(path|model path|model link|link|url|hyperlink|acc|acc link|location)$/i) || impHead(/path|link|url/i); }
   else c = guess ? { tower: impHead(/tower|building|block/i), typo: impHead(/typolog|unit type|type/i, /model/i), model: impHead(/model n|model ref|^model$/i) || impHead(/model/i, /type|path|link|url|location/i), link: impHead(/path|link|url|location|acc|hyperlink/i) } : imp.c;
   imp.c = c;
   var so = ""; for (var s = 0; s < L.sheets.length; s++) so += "<option" + (L.sheets[s] == L.sheet ? " selected" : "") + ">" + esc(L.sheets[s]) + "</option>"; $("iSheet").innerHTML = so;
@@ -685,19 +689,20 @@ function impRows() {
     out.push(o); }
   return out;
 }
-function impPrev() { var rs = impRows(), h = ""; for (var i = 0; i < Math.min(rs.length, 4); i++) { var r = rs[i]; h += "<tr>" + (imp.kind == "list" ? "<td>" + esc(r.num) + "</td><td>" + esc((r.title || "").substring(0, 40)) + "</td>" : "") + "<td>" + esc(r.tower) + "</td><td>" + esc(r.typo) + "</td><td>" + esc(r.model) + "</td>" + (imp.kind == "models" ? '<td class="small">' + esc((r.link || "").length > 50 ? "\u2026" + r.link.slice(-50) : r.link || "") + "</td>" : "") + "</tr>"; }
-  $("impPrev").innerHTML = (h || '<tr><td class="bad">Nothing found with these columns.</td></tr>') + '<tr><td colspan="5" class="muted">' + rs.length + " rows</td></tr>"; }
+function impPrev() { var rs = impRows(), h = ""; for (var i = 0; i < Math.min(rs.length, 4); i++) { var r = rs[i]; h += "<tr>" + (imp.kind == "list" ? "<td>" + esc(r.num) + "</td><td>" + esc((r.title || "").substring(0, 40)) + "</td>" : "") + "<td>" + esc(r.tower) + "</td><td>" + esc(r.typo) + "</td><td>" + esc(r.model) + "</td>" + (true ? '<td class="small">' + esc((r.link || "").length > 50 ? "\u2026" + r.link.slice(-50) : r.link || "") + "</td>" : "") + "</tr>"; }
+  $("impPrev").innerHTML = (h || '<tr><td class="bad">Nothing found with these columns.</td></tr>') + '<tr><td colspan="6" class="muted">' + rs.length + " rows" + (function () { var n = 0; for (var i = 0; i < rs.length; i++) if (rs[i].link) n++; return n ? " &middot; <b>" + n + " with a path / link</b> (the Model becomes clickable)" : imp.c.link ? ' &middot; <span class="warn">no paths found in that column</span>' : ""; })() + "</td></tr>"; }
 function impDo() {
   var rs = impRows(); if (!rs.length) { alert("Nothing to import with these columns."); return; }
   if (imp.kind == "models") { var oldL = {}; for (var o = 0; o < P.models.length; o++) if (P.models[o].link) oldL[up(P.models[o].model)] = P.models[o].link;
     P.models = []; for (var i = 0; i < rs.length; i++) P.models.push({ tower: rs[i].tower, typo: rs[i].typo, model: rs[i].model, link: rs[i].link || oldL[up(rs[i].model)] || "" }); MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")";
     lookRelink(); var nl = 0; for (var q = 0; q < P.models.length; q++) if (P.models[q].link) nl++; LT.toast(P.models.length + " models imported" + (nl ? ", " + nl + " with a path / link" : "")); }
-  else { var D = P.drawings, nN = 0, nU = 0;
+  else { var D = P.drawings, nN = 0, nU = 0, nL = 0;
     for (var j = 0; j < rs.length; j++) { var r = rs[j], d = D[r.key];
       if (!d) { d = D[r.key] = { num: r.num, title: r.title, cat: "", rev: "", tower: "", typo: "", model: "", how: "", ok: false, first: LT.today(), inMidp: P.last ? false : undefined }; nN++; } else nU++;
       if (!d.title) d.title = r.title;
-      if (r.typo) { d.tower = r.tower; d.typo = r.typo; d.ok = true; d.how = "import"; d.like = ""; if (r.model) d.impModel = r.model; } }
-    var nG = guessAll(null); LT.toast(nN + " drawings added, " + nU + " updated" + (nG ? ", " + nG + " guessed" : "")); }
+      if (r.typo) { d.tower = r.tower; d.typo = r.typo; d.ok = true; d.how = "import"; d.like = ""; if (r.model) d.impModel = r.model; }
+      if (r.model && r.link) { setModelLink(r.model, r.link); nL++; } }
+    var nG = guessAll(null); lookRelink(); LT.toast(nN + " drawings added, " + nU + " updated" + (nG ? ", " + nG + " guessed" : "") + (nL ? " \u00b7 " + nL + " with a model link (" + keys(P.modelLinks || {}).length + " models)" : "")); }
   saveP(); $("ovImp").style.display = "none"; fillFilters(); render();
 }
 

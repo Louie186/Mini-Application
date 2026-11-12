@@ -263,13 +263,13 @@ function render() {
   if (mode == "other") { var o = ['<table class="grid"><tr><th>File</th><th>Folder</th><th>Type</th></tr>'];
     for (var k = 0; k < result.other.length; k++) { var f = result.other[k]; if ($("fType").value && f.ext != $("fType").value) continue; shown.push({ files: [f] }); o.push('<tr data-s="' + (shown.length - 1) + '"><td>' + esc(f.name) + '</td><td class="muted">' + esc(f.folder || "(top)") + "</td><td>" + esc(f.ext) + "</td></tr>"); }
     $("res").innerHTML = shown.length ? o.join("") + "</table>" : '<div class="muted" style="padding:24px">No other files.</div>'; return; }
-  var ref = !!refMap || regUsed > 0, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower</th><th>Typology</th><th>Model</th>" : "") + "<th>Folder</th><th>Note</th></tr>"];
+  var ref = !!refMap || regUsed > 0, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower</th><th>Typology</th><th>Model</th>" : LT.dwgHead()) + "<th>Folder</th><th>Note</th></tr>"];
   for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i];
     if (!pass(r)) continue; if (mode == "noref" && (!refMap || (result.items ? r.inList : r.ref))) continue; if (mode == "multi" && r.revs.length < 2) continue;
     shown.push(r); var note = [];
     if (refMap && !(result.items ? r.inList : r.ref)) note.push('<span class="bad">not on the checklist</span>'); if (r.revs.length > 1) note.push('<span class="warn">' + r.revs.length + " revisions here</span>");
     h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(r.base) + "</b></td><td>" + esc(r.revs.join(", ")) + "</td><td>" + badge(r.types) + "</td>" +
-      (ref ? "<td>" + esc(r.ref ? r.ref.title : "") + "</td><td>" + esc(r.ref ? r.ref.tower : "") + "</td><td>" + esc(r.ref ? r.ref.typo : "") + '</td><td style="white-space:nowrap">' + esc(r.ref ? r.ref.model : "") + "</td>" : "") +
+      (ref ? "<td>" + esc(r.ref ? r.ref.title : "") + "</td><td>" + esc(r.ref ? r.ref.tower : "") + "</td><td>" + esc(r.ref ? r.ref.typo : "") + '</td><td style="white-space:nowrap">' + LT.modelHtml(r.ref ? r.ref.model : "") + "</td>" : LT.dwgCells(r.base)) +
       '<td class="muted">' + esc(r.folders.join(", ") || "(top)") + "</td><td>" + note.join(" &middot; ") + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
@@ -282,11 +282,11 @@ function passItem(x) {
 }
 function stHtml(x) { return x.st == "done" ? '<span class="st sd">&#10004; Finished</span>' : x.st == "lacking" ? '<span class="st sl">&#9680; Lacking ' + esc(x.lack.join(", ")) + "</span>" : '<span class="st sm">&#10006; Missing</span>'; }
 function checklistView(mode) {
-  var it = result.items, h = ['<table class="grid"><tr><th>Drawing</th><th>Status</th><th>Description</th><th>Tower</th><th>Typology</th><th>Revision</th><th>File types</th><th>Folder</th></tr>'];
+  var it = result.items, h = ['<table class="grid"><tr><th>Drawing</th><th>Status</th><th>Description</th><th>Tower</th><th>Typology</th><th>Model</th><th>Revision</th><th>File types</th><th>Folder</th></tr>'];
   for (var i = 0; i < it.length; i++) { var x = it[i];
     if (mode == "left" && x.st == "done") continue; if (mode == "done" && x.st != "done") continue; if (!passItem(x)) continue;
     shown.push(x.row || { files: [] }); var r = x.row;
-    h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(x.it.number) + "</b></td><td>" + stHtml(x) + "</td><td>" + esc(x.it.title) + "</td><td>" + esc(x.it.tower) + "</td><td>" + esc(x.it.typo) + "</td><td>" + (r ? esc(r.revs.join(", ")) : "") + "</td><td>" + (r ? badge(r.types) : "") + '</td><td class="muted">' + (r ? esc(r.folders.join(", ") || "(top)") : "") + "</td></tr>"); }
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(x.it.number) + "</b></td><td>" + stHtml(x) + "</td><td>" + esc(x.it.title) + "</td><td>" + esc(x.it.tower) + "</td><td>" + esc(x.it.typo) + '</td><td style="white-space:nowrap">' + LT.modelHtml(x.it.model || (LT.dwgInfo(x.it.number) || {}).model || "") + "</td><td>" + (r ? esc(r.revs.join(", ")) : "") + "</td><td>" + (r ? badge(r.types) : "") + '</td><td class="muted">' + (r ? esc(r.folders.join(", ") || "(top)") : "") + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">' + (mode == "left" ? "&#10004; Nothing remaining" + (LT.trim($("search").value) || $("fTower").value || $("fTypo").value || $("fType").value ? " with these filters." : " &ndash; everything on the checklist is in the folder.") : "Nothing to show here.") + "</div>";
 }

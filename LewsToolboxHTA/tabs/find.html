@@ -189,7 +189,7 @@ function loc(x) { var d = IDX.dirs[x.d]; return d.show || "(top of " + rootName(
 function fillTypes() { var a = []; for (var k in IDX.types) if (IDX.types.hasOwnProperty(k)) a.push(k); a.sort(); var keep = $("fType").value, h = '<option value="">All</option>'; for (var i = 0; i < a.length; i++) h += "<option" + (a[i] == keep ? " selected" : "") + ">" + esc(a[i]) + "</option>"; $("fType").innerHTML = h; }
 function render() {
   if (!last) return;
-  var mode = $("show").value, lat = $("latest").checked, ft = $("fType").value, h = ['<table class="grid"><tr><th>Drawing</th><th>Rev</th><th>Type</th><th>Location (folder)</th><th>File name</th><th>Tower / Typology</th></tr>'];
+  var mode = $("show").value, lat = $("latest").checked, ft = $("fType").value, h = ['<table class="grid"><tr><th>Drawing</th><th>Rev</th><th>Type</th><th>Location (folder)</th><th>File name</th>' + LT.dwgHead() + '</tr>'];
   var nFound = 0, nFiles = 0, dirs = {}, nDirs = 0, nMiss = 0; shown = [];
   for (var i = 0; i < last.groups.length; i++) { var g = last.groups[i], fs = [];
     for (var j = 0; j < g.files.length; j++) { var f = g.files[j]; if (lat && !f.latest) continue; if (ft && f.rec.ext != ft) continue; fs.push(f); }
@@ -197,11 +197,11 @@ function render() {
     if ((mode == "miss" && g.files.length) || (mode == "found" && !g.files.length)) continue;
     var tt = g.info && g.info.typo && g.info.typo != "-" ? esc(g.info.tower + " / " + g.info.typo) : "";
     var head = esc(g.q.short || g.q.text.toUpperCase() != g.q.base.toUpperCase() ? g.q.text : g.q.base) + (g.q.short && g.keys.length ? ' <span class="muted" style="font-weight:normal">&rarr; ' + esc(g.keys.length == 1 ? IDX.byKey[g.keys[0]][0].base : g.keys.length + " drawings") + "</span>" : "");
-    if (!g.files.length) { h.push('<tr class="grp"><td class="no">' + head + '</td><td></td><td></td><td class="bad"><b>&#10006; Not found in ' + (cfg.roots.length > 1 ? "these folders" : "this folder") + "</b></td><td></td><td>" + tt + "</td></tr>"); continue; }
-    if (!fs.length) { h.push('<tr class="grp"><td class="no">' + head + '</td><td></td><td></td><td class="muted">(' + g.files.length + " file(s), hidden by the filters)</td><td></td><td>" + tt + "</td></tr>"); continue; }
+    if (!g.files.length) { h.push('<tr class="grp"><td class="no">' + head + '</td><td></td><td></td><td class="bad"><b>&#10006; Not found in ' + (cfg.roots.length > 1 ? "these folders" : "this folder") + "</b></td><td></td>" + LT.dwgCells(g.q.base) + "</tr>"); continue; }
+    if (!fs.length) { h.push('<tr class="grp"><td class="no">' + head + '</td><td></td><td></td><td class="muted">(' + g.files.length + " file(s), hidden by the filters)</td><td></td>" + LT.dwgCells(g.keys.length == 1 ? IDX.byKey[g.keys[0]][0].base : g.q.base) + "</tr>"); continue; }
     for (var k = 0; k < fs.length; k++) { var x = fs[k]; shown.push(x); nFiles++; if (!dirs[x.loc]) { dirs[x.loc] = 1; nDirs++; }
       var sub = g.q.short && g.keys.length > 1 && (k == 0 || fs[k - 1].rec.key != x.rec.key) ? '<div class="muted small">' + esc(x.rec.base) + "</div>" : "";
-      h.push("<tr" + (k == 0 ? ' class="grp"' : "") + ' data-s="' + (shown.length - 1) + '"><td class="no">' + (k == 0 ? head : "") + sub + "</td><td>" + (x.latest ? "<b>" + esc(x.rec.rev || "-") + '</b> <span class="ok small">latest</span>' : esc(x.rec.rev || "-")) + '</td><td><span class="ty">' + esc(x.rec.ext) + '</span></td><td class="loc">' + esc(x.loc) + '</td><td class="muted">' + esc(x.rec.n) + "</td><td>" + (k == 0 ? tt : "") + "</td></tr>"); } }
+      h.push("<tr" + (k == 0 ? ' class="grp"' : "") + ' data-s="' + (shown.length - 1) + '"><td class="no">' + (k == 0 ? head : "") + sub + "</td><td>" + (x.latest ? "<b>" + esc(x.rec.rev || "-") + '</b> <span class="ok small">latest</span>' : esc(x.rec.rev || "-")) + '</td><td><span class="ty">' + esc(x.rec.ext) + '</span></td><td class="loc">' + esc(x.loc) + '</td><td class="muted">' + esc(x.rec.n) + "</td>" + (k == 0 || sub ? LT.dwgCells(x.rec.base) : LT.dwgBlank()) + "</tr>"); } }
   h.push("</table>");
   $("sum").className = "big";
   $("sum").innerHTML = last.groups.length + " drawing(s) searched &middot; " + nFound + " found &middot; " + nFiles + " file(s) in " + nDirs + " folder(s)" + (nMiss ? ' &middot; <span class="bad">' + nMiss + " not found</span>" : ' &middot; <span class="ok">all found</span>') + (IDX && IDX.stopped ? ' &middot; <span class="warn">folders only partly read (stopped)</span>' : "");

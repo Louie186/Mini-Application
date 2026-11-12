@@ -387,6 +387,7 @@ var LT = (function () {
     "table.grid tr.fhr th{position:relative;z-index:4;border-bottom:{bw}px solid {line};background-color:{panel}}table.grid tr.fhr th.fz{z-index:5}",
     ".fhc{position:fixed;z-index:8;display:none;overflow:hidden;box-shadow:0 3px 6px rgba(0,0,0,.18)}.fhc table.grid{margin-top:0;margin-bottom:0}",
     "table.grid .rn{text-align:right;color:{muted};font-weight:normal;padding-right:8px}table.grid td.rn{font-size:.9em}",
+    "td.ti{font-size:.82em;padding-left:4px;padding-right:4px;color:{text}}th.ti{font-size:.75em}td.ti.mo{max-width:150px;overflow:hidden;text-overflow:ellipsis}.mlk{cursor:pointer;text-decoration:underline;color:{accent}}.mlk:hover{color:{text}}",
     "table.grid th .rz{position:absolute;right:-3px;top:0;bottom:0;width:8px;cursor:col-resize;z-index:3}table.grid th .rz:hover{background:{accent}}",
     "#toast .undo{display:inline-block;margin-left:14px;padding:1px 10px;cursor:pointer;text-decoration:underline}",
     ".scroll{overflow:auto}",
@@ -560,6 +561,38 @@ var LT = (function () {
       "<b>Online links for drawings</b> (Drawing Register: double-click a drawing): references, packs and summaries link to it",
       "Earlier this week: <b>Ctrl+V</b> into a task, <b>Ctrl+K</b> search, the morning reminder, Copy as email, Chase up" ] }
   ];
+  /* ---------- a drawing's Tower / Typology / Model (Drawing Register), for any list of drawings ----------
+     L.dwgInfo(name) -> { tower, typo, model, short, link, title } or null (name can carry a revision / file type).
+     L.dwgHead() + L.dwgCells(name) = three compact columns (Twr · Typo · Model); the model opens with a click when it has a link. */
+  var DWG = null;
+  L.dwgInfo = function (name) {
+    var now = L.now(); if (!DWG || now - DWG.at > 4000) { var R = null; try { R = L.register(); } catch (e) { } DWG = { R: R, at: now, c: {} }; }
+    if (!DWG.R || !name) return null; var k = ("" + name).toUpperCase(); if (DWG.c.hasOwnProperty(k)) return DWG.c[k];
+    var d = null; try { d = DWG.R.find(name); } catch (e) { }
+    var o = null; if (d) { var m = d.model || "", ps = m.split("-"); o = { tower: d.tower || "", typo: d.typo || "", model: m, short: ps.length > 3 ? ps.slice(-2).join("-") : m, title: d.title || "", link: m ? DWG.R.modelLink(m) : "" }; }
+    return (DWG.c[k] = o);
+  };
+  L.dwgOn = function () { L.dwgInfo("-"); return !!(DWG && DWG.R); };   // no Drawing Register yet: no columns
+  L.dwgBlank = function () { return L.dwgOn() ? '<td class="ti"></td><td class="ti"></td><td class="ti"></td>' : ""; };
+  L.dwgHead = function () { if (!L.dwgOn()) return ""; return '<th class="ti" title="Tower (Drawing Register)">Twr</th><th class="ti" title="Typology (Drawing Register)">Typo</th><th class="ti" title="Model (Drawing Register) - click to open it">Model</th>'; };
+  L.dwgCells = function (name) {
+    if (!L.dwgOn()) return "";
+    var f = L.dwgInfo(name), ns = ' style="white-space:nowrap"';
+    if (!f) return '<td class="ti muted"' + ns + ' title="Not in the Drawing Register">' + (name && DWG && DWG.R ? "&ndash;" : "") + '</td><td class="ti"></td><td class="ti"></td>';
+    return '<td class="ti"' + ns + ' title="' + L.esc(f.title) + '">' + L.esc(f.tower) + '</td><td class="ti"' + ns + ">" + L.esc(f.typo) + '</td><td class="ti mo"' + ns + ' title="' + L.esc(f.model + (f.link ? " - click to open" : "")) + '">' +
+      (f.model && f.link ? '<span class="mlk" data-ml="' + L.esc(f.link) + '">&#128279; ' + L.esc(f.short) + "</span>" : L.esc(f.short)) + "</td>";
+  };
+  /* one compact cell instead of three (narrow tables): "T1 · 1BRA · 🔗 INT-21000" */
+  L.dwgCell = function (name) { var f = L.dwgInfo(name); if (!f) return L.dwgOn() ? '<td class="ti muted"></td>' : "";
+    return '<td class="ti" style="white-space:nowrap" title="' + L.esc(f.title + " - " + f.model) + '">' + L.esc([f.tower, f.typo].join(" \u00b7 ")) + (f.model ? " \u00b7 " + (f.link ? '<span class="mlk" data-ml="' + L.esc(f.link) + '">&#128279; ' + L.esc(f.short) + "</span>" : L.esc(f.short)) : "") + "</td>"; };
+  /* a model name as a link (when the register knows where it opens) */
+  L.modelHtml = function (model) { if (!model) return ""; L.dwgInfo("-"); var lk = ""; try { lk = DWG && DWG.R ? DWG.R.modelLink(model) : ""; } catch (e) { }
+    return lk ? '<span class="mlk" data-ml="' + L.esc(lk) + '" title="' + L.esc(model) + ' - click to open">&#128279; ' + L.esc(model) + "</span>" : L.esc(model); };
+  L.dwgText = function (name) { var f = L.dwgInfo(name); return f ? L.trim([f.tower, f.typo, f.model].join(" ")) : ""; };
+  /* any page: a click on a model link opens it */
+  (function () { var h = function (e) { e = e || window.event; var t = e.target || e.srcElement; while (t && t.getAttribute) { var u = t.getAttribute("data-ml"); if (u) { try { L.open(u); } catch (x) { alert("Couldn't open:\n" + u); } if (e.stopPropagation) e.stopPropagation(); e.cancelBubble = true; return false; } t = t.parentNode; } };
+    try { if (document.attachEvent) document.attachEvent("onclick", h); else document.addEventListener("click", h, true); } catch (x) { } })();
+
   /* the online link (ACC / SharePoint...) of a drawing, set in the Drawing Register; "" if none */
   L.drawingLink = function (no) { try { var R = L.register(), d = R && R.find(no); return d && d.link ? d.link : ""; } catch (e) { return ""; } };
 

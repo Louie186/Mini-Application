@@ -233,11 +233,11 @@ function render() {
   if (!last) { $("res").innerHTML = ""; return; }
   var mode = $("show").value, ex = extras();
   if (mode == "groups") { groups(); return; }
-  var h = ['<table class="grid"><tr><th>Row</th><th>Category</th><th>On the list</th><th>Title</th>' + (ex.tower ? "<th>Tower</th>" : "") + (ex.typo ? "<th>Typology</th>" : "") + (ex.model ? "<th>Model</th>" : "") + '<th>Rev</th><th>File types found</th><th>Result</th><th>Found in folder</th><th>Note</th></tr>'];
+  var h = ['<table class="grid"><tr><th>Row</th><th>Category</th><th>On the list</th><th>Title</th>' + (ex.tower ? "<th>Tower</th>" : "") + (ex.typo ? "<th>Typology</th>" : "") + (ex.model ? "<th>Model</th>" : "") + (ex.tower || ex.typo || ex.model ? "" : LT.dwgHead()) + '<th>Rev</th><th>File types found</th><th>Result</th><th>Found in folder</th><th>Note</th></tr>'];
   shown = [];
   /* Remaining on top: not yet in the folder first (missing, then missing a file type, then wrong revision), the rest in list order */
   var rank = function (r) { return r.status == "Missing" ? 0 : r.status == "Missing file type" ? 1 : r.status == "Wrong revision" ? 2 : 3; };
-  var rows = last.rows.slice(0), top = cfg.remTop && mode != "extra", nRem = 0, nDone = 0, span = 9 + (ex.tower ? 1 : 0) + (ex.typo ? 1 : 0) + (ex.model ? 1 : 0), head = -1;
+  var rows = last.rows.slice(0), top = cfg.remTop && mode != "extra", nRem = 0, nDone = 0, span = 9 + (ex.tower ? 1 : 0) + (ex.typo ? 1 : 0) + (ex.model ? 1 : 0) + (ex.tower || ex.typo || ex.model || !LT.dwgOn() ? 0 : 3), head = -1;
   if (top) rows.sort(function (a, b) { return rank(a) - rank(b) || a.no - b.no; });
   for (var c = 0; c < rows.length; c++) if (passFilter(rows[c]) && (mode != "bad" || rows[c].lv) && (mode != "ok" || !rows[c].lv) && (mode != "miss" || rows[c].status == "Missing" || rows[c].status == "Missing file type") && (mode != "rev" || rows[c].status == "Wrong revision")) { if (rank(rows[c]) < 3) nRem++; else nDone++; }
   if (mode != "extra") for (var i = 0; i < rows.length; i++) { var r = rows[i];
@@ -247,10 +247,10 @@ function render() {
     if (top && nRem && nDone) { var g = rank(r) < 3 ? 0 : 1; if (g != head) { head = g; h.push('<tr class="grp"><td colspan="' + span + '">' + (g ? "&#10004; In the folder &nbsp;" + nDone : "&#9203; Remaining &ndash; not yet in the folder &nbsp;" + nRem) + "</td></tr>"); } }
     shown.push(r);
     h.push('<tr data-s="' + (shown.length - 1) + '"><td>' + r.no + '</td><td class="muted">' + esc(r.cat || "") + "</td><td><b>" + esc(r.entry) + "</b></td><td>" + esc(r.title) + "</td>" +
-      (ex.tower ? "<td>" + esc(r.tower) + "</td>" : "") + (ex.typo ? "<td>" + esc(r.typo) + "</td>" : "") + (ex.model ? "<td>" + esc(r.model) + "</td>" : "") + "<td>" + esc(r.rev) + "</td><td><b>" + esc((r.found || []).join(", ")) + "</b>" +
+      (ex.tower ? "<td>" + esc(r.tower) + "</td>" : "") + (ex.typo ? "<td>" + esc(r.typo) + "</td>" : "") + (ex.model ? '<td style="white-space:nowrap">' + LT.modelHtml(r.model) + "</td>" : "") + (ex.tower || ex.typo || ex.model ? "" : LT.dwgCells(r.entry)) + "<td>" + esc(r.rev) + "</td><td><b>" + esc((r.found || []).join(", ")) + "</b>" +
       ((r.formats || cfg.formats) ? '<div class="muted" style="font-size:.85em">needs ' + esc(r.formats || cfg.formats) + "</div>" : "") +
       '</td><td class="' + (r.lv == 0 ? "ok" : r.lv == 1 ? "warn" : "bad") + '" style="font-weight:bold;white-space:nowrap">' + (r.lv == 0 ? "&#10004; " : r.lv == 1 ? "&#9888; " : "&#10006; ") + r.status + "</td><td>" + fl.join("<br>") + '</td><td class="muted">' + esc(r.note) + "</td></tr>"); }
-  var pad = 3 + (ex.tower ? 1 : 0) + (ex.typo ? 1 : 0) + (ex.model ? 1 : 0), blanks = ""; for (var p = 0; p < pad + 1; p++) blanks += "<td></td>";
+  var pad = 3 + (ex.tower ? 1 : 0) + (ex.typo ? 1 : 0) + (ex.model ? 1 : 0) + (ex.tower || ex.typo || ex.model || !LT.dwgOn() ? 0 : 3), blanks = ""; for (var p = 0; p < pad + 1; p++) blanks += "<td></td>";
   if ((mode == "all" || mode == "bad" || mode == "extra") && !$("fTower").value && !$("fTypo").value) for (var x = 0; x < last.extra.length; x++) { var e = last.extra[x]; shown.push(e);
     h.push('<tr data-s="' + (shown.length - 1) + '">' + blanks + "<td><b>" + esc(e.ext) + '</b></td><td class="warn" style="font-weight:bold;white-space:nowrap">&#10133; Not on the list</td><td>' + esc(e.rel) + '</td><td class="muted">' + (e.size == 0 ? "Empty file (0 KB)" : "") + "</td></tr>"); }
   h.push("</table>");

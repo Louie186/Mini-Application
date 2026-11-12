@@ -90,10 +90,10 @@ function find() {
 }
 function render() {
   if (!groups.length) { $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick the folder with your printed sheets, then <b>Find old revisions</b>.<br>For each drawing the latest revision stays; older ones are ticked to move. Untick any you want to keep.</div>'; $("bRun").disabled = true; return; }
-  var h = ['<table class="grid"><tr><th></th><th>Drawing</th><th>Revision</th><th>File</th><th>What happens</th></tr>'], n = 0;
+  var h = ['<table class="grid"><tr><th></th><th>Drawing</th>' + LT.dwgHead() + '<th>Revision</th><th>File</th><th>What happens</th></tr>'], n = 0;
   for (var i = 0; i < groups.length; i++) { var g = groups[i];
     for (var j = 0; j < g.files.length; j++) { var f = g.files[j]; if (f.move) n++;
-      h.push("<tr" + (j == 0 ? ' class="grp"' : "") + '><td class="cb">' + (j == 0 ? "" : '<input type="checkbox" data-g="' + i + '" data-f="' + j + '" style="height:auto"' + (f.move ? " checked" : "") + ">") + "</td><td>" + (j == 0 ? esc(g.base) : "") + "</td><td>" + esc(f.rev) + "</td><td>" + esc(f.name) +
+      h.push("<tr" + (j == 0 ? ' class="grp"' : "") + '><td class="cb">' + (j == 0 ? "" : '<input type="checkbox" data-g="' + i + '" data-f="' + j + '" style="height:auto"' + (f.move ? " checked" : "") + ">") + "</td><td>" + (j == 0 ? esc(g.base) : "") + "</td>" + (j == 0 ? LT.dwgCells(g.base) : LT.dwgBlank()) + "<td>" + esc(f.rev) + "</td><td>" + esc(f.name) +
         '</td><td class="' + (j == 0 ? "ok" : f.move ? "warn" : "muted") + '">' + (j == 0 ? "&#10004; latest &ndash; stays" : f.move ? "&#10140; moves to " + esc(cfg.subName) : "stays (unticked)") + "</td></tr>"); } }
   h.push("</table>");
   $("res").innerHTML = h.join(""); $("bRun").disabled = !n;

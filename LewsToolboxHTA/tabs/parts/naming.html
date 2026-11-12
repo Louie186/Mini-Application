@@ -133,9 +133,9 @@ function run() {
 }
 function render() {
   if (!results) { $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick a folder and click <b>Check names</b>.<br>Change the rule with <b>&#9998; Change the rule</b> (or Rule &#9662; &gt; Set up from an example name).</div>'; return; }
-  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th><th>Result</th><th>What\'s wrong</th></tr>'], n = 0;
+  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th>' + LT.dwgHead() + '<th>Result</th><th>What\'s wrong</th></tr>'], n = 0;
   for (var i = 0; i < results.length; i++) { var f = results[i]; if (!all && !f.probs.length) continue; n++;
-    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + '</td><td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted">' + esc(f.probs.join(" · ")) + "</td></tr>"); }
+    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + "</td>" + LT.dwgCells(f.rel.split("\\").pop()) + '<td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted">' + esc(f.probs.join(" · ")) + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = n ? h.join("") : '<div class="ok big" style="padding:24px">&#10004; Nothing wrong.</div>';
 }

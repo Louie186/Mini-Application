@@ -29,7 +29,7 @@ module.exports = async ({ page, out }) => {
   await page.screenshot({ path: out + '/l_lookup.png' });
   // remembered + click opens
   await r.evaluate(() => { loadAll(); view = 'look'; render(); top.__opened = []; LT.open = p => top.__opened.push(p); });
-  await r.click('.mlk[data-ml="T1-2BRB-Unit Model"]');
+  await r.click('.mlk >> text=T1-2BRB-Unit Model');
   ok(await page.evaluate(() => top.__opened[0] == 'https://acc.example.com/models/2brb'), 'remembered; clicking a model opens it');
   // exports (no Excel here: CSV with HYPERLINK; HTML with links)
   await r.evaluate(() => { lookExcel(); lookHtml(); });

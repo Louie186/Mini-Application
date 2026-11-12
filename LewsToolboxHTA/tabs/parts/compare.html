@@ -101,11 +101,11 @@ function render() {
   var c = { New: count("New"), Revised: count("Revised"), Removed: count("Removed"), Unchanged: count("Unchanged"), Same: count("Same rev, file changed") };
   $("cards").innerHTML = '<span data-f="changes" class="' + (filter == "changes" ? "" : "muted") + '">All changes ' + (c.New + c.Revised + c.Removed + c.Same) + '</span><span data-f="New" class="ok">&#10133; New ' + c.New + '</span><span data-f="Revised" class="warn">&#8635; Revised ' + c.Revised + '</span><span data-f="Removed" class="bad">&#10006; Removed ' + c.Removed + "</span>" +
     (c.Same ? '<span data-f="Same rev, file changed" class="bad">&#9888; Same rev, file changed ' + c.Same + "</span>" : "") + '<span data-f="Unchanged" class="muted">Unchanged ' + c.Unchanged + '</span><span data-f="all" class="muted">Show all ' + result.length + "</span>";
-  var h = ['<table class="grid"><tr><th>Drawing</th><th>Title</th><th>Before</th><th>Now</th><th>Change</th><th>Note</th></tr>'], n = 0;
+  var h = ['<table class="grid"><tr><th>Drawing</th>' + LT.dwgHead() + '<th>Title</th><th>Before</th><th>Now</th><th>Change</th><th>Note</th></tr>'], n = 0;
   for (var i = 0; i < result.length; i++) { var r = result[i];
     if (filter == "changes" && r.st == "Unchanged") continue; if (filter != "changes" && filter != "all" && r.st != filter) continue; n++;
     var cls = r.st == "New" ? "ok" : r.st == "Revised" ? "warn" : r.st == "Unchanged" ? "muted" : "bad";
-    h.push("<tr><td><b>" + esc(r.base) + "</b></td><td>" + esc(r.title) + "</td><td>" + esc(r.before) + "</td><td><b>" + esc(r.now) + '</b></td><td class="' + cls + '" style="font-weight:bold;white-space:nowrap">' + esc(r.st) + '</td><td class="muted">' + esc(r.note) + "</td></tr>"); }
+    h.push("<tr><td><b>" + esc(r.base) + "</b></td>" + LT.dwgCells(r.base) + "<td>" + esc(r.title) + "</td><td>" + esc(r.before) + "</td><td><b>" + esc(r.now) + '</b></td><td class="' + cls + '" style="font-weight:bold;white-space:nowrap">' + esc(r.st) + '</td><td class="muted">' + esc(r.note) + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = n ? h.join("") : '<div class="muted" style="padding:24px">Nothing here.</div>';
 }
@@ -113,7 +113,7 @@ function summary() {
   if (!result) return "";
   var s = "Changes since last issue – " + LT.today() + "\r\nBefore: " + cfg.a.path + "\r\nNow: " + cfg.b.path + "\r\n", sts = ["New", "Revised", "Removed", "Same rev, file changed"];
   for (var i = 0; i < sts.length; i++) { var l = []; for (var j = 0; j < result.length; j++) if (result[j].st == sts[i]) l.push(result[j]); if (!l.length) continue;
-    s += "\r\n" + sts[i].toUpperCase() + " (" + l.length + ")\r\n"; for (var k = 0; k < l.length; k++) s += "  • " + l[k].base + (l[k].title ? " – " + l[k].title : "") + (sts[i] == "Revised" ? "  " + l[k].before + " → " + l[k].now : sts[i] == "New" ? "  " + l[k].now : "") + "\r\n"; }
+    s += "\r\n" + sts[i].toUpperCase() + " (" + l.length + ")\r\n"; for (var k = 0; k < l.length; k++) s += "  • " + l[k].base + (LT.dwgText(l[k].base) ? "  [" + LT.dwgText(l[k].base) + "]" : "") + (l[k].title ? " – " + l[k].title : "") + (sts[i] == "Revised" ? "  " + l[k].before + " → " + l[k].now : sts[i] == "New" ? "  " + l[k].now : "") + "\r\n"; }
   return s + "\r\nUnchanged: " + count("Unchanged") + "\r\n";
 }
 $("app").onclick = function (e) {

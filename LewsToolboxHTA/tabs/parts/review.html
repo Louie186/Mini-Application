@@ -205,7 +205,7 @@ $("about").onchange = function () { if (R) { R.title = LT.trim(this.value); save
 $("show").onchange = render; $("remTop").onclick = render; $("search").onkeyup = render;
 $("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-sh"); if (c) { $("show").value = c.getAttribute("data-sh"); render(); } };
 $("res").onclick = function (e) { var t0 = e.target || e.srcElement; if (t0.id == "bStart") { var f0 = offer; offer = ""; open(f0); return; }
-  var ml = LT.up(t0, "data-ml"); if (ml) { try { LT.open(ml.getAttribute("data-ml")); } catch (x) { alert("Couldn't open:\n" + ml.getAttribute("data-ml")); } return; }
+  if (LT.up(t0, "data-ml")) return;   // a model link: opened by lt-core
   var t = e.target || e.srcElement, s = LT.up(t, "data-set"), o = LT.up(t, "data-op"), tr = LT.up(t, "data-r");
   if (tr) { cur = +tr.getAttribute("data-r"); mark(); }
   if (s) { var L = shown[+s.getAttribute("data-set")], v = s.getAttribute("data-v"); setSt(L, v, true); if ((v == "cm" || v == "no") && (item(L).st == v) && !item(L).note) { var inp = $("res").querySelector ? $("res").querySelector('[data-note="' + shown.indexOf(L) + '"]') : null; try { if (inp) inp.focus(); } catch (x) { } } }

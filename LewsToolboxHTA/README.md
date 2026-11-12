@@ -330,6 +330,7 @@ The folder comes first – "what's in here?"
 For drawings someone sends you **to check**: the folder's own contents become your checklist.
 - **📂 Folder to review…** – every drawing becomes one line (its pdf, dwg… with the same name together; untick *one line per drawing* for one line per file). Subfolders included
 - **From** / **About** – who sent it and what it is (shown in the report)
+- Compact **Twr · Typo · Model** columns from the **Drawing Register**, so you know what you're looking at (a revision or file type on the name is ignored). The Model shows the end of its number (`🔗 INT-21000`, full name on hover) and **opens the model** when it has a link (Path column of your imported list, the models table, or the models folder). Not in the register = `–`. The reports include them too
 - Each line: **✔ Checked** · **✎ Comments** · **✖ Not OK** (click again to undo) and a **note**. Typing a note on an unmarked line marks it *Comments*. Your name and the time are kept
 - **To check on top** (under its own heading) · **Show** / the coloured counts filter · progress bar
 - Double-click a line (or click its **pdf** / **dwg**) to open it · right-click for each file, Show in Explorer, status

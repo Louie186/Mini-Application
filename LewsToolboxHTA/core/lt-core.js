@@ -508,6 +508,24 @@ var LT = (function () {
       list: function () { var o = []; for (var k4 in D) if (D.hasOwnProperty(k4)) { var d4 = D[k4]; o.push({ key: k4, number: d4.num || k4, title: d4.title || "", link: d4.link || "", cat: d4.cat || "", tower: d4.tower || "", typo: d4.typo || "", inMidp: d4.inMidp !== false }); } return o; },
       /* your own drawing sets (Drawing Register > My sets): [{ id, name, keys: [drawing keys] }] */
       sets: function () { return P.sets || []; },
+      /* where a model opens: its link in the models table, or from an imported drawing list (Path column), or a file named like it
+         in the models folder; ACC folder paths are found under "ACC on this PC". "" = no link */
+      modelLink: function (model) {
+        var U = function (x) { return L.trim(x || "").toUpperCase(); };
+        model = U(model); if (!model) return ""; var S = P.setup || {}, raw = [];
+        for (var i = 0; i < (P.models || []).length; i++) if (P.models[i].link && U(P.models[i].model) == model) raw.push(P.models[i].link);
+        if ((P.modelLinks || {})[model]) raw.push(P.modelLinks[model]);
+        for (var j = 0; j < raw.length; j++) { var l = L.trim(raw[j]);
+          if (/^https?:\/\//i.test(l) || /^[a-z]:[\\\/]|^\\\\/i.test(l)) return l;
+          if (/^(acc|bim360|www)\./i.test(l)) return "https://" + l;
+          if (S.accRoot && fso.FolderExists(S.accRoot)) { var ps = l.replace(/^[\\\/]+/, "").split(/[\\\/]+/); for (var k = 0; k < ps.length - 1; k++) { var p = S.accRoot + "\\" + ps.slice(k).join("\\"); if (fso.FileExists(p) || fso.FolderExists(p)) return p; } } }
+        if (S.modelsDir && fso.FolderExists(S.modelsDir)) {
+          if (!this._mf) { var mf = this._mf = [], walk = function (d, depth) { var fo; try { fo = fso.GetFolder(d); } catch (e) { return; } var e2 = new Enumerator(fo.Files); for (; !e2.atEnd(); e2.moveNext()) { var n = "" + e2.item().Name; if (/\.(rvt|nwd|nwc|ifc)$/i.test(n) && !/\.\d{4}\.rvt$/i.test(n)) mf.push({ n: up(n), p: "" + e2.item().Path }); }
+              if (depth < 4) { var s2 = new Enumerator(fo.SubFolders); for (; !s2.atEnd(); s2.moveNext()) walk("" + s2.item().Path, depth + 1); } }; walk(S.modelsDir, 0); }
+          var best = null; for (var q = 0; q < this._mf.length; q++) if (this._mf[q].n.indexOf(model) >= 0 && (!best || /\.RVT$/.test(this._mf[q].n) && !/\.RVT$/.test(best.n))) best = this._mf[q];
+          if (best) return best.p; }
+        return "";
+      },
       count: function () { var n = 0; for (var k2 in D) if (D.hasOwnProperty(k2)) n++; return n; },
       find: function (s) {
         s = L.trim(s).toUpperCase().replace(/\.[A-Z0-9]{2,4}$/, "").replace(/-+$/, "");

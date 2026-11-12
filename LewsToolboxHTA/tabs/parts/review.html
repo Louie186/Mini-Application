@@ -31,6 +31,8 @@ tr.grp td{font-weight:bold;padding-top:10px}
 tr.gone td{opacity:.55}
 .who{font-size:.82em;white-space:nowrap}
 #empty{padding:40px 24px;line-height:1.7;max-width:720px}
+td.ti{font-size:.82em;white-space:nowrap;width:1px;padding-left:4px;padding-right:4px}
+td.ti.mo{max-width:150px;overflow:hidden;text-overflow:ellipsis}.mlk{cursor:pointer;text-decoration:underline}
 </style>
 <script src="../../core/lt-core.js"></script>
 </head>
@@ -78,6 +80,7 @@ function open(dir) {
 /* every file -> lines. One per drawing: same folder + same name without the extension */
 function read() {
   var files = [], deep = R.subs !== false, root = R.folder;
+  try { REG = LT.register(); } catch (e) { REG = null; }
   var walk = function (d, rel) { var fo; try { fo = fso.GetFolder(d); } catch (e) { return; }
     var e = new Enumerator(fo.Files); for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$|^_review/i.test(n)) continue; files.push({ name: n, path: "" + f.Path, rel: rel }); }
     if (deep) { var s = new Enumerator(fo.SubFolders); for (; !s.atEnd(); s.moveNext()) if (!(s.item().Attributes & 6)) walk("" + s.item().Path, (rel ? rel + "\\" : "") + s.item().Name); } };
@@ -94,6 +97,9 @@ function read() {
   for (var k in R.items) if (R.items.hasOwnProperty(k) && !by[k] && R.items[k].st) { var it = R.items[k]; lines.push({ key: k, name: it.name || k, rel: it.rel || "", files: [], types: [], gone: true }); }
   lines.sort(function (a, b) { var x = (a.rel + "\\" + a.name).toLowerCase(), y = (b.rel + "\\" + b.name).toLowerCase(); return x < y ? -1 : x > y ? 1 : 0; });
 }
+/* the drawing's Tower / Typology / Model from the Drawing Register (to know what you're looking at) */
+var REG = null;
+function info(L) { if (L.inf !== undefined) return L.inf; var d = null; try { d = REG && REG.find(L.name); } catch (e) { } L.inf = d ? { tower: d.tower || "", typo: d.typo || "", model: d.model || "", title: d.title || "", link: d.model ? REG.modelLink(d.model) : "" } : null; return L.inf; }
 function item(L) { var it = R.items[L.key]; if (!it) it = R.items[L.key] = { st: "", note: "", by: "", at: "" }; it.name = L.name; it.rel = L.rel; return it; }
 function counts() { var n = { all: 0, left: 0, ok: 0, cm: 0, no: 0, nw: 0 };
   for (var i = 0; i < lines.length; i++) { var L = lines[i]; if (L.gone) continue; var st = (R.items[L.key] || {}).st || ""; n.all++; if (!st) n.left++; else n[st]++; if (L.isNew) n.nw++; } return n; }
@@ -115,17 +121,20 @@ function render() {
     '<div id="chips"><span class="cbtn c-left" data-sh="left">To check ' + n.left + '</span><span class="cbtn c-ok" data-sh="done">&#10004; Checked ' + n.ok + '</span><span class="cbtn c-cm" data-sh="cm">&#9998; Comments ' + n.cm + '</span><span class="cbtn c-no" data-sh="cm">&#10006; Not OK ' + n.no + '</span><span class="cbtn" data-sh="all">Everything ' + n.all + "</span></div>";
   shown = []; for (var i = 0; i < lines.length; i++) if (pass(lines[i])) shown.push(lines[i]);
   if ($("remTop").checked) { var a = [], b = []; for (var j = 0; j < shown.length; j++) ((R.items[shown[j].key] || {}).st || shown[j].gone ? b : a).push(shown[j]); shown = a.concat(b); var split = a.length && b.length ? a.length : -1; }
-  var h = ['<table class="grid" id="tbl"><tr><th>Drawing / file</th><th>Type</th><th>Review</th><th>Note</th><th>By / when</th><th>Folder</th></tr>'];
+  var h = ['<table class="grid" id="tbl"><tr><th>Drawing / file</th><th title="Tower (Drawing Register)">Twr</th><th title="Typology (Drawing Register)">Typo</th><th title="Model (Drawing Register) - click to open">Model</th><th>Type</th><th>Review</th><th>Note</th><th>By / when</th><th>Folder</th></tr>'];
   for (var r = 0; r < shown.length; r++) { var L = shown[r], it = R.items[L.key] || {}, st = it.st || "";
-    if ($("remTop").checked && r == 0 && split > 0) h.push('<tr class="grp"><td colspan="6">To check (' + split + ")</td></tr>");
-    if ($("remTop").checked && r == split) h.push('<tr class="grp"><td colspan="6">Reviewed (' + (shown.length - split) + ")</td></tr>");
+    if ($("remTop").checked && r == 0 && split > 0) h.push('<tr class="grp"><td colspan="9">To check (' + split + ")</td></tr>");
+    if ($("remTop").checked && r == split) h.push('<tr class="grp"><td colspan="9">Reviewed (' + (shown.length - split) + ")</td></tr>");
     var tys = ""; for (var t = 0; t < L.types.length; t++) tys += '<span class="ty" data-op="' + r + '" data-ext="' + L.types[t] + '" title="Open the ' + L.types[t] + '">' + esc(L.types[t]) + "</span>";
     var bs = ""; for (var s = 1; s < ST.length; s++) bs += '<span class="sb' + (st == ST[s][0] ? " on s-" + ST[s][0] : "") + '" data-set="' + r + '" data-v="' + ST[s][0] + '">' + (s == 1 ? "&#10004; " : s == 2 ? "&#9998; " : "&#10006; ") + ST[s][1] + "</span>";
-    h.push('<tr data-r="' + r + '" class="' + (L.gone ? "gone " : "") + (r == cur ? "cur" : "") + '"><td class="nm"><b>' + esc(L.name) + "</b>" + (L.isNew ? '<span class="tag t-new">NEW</span>' : "") + (L.gone ? '<span class="tag t-gone">not in the folder now</span>' : "") + "</td><td>" + tys + '</td><td class="stc">' + bs +
+    h.push('<tr data-r="' + r + '" class="' + (L.gone ? "gone " : "") + (r == cur ? "cur" : "") + '"><td class="nm"><b>' + esc(L.name) + "</b>" + (L.isNew ? '<span class="tag t-new">NEW</span>' : "") + (L.gone ? '<span class="tag t-gone">not in the folder now</span>' : "") + "</td>" + infoCells(L) + "<td>" + tys + '</td><td class="stc">' + bs +
       '</td><td class="nt"><input type="text" data-note="' + r + '" value="' + esc(it.note || "") + '" placeholder="note..."></td><td class="who muted">' + (st ? esc((it.by ? it.by + " · " : "") + LT.fmtDate(it.at) + " " + (it.at || "").substring(11)) : "") + '</td><td class="muted">' + esc(L.rel) + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">' + (lines.length ? "Nothing here with this filter." : "No files in this folder.") + "</div>";
 }
+function infoCells(L) { var f = info(L); if (!f) return '<td class="ti muted" title="Not in the Drawing Register">&ndash;</td><td class="ti"></td><td class="ti"></td>';
+  var ps = f.model.split("-"), sh = ps.length > 3 ? ps.slice(-2).join("-") : f.model, ns = ' style="white-space:nowrap"';   // compact: the end of the model number (full name on hover)
+  return '<td class="ti"' + ns + ' title="' + esc(f.title) + '">' + esc(f.tower) + '</td><td class="ti"' + ns + ">" + esc(f.typo) + '</td><td class="ti mo"' + ns + ' title="' + esc(f.model + (f.link ? " - click to open" : "")) + '">' + (f.model && f.link ? '<span class="mlk" data-ml="' + esc(f.link) + '">&#128279; ' + esc(sh) + "</span>" : esc(sh)) + "</td>"; }
 function setSt(L, v, toggle) {
   if (L.gone && !v) return; var it = item(L);
   it.st = toggle && it.st == v ? "" : v; it.by = it.st ? me() : ""; it.at = it.st ? stamp() : "";
@@ -143,7 +152,7 @@ function openLine(L, ext) {
 function rowsFor(filter) { var o = []; for (var i = 0; i < lines.length; i++) { var L = lines[i], it = R.items[L.key] || {}; if (!filter || filter(it.st || "", L)) o.push({ L: L, it: it }); } return o; }
 function textReport() {
   var n = counts(), s = "Review: " + (R.title || fso.GetFileName(R.folder)) + (R.from ? "  (from " + R.from + ")" : "") + "\r\n" + R.folder + "\r\n" + (n.ok + n.cm + n.no) + " of " + n.all + " reviewed  -  " + n.ok + " checked, " + n.cm + " with comments, " + n.no + " not OK, " + n.left + " still to check\r\n";
-  var add = function (title, rs) { if (!rs.length) return; s += "\r\n" + title + " (" + rs.length + ")\r\n"; for (var i = 0; i < rs.length; i++) s += "  • " + rs[i].L.name + (rs[i].it.note ? "  – " + rs[i].it.note : "") + "\r\n"; };
+  var add = function (title, rs) { if (!rs.length) return; s += "\r\n" + title + " (" + rs.length + ")\r\n"; for (var i = 0; i < rs.length; i++) { var f3 = info(rs[i].L); s += "  • " + rs[i].L.name + (f3 && (f3.tower || f3.typo) ? "  [" + LT.trim([f3.tower, f3.typo].join(" ")) + "]" : "") + (rs[i].it.note ? "  – " + rs[i].it.note : "") + "\r\n"; } };
   add("NOT OK", rowsFor(function (st) { return st == "no"; })); add("COMMENTS", rowsFor(function (st) { return st == "cm"; }));
   add("STILL TO CHECK", rowsFor(function (st, L) { return !st && !L.gone; }));
   return s + "\r\n" + (me() ? "Reviewed by " + me() + ", " : "") + LT.fmtDate(LT.today()) + "\r\n";
@@ -158,11 +167,11 @@ function htmlReport() {
     "a{color:#1f5fbf;text-decoration:none}.ft{padding:12px 26px;font-size:8pt;color:#8a93a3;border-top:1px solid #eef1f5}</style></head><body><div class=\"page\">",
     '<div class="hd"><div class="k">Drawing review' + (R.from ? " &middot; from " + e(R.from) : "") + "</div><h1>" + e(R.title || fso.GetFileName(R.folder)) + '</h1><div class="p">' + e(R.folder) + "</div></div>",
     '<div class="facts"><div class="f"><span>Drawings</span><b>' + n.all + '</b></div><div class="f"><span>Checked</span><b>' + n.ok + '</b></div><div class="f"><span>Comments</span><b>' + n.cm + '</b></div><div class="f"><span>Not OK</span><b>' + n.no + '</b></div><div class="f"><span>To check</span><b>' + n.left + "</b></div></div>",
-    '<div class="sec"><table><tr><th>Drawing / file</th><th>Review</th><th>Note</th><th>By / when</th></tr>'];
+    '<div class="sec"><table><tr><th>Drawing / file</th><th>Tower</th><th>Typology</th><th>Model</th><th>Review</th><th>Note</th><th>By / when</th></tr>'];
   var order = { no: 0, cm: 1, "": 2, ok: 3 }; rows.sort(function (a, b) { return (order[a.it.st || ""] - order[b.it.st || ""]) || (a.L.name < b.L.name ? -1 : 1); });
   for (var i = 0; i < rows.length; i++) { var L = rows[i].L, it = rows[i].it, st = it.st || "", f = L.files[0] || "";
     for (var j = 0; j < L.files.length; j++) if (/\.pdf$/i.test(L.files[j])) f = L.files[j];
-    h.push("<tr><td>" + (f ? '<a href="file:///' + e(f.replace(/\\/g, "/")) + '">' + e(L.name) + "</a>" : e(L.name)) + (L.rel ? '<div style="font-size:8pt;color:#8a93a3">' + e(L.rel) + "</div>" : "") + '</td><td><span class="s ' + (st || "to") + '">' + stName(st) + "</span></td><td>" + e(it.note || "") + "</td><td>" + e(st ? (it.by ? it.by + " · " : "") + (it.at || "") : "") + "</td></tr>"); }
+    h.push("<tr><td>" + (f ? '<a href="file:///' + e(f.replace(/\\/g, "/")) + '">' + e(L.name) + "</a>" : e(L.name)) + (L.rel ? '<div style="font-size:8pt;color:#8a93a3">' + e(L.rel) + "</div>" : "") + "</td>" + (function () { var f2 = info(L) || {}; return '<td style="font-size:8.5pt">' + e(f2.tower || "") + '</td><td style="font-size:8.5pt">' + e(f2.typo || "") + '</td><td style="font-size:8.5pt">' + (f2.link ? '<a href="' + e(/^https?:/i.test(f2.link) ? f2.link : "file:///" + f2.link.replace(/\\/g, "/")) + '">' + e(f2.model) + "</a>" : e(f2.model || "")) + "</td>"; })() + '<td><span class="s ' + (st || "to") + '">' + stName(st) + "</span></td><td>" + e(it.note || "") + "</td><td>" + e(st ? (it.by ? it.by + " · " : "") + (it.at || "") : "") + "</td></tr>"); }
   h.push('</table></div><div class="ft">Made ' + e(LT.fmtDate(LT.today())) + (me() ? " by " + e(me()) : "") + " &middot; Lew's Toolbox</div></div></body></html>");
   return h.join("\n");
 }
@@ -170,7 +179,7 @@ function reportMenu(x, y) {
   LT.menu(x, y, [
     { label: "&#128203; Copy the review as text (for email / Teams)", fn: function () { if (LT.copyText(textReport())) LT.toast("Copied - paste it into an email or Teams"); } },
     { label: "&#128196; HTML report (saved in the reviewed folder)", fn: function () { var p = R.folder + "\\_Review " + LT.stamp() + ".html"; try { LT.writeUtf8(p, htmlReport(), true); } catch (e) { p = LT.exportsDir() + "\\Review_" + LT.stamp() + ".html"; LT.mkdirs(LT.exportsDir()); LT.writeUtf8(p, htmlReport(), true); } LT.open(p); } },
-    { label: "Excel (CSV)", fn: function () { var rows = [["Drawing / file", "Folder", "Types", "Review", "Note", "By", "When"]], rs = rowsFor(null); for (var i = 0; i < rs.length; i++) rows.push([rs[i].L.name, rs[i].L.rel, rs[i].L.types.join(", "), stName(rs[i].it.st), rs[i].it.note || "", rs[i].it.st ? rs[i].it.by || "" : "", rs[i].it.st ? rs[i].it.at || "" : ""]); LT.mkdirs(LT.exportsDir()); var f = LT.exportsDir() + "\\Review_" + LT.safeName(fso.GetFileName(R.folder)) + "_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } },
+    { label: "Excel (CSV)", fn: function () { var rows = [["Drawing / file", "Tower", "Typology", "Model", "Folder", "Types", "Review", "Note", "By", "When"]], rs = rowsFor(null); for (var i = 0; i < rs.length; i++) rows.push([rs[i].L.name, (info(rs[i].L) || {}).tower || "", (info(rs[i].L) || {}).typo || "", (info(rs[i].L) || {}).model || "", rs[i].L.rel, rs[i].L.types.join(", "), stName(rs[i].it.st), rs[i].it.note || "", rs[i].it.st ? rs[i].it.by || "" : "", rs[i].it.st ? rs[i].it.at || "" : ""]); LT.mkdirs(LT.exportsDir()); var f = LT.exportsDir() + "\\Review_" + LT.safeName(fso.GetFileName(R.folder)) + "_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } },
     "-",
     { label: "&#10004; Mark everything shown as Checked", fn: function () { if (!confirm("Mark the " + shown.length + " line(s) shown as Checked?")) return; for (var i = 0; i < shown.length; i++) if (!shown[i].gone) { var it = item(shown[i]); if (!it.st) { it.st = "ok"; it.by = me(); it.at = stamp(); } } save(); render(); } },
     { label: "Start this review again (clear every mark)", fn: function () { if (!confirm("Clear every mark and note of this review?")) return; R.items = {}; R.seen = {}; R.started = 0; read(); save(); render(); } }]);
@@ -196,6 +205,7 @@ $("about").onchange = function () { if (R) { R.title = LT.trim(this.value); save
 $("show").onchange = render; $("remTop").onclick = render; $("search").onkeyup = render;
 $("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-sh"); if (c) { $("show").value = c.getAttribute("data-sh"); render(); } };
 $("res").onclick = function (e) { var t0 = e.target || e.srcElement; if (t0.id == "bStart") { var f0 = offer; offer = ""; open(f0); return; }
+  var ml = LT.up(t0, "data-ml"); if (ml) { try { LT.open(ml.getAttribute("data-ml")); } catch (x) { alert("Couldn't open:\n" + ml.getAttribute("data-ml")); } return; }
   var t = e.target || e.srcElement, s = LT.up(t, "data-set"), o = LT.up(t, "data-op"), tr = LT.up(t, "data-r");
   if (tr) { cur = +tr.getAttribute("data-r"); mark(); }
   if (s) { var L = shown[+s.getAttribute("data-set")], v = s.getAttribute("data-v"); setSt(L, v, true); if ((v == "cm" || v == "no") && (item(L).st == v) && !item(L).note) { var inp = $("res").querySelector ? $("res").querySelector('[data-note="' + shown.indexOf(L) + '"]') : null; try { if (inp) inp.focus(); } catch (x) { } } }
@@ -220,7 +230,7 @@ function look() { LT.applyLook([".num{background:{accent};color:{accText};border
   "#bar{background:{chip};border-radius:{r}px}#bar .b-ok{background:{ok}}#bar .b-cm{background:{warn}}#bar .b-no{background:{bad}}",
   "#chips .cbtn{border-radius:{r}px;background:{chip};color:{text}}#chips .c-ok{color:{ok}}#chips .c-cm{color:{warn}}#chips .c-no{color:{bad}}#chips .cbtn:hover{outline:1px solid {accent}}",
   ".sb{border:{bw}px solid {line};border-radius:{r}px;color:{muted};background:{bg}}.sb:hover{border-color:{accent};color:{text}}.sb.on.s-ok{background:{okSoft};color:{ok};border-color:{ok}}.sb.on.s-cm{background:{warnSoft};color:{warn};border-color:{warn}}.sb.on.s-no{background:{badSoft};color:{bad};border-color:{bad}}",
-  ".ty{background:{chip};color:{text};border-radius:{r}px}.ty:hover{background:{accent};color:{accText}}", ".tag{border-radius:{r}px}.t-new{background:{accent};color:{accText}}.t-gone{background:{chip};color:{muted}}",
+  ".ty{background:{chip};color:{text};border-radius:{r}px}.ty:hover{background:{accent};color:{accText}}", ".mlk{color:{accent}}.mlk:hover{color:{text}}td.ti{color:{text}}", ".tag{border-radius:{r}px}.t-new{background:{accent};color:{accText}}.t-gone{background:{chip};color:{muted}}",
   "tr.grp td{color:{muted};background:{bg}}", "#res tr.cur td{background:{hover}}", "#res tr.cur td:first-child{box-shadow:inset 3px 0 0 {accent}}"]); }
 window.ltTheme = function () { look(); render(); };
 window.ltReload = function () { load(); if (cfg.folder && fso.FolderExists(cfg.folder)) open(cfg.folder); else render(); };

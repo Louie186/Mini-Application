@@ -43,7 +43,13 @@ tr.done td.t{text-decoration:line-through}
 .sub{font-size:.85em;margin-top:2px}
 #tf .card{width:860px}#tfNote{width:100%;height:80px}
 #tfDrop{height:270px;overflow:auto}#tfDrop object{width:100%;height:100%}
-#tfTabs{margin:8px 0 6px}.tfadd{margin-bottom:6px}.tfp{word-break:break-all}
+#tfTabs{margin:8px 0 6px}
+.calh{padding:6px 12px 8px}.calh b{display:inline-block;min-width:150px;text-align:center;font-size:1.1em;vertical-align:middle;margin:0 6px 6px 0}
+table.cal{width:100%;border-collapse:collapse;table-layout:fixed}table.cal th{padding:5px;font-size:.8em;text-align:center}
+table.cal td{height:92px;vertical-align:top;padding:3px 4px}table.cal td .n{font-weight:bold;font-size:.85em;margin-bottom:2px}
+.ev{display:block;padding:2px 6px;margin:0 0 3px;font-size:.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:move}
+.evm{display:block;font-size:.8em;cursor:pointer;padding-left:4px}
+.nodate{margin-top:6px;padding-top:6px}.nodate .ev{display:inline-block;max-width:220px;margin-right:6px;vertical-align:middle}.tfadd{margin-bottom:6px}.tfp{word-break:break-all}
 .tfl td.a{width:60px;text-align:right;white-space:nowrap}.tfl .x{cursor:pointer;margin-left:8px}
 .tfn{padding:6px 10px;margin-bottom:6px}.tfn .at{font-size:.85em}.tfn .tx{white-space:pre-wrap}
 .tfc{cursor:pointer}
@@ -110,6 +116,7 @@ tr.done td.t{text-decoration:line-through}
     <span class="lbl">Section:</span><select id="mpCat" style="width:150px;height:26px;margin:0 8px 6px 0"></select>
     <span class="lbl">Tower:</span><select id="mpTower" style="width:90px;height:26px;margin:0 8px 6px 0"></select>
     <span class="lbl">Typology:</span><select id="mpTypo" style="width:110px;height:26px;margin:0 8px 6px 0"></select>
+    <span class="lbl" title="Your own groups of drawings, made in Drawing Register > My sets">My set:</span><select id="mpSet" style="width:170px;height:26px;margin:0 8px 6px 0"></select>
   </div>
   <div class="muted" id="mpN" style="margin:2px 0 6px"></div>
   <div id="mpList" style="max-height:340px;overflow-y:auto"></div>
@@ -148,7 +155,7 @@ tr.done td.t{text-decoration:line-through}
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso;
 var STATUSES = ["To do", "Doing", "Waiting", "Done"], PRIOS = ["High", "Normal", "Low"];
-var VIEWS = [["today", "Today"], ["week", "This week"], ["overdue", "Overdue"], ["todel", "To delegate"], ["waiting", "Waiting on others"], ["open", "All open"], ["board", "Board"], ["done", "Done"]];
+var VIEWS = [["today", "Today"], ["week", "This week"], ["overdue", "Overdue"], ["todel", "To delegate"], ["waiting", "Waiting on others"], ["open", "All open"], ["board", "Board"], ["cal", "Calendar"], ["done", "Done"]];
 var data = { tasks: [], view: "today" }, feed = [], shown = [], editing = null, work = null;
 function FILE() { return LT.dataPath("tracker.json"); }
 function FEED() { return LT.dataPath("delegate-feed.json"); }
@@ -254,6 +261,7 @@ function pick(view) {
     if (view == "overdue" && !overdue(t)) continue;
     if (view == "open" && done) continue;
     if (view == "board" && done && !(D(t.doneOn) && D(t.doneOn) >= addDays(today, -14))) continue;
+    if (view == "cal" && done && !t.due) continue;
     if (view == "done" && !done) continue;
     out.push(t);
   }
@@ -275,10 +283,10 @@ function render() {
   $("proj").innerHTML = h; $("projList").innerHTML = dl;
   // view buttons with counts
   h = "";
-  for (var v = 0; v < VIEWS.length; v++) { var k = VIEWS[v][0], n = k == "board" || k == "done" ? -1 : pick(k).length;
+  for (var v = 0; v < VIEWS.length; v++) { var k = VIEWS[v][0], n = k == "board" || k == "done" || k == "cal" ? -1 : pick(k).length;
     h += '<button class="btn' + (data.view == k ? " on" : "") + (k == "overdue" && n > 0 ? " late" : "") + '" data-v="' + k + '">' + VIEWS[v][1] + (n >= 0 ? " &nbsp;" + n : "") + "</button>"; }
   $("views").innerHTML = h;
-  if (data.view == "board") board(); else list();
+  if (data.view == "board") board(); else if (data.view == "cal") cal(); else list();
   timer();
 }
 function list() {
@@ -317,6 +325,42 @@ function board() {
   }
   $("main").innerHTML = h + "</div>";
   $("hint").innerHTML = "Drag cards between columns &middot; double-click a card to edit &middot; Done shows the last 14 days";
+}
+
+/* ---------- calendar: tasks on their due day; drag = move, Ctrl + drag = a copy on that day ---------- */
+var calMonth = null, calOpen = "";
+function cal() {
+  shown = pick("cal");
+  if (!calMonth) { var n0 = todayD(); calMonth = new Date(n0.getFullYear(), n0.getMonth(), 1); }
+  var days = {}, nodate = [];
+  for (var i = 0; i < shown.length; i++) { var t = shown[i]; if (t.due) (days[t.due] = days[t.due] || []).push(i); else if (t.status != "Done") nodate.push(i); }
+  var ev = function (i) { var t = shown[i], cls = t.status == "Done" ? "ok" : overdue(t) ? "lt" : t.status == "Doing" ? "ip" : t.priority == "High" ? "hi" : "";
+    return '<span class="ev ' + cls + '" draggable="' + (t.fromDelegate ? "false" : "true") + '" data-i="' + i + '" title="' + esc((t.code ? t.code + " " : "") + t.title + (t.who ? " - " + t.who : "") + (t.project ? " - " + t.project : "") + " - " + statusText(t) + (t.fromDelegate ? "" : ". Drag = move, Ctrl + drag = copy. Double-click = edit")) + '">' + (t.fromDelegate ? "&#128203; " : "") + (t.status == "Done" ? "&#10004; " : "") + esc(t.title) + "</span>"; };
+  var y = calMonth.getFullYear(), m = calMonth.getMonth(), first = new Date(y, m, 1), start = new Date(y, m, 1 - ((first.getDay() + 6) % 7)), today = LT.today();
+  var h = ['<div class="calh"><button class="btn small" data-mon="-1">&#8249;</button><b>' + ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m] + " " + y +
+    '</b><button class="btn small" data-mon="1">&#8250;</button><button class="btn small" data-mon="0">Today</button>'];
+  if (nodate.length) { h.push('<div class="nodate"><span class="muted">No due date (drag onto a day):</span> '); for (var q = 0; q < nodate.length && q < 30; q++) h.push(ev(nodate[q])); h.push("</div>"); }
+  h.push('</div><table class="cal"><tr>');
+  var dn = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; for (var k = 0; k < 7; k++) h.push("<th>" + dn[k] + "</th>"); h.push("</tr>");
+  for (var w = 0; w < 6; w++) { h.push("<tr>");
+    for (var dd = 0; dd < 7; dd++) { var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + dd), iso = LT.iso(d), its = days[iso] || [], MAX = calOpen == iso ? 99 : 4, cells = "";
+      for (var z = 0; z < its.length && z < MAX; z++) cells += ev(its[z]);
+      if (its.length > 4) cells += '<span class="evm" data-open="' + iso + '">' + (calOpen == iso ? "Show less" : "+" + (its.length - 4) + " more") + "</span>";
+      h.push('<td data-day="' + iso + '" class="' + (d.getMonth() != m ? "oth" : "") + (iso == today ? " tdy" : "") + (dd > 4 ? " we" : "") + '"><div class="n">' + d.getDate() + "</div>" + cells + "</td>"); }
+    h.push("</tr>"); }
+  $("main").innerHTML = h.join("") + "</table>";
+  $("hint").innerHTML = "Drag a task to another day = move &middot; hold <b>Ctrl</b> while dropping = a copy on that day &middot; double-click = edit &middot; right-click = more";
+}
+/* drop on a day: move it (Undo for 6 seconds), or with Ctrl a copy due that day */
+function dropDay(t, iso, asCopy) {
+  if (!t || t.fromDelegate || !iso) { render(); return; }
+  if (asCopy) { var c = copy(t); c.id = LT.uid("t"); c.code = ""; c.status = "To do"; c.doneOn = ""; c.log = []; c.timer = 0; c.created = LT.today(); c.delegated = null; c.dprog = c.dwho = ""; c.folder = ""; c.fnotes = []; c.events = []; c.due = iso;
+    for (var i = 0; i < (c.subs || []).length; i++) { c.subs[i].status = "To do"; c.subs[i].due = ""; }
+    addTask(c); LT.taskEvent(c, "Copied from " + t.code + " (Ctrl + drag on the calendar)"); save(); render();
+    LT.toast("Copied: " + c.code + " due " + nice(iso), function () { data.tasks.splice(data.tasks.indexOf(c), 1); save(); render(); }); return; }
+  if (t.due == iso) { render(); return; }
+  var was = t.due; t.due = iso; LT.taskEvent(t, "Due moved: " + (was ? LT.fmtDate(was) : "no date") + " \u2192 " + LT.fmtDate(iso) + " (calendar)"); save(); render();
+  LT.toast((t.code || t.title) + " moved to " + nice(iso), function () { t.due = was; LT.taskEvent(t, "Undo: due back to " + (was ? LT.fmtDate(was) : "no date")); save(); render(); });
 }
 
 /* ---------- actions ---------- */
@@ -580,28 +624,31 @@ function emailText(t) {
 var mpRows = [], mpTick = {};
 function mpButtons() { var n = 0; for (var i = 0; i < work.subs.length; i++) if (work.subs[i].dwg) n++; $("eMpUp").style.display = work.midp ? "" : "none"; $("eChk").style.display = n ? "" : "none"; }
 function mpPass(d, f) {
+  if (f.set) { var S = mpSetOf(f.set); if (!S || S.keys.indexOf(d.key) < 0) return false; }
   if (f.cat && d.cat != f.cat) return false; if (f.tower && d.tower != f.tower) return false; if (f.typo && d.typo != f.typo) return false;
   var q = LT.trim(f.q || "").toLowerCase(); if (!q) return true;
   var h = (d.number + " " + d.title + " " + d.cat + " " + d.tower + " " + d.typo).toLowerCase(), ws = q.split(/\s+/);
   for (var i = 0; i < ws.length; i++) if (h.indexOf(ws[i]) < 0 && h.replace(/[\s\-_]/g, "").indexOf(ws[i].replace(/[\s\-_]/g, "")) < 0) return false;
   return true;
 }
+function mpSetOf(id) { try { var a = LT.register().sets(); for (var i = 0; i < a.length; i++) if (a[i].id == id) return a[i]; } catch (e) { } return null; }
 function mpAll() { var R = LT.register(); if (!R) return null; var a = R.list(), o = []; for (var i = 0; i < a.length; i++) if (a[i].inMidp) o.push(a[i]); return { R: R, list: o }; }
 function mpOpen() {
   readSubs(); var M = mpAll();
   if (!M) { alert("There's no Drawing Register yet.\n\nDrawing Register tab > Load new MIDP... - then come back here."); return; }
   var f = work.midp || {}, opt = function (id, key, cur) { var s = {}, a = []; for (var i = 0; i < M.list.length; i++) { var v = M.list[i][key]; if (v && !s[v]) { s[v] = 1; a.push(v); } } if (key != "cat") a.sort();
     var h = '<option value="">All</option>'; for (var j = 0; j < a.length; j++) h += "<option" + (a[j] == cur ? " selected" : "") + ">" + esc(a[j]) + "</option>"; $(id).innerHTML = h; };
+  var sets = M.R.sets(), sh = '<option value="">(none)</option>'; for (var s = 0; s < sets.length; s++) sh += '<option value="' + esc(sets[s].id) + '"' + (sets[s].id == f.set ? " selected" : "") + ">" + esc(sets[s].name) + " (" + sets[s].keys.length + ")</option>"; $("mpSet").innerHTML = sh;
   opt("mpCat", "cat", f.cat); opt("mpTower", "tower", f.tower); opt("mpTypo", "typo", f.typo); $("mpQ").value = f.q || "";
   $("mpProj").innerHTML = "&middot; " + esc(M.R.name) + " &middot; " + M.list.length + " drawings in the current MIDP"; mpTick = {}; $("mp").style.display = "block"; mpFind(true); try { $("mpQ").focus(); } catch (e) { }
 }
-function mpFilter() { return { q: LT.trim($("mpQ").value), cat: $("mpCat").value, tower: $("mpTower").value, typo: $("mpTypo").value }; }
+function mpFilter() { return { q: LT.trim($("mpQ").value), cat: $("mpCat").value, tower: $("mpTower").value, typo: $("mpTypo").value, set: $("mpSet").value }; }
 function mpFind(all) {
   var M = mpAll(), f = mpFilter(), have = {}; mpRows = [];
   for (var h = 0; h < work.subs.length; h++) if (work.subs[h].dwg) have[work.subs[h].dwg.toUpperCase()] = 1;
   for (var i = 0; i < M.list.length; i++) if (mpPass(M.list[i], f)) mpRows.push(M.list[i]);
   if (all) { mpTick = {}; for (var k = 0; k < mpRows.length; k++) if (!have[mpRows[k].number.toUpperCase()]) mpTick[mpRows[k].number] = 1; }
-  var any = f.q || f.cat || f.tower || f.typo, n = 0, rows = ['<table class="grid nofit nonum"><tr><th></th><th>Drawing</th><th>Title</th><th>Section</th><th>Tower</th><th>Typology</th></tr>'];
+  var any = f.q || f.cat || f.tower || f.typo || f.set, n = 0, rows = ['<table class="grid nofit nonum"><tr><th></th><th>Drawing</th><th>Title</th><th>Section</th><th>Tower</th><th>Typology</th></tr>'];
   for (var j = 0; j < mpRows.length && j < 1500; j++) { var d = mpRows[j], had = have[d.number.toUpperCase()]; if (mpTick[d.number]) n++;
     rows.push('<tr' + (had ? ' class="had" title="Already on the checklist"' : "") + '><td><input type="checkbox" style="height:auto" data-mp="' + j + '"' + (mpTick[d.number] ? " checked" : "") + (had ? " disabled" : "") + '></td><td class="n">' + esc(d.number) + "</td><td>" + esc(d.title) + '</td><td class="muted">' + esc(d.cat) + "</td><td>" + esc(d.tower) + "</td><td>" + esc(d.typo) + "</td></tr>"); }
   $("mpList").innerHTML = any ? (mpRows.length ? rows.join("") + "</table>" : '<div class="muted" style="padding:16px">No drawing matches.</div>') : '<div class="muted" style="padding:16px">Type words or pick a section / tower / typology.</div>';
@@ -610,11 +657,11 @@ function mpFind(all) {
 }
 function mpItem(d) { return { code: "", title: d.number + " \u2013 " + d.title, who: "", due: "", status: "To do", refs: [{ kind: "drawing", value: d.number }], dwg: d.number }; }
 function mpAdd() {
-  var f = mpFilter(), n = 0; if (!(f.q || f.cat || f.tower || f.typo)) return;
+  var f = mpFilter(), n = 0; if (!(f.q || f.cat || f.tower || f.typo || f.set)) return;
   for (var i = 0; i < mpRows.length; i++) if (mpTick[mpRows[i].number]) { work.subs.push(mpItem(mpRows[i])); n++; }
   if (!n) { alert("Tick the drawings to add."); return; }
   var R = LT.register(); f.reg = R ? R.id : ""; work.midp = f;
-  if (!LT.trim($("eTitle").value)) $("eTitle").value = (f.q || f.typo || f.cat || f.tower) + " drawings";
+  if (!LT.trim($("eTitle").value)) $("eTitle").value = (f.set && mpSetOf(f.set) ? mpSetOf(f.set).name : f.q || f.typo || f.cat || f.tower) + " drawings";
   $("mp").style.display = "none"; drawSubs(); mpButtons(); LT.toast(n + " drawing(s) added to the checklist");
 }
 /* the same pick on today's MIDP: new drawings are added, removed ones are flagged in their item */
@@ -721,7 +768,9 @@ function exportMenu(x, y) {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}", ".tfn{background:{bg};border-left:3px solid {accent};border-radius:{r}px}", "#tfDrop{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}", ".tfc:hover{color:{accent}}", "#main tr.pick td{background:{hover}}", "#main tr.pick td:first-child{box-shadow:inset 3px 0 0 {accent}}"].concat(LT.REF_CSS)); }
+function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}", ".tfn{background:{bg};border-left:3px solid {accent};border-radius:{r}px}", "#tfDrop{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}", ".tfc:hover{color:{accent}}",
+  "table.cal th{color:{muted};border-bottom:{bw}px solid {line}}table.cal td{border:1px solid {line};background:{panel}}table.cal td.we{background:{bg}}table.cal td.oth{background:{bg}}table.cal td.oth .n{color:{muted}}table.cal td.tdy .n{color:{accent}}table.cal td.over{background:{hover};outline:2px dashed {accent}}",
+  ".ev{background:{chip};color:{text};border-left:3px solid {accent};border-radius:{r}px}.ev.lt{border-left-color:{bad};color:{bad}}.ev.ok{border-left-color:{ok};opacity:.6}.ev.ip{border-left-color:{warn}}.ev.hi{border-left-color:{bad}}.ev:hover{background:{hover}}.evm{color:{accent}}.nodate{border-top:1px solid {line}}", "#main tr.pick td{background:{hover}}", "#main tr.pick td:first-child{box-shadow:inset 3px 0 0 {accent}}"].concat(LT.REF_CSS)); }
 $("bAdd").onclick = quickAdd;
 $("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { quickAdd(); return false; } };
 $("bDetail").onclick = function () { edit(null); };
@@ -729,17 +778,22 @@ $("bExport").onclick = function (e) { var r = this.getBoundingClientRect(); expo
 $("views").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-v"); if (b) { data.view = b.getAttribute("data-v"); save(); render(); } };
 $("proj").onchange = render; $("search").onkeyup = render;
 $("bStop").onclick = function () { for (var i = 0; i < data.tasks.length; i++) stopTimer(data.tasks[i]); save(); render(); };
-$("main").onclick = function (e) { var t = e.target || e.srcElement, d = t.getAttribute && t.getAttribute("data-done"), tf = LT.up(t, "data-tf"), row = LT.up(t, "data-i");
+$("main").onclick = function (e) { var t = e.target || e.srcElement, d = t.getAttribute && t.getAttribute("data-done"), tf = LT.up(t, "data-tf"), row = LT.up(t, "data-i"), mon = LT.up(t, "data-mon"), mo = LT.up(t, "data-open");
+  if (mon) { var v = +mon.getAttribute("data-mon"), n0 = todayD(); calMonth = v ? new Date(calMonth.getFullYear(), calMonth.getMonth() + v, 1) : new Date(n0.getFullYear(), n0.getMonth(), 1); render(); return; }
+  if (mo) { calOpen = calOpen == mo.getAttribute("data-open") ? "" : mo.getAttribute("data-open"); render(); return; }
   if (row && row.tagName == "TR") { picked = shown[+row.getAttribute("data-i")] || null; var trs = $("main").getElementsByTagName("tr"); for (var q = 0; q < trs.length; q++) trs[q].className = trs[q].className.replace(/ ?pick/g, ""); row.className += " pick"; } if (tf) { openTF(shown[+tf.getAttribute("data-tf")]); return; } if (d != null) { var task = shown[+d]; setStatus(task, t.checked ? "Done" : "To do"); } };
 $("main").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "data-i"); if (r) edit(shown[+r.getAttribute("data-i")]); };
 $("main").oncontextmenu = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-i"); if (r) taskMenu(shown[+r.getAttribute("data-i")], e.clientX, e.clientY); return false; };
 /* board: drag a card to another column */
 var dragI = null;
-$("main").ondragstart = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-i"); if (!c) return; dragI = +c.getAttribute("data-i"); try { e.dataTransfer.setData("text", "" + dragI); } catch (x) { } };
-$("main").ondragover = function (e) { e = e || window.event; var col = LT.up(e.target || e.srcElement, "data-st"); if (col) { if (e.preventDefault) e.preventDefault(); e.returnValue = false; } return false; };
-$("main").ondragenter = function (e) { e = e || window.event; var col = LT.up(e.target || e.srcElement, "data-st"); if (col) { if (e.preventDefault) e.preventDefault(); col.className = "col over"; } return false; };
-$("main").ondragleave = function (e) { e = e || window.event; var col = LT.up(e.target || e.srcElement, "data-st"); if (col) col.className = "col"; };
-$("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); var col = LT.up(e.target || e.srcElement, "data-st"); if (col && dragI != null && shown[dragI]) { var st = col.getAttribute("data-st"), t = shown[dragI]; dragI = null; if (t.status != st) setStatus(t, st); else render(); } return false; };
+$("main").ondragstart = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-i"); if (!c) return; dragI = +c.getAttribute("data-i"); try { e.dataTransfer.setData("text", "" + dragI); e.dataTransfer.effectAllowed = "copyMove"; } catch (x) { } };
+function dayOver(td, on) { if (td) td.className = td.className.replace(/ ?over/g, "") + (on ? " over" : ""); }
+$("main").ondragover = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col || day) { if (day) { try { e.dataTransfer.dropEffect = e.ctrlKey ? "copy" : "move"; } catch (x) { } } if (e.preventDefault) e.preventDefault(); e.returnValue = false; } return false; };
+$("main").ondragenter = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col) { if (e.preventDefault) e.preventDefault(); col.className = "col over"; } if (day) { if (e.preventDefault) e.preventDefault(); dayOver(day, true); } return false; };
+$("main").ondragleave = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col) col.className = "col"; if (day && el === day) dayOver(day, false); };
+$("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault();
+  var day = LT.up(e.target || e.srcElement, "data-day"); if (day) { var di = dragI; dragI = null; dropDay(di != null ? shown[di] : null, day.getAttribute("data-day"), !!e.ctrlKey); return false; }
+  var col = LT.up(e.target || e.srcElement, "data-st"); if (col && dragI != null && shown[dragI]) { var st = col.getAttribute("data-st"), t = shown[dragI]; dragI = null; if (t.status != st) setStatus(t, st); else render(); } return false; };
 $("eOk").onclick = function () { saveEdit(); };
 $("eDeleg").onclick = function () { if (!LT.trim($("eAssign").value)) { alert("Fill in who does it first (a person or a group)."); return; } saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) delegate(t); } };
 $("eTF").onclick = function () { saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) openTF(t); } };
@@ -774,7 +828,7 @@ $("tfNList").onclick = function (e) { var x = LT.up(e ? e.target : window.event.
 $("tfDrop").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, o = LT.up(t, "data-tfo"), s = LT.up(t, "data-tfin"); if (o) { try { LT.open(o.getAttribute("data-tfo")); } catch (x) { } if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } if (s) { try { LT.showInFolder(s.getAttribute("data-tfin")); } catch (x) { } } };
 $("eMidp").onclick = mpOpen; $("eMpUp").onclick = mpUpdate; $("eChk").onclick = mpCheck;
 $("mpCancel").onclick = function () { $("mp").style.display = "none"; }; $("mpOk").onclick = mpAdd;
-$("mpQ").onkeyup = function () { mpFind(true); }; $("mpCat").onchange = $("mpTower").onchange = $("mpTypo").onchange = function () { mpFind(true); };
+$("mpQ").onkeyup = function () { mpFind(true); }; $("mpCat").onchange = $("mpTower").onchange = $("mpTypo").onchange = $("mpSet").onchange = function () { mpFind(true); };
 $("mpAll").onclick = function () { for (var i = 0; i < mpRows.length; i++) { var c = $("mpList").querySelector('[data-mp="' + i + '"]'); if (c && !c.disabled) mpTick[mpRows[i].number] = 1; } mpFind(false); };
 $("mpNone").onclick = function () { mpTick = {}; mpFind(false); };
 $("mpList").onclick = function (e) { var t = e ? e.target : window.event.srcElement, i = t.getAttribute && t.getAttribute("data-mp"); if (i == null) return; var d = mpRows[+i]; if (t.checked) mpTick[d.number] = 1; else delete mpTick[d.number]; mpFind(false); };

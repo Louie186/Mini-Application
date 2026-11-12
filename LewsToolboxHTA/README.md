@@ -132,7 +132,8 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
     - Drawings: several at once (one per line, or `,` between). The title comes from the Drawing Register
   - **Checklist** – items with their own person, date, status and **📎 references** (click 📎 on the item)
   - **📋 Save and delegate** – saves, then hands it to Delegate
-- **Views:** Today · This week · Overdue (red) · **To delegate** · **Waiting on others** · All open · **Board** · Done
+- **Views:** Today · This week · Overdue (red) · **To delegate** · **Waiting on others** · All open · **Board** · **Calendar** · Done
+- **Calendar** – each task on its due day (red = late, amber = doing, ✔ = done). **Drag** a task to another day = new due date (Undo for 6 seconds). Hold **Ctrl** while dropping = a **copy** on that day (new ID, checklist copied and all *to do*). Tasks without a date wait in a strip at the top – drag them onto a day. ‹ › for months, double-click = edit, right-click = more
 - Tick = done · double-click = edit · right-click = **Delegate this task…**, status, due date, timer, add time, duplicate, delete
 - **Repeat** daily / weekdays / weekly / monthly: tick it done and the next one is made
 - **Time:** right-click → Start timer (shown at the top), or Add time (`1.5` or `0:45`)
@@ -243,6 +244,12 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **History ▾:** every MIDP loaded, with its changes
 - **📋 Status** view – where every sheet is: **Not started · In progress · Checked · Issued**, with counts, a progress bar and **% issued** (click a count to see only those)
   - **Issued** comes by itself from the Transmittal log (the last rev, TR number and date). Set the others: click the status, or tick rows → **Set status ▾**. A status you set after the last issue wins (e.g. being revised again)
+- **📁 My sets** – your own groups of drawings, for when the MIDP doesn't group them the way you need (e.g. *Serviced units*, *Print set for the client*). Set one up once:
+  1. **+ New set**, give it a name
+  2. Left = the MIDP (narrow it with the Section / Tower / Typology filters and the search box above). Right = your set
+  3. **Drag** drawings from left to right (select several with **Ctrl** / **Shift** + click), or double-click, or **Add →** / **All shown →**. Drag back (or **← Remove**) to take them out
+  - Saved with the project. A drawing later removed from the MIDP shows struck through in the set
+  - Use it: Tasks → a task → **📘 From the MIDP…** → **My set** – and **↻ Update from the MIDP** follows the set when you change it
 - **Online link** – double-click a drawing → **Online link** (ACC / SharePoint / BIM 360). It shows as **🔗 link** in the list; drawing references in Tasks / Delegate then open it, and summaries, packs and emails include it
 - **Folder Check** looks drawings up here (Contents & checklist: Checklist ▾ → Drawing Register)
 - Nothing about a project is written into the program – each project lives in `register\` in your data folder

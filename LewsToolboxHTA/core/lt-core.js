@@ -503,7 +503,9 @@ var LT = (function () {
     for (var m = 0; m < (P.models || []).length; m++) { var mk = up(P.models[m].tower) + "|" + up(P.models[m].typo); if (!mm[mk]) mm[mk] = P.models[m].model; }
     for (var k in D) if (D.hasOwnProperty(k)) { var ns = k.split(/[-_ .]+/); for (var j = 0; j < ns.length; j++) if (/^\d{3,}$/.test(ns[j])) { seq[ns[j]] = k; cnt[ns[j]] = (cnt[ns[j]] || 0) + 1; } }
     return { name: name, id: id,
-      list: function () { var o = []; for (var k4 in D) if (D.hasOwnProperty(k4)) { var d4 = D[k4]; o.push({ number: d4.num || k4, title: d4.title || "", link: d4.link || "", cat: d4.cat || "", tower: d4.tower || "", typo: d4.typo || "", inMidp: d4.inMidp !== false }); } return o; },
+      list: function () { var o = []; for (var k4 in D) if (D.hasOwnProperty(k4)) { var d4 = D[k4]; o.push({ key: k4, number: d4.num || k4, title: d4.title || "", link: d4.link || "", cat: d4.cat || "", tower: d4.tower || "", typo: d4.typo || "", inMidp: d4.inMidp !== false }); } return o; },
+      /* your own drawing sets (Drawing Register > My sets): [{ id, name, keys: [drawing keys] }] */
+      sets: function () { return P.sets || []; },
       count: function () { var n = 0; for (var k2 in D) if (D.hasOwnProperty(k2)) n++; return n; },
       find: function (s) {
         s = L.trim(s).toUpperCase().replace(/\.[A-Z0-9]{2,4}$/, "").replace(/-+$/, "");
@@ -516,8 +518,11 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.12c";
+  L.VERSION = "2026.11.12d";
   L.WHATS_NEW = [
+    { v: "2026.11.12d", items: [
+      "<b>My sets</b> (Drawing Register &gt; &#128193; My sets): your own groups of drawings, e.g. <i>Serviced units</i> when the MIDP doesn't say &ndash; drag drawings from the MIDP into the set once, then pull it into any task (From the MIDP &gt; My set)",
+      "<b>Calendar</b> in Tasks: drag a task to another day to move it, hold <b>Ctrl</b> to make a copy on that day" ] },
     { v: "2026.11.12c", items: [
       "<b>Checklist from the MIDP</b> (Tasks &gt; a task &gt; &#128216; From the MIDP): type <i>serviced apartment</i> or <i>1BRA</i>, or pick a section / tower / typology &ndash; the drawings become the checklist. <b>Update from the MIDP</b> after a new MIDP, <b>Check a folder</b> ticks the ones it finds",
       "<b>Review</b> (Folder Check &gt; &#128221; Review): drawings sent to you to check? Pick their folder &ndash; every drawing becomes a line you mark <b>Checked</b>, <b>Comments</b> or <b>Not OK</b>, with a note. Remembered, NEW files flagged, and a report to send back" ] },

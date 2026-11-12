@@ -358,7 +358,7 @@ function pickList() {
 }
 function pickHide() { $("pick").style.display = "none"; pickKey = ""; }
 function pass(k, d, s) {
-  if ((view == "midp" || view == "status") && s.gone) return false;
+  if ((view == "midp" || view == "status" || view == "sets") && s.gone) return false;
   if (view == "status" && stF && dStat(k, d).st != stF) return false; if (view == "changes" && !P.changes[k]) return false; if (view == "check" && !s.check) return false; if (view == "gone" && !s.gone) return false;
   var q = LT.trim($("search").value).toLowerCase();
   for (var f in F) if (F.hasOwnProperty(f) && keys(F[f]).length && !F[f][d[f] || "(empty)"]) return false;
@@ -369,9 +369,10 @@ function order(D) { var a = [], seen = {}, o = P.order || []; for (var i = 0; i 
   var rest = []; for (var k in D) if (D.hasOwnProperty(k) && !seen[k]) rest.push(k); rest.sort(); return a.concat(rest); }
 function render() {
   if (!P) return;
-  var n = counts(), V = [["midp", "In the MIDP", n.midp], ["changes", "Changes in the last MIDP", n.changes], ["check", "To check", n.check], ["status", "&#128203; Status", n.midp], ["gone", "Removed from the MIDP", n.gone], ["all", "Everything", n.all]], vh = "";
+  var n = counts(), V = [["midp", "In the MIDP", n.midp], ["changes", "Changes in the last MIDP", n.changes], ["check", "To check", n.check], ["status", "&#128203; Status", n.midp], ["sets", "&#128193; My sets", (P.sets || []).length], ["gone", "Removed from the MIDP", n.gone], ["all", "Everything", n.all]], vh = "";
   for (var v = 0; v < V.length; v++) vh += '<span class="chip' + (view == V[v][0] ? " on" : "") + '" data-v="' + V[v][0] + '">' + V[v][1] + " " + V[v][2] + "</span>";
   $("views").innerHTML = vh;
+  if (view == "sets") { setsView(); return; }
   $("sum").innerHTML = P.last ? "Last MIDP: <b>" + esc(P.last.file) + "</b> &middot; loaded " + esc(P.last.date) + " &middot; " + P.last.count + " drawings" + (P.history[0] ? " &middot; " + P.history[0].nw + " new, " + P.history[0].gone + " removed, " + P.history[0].chg + " titles changed" : "") + (n.check ? ' &middot; <span class="warn">' + n.check + " to check</span>" : "") + (P.models.length ? "" : ' &middot; <span class="muted">no models table yet (Setup)</span>')
     : (n.all ? n.all + " drawings imported. Load the MIDP next." : "Load the MIDP, or Setup &gt; import the list you already have.");
   var D = P.drawings, ks = order(D), W = colW(), longest = 10;
@@ -397,6 +398,67 @@ function render() {
   if ($("tkAll")) { var all = shown.length > 0; for (var ta = 0; ta < shown.length && all; ta++) if (!ticked[shown[ta]]) all = false; $("tkAll").checked = all; }
   tickBar();
 }
+/* ---------- My sets: your own groups of drawings (e.g. "Serviced units" when the MIDP doesn't say), made once, used by Tasks > From the MIDP ----------
+   P.sets = [{ id, name, keys: [drawing keys] }]. Left = the MIDP (with the filters above), right = the set. Drag between them, or double-click, or the buttons. */
+var curSet = "", selL = {}, selR = {}, lastSel = { L: -1, R: -1 }, setDrag = null;
+function setOf(id) { var a = P.sets || []; for (var i = 0; i < a.length; i++) if (a[i].id == id) return a[i]; return null; }
+function setsView() {
+  P.sets = P.sets || []; var S = setOf(curSet) || P.sets[0] || null; curSet = S ? S.id : "";
+  $("tickBar").style.display = "none";
+  $("sum").innerHTML = "Your own groups of drawings &ndash; set one up once, then pull it into a task any time (Tasks &gt; a task &gt; &#128216; From the MIDP &gt; <b>My set</b>). Drag drawings from the MIDP (left) into the set (right); drag back to remove.";
+  var D = P.drawings, ks = order(D), inSet = {}, h = [];
+  if (S) for (var i = 0; i < S.keys.length; i++) inSet[S.keys[i]] = 1;
+  h.push('<div class="sets"><div class="sl"><div class="slh">My sets <button class="btn small" id="stNew">+ New set</button></div>');
+  for (var j = 0; j < P.sets.length; j++) h.push('<div class="si' + (P.sets[j].id == curSet ? " on" : "") + '" data-set="' + esc(P.sets[j].id) + '"><b>' + esc(P.sets[j].name) + '</b> <span class="muted">' + P.sets[j].keys.length + "</span></div>");
+  if (!P.sets.length) h.push('<div class="muted" style="padding:8px">No sets yet &ndash; <b>+ New set</b>, e.g. <i>Serviced units</i>.</div>');
+  if (S) h.push('<div style="margin-top:8px"><button class="btn small" id="stRen">&#9998; Rename</button><button class="btn small" id="stDel">&#10005; Delete</button></div>');
+  h.push("</div>");
+  shown = []; var left = [];
+  for (var k = 0; k < ks.length; k++) { var d = D[ks[k]]; if (!pass(ks[k], d, stat(ks[k], d))) continue; shown.push(ks[k]); if (S && !inSet[ks[k]]) left.push(ks[k]); }
+  var row = function (side, k2, ix) { var d2 = D[k2], gone = !d2 || d2.inMidp === false, sel = (side == "L" ? selL : selR)[k2];
+    return '<div class="dr' + (sel ? " sel" : "") + (gone ? " gone" : "") + '" draggable="true" data-side="' + side + '" data-ix="' + ix + '" data-key="' + esc(k2) + '" title="' + esc(d2 ? d2.title + (d2.cat ? " \u00b7 " + d2.cat : "") : "") + (gone ? " (not in the MIDP now)" : "") + '"><span class="no">' + esc(d2 ? d2.num : k2) + "</span> " + esc(d2 ? d2.title : "(not in the register)") + (d2 && d2.typo && d2.typo != "-" ? ' <span class="muted">' + esc(d2.typo) + "</span>" : "") + "</div>"; };
+  if (!S) { h.push('<div class="pane"></div></div>'); $("res").innerHTML = h.join(""); bindSets(); return; }
+  var L = ['<div class="pane" data-pane="L"><div class="ph">The MIDP &ndash; ' + left.length + " not in the set" + ' <span class="muted">(use the filters / search above)</span></div><div class="pl" data-pane="L">'];
+  for (var a = 0; a < left.length && a < 1500; a++) L.push(row("L", left[a], a));
+  L.push("</div></div>");
+  var mid = '<div class="mid"><button class="btn small" id="stAdd" title="Add the selected drawings">Add &rarr;</button><button class="btn small" id="stAddAll" title="Add every drawing shown on the left">All shown &rarr;</button><button class="btn small" id="stRem" title="Remove the selected drawings">&larr; Remove</button><button class="btn small" id="stClr">&larr; Clear</button></div>';
+  var R = ['<div class="pane" data-pane="R"><div class="ph"><b>' + esc(S.name) + "</b> &ndash; " + S.keys.length + " drawing(s)" + (function () { var g = 0; for (var q = 0; q < S.keys.length; q++) if (!D[S.keys[q]] || D[S.keys[q]].inMidp === false) g++; return g ? ' &middot; <span class="warn">' + g + " not in the MIDP now</span>" : ""; })() + '</div><div class="pl" data-pane="R">'];
+  var ord = []; for (var o = 0; o < ks.length; o++) if (inSet[ks[o]]) ord.push(ks[o]); for (var o2 = 0; o2 < S.keys.length; o2++) if (!D[S.keys[o2]]) ord.push(S.keys[o2]);
+  for (var b = 0; b < ord.length; b++) R.push(row("R", ord[b], b));
+  if (!ord.length) R.push('<div class="muted" style="padding:16px">Drag drawings here from the left (select several with Ctrl / Shift), or double-click them.</div>');
+  R.push("</div></div>");
+  h.push(L.join("") + mid + R.join("") + "</div>");
+  $("res").innerHTML = h.join(""); setsView.left = left; setsView.right = ord; bindSets();
+}
+function setsSave(msg) { saveP(); render(); if (msg) LT.toast(msg); }
+function setAdd(keys) { var S = setOf(curSet); if (!S) return; var have = {}, n = 0; for (var i = 0; i < S.keys.length; i++) have[S.keys[i]] = 1; for (var j = 0; j < keys.length; j++) if (!have[keys[j]]) { S.keys.push(keys[j]); have[keys[j]] = 1; n++; } selL = {}; setsSave(n + " added to " + S.name); }
+function setRemove(keys) { var S = setOf(curSet); if (!S) return; var rm = {}; for (var i = 0; i < keys.length; i++) rm[keys[i]] = 1; var b = S.keys.length; S.keys = S.keys.filter(function (k) { return !rm[k]; }); selR = {}; setsSave((b - S.keys.length) + " removed from " + S.name); }
+function bindSets() {
+  var res = $("res"), sel = function (side) { var o = side == "L" ? selL : selR, a = []; for (var k in o) if (o.hasOwnProperty(k)) a.push(k); return a; };
+  var btn = function (id, fn) { if ($(id)) $(id).onclick = fn; };
+  btn("stNew", function () { var n = prompt("Name of the new set (e.g. Serviced units):", ""); if (!n || !LT.trim(n)) return; P.sets.push({ id: LT.uid("s"), name: LT.trim(n), keys: [], made: LT.today() }); curSet = P.sets[P.sets.length - 1].id; setsSave(); });
+  btn("stRen", function () { var S = setOf(curSet), n = prompt("New name:", S.name); if (n && LT.trim(n)) { S.name = LT.trim(n); setsSave(); } });
+  btn("stDel", function () { var S = setOf(curSet); if (confirm('Delete the set "' + S.name + '"? (The drawings stay in the register; tasks made from it keep their items.)')) { P.sets.splice(P.sets.indexOf(S), 1); curSet = ""; setsSave(); } });
+  btn("stAdd", function () { setAdd(sel("L")); }); btn("stRem", function () { setRemove(sel("R")); });
+  btn("stAddAll", function () { if (setsView.left.length > 50 && !confirm("Add all " + setsView.left.length + " drawings shown?")) return; setAdd(setsView.left.slice(0)); });
+  btn("stClr", function () { var S = setOf(curSet); if (S && S.keys.length && confirm('Empty the set "' + S.name + '"?')) setRemove(S.keys.slice(0)); });
+  res.onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, si = LT.up(t, "data-set"), r = LT.up(t, "data-side");
+    if (si) { curSet = si.getAttribute("data-set"); selL = {}; selR = {}; setsView(); return; }
+    if (!r) return; var side = r.getAttribute("data-side"), ix = +r.getAttribute("data-ix"), list = side == "L" ? setsView.left : setsView.right, o = side == "L" ? selL : selR, k = list[ix];
+    if (e.shiftKey && lastSel[side] >= 0) { var a = Math.min(lastSel[side], ix), b = Math.max(lastSel[side], ix); for (var q = a; q <= b; q++) o[list[q]] = 1; }
+    else if (e.ctrlKey) { if (o[k]) delete o[k]; else o[k] = 1; }
+    else { if (side == "L") selL = {}; else selR = {}; (side == "L" ? selL : selR)[k] = 1; }
+    lastSel[side] = ix; var ds = res.getElementsByTagName("div"); for (var z = 0; z < ds.length; z++) { var sd = ds[z].getAttribute("data-side"); if (sd) { var on = (sd == "L" ? selL : selR)[ds[z].getAttribute("data-key")]; ds[z].className = ds[z].className.replace(/ ?sel/g, "") + (on ? " sel" : ""); } } };
+  res.ondblclick = function (e) { var r = LT.up(e ? e.target : window.event.srcElement, "data-side"); if (!r) return; var k = r.getAttribute("data-key"); if (r.getAttribute("data-side") == "L") setAdd([k]); else setRemove([k]); };
+  res.ondragstart = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-side"); if (!r) return; var side = r.getAttribute("data-side"), k = r.getAttribute("data-key"), o = side == "L" ? selL : selR;
+    if (!o[k]) { if (side == "L") selL = {}; else selR = {}; (side == "L" ? selL : selR)[k] = 1; }
+    setDrag = { side: side, keys: sel(side) }; try { e.dataTransfer.setData("text", k); e.dataTransfer.effectAllowed = "move"; } catch (x) { } };
+  res.ondragover = function (e) { e = e || window.event; var p = LT.up(e.target || e.srcElement, "data-pane"); if (p && setDrag && p.getAttribute("data-pane") != setDrag.side) { if (e.preventDefault) e.preventDefault(); e.returnValue = false; p.className = p.className.replace(/ ?over/g, "") + " over"; } return false; };
+  res.ondragleave = function (e) { e = e || window.event; var p = LT.up(e.target || e.srcElement, "data-pane"); if (p) p.className = p.className.replace(/ ?over/g, ""); };
+  res.ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); var p = LT.up(e.target || e.srcElement, "data-pane"), d = setDrag; setDrag = null; if (!p || !d) return false;
+    var to = p.getAttribute("data-pane"); if (to == d.side) { setsView(); return false; } if (to == "R") setAdd(d.keys); else setRemove(d.keys); return false; };
+}
+
 /* ---------- drawing status: Not started / In progress / Checked (you set) / Issued (from the transmittal log) ---------- */
 var ST_LIST = ["Not started", "In progress", "Checked", "Issued"], ISS = {}, stF = "";
 function dStat(k, d) {
@@ -629,7 +691,10 @@ $("res").oncontextmenu = function (e) {
 $("bSet").onclick = function () { edit(keys(ticked)); };
 $("bStat").onclick = function (e) { var a = at(this); statMenu(keys(ticked), a[0], a[1]); stop(e); };
 $("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-stf"); if (c) { stF = c.getAttribute("data-stf"); render(); } }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
-function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".stc{cursor:pointer;margin-right:6px}.stbar{display:inline-block;vertical-align:middle;width:180px;height:10px;margin:0 8px;background:{chip};border-radius:5px;overflow:hidden;white-space:nowrap}.stbar i{display:inline-block;height:10px}", "td.st{cursor:pointer;font-weight:bold}td.st0{color:{muted};font-weight:normal}td.st1{color:{warn}}td.st2{color:{accent}}td.st3{color:{ok}}.stbar i.st0{background:{line}}.stbar i.st1{background:{warn}}.stbar i.st2{background:{accent}}.stbar i.st3{background:{ok}}.chip.st3{color:{ok}}.chip.st1{color:{warn}}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".stc{cursor:pointer;margin-right:6px}.stbar{display:inline-block;vertical-align:middle;width:180px;height:10px;margin:0 8px;background:{chip};border-radius:5px;overflow:hidden;white-space:nowrap}.stbar i{display:inline-block;height:10px}", "td.st{cursor:pointer;font-weight:bold}td.st0{color:{muted};font-weight:normal}td.st1{color:{warn}}td.st2{color:{accent}}td.st3{color:{ok}}.stbar i.st0{background:{line}}.stbar i.st1{background:{warn}}.stbar i.st2{background:{accent}}.stbar i.st3{background:{ok}}.chip.st3{color:{ok}}.chip.st1{color:{warn}}", ".sets{display:flex;height:100%;padding:8px;box-sizing:border-box}.sl{flex:0 0 190px;overflow-y:auto;padding-right:8px}.slh{font-weight:bold;margin-bottom:6px}.si{padding:6px 8px;cursor:pointer;border-radius:{r}px;margin-bottom:2px}.si:hover{background:{hover}}.si.on{background:{chip};box-shadow:inset 3px 0 0 {accent}}",
+  ".pane{flex:1 1 0px;min-width:0;display:flex;flex-direction:column;border:{bw}px solid {line};border-radius:{r}px;background:{panel}}.pane.over{outline:2px dashed {accent};background:{hover}}.ph{flex:none;padding:6px 10px;border-bottom:1px solid {line};background:{bg}}.pl{flex:1 1 auto;overflow-y:auto;min-height:0}",
+  ".mid{flex:0 0 110px;display:flex;flex-direction:column;justify-content:center;padding:0 8px}.mid .btn{margin:0 0 8px;width:100%}",
+  ".dr{padding:4px 10px;border-bottom:1px solid {line};cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}.dr:hover{background:{hover}}.dr.sel{background:{chip};box-shadow:inset 3px 0 0 {accent}}.dr .no{font-family:{mono};font-weight:bold}.dr.gone{opacity:.55;text-decoration:line-through}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
 window.ltTheme = look; window.ltReload = loadAll; window.ltShown = function () { if (P) render(); };
 /* from search (Ctrl+K): show that drawing */
 window.ltReceive = function (what, value) { if (what == "find" && P) { $("search").value = value; fillFilters(); render(); } };

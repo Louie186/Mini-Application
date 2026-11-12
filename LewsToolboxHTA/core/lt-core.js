@@ -516,9 +516,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.12b";
+  L.VERSION = "2026.11.12c";
   L.WHATS_NEW = [
-    { v: "2026.11.12b", items: [
+    { v: "2026.11.12c", items: [
+      "<b>Checklist from the MIDP</b> (Tasks &gt; a task &gt; &#128216; From the MIDP): type <i>serviced apartment</i> or <i>1BRA</i>, or pick a section / tower / typology &ndash; the drawings become the checklist. <b>Update from the MIDP</b> after a new MIDP, <b>Check a folder</b> ticks the ones it finds",
       "<b>Review</b> (Folder Check &gt; &#128221; Review): drawings sent to you to check? Pick their folder &ndash; every drawing becomes a line you mark <b>Checked</b>, <b>Comments</b> or <b>Not OK</b>, with a note. Remembered, NEW files flagged, and a report to send back" ] },
     { v: "2026.11.12", items: [
       "<b>Team Board</b> (Delegate &gt; Team &amp; groups): give a group a shared folder &ndash; the Toolbox files every task there neatly and keeps a board page the team opens. Add a task later and it shows as NEW",

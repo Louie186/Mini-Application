@@ -137,6 +137,12 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Repeat** daily / weekdays / weekly / monthly: tick it done and the next one is made
 - **Time:** right-click → Start timer (shown at the top), or Add time (`1.5` or `0:45`)
 - **Export ▾:** copy this week's summary for email / Teams, or CSV for Excel (with checklist and references)
+- **📘 From the MIDP…** (task window, under the checklist) – a drawing list straight from the **current MIDP** (Drawing Register), e.g. *print every serviced apartment drawing* or *every 1BRA drawing*:
+  1. Type words (`serviced apartment`, `1BRA`, `enlarged plan`) and / or pick **Section**, **Tower**, **Typology** – the matching drawings show at once (only drawings in the current MIDP)
+  2. Untick any you don't need → **Add as checklist items**. Each drawing becomes an item (`TL-001.1  T1-ZZ-DR-A-2101 – Serviced Apartment 1BR Type A – Plan`) with the drawing as its reference – give items a person / date like any other
+  3. The task remembers the pick: after you load a new MIDP, **↻ Update from the MIDP** adds the new drawings and flags removed ones *(not in the MIDP)*
+  4. **🔎 Check a folder…** – pick a folder (your prints, or what someone sent back): every drawing found in it is ticked (`A-101.pdf`, `A-101-P02.pdf`, `A-101_P02.dwg` all count). The missing numbers are copied for you, and it's noted on the timeline
+  - Save it as a **template** (e.g. *Print 1BRA set*): each time you use it, it brings in drawings added to the MIDP since
 - **Templates** – right-click a task → **📑 Save as template…** (its checklist, who, references and how many days it usually takes). **📑 From template ▾** (top) starts a new task from one, due that many days from today. Delete a template from the same menu
 - **Close-out pack** – right-click a task (or **📦 Close-out pack** in its folder window): a zip of its **Output** folder + the summary (PDF + HTML) + notes, saved in the task folder as `<ID> <task> - close-out <date>.zip`
 

@@ -37,6 +37,8 @@ tr.done td.t{text-decoration:line-through}
 #dlg .card{width:900px}
 #subs td{padding:2px 3px}#subs input,#subs select{width:100%;height:26px}#subs .sr{width:62px;text-align:center;cursor:pointer;white-space:nowrap}
 #subRefs{display:none;margin-top:6px;padding:8px}
+#subsBox{max-height:300px;overflow-y:auto}
+#mpList td{padding:3px 6px}#mpList td.n{font-family:Consolas,'Lucida Console',monospace;white-space:nowrap}#mpList tr.had td{opacity:.5}
 .tid{font-family:Consolas,'Lucida Console',monospace;white-space:nowrap}
 .sub{font-size:.85em;margin-top:2px}
 #tf .card{width:860px}#tfNote{width:100%;height:80px}
@@ -93,12 +95,25 @@ tr.done td.t{text-decoration:line-through}
   <div class="fld"><label>Description / notes</label><textarea id="eNotes" style="width:100%"></textarea></div>
   <div class="fld"><label>References for the whole task (links, files, folders, drawings, notes)</label><div id="eRefs"></div></div>
   <div class="fld"><label>Checklist (optional) &ndash; each item can have its own person, date and references</label>
-    <table class="grid" id="subs"></table>
-    <button class="btn small" id="eAddSub" style="margin-top:6px">+ Item</button><button class="btn small" id="ePasteSub" style="margin-top:6px" title="Several items at once: one per line">+ Paste items...</button>
+    <div id="subsBox"><table class="grid" id="subs"></table></div>
+    <button class="btn small" id="eAddSub" style="margin-top:6px">+ Item</button><button class="btn small" id="eMidp" style="margin-top:6px" title="Pick drawings from the current MIDP (Drawing Register): by section, tower, typology or words - each becomes a checklist item">&#128216; From the MIDP...</button><button class="btn small" id="eMpUp" style="margin-top:6px;display:none" title="Run the same pick again on the current MIDP: adds drawings that are new, flags ones that were removed">&#8635; Update from the MIDP</button><button class="btn small" id="eChk" style="margin-top:6px;display:none" title="Pick a folder: the drawings found in it are ticked">&#128270; Check a folder...</button><button class="btn small" id="ePasteSub" style="margin-top:6px" title="Several items at once: one per line">+ Paste items...</button>
     <div id="subRefs"><div class="muted" id="subRefsT" style="margin-bottom:4px"></div><div id="subRefsE"></div></div>
   </div>
   <div class="fld"><label>Time</label><span id="eTime"></span> &nbsp; Add: <input type="text" id="eAddH" style="width:70px" placeholder="1.5 or 0:45"> <button class="btn small" id="eAddB">+ h</button></div>
   <div class="acts"><button class="btn" id="eDel">Delete</button><span class="sp"></span><button class="btn" id="eCancel">Cancel</button><button class="btn" id="ePaste" title="Save, then put what you copied (a snip, or files copied in Explorer) into this task's Reference folder. Same as Ctrl+V on the task in the list.">&#128203; Paste screenshot / files</button><button class="btn" id="eTF" title="Save, then make / open this task's folder">&#128193; Task folder...</button><button class="btn" id="eDeleg" title="Save, then open it in the Delegate tab to hand it out">&#128203; Save and delegate</button><button class="btn primary" id="eOk">Save</button></div>
+</div></div>
+<!-- drawings from the MIDP (Drawing Register) -> checklist items -->
+<div class="ov" id="mp"><div class="card" style="width:880px">
+  <h3>&#128216; Drawings from the MIDP <span class="muted" id="mpProj" style="font-weight:normal"></span></h3>
+  <div class="bar2" style="padding:0">
+    <input type="text" id="mpQ" placeholder="Words, e.g.  serviced apartment   or   1BRA   or   enlarged plan" style="width:270px;margin:0 8px 6px 0">
+    <span class="lbl">Section:</span><select id="mpCat" style="width:150px;height:26px;margin:0 8px 6px 0"></select>
+    <span class="lbl">Tower:</span><select id="mpTower" style="width:90px;height:26px;margin:0 8px 6px 0"></select>
+    <span class="lbl">Typology:</span><select id="mpTypo" style="width:110px;height:26px;margin:0 8px 6px 0"></select>
+  </div>
+  <div class="muted" id="mpN" style="margin:2px 0 6px"></div>
+  <div id="mpList" style="max-height:340px;overflow-y:auto"></div>
+  <div class="acts"><button class="btn small" id="mpAll">Tick all</button><button class="btn small" id="mpNone">Untick all</button><span class="sp"></span><button class="btn" id="mpCancel">Cancel</button><button class="btn primary" id="mpOk">Add as checklist items</button></div>
 </div></div>
 <datalist id="projList"></datalist><datalist id="pplList"></datalist>
 
@@ -396,7 +411,7 @@ function edit(t, preset) {
   $("dTitle").innerHTML = t ? "Edit task" : preset && preset.fromTpl ? "New task from template: " + esc(preset.fromTpl) : "New task"; $("eCode").value = work.code || "(new)"; $("eAssign").value = work.who || "";
   var pp = people(), dl = ""; for (var p = 0; p < pp.length; p++) dl += '<option value="' + esc(pp[p]) + '">'; $("pplList").innerHTML = dl;
   LT.refEditor($("eRefs"), work.refs); subRef = -1; $("subRefs").style.display = "none"; drawSubs();
-  $("eDeleg").style.display = work.delegated ? "none" : "";
+  $("eDeleg").style.display = work.delegated ? "none" : ""; mpButtons();
   $("eTitle").value = work.title; $("eProj").value = work.project; $("eDue").value = work.due ? (function (d) { return LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear(); })(D(work.due)) : "";
   $("ePrio").value = work.priority; $("eStat").value = work.status; $("eWho").value = work.waitingOn; $("eRep").value = work.repeat || ""; $("eNotes").value = work.notes || ""; $("eAddH").value = "";
   showTime(); $("eDel").style.display = t ? "" : "none";
@@ -480,8 +495,8 @@ function saveTemplate(t) {
   var n = prompt("Template name (e.g. Coordination round):", t.title); if (!n || !LT.trim(n)) return; n = LT.trim(n);
   data.templates = data.templates || []; var old = -1; for (var i = 0; i < data.templates.length; i++) if (data.templates[i].name.toLowerCase() == n.toLowerCase()) old = i;
   if (old >= 0 && !confirm('Replace the template "' + n + '"?')) return;
-  var subs = []; for (var j = 0; j < t.subs.length; j++) subs.push({ title: t.subs[j].title, who: t.subs[j].who || "", refs: copy(t.subs[j].refs || []) });
-  var tp = { name: n, title: t.title, project: t.project, priority: t.priority, who: t.who, notes: t.notes, repeat: t.repeat || "", refs: copy(t.refs || []), subs: subs, days: t.due && t.created ? Math.max(0, Math.round((D(t.due) - D(t.created)) / 864e5)) : 0 };
+  var subs = []; for (var j = 0; j < t.subs.length; j++) subs.push({ title: t.subs[j].title, who: t.subs[j].who || "", refs: copy(t.subs[j].refs || []), dwg: t.subs[j].dwg || "" });
+  var tp = { name: n, title: t.title, project: t.project, priority: t.priority, who: t.who, notes: t.notes, repeat: t.repeat || "", refs: copy(t.refs || []), subs: subs, midp: t.midp ? copy(t.midp) : null, days: t.due && t.created ? Math.max(0, Math.round((D(t.due) - D(t.created)) / 864e5)) : 0 };
   if (old >= 0) data.templates[old] = tp; else data.templates.push(tp);
   data.templates.sort(function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
   save(); LT.toast('Template saved: ' + n);
@@ -489,8 +504,10 @@ function saveTemplate(t) {
 function fromTemplate(tp) {
   var t = blank(); t.title = tp.title; t.project = tp.project || $("proj").value; t.priority = tp.priority || "Normal"; t.who = tp.who || ""; t.notes = tp.notes || ""; t.repeat = tp.repeat || ""; t.refs = copy(tp.refs || []);
   if (tp.days) t.due = LT.iso(addDays(todayD(), tp.days));
-  for (var i = 0; i < (tp.subs || []).length; i++) t.subs.push({ code: "", title: tp.subs[i].title, who: tp.subs[i].who || "", due: "", status: "To do", refs: copy(tp.subs[i].refs || []) });
+  for (var i = 0; i < (tp.subs || []).length; i++) t.subs.push({ code: "", title: tp.subs[i].title, who: tp.subs[i].who || "", due: "", status: "To do", refs: copy(tp.subs[i].refs || []), dwg: tp.subs[i].dwg || "" });
+  if (tp.midp) t.midp = copy(tp.midp);
   t.fromTpl = tp.name; edit(null, t);
+  if (t.midp && LT.register()) mpUpdate();   // a template made from an MIDP pick: brought up to date with today's MIDP
 }
 function tplMenu(x, y) {
   var ts = data.templates || [], m = [];
@@ -555,6 +572,81 @@ function emailText(t) {
   if (t.folder) { L.push("", "Task folder: " + t.folder); try { var fs = LT.tfFiles(t.folder), n = {}; for (var f = 0; f < fs.length; f++) n[fs[f].sub] = (n[fs[f].sub] || 0) + 1; var parts = []; for (var k = 0; k < LT.TF_SUBS.length; k++) if (n[LT.TF_SUBS[k]]) parts.push(LT.TF_SUBS[k] + " " + n[LT.TF_SUBS[k]]); if (parts.length) L.push("  (" + parts.join(", ") + " files)"); L.push("Summary: " + LT.tfSummaryPath(t.folder)); } catch (e) { } }
   L.push("", "Thanks,", me);
   return { subject: subject, body: L.join("\r\n") };
+}
+
+/* ---------- drawings from the MIDP (Drawing Register) as checklist items ----------
+   work.midp = { q, cat, tower, typo, reg } = the pick, kept so "Update from the MIDP" can run it again on a newer MIDP.
+   An item made from a drawing: { title: "<number> - <title>", dwg: "<number>", refs: [drawing] } */
+var mpRows = [], mpTick = {};
+function mpButtons() { var n = 0; for (var i = 0; i < work.subs.length; i++) if (work.subs[i].dwg) n++; $("eMpUp").style.display = work.midp ? "" : "none"; $("eChk").style.display = n ? "" : "none"; }
+function mpPass(d, f) {
+  if (f.cat && d.cat != f.cat) return false; if (f.tower && d.tower != f.tower) return false; if (f.typo && d.typo != f.typo) return false;
+  var q = LT.trim(f.q || "").toLowerCase(); if (!q) return true;
+  var h = (d.number + " " + d.title + " " + d.cat + " " + d.tower + " " + d.typo).toLowerCase(), ws = q.split(/\s+/);
+  for (var i = 0; i < ws.length; i++) if (h.indexOf(ws[i]) < 0 && h.replace(/[\s\-_]/g, "").indexOf(ws[i].replace(/[\s\-_]/g, "")) < 0) return false;
+  return true;
+}
+function mpAll() { var R = LT.register(); if (!R) return null; var a = R.list(), o = []; for (var i = 0; i < a.length; i++) if (a[i].inMidp) o.push(a[i]); return { R: R, list: o }; }
+function mpOpen() {
+  readSubs(); var M = mpAll();
+  if (!M) { alert("There's no Drawing Register yet.\n\nDrawing Register tab > Load new MIDP... - then come back here."); return; }
+  var f = work.midp || {}, opt = function (id, key, cur) { var s = {}, a = []; for (var i = 0; i < M.list.length; i++) { var v = M.list[i][key]; if (v && !s[v]) { s[v] = 1; a.push(v); } } if (key != "cat") a.sort();
+    var h = '<option value="">All</option>'; for (var j = 0; j < a.length; j++) h += "<option" + (a[j] == cur ? " selected" : "") + ">" + esc(a[j]) + "</option>"; $(id).innerHTML = h; };
+  opt("mpCat", "cat", f.cat); opt("mpTower", "tower", f.tower); opt("mpTypo", "typo", f.typo); $("mpQ").value = f.q || "";
+  $("mpProj").innerHTML = "&middot; " + esc(M.R.name) + " &middot; " + M.list.length + " drawings in the current MIDP"; mpTick = {}; $("mp").style.display = "block"; mpFind(true); try { $("mpQ").focus(); } catch (e) { }
+}
+function mpFilter() { return { q: LT.trim($("mpQ").value), cat: $("mpCat").value, tower: $("mpTower").value, typo: $("mpTypo").value }; }
+function mpFind(all) {
+  var M = mpAll(), f = mpFilter(), have = {}; mpRows = [];
+  for (var h = 0; h < work.subs.length; h++) if (work.subs[h].dwg) have[work.subs[h].dwg.toUpperCase()] = 1;
+  for (var i = 0; i < M.list.length; i++) if (mpPass(M.list[i], f)) mpRows.push(M.list[i]);
+  if (all) { mpTick = {}; for (var k = 0; k < mpRows.length; k++) if (!have[mpRows[k].number.toUpperCase()]) mpTick[mpRows[k].number] = 1; }
+  var any = f.q || f.cat || f.tower || f.typo, n = 0, rows = ['<table class="grid nofit nonum"><tr><th></th><th>Drawing</th><th>Title</th><th>Section</th><th>Tower</th><th>Typology</th></tr>'];
+  for (var j = 0; j < mpRows.length && j < 1500; j++) { var d = mpRows[j], had = have[d.number.toUpperCase()]; if (mpTick[d.number]) n++;
+    rows.push('<tr' + (had ? ' class="had" title="Already on the checklist"' : "") + '><td><input type="checkbox" style="height:auto" data-mp="' + j + '"' + (mpTick[d.number] ? " checked" : "") + (had ? " disabled" : "") + '></td><td class="n">' + esc(d.number) + "</td><td>" + esc(d.title) + '</td><td class="muted">' + esc(d.cat) + "</td><td>" + esc(d.tower) + "</td><td>" + esc(d.typo) + "</td></tr>"); }
+  $("mpList").innerHTML = any ? (mpRows.length ? rows.join("") + "</table>" : '<div class="muted" style="padding:16px">No drawing matches.</div>') : '<div class="muted" style="padding:16px">Type words or pick a section / tower / typology.</div>';
+  $("mpN").innerHTML = any ? mpRows.length + " drawing(s) match &middot; <b>" + n + " ticked</b>" : "";
+  $("mpOk").innerHTML = "Add " + (any ? n + " " : "") + "as checklist items";
+}
+function mpItem(d) { return { code: "", title: d.number + " \u2013 " + d.title, who: "", due: "", status: "To do", refs: [{ kind: "drawing", value: d.number }], dwg: d.number }; }
+function mpAdd() {
+  var f = mpFilter(), n = 0; if (!(f.q || f.cat || f.tower || f.typo)) return;
+  for (var i = 0; i < mpRows.length; i++) if (mpTick[mpRows[i].number]) { work.subs.push(mpItem(mpRows[i])); n++; }
+  if (!n) { alert("Tick the drawings to add."); return; }
+  var R = LT.register(); f.reg = R ? R.id : ""; work.midp = f;
+  if (!LT.trim($("eTitle").value)) $("eTitle").value = (f.q || f.typo || f.cat || f.tower) + " drawings";
+  $("mp").style.display = "none"; drawSubs(); mpButtons(); LT.toast(n + " drawing(s) added to the checklist");
+}
+/* the same pick on today's MIDP: new drawings are added, removed ones are flagged in their item */
+function mpUpdate() {
+  readSubs(); var M = mpAll(); if (!M || !work.midp) return;
+  var have = {}, now = {}, add = [], gone = [];
+  for (var i = 0; i < work.subs.length; i++) if (work.subs[i].dwg) have[work.subs[i].dwg.toUpperCase()] = work.subs[i];
+  for (var j = 0; j < M.list.length; j++) if (mpPass(M.list[j], work.midp)) { now[M.list[j].number.toUpperCase()] = 1; if (!have[M.list[j].number.toUpperCase()]) add.push(M.list[j]); }
+  for (var k in have) if (have.hasOwnProperty(k) && !now[k] && !/not in the MIDP/.test(have[k].title)) gone.push(have[k]);
+  if (!add.length && !gone.length) { LT.toast("Up to date with the current MIDP"); return; }
+  if (!confirm("The current MIDP:\n\n" + (add.length ? "+ " + add.length + " new drawing(s):\n   " + add.slice(0, 12).map(function (d) { return d.number; }).join("\n   ") + (add.length > 12 ? "\n   ..." : "") + "\n\n" : "") +
+    (gone.length ? "- " + gone.length + " no longer in it (they get \"(not in the MIDP)\"):\n   " + gone.slice(0, 12).map(function (s) { return s.dwg; }).join("\n   ") + "\n\n" : "") + "Update the checklist?")) return;
+  for (var a = 0; a < add.length; a++) work.subs.push(mpItem(add[a]));
+  for (var g = 0; g < gone.length; g++) gone[g].title += " (not in the MIDP)";
+  drawSubs(); mpButtons(); LT.toast((add.length ? add.length + " added" : "") + (add.length && gone.length ? ", " : "") + (gone.length ? gone.length + " flagged" : ""));
+}
+/* checking: a folder (e.g. the prints, or what came back) - every drawing found in it is ticked */
+function mpCheck() {
+  readSubs(); var dir = LT.pickFolder("Pick the folder to check against this list (subfolders too)"); if (!dir) return;
+  var names = [], walk = function (d) { var fo; try { fo = LT.fso.GetFolder(d); } catch (e) { return; } var e2 = new Enumerator(fo.Files); for (; !e2.atEnd(); e2.moveNext()) names.push(("" + e2.item().Name).toUpperCase());
+    var s = new Enumerator(fo.SubFolders); for (; !s.atEnd(); s.moveNext()) walk("" + s.item().Path); };
+  walk(dir);
+  var found = [], miss = [];
+  for (var i = 0; i < work.subs.length; i++) { var x = work.subs[i]; if (!x.dwg) continue; var k = x.dwg.toUpperCase(), hit = false;
+    for (var j = 0; j < names.length && !hit; j++) if (names[j].indexOf(k) == 0 && !/[A-Z0-9]/.test(names[j].charAt(k.length))) hit = true;   // A-101.pdf, A-101-P02.pdf, A-101_P02.dwg - not A-1012
+    (hit ? found : miss).push(x); }
+  var newly = 0; for (var f = 0; f < found.length; f++) if (found[f].status != "Done") newly++;
+  var msg = "In " + dir + ":\n\nFound " + found.length + " of " + (found.length + miss.length) + " drawings." + (miss.length ? "\n\nMissing (" + miss.length + "):\n   " + miss.slice(0, 15).map(function (s) { return s.dwg; }).join("\n   ") + (miss.length > 15 ? "\n   ..." : "") : "");
+  if (newly && confirm(msg + "\n\nTick the " + newly + " found one(s) as done?")) { for (var g = 0; g < found.length; g++) found[g].status = "Done"; drawSubs(); }
+  else if (!newly) alert(msg);
+  if (miss.length && LT.copyText(miss.map(function (s) { return s.dwg; }).join("\r\n"))) LT.toast("The missing drawing numbers are copied");
+  LT.taskEvent(work, "Checked a folder: " + found.length + " of " + (found.length + miss.length) + " found (" + LT.fso.GetFileName(dir) + ")");
 }
 
 /* ---------- checklist in the edit dialog ---------- */
@@ -680,6 +772,13 @@ function ctrlV(e) {
 $("tfAddN").onclick = function () { var v = LT.trim($("tfNote").value); if (!v) { $("tfNote").focus(); return; } var d = new Date(); tfTask.fnotes = tfTask.fnotes || []; tfTask.fnotes.push({ at: LT.today() + " " + LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes()), text: v }); $("tfNote").value = ""; save(); tfAfter({}, "Note added"); tfNotes(); };
 $("tfNList").onclick = function (e) { var x = LT.up(e ? e.target : window.event.srcElement, "data-tfdn"); if (x && confirm("Delete this note?")) { tfTask.fnotes.splice(+x.getAttribute("data-tfdn"), 1); save(); tfAfter({}, "Note deleted"); tfNotes(); } };
 $("tfDrop").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, o = LT.up(t, "data-tfo"), s = LT.up(t, "data-tfin"); if (o) { try { LT.open(o.getAttribute("data-tfo")); } catch (x) { } if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } if (s) { try { LT.showInFolder(s.getAttribute("data-tfin")); } catch (x) { } } };
+$("eMidp").onclick = mpOpen; $("eMpUp").onclick = mpUpdate; $("eChk").onclick = mpCheck;
+$("mpCancel").onclick = function () { $("mp").style.display = "none"; }; $("mpOk").onclick = mpAdd;
+$("mpQ").onkeyup = function () { mpFind(true); }; $("mpCat").onchange = $("mpTower").onchange = $("mpTypo").onchange = function () { mpFind(true); };
+$("mpAll").onclick = function () { for (var i = 0; i < mpRows.length; i++) { var c = $("mpList").querySelector('[data-mp="' + i + '"]'); if (c && !c.disabled) mpTick[mpRows[i].number] = 1; } mpFind(false); };
+$("mpNone").onclick = function () { mpTick = {}; mpFind(false); };
+$("mpList").onclick = function (e) { var t = e ? e.target : window.event.srcElement, i = t.getAttribute && t.getAttribute("data-mp"); if (i == null) return; var d = mpRows[+i]; if (t.checked) mpTick[d.number] = 1; else delete mpTick[d.number]; mpFind(false); };
+$("mp").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 27) { $("mp").style.display = "none"; (e.cancelBubble = true); } if (e.keyCode == 13) { (e.cancelBubble = true); return false; } };
 $("eAddSub").onclick = function () { readSubs(); work.subs.push({ code: "", title: "", who: "", due: "", status: "To do", refs: [] }); drawSubs(); var ins = $("subs").getElementsByTagName("input"); try { ins[ins.length - 3].focus(); } catch (e) { } };
 $("ePasteSub").onclick = function () { var t = prompt("Paste the items - one per line (separate with  ;  if this box joins the lines):", ""); if (!t) return; readSubs(); var ls = t.split(/\r?\n|;/); for (var i = 0; i < ls.length; i++) if (LT.trim(ls[i])) work.subs.push({ code: "", title: LT.trim(ls[i]), who: "", due: "", status: "To do", refs: [] }); drawSubs(); };
 $("subs").onclick = function (e) { var t = e ? e.target : window.event.srcElement, d = LT.up(t, "data-sdel"), r = LT.up(t, "data-sref");

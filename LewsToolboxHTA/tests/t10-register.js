@@ -90,7 +90,7 @@ module.exports = async ({ page, out }) => {
   await f.click('#fClear');
   ok(await f.evaluate(() => shown.length == counts().midp && document.getElementById('fClear').style.display == 'none'), 'Clear filters shows everything again');
   // column width: drag the Title edge
-  const box = await f.evaluate(() => { const r = document.querySelector('.rz[data-rz="title"]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
+  await page.waitForTimeout(400); const box = await f.evaluate(() => { const r = document.querySelector('.rz[data-rz="title"]').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; });
   const fr = await (await f.frameElement()).boundingBox();
   await page.mouse.move(fr.x + box[0], fr.y + box[1]); await page.mouse.down(); await page.mouse.move(fr.x + box[0] - 150, fr.y + box[1], { steps: 5 }); await page.mouse.up();
   const w1 = await f.evaluate(() => colW().title);

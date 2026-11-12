@@ -406,6 +406,7 @@ function edit(t, preset) {
 var tfTask = null, tfSub = "Reference", tfDirty = false, tfTimer = null, tfCount = -1;
 function openTF(t) {
   tfTask = t; tfDirty = false; $("tfMsg").innerHTML = "";
+  if (tfSub == "Notes" || tfSub == "Timeline") tfSub = "Reference";   // always opens on the files (with the drop box), not on the last Notes / Timeline tab
   $("tfT").innerHTML = "&#128193; " + esc(t.code) + " " + esc(t.title);
   if (t.folder && !LT.fso.FolderExists(t.folder)) { if (confirm("This task's folder isn't there any more:\n" + t.folder + "\n\nPick where it is now? (Cancel = make a new one)")) { var f = LT.pickFolder("Where is the folder of " + t.code + " " + t.title + "?"); if (f) { t.folder = f; save(); } } else { t.folder = ""; save(); } }
   var has = !!t.folder && LT.fso.FolderExists(t.folder);

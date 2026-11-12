@@ -124,8 +124,9 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   <textarea id="sRules" rows="4"></textarea>
   <div class="muted small">Example: <b>Unit Type {n} BR - Type {x} =&gt; {n}BR{x}</b> makes "UNIT TYPE 2 BR - Type C ..." into 2BRC. Rules are only used when no similar drawing is known.</div>
   <div class="h">Models table <span class="muted small" style="font-weight:normal" id="sModN"></span></div>
-  <button class="btn small" id="sModImp">Import from Excel...</button><span class="muted small">one per line:  Tower | Typology | Model</span>
+  <button class="btn small" id="sModImp">Import from Excel...</button><span class="muted small">one per line:  Tower | Typology | Model | link (optional: the .rvt path or the ACC / BIM 360 link &ndash; makes the model clickable)</span>
   <textarea id="sModels" rows="5"></textarea>
+  <div class="fld" style="margin-top:6px"><label>Models folder (optional) &ndash; a model with no link opens the file in here whose name has the model's name (.rvt / .nwd / .nwc / .ifc, subfolders too)</label><div style="display:flex"><input type="text" id="sModDir" style="flex:1 1 auto;margin-right:6px"><button class="btn" id="sModDirB" style="margin:0">Browse...</button></div></div>
   <div class="h">Drawings you already have</div>
   <button class="btn small" id="sListImp">Import an existing drawing list (with Tower / Typology)...</button><span class="muted small">e.g. your last generated list. Imported drawings count as confirmed.</span>
   <div class="acts"><span class="sp"></span><button class="btn" id="sCancel">Cancel</button><button class="btn primary" id="sOk">Save</button></div>
@@ -369,10 +370,12 @@ function order(D) { var a = [], seen = {}, o = P.order || []; for (var i = 0; i 
   var rest = []; for (var k in D) if (D.hasOwnProperty(k) && !seen[k]) rest.push(k); rest.sort(); return a.concat(rest); }
 function render() {
   if (!P) return;
-  var n = counts(), V = [["midp", "In the MIDP", n.midp], ["changes", "Changes in the last MIDP", n.changes], ["check", "To check", n.check], ["status", "&#128203; Status", n.midp], ["sets", "&#128193; My sets", (P.sets || []).length], ["gone", "Removed from the MIDP", n.gone], ["all", "Everything", n.all]], vh = "";
+  var n = counts(), V = [["midp", "In the MIDP", n.midp], ["changes", "Changes in the last MIDP", n.changes], ["check", "To check", n.check], ["status", "&#128203; Status", n.midp], ["sets", "&#128193; My sets", (P.sets || []).length], ["look", "&#128203; List lookup", P.lookup && P.lookup.rows ? P.lookup.rows.length : 0], ["gone", "Removed from the MIDP", n.gone], ["all", "Everything", n.all]], vh = "";
   for (var v = 0; v < V.length; v++) vh += '<span class="chip' + (view == V[v][0] ? " on" : "") + '" data-v="' + V[v][0] + '">' + V[v][1] + " " + V[v][2] + "</span>";
   $("views").innerHTML = vh;
+  if (view != "sets") resHandlers(false);
   if (view == "sets") { setsView(); return; }
+  if (view == "look") { lookView(); return; }
   $("sum").innerHTML = P.last ? "Last MIDP: <b>" + esc(P.last.file) + "</b> &middot; loaded " + esc(P.last.date) + " &middot; " + P.last.count + " drawings" + (P.history[0] ? " &middot; " + P.history[0].nw + " new, " + P.history[0].gone + " removed, " + P.history[0].chg + " titles changed" : "") + (n.check ? ' &middot; <span class="warn">' + n.check + " to check</span>" : "") + (P.models.length ? "" : ' &middot; <span class="muted">no models table yet (Setup)</span>')
     : (n.all ? n.all + " drawings imported. Load the MIDP next." : "Load the MIDP, or Setup &gt; import the list you already have.");
   var D = P.drawings, ks = order(D), W = colW(), longest = 10;
@@ -391,13 +394,99 @@ function render() {
     if (d.link) note.push('<span class="lnk" data-lnk="' + esc(k) + '" title="' + esc(d.link) + '">&#128279; link</span>');
     if (!d.typo && !s.gone) note.push('<span class="bad">set Tower / Typology</span>');
     else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
-    h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td>" + (view == "status" ? stCell(k, d) : "") + "<td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + esc(modelOf(d)) + "</td><td>" + note.join(" ") + "</td></tr>"); }
+    h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td>" + (view == "status" ? stCell(k, d) : "") + "<td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + (modelOf(d) && modelLink(modelOf(d)) ? '<span class="mlk" data-ml="' + esc(modelOf(d)) + '">' + esc(modelOf(d)) + "</span>" : esc(modelOf(d))) + "</td><td>" + note.join(" ") + "</td></tr>"); }
   h.push("</table>");
   if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
   if ($("tkAll")) { var all = shown.length > 0; for (var ta = 0; ta < shown.length && all; ta++) if (!ticked[shown[ta]]) all = false; $("tkAll").checked = all; }
   tickBar();
 }
+/* ---------- List lookup: paste / load a list of drawing numbers (descriptions optional) -> Tower, Typology, Model (clickable) ----------
+   From the register when it knows the drawing; otherwise a guess from the description (same as for a new MIDP drawing). P.lookup = { text, at, rows } */
+function lookParse(text) {
+  var out = [], ls = (text || "").split(/\r?\n/);
+  for (var i = 0; i < ls.length; i++) { var l = LT.trim(ls[i]); if (!l) continue;
+    var cells = l.indexOf("\t") >= 0 ? l.split("\t") : l.split(/\s{2,}|\s*[;|]\s*/), num = "", desc = [];
+    for (var c = 0; c < cells.length; c++) { var v = LT.trim(cells[c]); if (!v) continue; if (!num && (LT.isDocNo(v) || c == 0 && !/\s/.test(v))) num = v.replace(/\.[A-Za-z0-9]{2,4}$/, ""); else desc.push(v); }
+    if (!num) { var m = /^(\S+)\s+(.+)$/.exec(l); if (m && LT.isDocNo(m[1])) { num = m[1]; desc = [m[2]]; } }
+    if (num) out.push({ num: num, desc: desc.join(" ") }); }
+  return out;
+}
+function lookRun(list) {
+  var known = knownList(), rows = [];
+  for (var i = 0; i < list.length; i++) { var x = list[i], sp = splitNo(x.num), d = P.drawings[sp.key] || P.drawings[up(x.num)], r = { num: x.num, desc: x.desc };
+    if (d) { r.title = d.title; r.tower = d.tower || ""; r.typo = d.typo || ""; r.model = modelOf(d); r.src = d.ok ? "register" : "guess"; r.cat = d.cat || ""; if (d.inMidp === false) r.src = "removed"; }
+    else { var g = x.desc ? guess({ num: sp.base, title: x.desc, cat: "" }, known) : { tower: towerOf(sp.base), typo: "" };
+      r.title = ""; r.tower = g.tower || towerOf(sp.base); r.typo = g.typo || ""; r.model = r.typo && r.typo != "-" ? modelMap()[mKey(r.tower, r.typo)] || "" : ""; r.src = g.typo ? "guess" + (g.how == "like" ? ": like " + g.like : g.how == "rule" ? ": rule" : "") : "not found"; }
+    r.link = r.model ? modelLink(r.model) : ""; rows.push(r); }
+  return rows;
+}
+function lookView() {
+  var L = P.lookup || {}, rows = L.rows || [];
+  $("tickBar").style.display = "none";
+  var nNot = 0, nG = 0; for (var i = 0; i < rows.length; i++) { if (rows[i].src == "not found") nNot++; else if (rows[i].src.indexOf("guess") == 0) nG++; }
+  $("sum").innerHTML = "Paste or load a list of drawing numbers (with a description if you have one) &ndash; Tower, Typology and Model are filled in; the model opens with a click. Then <b>Export</b> it for someone to check." +
+    (rows.length ? '<br><b>' + rows.length + " drawing(s)</b>" + (nG ? ' &middot; <span class="warn">' + nG + " guessed (from the description)</span>" : "") + (nNot ? ' &middot; <span class="bad">' + nNot + " not in the register</span>" : "") : "");
+  var h = ['<div class="lk"><div class="lkin"><div class="lkh">1. The list <span class="muted">(one drawing per line; a description after a Tab, 2 spaces, ; or |)</span></div><textarea id="lkText" placeholder="T1-ZZ-DR-A-2101\tServiced Apartment 1BR Type A - Plan\nT1-ZZ-DR-A-2102\n...">' + esc(L.text || "") + '</textarea>' +
+    '<div><button class="btn primary" id="lkGo">&#9654; Fill in Tower / Typology / Model</button><button class="btn" id="lkFile">Load from Excel / CSV...</button><button class="btn" id="lkClear">Clear</button></div></div>'];
+  if (rows.length) { h.push('<div class="lkres"><div class="lkh">2. The result <button class="btn small" id="lkExp">Export &#9662;</button></div><table class="grid nofit nonum" id="lkT" style="width:100%"><colgroup><col style="width:' + Math.max(150, Math.round(lookLongest(rows) * (LT.themeVars().fs || 13) * 0.66) + 16) + 'px"><col><col style="width:56px"><col style="width:76px"><col style="width:26%"><col style="width:120px"></colgroup><tr><th>Drawing</th><th>Description</th><th>Tower</th><th>Typology</th><th>Model</th><th>From</th></tr>');
+    for (var j = 0; j < rows.length; j++) { var r = rows[j], g = r.src.indexOf("guess") == 0, nf = r.src == "not found";
+      h.push('<tr><td class="no">' + esc(r.num) + '</td><td class="small">' + esc(r.desc || r.title || "") + (r.desc && r.title && up(r.desc) != up(r.title) ? '<div class="muted small">register: ' + esc(r.title) + "</div>" : "") + "</td><td" + (g ? ' class="warn g"' : "") + ">" + esc(r.tower) + "</td><td" + (g ? ' class="warn g"' : "") + ">" + esc(r.typo) + "</td><td>" +
+        (r.model ? (r.link ? '<span class="mlk" data-ml="' + esc(r.model) + '" title="' + esc(r.link) + '">' + esc(r.model) + "</span>" : esc(r.model) + ' <span class="muted small" title="No link - add it in Setup > Models table, or set a models folder">(no link)</span>') : nf ? "" : '<span class="muted">&ndash;</span>') +
+        '</td><td class="' + (nf ? "bad" : g ? "warn" : r.src == "removed" ? "warn" : "muted") + ' small">' + esc(r.src == "removed" ? "removed from the MIDP" : r.src) + "</td></tr>"); }
+    h.push("</table></div>"); }
+  h.push("</div>");
+  $("res").innerHTML = h.join("");
+  $("lkGo").onclick = function () { var t = $("lkText").value, list = lookParse(t); if (!list.length) { alert("Paste drawing numbers first - one per line."); return; } P.lookup = { text: t, at: LT.today(), rows: lookRun(list) }; saveP(); render(); };
+  $("lkClear").onclick = function () { P.lookup = null; saveP(); render(); };
+  $("lkFile").onclick = function () { LT.pickFile(function (p) { var t = ""; try { var rows2 = /\.(xlsx|xlsm|xls)$/i.test(p) ? (function () { var b = LT.readExcelAll(p); return b.rows[b.names[0]]; })() : LT.parseCsv(LT.readText(p));
+      var nc = -1, best = 0, cnt = {}; for (var r2 = 0; r2 < rows2.length; r2++) for (var c2 = 0; c2 < (rows2[r2] || []).length; c2++) if (LT.isDocNo(LT.cell(rows2[r2], c2))) { cnt[c2] = (cnt[c2] || 0) + 1; if (cnt[c2] > best) { best = cnt[c2]; nc = c2; } }
+      if (nc < 0) { alert("No drawing numbers found in that file."); return; }
+      for (var r3 = 0; r3 < rows2.length; r3++) { var n = LT.cell(rows2[r3], nc); if (!LT.isDocNo(n)) continue; var ds = ""; for (var c3 = nc + 1; c3 < rows2[r3].length && !ds; c3++) { var v = LT.trim(LT.cell(rows2[r3], c3)); if (v && !LT.isDocNo(v) && !/^[A-Z]{1,2}\d{1,3}$/.test(v)) ds = v; } t += n + (ds ? "\t" + ds : "") + "\r\n"; }
+      } catch (e) { alert("Couldn't read the file:\n" + (e.message || e)); return; } $("lkText").value = t; $("lkGo").click(); }); };
+  if ($("lkExp")) $("lkExp").onclick = function (e) { var a = at(this); LT.menu(a[0] - 200, a[1], [
+    { label: "Excel &ndash; for checking (model links, Checked / Comments columns)", fn: function () { lookExcel(); } },
+    { label: "HTML page (opens anywhere, links clickable)", fn: function () { lookHtml(); } },
+    { label: "Copy as text (Tab-separated, for Excel / email)", fn: function () { var s = "Drawing\tDescription\tTower\tTypology\tModel\tLink\r\n"; for (var i2 = 0; i2 < rows.length; i2++) s += [rows[i2].num, rows[i2].desc || rows[i2].title, rows[i2].tower, rows[i2].typo, rows[i2].model, rows[i2].link].join("\t") + "\r\n"; if (LT.copyText(s)) LT.toast("Copied"); } }]); stop(e); };
+}
+function lookLongest(rows) { var n = 10; for (var i = 0; i < rows.length; i++) if (rows[i].num.length > n) n = rows[i].num.length; return n; }
+function lookBase() { LT.mkdirs(LT.exportsDir()); return LT.exportsDir() + "\\Drawing list_" + LT.safeName(P.name) + "_" + LT.stamp(); }
+function lookExcel() {
+  var rows = P.lookup.rows, base = lookBase(), xl = null, wb = null;
+  try {
+    xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
+    wb = xl.Workbooks.Add(); while (wb.Worksheets.Count > 1) wb.Worksheets(wb.Worksheets.Count).Delete(); var ws = wb.Worksheets(1); ws.Name = "Drawing list";
+    var hd = ["No.", "Drawing number", "Description", "Tower", "Typology", "Model", "Checked", "Comments"], W = [5, 32, 60, 8, 14, 34, 11, 50];
+    ws.Cells(1, 1).Value = "Drawing list \u2013 " + P.name + " \u2013 " + LT.fmtDate(LT.today()); ws.Cells(1, 1).Font.Bold = true; ws.Cells(1, 1).Font.Size = 14;
+    for (var c = 0; c < hd.length; c++) { var hc = ws.Cells(3, c + 1); hc.Value = hd[c]; hc.Font.Bold = true; hc.Font.Color = 0xFFFFFF; hc.Interior.Color = 0x7E3E5B; ws.Columns(c + 1).ColumnWidth = W[c]; }
+    for (var i = 0; i < rows.length; i++) { var r = rows[i], R = 4 + i, vals = [i + 1, r.num, r.desc || r.title || "", r.tower, r.typo, r.model];
+      for (var k = 0; k < vals.length; k++) { var cell = ws.Cells(R, k + 1); if (k == 1) cell.NumberFormat = "@"; cell.Value = vals[k]; }
+      if (r.model && r.link) { try { ws.Hyperlinks.Add(ws.Cells(R, 6), linkHref(r.link), "", "Open " + r.model, r.model); } catch (e) { } }
+      if (r.src.indexOf("guess") == 0) ws.Range(ws.Cells(R, 4), ws.Cells(R, 6)).Font.Color = 0x0060C0;
+      ws.Range(ws.Cells(R, 7), ws.Cells(R, 8)).Interior.Color = 0xCCF2FF; }
+    var last = 3 + rows.length;
+    try { var v = ws.Range("G4:G" + last).Validation; v.Delete(); v.Add(3, 1, 1, "Yes,No,Query"); } catch (e) { }
+    try { var rg = ws.Range("A3:H" + last); rg.Borders.LineStyle = 1; rg.Borders.Color = 0xE2D7D0; rg.WrapText = true; rg.VerticalAlignment = -4160; ws.Range("A3:H" + last).AutoFilter(); } catch (e) { }
+    ws.Cells(last + 2, 1).Value = "Blue = guessed from the description. Model = click to open. Fill in Checked (Yes / No / Query) and Comments.";
+    try { ws.Rows(4).Select(); xl.ActiveWindow.FreezePanes = true; } catch (e) { }
+    try { ws.PageSetup.Orientation = 2; ws.PageSetup.Zoom = false; ws.PageSetup.FitToPagesWide = 1; ws.PageSetup.FitToPagesTall = false; ws.PageSetup.PrintTitleRows = "$3:$3"; } catch (e) { }
+    wb.SaveAs(base + ".xlsx", 51); LT.open(base + ".xlsx");
+  } catch (e) { var t = [["No.", "Drawing number", "Description", "Tower", "Typology", "Model", "Checked", "Comments"]];
+    for (var j = 0; j < rows.length; j++) t.push([j + 1, rows[j].num, rows[j].desc || rows[j].title || "", rows[j].tower, rows[j].typo, rows[j].link ? '=HYPERLINK("' + linkHref(rows[j].link).replace(/"/g, '""') + '","' + rows[j].model.replace(/"/g, '""') + '")' : rows[j].model, "", ""]);
+    try { LT.writeCsv(base + ".csv", t); LT.open(base + ".csv"); LT.toast("Excel isn't available - saved as CSV (the model links still work in Excel)"); } catch (e2) { alert("Couldn't export:\n" + (e2.message || e2)); } }
+  finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+}
+function lookHtml() {
+  var rows = P.lookup.rows, e = esc, h = ['<!DOCTYPE html><html><head><meta charset="utf-8"><title>Drawing list - ' + e(P.name) + "</title><style>body{margin:0;font:10.5pt/1.5 'Segoe UI',Arial,sans-serif;color:#1d2330;background:#eef1f5}.page{max-width:1100px;margin:20px auto;background:#fff;box-shadow:0 2px 14px rgba(20,30,50,.12)}",
+    ".hd{background:#1f3a5f;color:#fff;padding:18px 24px}.hd h1{margin:0;font-size:17pt;font-weight:600}.hd div{opacity:.8;font-size:9pt}table{width:100%;border-collapse:collapse;font-size:9.5pt}th{text-align:left;font-size:8pt;text-transform:uppercase;color:#6b7385;border-bottom:1px solid #c9d2dc;padding:6px 8px;position:sticky;top:0;background:#fff}",
+    "td{padding:5px 8px;border-bottom:1px solid #eef1f5;vertical-align:top}td.n{font-family:Consolas,monospace;white-space:nowrap}.g{color:#0b62c4}a{color:#1f5fbf}.ft{padding:10px 24px;font-size:8pt;color:#8a93a3}@media print{body{background:#fff}.page{margin:0;box-shadow:none}}</style></head><body><div class=\"page\">",
+    '<div class="hd"><h1>Drawing list &ndash; ' + e(P.name) + "</h1><div>" + rows.length + " drawings &middot; " + e(LT.fmtDate(LT.today())) + (LT.settings().userName ? " &middot; " + e(LT.settings().userName) : "") + "</div></div><table><tr><th>No.</th><th>Drawing number</th><th>Description</th><th>Tower</th><th>Typology</th><th>Model</th><th>Checked</th></tr>"];
+  for (var i = 0; i < rows.length; i++) { var r = rows[i], g = r.src.indexOf("guess") == 0 ? ' class="g"' : "";
+    h.push("<tr><td>" + (i + 1) + '</td><td class="n">' + e(r.num) + "</td><td>" + e(r.desc || r.title || "") + "</td><td" + g + ">" + e(r.tower) + "</td><td" + g + ">" + e(r.typo) + "</td><td" + g + ">" + (r.link ? '<a href="' + e(linkHref(r.link)) + '">' + e(r.model) + "</a>" : e(r.model)) + '</td><td><input type="checkbox"></td></tr>'); }
+  h.push('</table><div class="ft">Blue = guessed from the description. Click a model to open it. &middot; Lew\'s Toolbox</div></div></body></html>');
+  var p = lookBase() + ".html"; LT.writeUtf8(p, h.join("\n"), true); LT.open(p);
+}
+
 /* ---------- My sets: your own groups of drawings (e.g. "Serviced units" when the MIDP doesn't say), made once, used by Tasks > From the MIDP ----------
    P.sets = [{ id, name, keys: [drawing keys] }]. Left = the MIDP (with the filters above), right = the set. Drag between them, or double-click, or the buttons. */
 var curSet = "", selL = {}, selR = {}, lastSel = { L: -1, R: -1 }, setDrag = null;
@@ -433,7 +522,11 @@ function setsView() {
 function setsSave(msg) { saveP(); render(); if (msg) LT.toast(msg); }
 function setAdd(keys) { var S = setOf(curSet); if (!S) return; var have = {}, n = 0; for (var i = 0; i < S.keys.length; i++) have[S.keys[i]] = 1; for (var j = 0; j < keys.length; j++) if (!have[keys[j]]) { S.keys.push(keys[j]); have[keys[j]] = 1; n++; } selL = {}; setsSave(n + " added to " + S.name); }
 function setRemove(keys) { var S = setOf(curSet); if (!S) return; var rm = {}; for (var i = 0; i < keys.length; i++) rm[keys[i]] = 1; var b = S.keys.length; S.keys = S.keys.filter(function (k) { return !rm[k]; }); selR = {}; setsSave((b - S.keys.length) + " removed from " + S.name); }
+var RES_EV = ["onclick", "ondblclick", "ondragstart", "ondragover", "ondragleave", "ondrop"], resOrig = null;
+/* My sets puts its own mouse handlers on the list area; the other views get the normal ones back */
+function resHandlers(mine) { var res = $("res"); if (!resOrig) { resOrig = {}; for (var i = 0; i < RES_EV.length; i++) resOrig[RES_EV[i]] = res[RES_EV[i]] || null; } if (!mine) for (var j = 0; j < RES_EV.length; j++) res[RES_EV[j]] = resOrig[RES_EV[j]]; }
 function bindSets() {
+  resHandlers(true);
   var res = $("res"), sel = function (side) { var o = side == "L" ? selL : selR, a = []; for (var k in o) if (o.hasOwnProperty(k)) a.push(k); return a; };
   var btn = function (id, fn) { if ($(id)) $(id).onclick = fn; };
   btn("stNew", function () { var n = prompt("Name of the new set (e.g. Serviced units):", ""); if (!n || !LT.trim(n)) return; P.sets.push({ id: LT.uid("s"), name: LT.trim(n), keys: [], made: LT.today() }); curSet = P.sets[P.sets.length - 1].id; setsSave(); });
@@ -508,17 +601,30 @@ function saveEdit(na) {
 function accept(ks) { var n = 0; for (var i = 0; i < ks.length; i++) { var d = P.drawings[ks[i]]; if (d.typo && !d.ok) { d.ok = true; n++; } } saveP(); render(); LT.toast(n + " guess(es) accepted"); }
 
 /* ---------- setup ---------- */
-function modelsTxt() { var a = []; for (var i = 0; i < P.models.length; i++) a.push(P.models[i].tower + " | " + P.models[i].typo + " | " + P.models[i].model); return a.join("\r\n"); }
+function modelsTxt() { var a = []; for (var i = 0; i < P.models.length; i++) a.push(P.models[i].tower + " | " + P.models[i].typo + " | " + P.models[i].model + (P.models[i].link ? " | " + P.models[i].link : "")); return a.join("\r\n"); }
+/* ---------- where a model opens: its link in the models table, else a file in the models folder named like it ---------- */
+var MF = null;
+function modelLink(model) {
+  model = LT.trim(model || ""); if (!model) return "";
+  for (var i = 0; i < P.models.length; i++) if (P.models[i].link && up(P.models[i].model) == up(model)) return P.models[i].link;
+  var dir = P.setup.modelsDir; if (!dir || !fso.FolderExists(dir)) return "";
+  if (!MF || MF.dir != dir) { MF = { dir: dir, files: [] }; var walk = function (d, depth) { var fo; try { fo = fso.GetFolder(d); } catch (e) { return; } var e2 = new Enumerator(fo.Files); for (; !e2.atEnd(); e2.moveNext()) { var n = "" + e2.item().Name; if (/\.(rvt|nwd|nwc|ifc)$/i.test(n) && !/\.\d{4}\.rvt$/i.test(n)) MF.files.push({ n: up(n), p: "" + e2.item().Path }); }
+      if (depth < 4) { var s = new Enumerator(fo.SubFolders); for (; !s.atEnd(); s.moveNext()) walk("" + s.item().Path, depth + 1); } }; walk(dir, 0); }
+  var M = up(model), best = null; for (var j = 0; j < MF.files.length; j++) if (MF.files[j].n.indexOf(M) >= 0) { if (!best || /\.RVT$/.test(MF.files[j].n) && !/\.RVT$/.test(best.n)) best = MF.files[j]; }
+  return best ? best.p : "";
+}
+function linkHref(l) { return /^[a-z][a-z0-9+.-]*:/i.test(l) && !/^[a-z]:\\/i.test(l) ? l : "file:///" + l.replace(/\\/g, "/"); }
 function setupShow() {
   var S = P.setup; $("sSheet").value = S.sheet || ""; $("sNum").value = S.num || ""; $("sTitle").value = S.title || ""; $("sPrefix").value = S.prefix || ""; $("sTowerPart").value = S.towerPart || 0;
-  $("sRules").value = rulesTxt(); $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")"; setupEx(); $("ovSetup").style.display = "block";
+  $("sRules").value = rulesTxt(); $("sModels").value = modelsTxt(); $("sModDir").value = S.modelsDir || ""; $("sModN").innerHTML = "(" + P.models.length + ")"; setupEx(); $("ovSetup").style.display = "block";
 }
 function setupEx() { var ex = ""; for (var k in P.drawings) if (P.drawings.hasOwnProperty(k)) { ex = P.drawings[k].num; break; } var n = +$("sTowerPart").value || 0;
   $("sEx").innerHTML = ex && n ? "Example: " + esc(ex) + " &rarr; part " + n + " = <b>" + esc(ex.split("-")[n - 1] || "") + "</b> (only used when it looks like T1, T2, B3...)" : ""; }
 function setupSave() {
   var S = P.setup; S.sheet = LT.trim($("sSheet").value); S.num = up($("sNum").value); S.title = up($("sTitle").value); S.prefix = LT.trim($("sPrefix").value); S.towerPart = parseInt($("sTowerPart").value, 10) || 0;
   P.rules = rulesFrom($("sRules").value);
-  var ms = [], ls = $("sModels").value.split(/\r?\n/); for (var i = 0; i < ls.length; i++) { var p = ls[i].split("|"); if (p.length >= 3 && LT.trim(p[1])) ms.push({ tower: LT.trim(p[0]), typo: LT.trim(p[1]), model: LT.trim(p[2]) }); }
+  var ms = [], ls = $("sModels").value.split(/\r?\n/); for (var i = 0; i < ls.length; i++) { var p = ls[i].split("|"); if (p.length >= 3 && LT.trim(p[1])) { var lk = LT.trim(p.slice(3).join("|")); ms.push({ tower: LT.trim(p[0]), typo: LT.trim(p[1]), model: LT.trim(p[2]), link: lk }); } }
+  S.modelsDir = LT.trim($("sModDir").value); MF = null;
   P.models = ms; MM = null; saveP(); $("ovSetup").style.display = "none"; render(); LT.toast("Setup saved");
 }
 
@@ -565,7 +671,8 @@ function impPrev() { var rs = impRows(), h = ""; for (var i = 0; i < Math.min(rs
   $("impPrev").innerHTML = (h || '<tr><td class="bad">Nothing found with these columns.</td></tr>') + '<tr><td colspan="5" class="muted">' + rs.length + " rows</td></tr>"; }
 function impDo() {
   var rs = impRows(); if (!rs.length) { alert("Nothing to import with these columns."); return; }
-  if (imp.kind == "models") { P.models = []; for (var i = 0; i < rs.length; i++) P.models.push({ tower: rs[i].tower, typo: rs[i].typo, model: rs[i].model }); MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")"; }
+  if (imp.kind == "models") { var oldL = {}; for (var o = 0; o < P.models.length; o++) if (P.models[o].link) oldL[up(P.models[o].model)] = P.models[o].link;
+    P.models = []; for (var i = 0; i < rs.length; i++) P.models.push({ tower: rs[i].tower, typo: rs[i].typo, model: rs[i].model, link: oldL[up(rs[i].model)] || "" }); MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")"; }
   else { var D = P.drawings, nN = 0, nU = 0;
     for (var j = 0; j < rs.length; j++) { var r = rs[j], d = D[r.key];
       if (!d) { d = D[r.key] = { num: r.num, title: r.title, cat: "", rev: "", tower: "", typo: "", model: "", how: "", ok: false, first: LT.today(), inMidp: P.last ? false : undefined }; nN++; } else nU++;
@@ -631,7 +738,7 @@ $("ldOk").onclick = applyMidp; $("ldCancel").onclick = function () { pending = n
 $("shCancel").onclick = function () { $("ovSheet").style.display = "none"; };
 $("edOk").onclick = function () { saveEdit(false); }; $("edNa").onclick = function () { saveEdit(true); }; $("edCancel").onclick = function () { $("ovEdit").style.display = "none"; };
 $("edTower").onkeyup = function () { typoOpts(); hint(); }; $("edTypo").onkeyup = hint;
-$("sOk").onclick = setupSave; $("sCancel").onclick = function () { $("ovSetup").style.display = "none"; };
+$("sOk").onclick = setupSave; $("sModDirB").onclick = function () { var f = LT.pickFolder("The folder with the project's models (.rvt / .nwd)"); if (f) $("sModDir").value = f; }; $("sCancel").onclick = function () { $("ovSetup").style.display = "none"; };
 $("sTowerPart").onkeyup = setupEx;
 $("sModImp").onclick = function () { startImport("models"); }; $("sListImp").onclick = function () { $("ovSetup").style.display = "none"; startImport("list"); };
 $("iOk").onclick = impDo; $("iCancel").onclick = function () { $("ovImp").style.display = "none"; };
@@ -670,6 +777,7 @@ $("res").onclick = function (e) {
   e = e || window.event; var t = e.target || e.srcElement;
   if (t.id == "tkAll") { ticked = {}; if (t.checked) for (var i = 0; i < shown.length; i++) ticked[shown[i]] = 1; render(); return; }
   var sc = LT.up(t, "data-st"); if (sc) { var sk = sc.getAttribute("data-st"); statMenu(ticked[sk] ? keys(ticked) : [sk], e.clientX, e.clientY); return; }
+  var ml = LT.up(t, "data-ml"); if (ml) { var lk = modelLink(ml.getAttribute("data-ml")); if (lk) { try { LT.open(lk); } catch (x) { alert("Couldn't open:\n" + lk); } } return; }
   var lnk = LT.up(t, "data-lnk"); if (lnk) { try { LT.open(P.drawings[lnk.getAttribute("data-lnk")].link); } catch (x) { } return; }
   var td = t; while (td && td.tagName != "TD") td = td.parentNode; if (!td || td.className.indexOf("tk") < 0) return;
   var tr = LT.up(td, "data-k"); if (!tr) return; var k = tr.getAttribute("data-k"), pos = -1; for (var j = 0; j < shown.length; j++) if (shown[j] == k) pos = j;
@@ -691,7 +799,8 @@ $("res").oncontextmenu = function (e) {
 $("bSet").onclick = function () { edit(keys(ticked)); };
 $("bStat").onclick = function (e) { var a = at(this); statMenu(keys(ticked), a[0], a[1]); stop(e); };
 $("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-stf"); if (c) { stF = c.getAttribute("data-stf"); render(); } }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
-function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".stc{cursor:pointer;margin-right:6px}.stbar{display:inline-block;vertical-align:middle;width:180px;height:10px;margin:0 8px;background:{chip};border-radius:5px;overflow:hidden;white-space:nowrap}.stbar i{display:inline-block;height:10px}", "td.st{cursor:pointer;font-weight:bold}td.st0{color:{muted};font-weight:normal}td.st1{color:{warn}}td.st2{color:{accent}}td.st3{color:{ok}}.stbar i.st0{background:{line}}.stbar i.st1{background:{warn}}.stbar i.st2{background:{accent}}.stbar i.st3{background:{ok}}.chip.st3{color:{ok}}.chip.st1{color:{warn}}", ".sets{display:flex;height:100%;padding:8px;box-sizing:border-box}.sl{flex:0 0 190px;overflow-y:auto;padding-right:8px}.slh{font-weight:bold;margin-bottom:6px}.si{padding:6px 8px;cursor:pointer;border-radius:{r}px;margin-bottom:2px}.si:hover{background:{hover}}.si.on{background:{chip};box-shadow:inset 3px 0 0 {accent}}",
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".stc{cursor:pointer;margin-right:6px}.stbar{display:inline-block;vertical-align:middle;width:180px;height:10px;margin:0 8px;background:{chip};border-radius:5px;overflow:hidden;white-space:nowrap}.stbar i{display:inline-block;height:10px}", "td.st{cursor:pointer;font-weight:bold}td.st0{color:{muted};font-weight:normal}td.st1{color:{warn}}td.st2{color:{accent}}td.st3{color:{ok}}.stbar i.st0{background:{line}}.stbar i.st1{background:{warn}}.stbar i.st2{background:{accent}}.stbar i.st3{background:{ok}}.chip.st3{color:{ok}}.chip.st1{color:{warn}}", ".lk{display:flex;height:100%;padding:8px;box-sizing:border-box}.lkin{flex:0 0 270px;display:flex;flex-direction:column;padding-right:10px}.lkin textarea{flex:1 1 auto;min-height:200px;margin:6px 0;font-family:{mono};font-size:.9em}.lkres{flex:1 1 auto;min-width:0;overflow:auto}.lkh{font-weight:bold;margin-bottom:4px}.lkh .btn{margin-left:8px}",
+  ".mlk{color:{accent};cursor:pointer;text-decoration:underline}.mlk:hover{color:{text}}", ".sets{display:flex;height:100%;padding:8px;box-sizing:border-box}.sl{flex:0 0 190px;overflow-y:auto;padding-right:8px}.slh{font-weight:bold;margin-bottom:6px}.si{padding:6px 8px;cursor:pointer;border-radius:{r}px;margin-bottom:2px}.si:hover{background:{hover}}.si.on{background:{chip};box-shadow:inset 3px 0 0 {accent}}",
   ".pane{flex:1 1 0px;min-width:0;display:flex;flex-direction:column;border:{bw}px solid {line};border-radius:{r}px;background:{panel}}.pane.over{outline:2px dashed {accent};background:{hover}}.ph{flex:none;padding:6px 10px;border-bottom:1px solid {line};background:{bg}}.pl{flex:1 1 auto;overflow-y:auto;min-height:0}",
   ".mid{flex:0 0 110px;display:flex;flex-direction:column;justify-content:center;padding:0 8px}.mid .btn{margin:0 0 8px;width:100%}",
   ".dr{padding:4px 10px;border-bottom:1px solid {line};cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}.dr:hover{background:{hover}}.dr.sel{background:{chip};box-shadow:inset 3px 0 0 {accent}}.dr .no{font-family:{mono};font-weight:bold}.dr.gone{opacity:.55;text-decoration:line-through}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }

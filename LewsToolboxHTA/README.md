@@ -244,6 +244,12 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **History ▾:** every MIDP loaded, with its changes
 - **📋 Status** view – where every sheet is: **Not started · In progress · Checked · Issued**, with counts, a progress bar and **% issued** (click a count to see only those)
   - **Issued** comes by itself from the Transmittal log (the last rev, TR number and date). Set the others: click the status, or tick rows → **Set status ▾**. A status you set after the last issue wins (e.g. being revised again)
+- **📋 List lookup** – someone gives you a list of drawings (or you make one): get Tower, Typology and Model for each, then send it for checking
+  1. Paste the list (one drawing per line; a description after a Tab, two spaces, `;` or `|` – optional), or **Load from Excel / CSV…** (the drawing-number column is found by itself, the next text column is the description)
+  2. **▶ Fill in Tower / Typology / Model** – drawings in the register take its values (a revision on the number is ignored); others are **guessed from the description** (orange, "guess: like …") the same way as new MIDP drawings; unknown with no description = *not found*
+  3. The **Model is clickable** (opens the .rvt or the ACC link). The list is kept until you Clear it
+  4. **Export ▾**: **Excel for checking** – model as a hyperlink, guesses in blue, yellow **Checked** (Yes / No / Query) and **Comments** columns, frozen heading, prints landscape · **HTML page** (opens anywhere, clickable models, a tick box per drawing) · copy as text
+- **Model links** (⚙ Setup): in the models table add a 4th part – `T1 | 1BRA | T1-1BRA-Unit Model | M:\Models\T1-1BRA-Unit Model.rvt` (or the ACC / BIM 360 link). Or set a **Models folder**: a model with no link opens the .rvt / .nwd there whose name contains the model's name (backups like `.0001.rvt` are skipped). The Model column in the register is then clickable too
 - **📁 My sets** – your own groups of drawings, for when the MIDP doesn't group them the way you need (e.g. *Serviced units*, *Print set for the client*). Set one up once:
   1. **+ New set**, give it a name
   2. Left = the MIDP (narrow it with the Section / Tower / Typology filters and the search box above). Right = your set

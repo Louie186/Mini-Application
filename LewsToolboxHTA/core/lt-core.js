@@ -518,8 +518,11 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.12d";
+  L.VERSION = "2026.11.12e";
   L.WHATS_NEW = [
+    { v: "2026.11.12e", items: [
+      "<b>List lookup</b> (Drawing Register &gt; &#128203; List lookup): paste or load a list of drawing numbers (descriptions optional) &ndash; Tower, Typology and Model are filled in, the <b>model is clickable</b>; export it to Excel or HTML for someone to check",
+      "Models can have a <b>link</b> (Setup &gt; Models table: Tower | Typology | Model | link) or come from a <b>models folder</b> &ndash; then the Model is clickable everywhere in the register" ] },
     { v: "2026.11.12d", items: [
       "<b>My sets</b> (Drawing Register &gt; &#128193; My sets): your own groups of drawings, e.g. <i>Serviced units</i> when the MIDP doesn't say &ndash; drag drawings from the MIDP into the set once, then pull it into any task (From the MIDP &gt; My set)",
       "<b>Calendar</b> in Tasks: drag a task to another day to move it, hold <b>Ctrl</b> to make a copy on that day" ] },

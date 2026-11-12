@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Review</title>
+<meta name="lt-desc" content="The folder is the checklist: every drawing in it becomes a line you tick off as you check it - checked, has comments, or not OK - with your notes. Remembered, so you can stop and carry on later.">
+<!--
+  Lew's Toolbox - (a view inside the Folder Check tab) Review: someone sends you drawings to check; the folder's own contents become your checklist.
+  One line per drawing (its pdf / dwg / ... with the same name together) or per file. Each line: To check / Checked / Comments / Not OK, a note, who and when.
+  Files that arrive later show as NEW; files that disappear stay listed as "gone" if you had marked them.
+  Data: review.json in the data folder { reviews: { "<folder, lower case>": { folder, from, title, made, by: "drawing" | "file", subs, items: { key: { st, note, by, at } }, seen: { key: time } } } }
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#sum{flex:none;padding:8px 14px}
+#bar{height:12px;overflow:hidden;margin:6px 0 8px;max-width:640px}#bar i{display:block;height:100%;float:left}
+#chips .cbtn{display:inline-block;padding:4px 11px;margin:0 6px 4px 0;font-weight:bold;cursor:pointer}
+.sb{display:inline-block;padding:2px 8px;margin:0 2px 0 0;font-size:.85em;font-weight:bold;cursor:pointer;white-space:nowrap}
+td.stc{white-space:nowrap;width:300px}
+td.nt input{width:100%;height:24px}
+.ty{display:inline-block;padding:0 6px;margin:0 3px 0 0;font-size:.82em;font-weight:bold;cursor:pointer}
+.tag{display:inline-block;padding:0 6px;margin-left:6px;font-size:.78em;font-weight:bold}
+tr.grp td{font-weight:bold;padding-top:10px}
+tr.gone td{opacity:.55}
+.who{font-size:.82em;white-space:nowrap}
+#empty{padding:40px 24px;line-height:1.7;max-width:720px}
+</style>
+<script src="../../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Folder to review...</button><span class="path big" id="folderLbl"></span>
+    <button class="btn small" id="bRecent">Recent &#9662;</button>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
+    <label class="lbl" title="A pdf and a dwg with the same name are one drawing (one line)"><input type="checkbox" id="byDwg" checked style="height:auto"> one line per drawing</label>
+    <button class="btn small" id="bRescan">&#8635; Read again</button>
+  </div>
+  <div class="step bar" id="info" style="display:none">
+    <span class="num">2</span><span class="lbl">From:</span><input type="text" id="from" style="width:170px;margin:0 8px 6px 0" placeholder="who sent it">
+    <span class="lbl">About:</span><input type="text" id="about" style="width:260px;margin:0 8px 6px 0" placeholder="e.g. Tower 1 GA plans for comment">
+    <span class="lbl">Show:</span><select id="show" style="width:150px;height:26px;margin:0 8px 6px 0"><option value="all">Everything</option><option value="left">To check</option><option value="done">Checked</option><option value="cm">Comments + Not OK</option></select>
+    <label class="lbl"><input type="checkbox" id="remTop" checked style="height:auto"> To check on top</label>
+    <input type="text" id="search" placeholder="Search" style="width:150px;margin:0 8px 6px 0">
+    <span style="float:right"><button class="btn" id="bReport">Report &#9662;</button></span>
+  </div>
+  <div id="sum" class="muted"></div>
+  <div id="res"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso;
+var ST = [["", "To check"], ["ok", "Checked"], ["cm", "Comments"], ["no", "Not OK"]];
+var cfg = {}, store = {}, R = null, lines = [], shown = [], cur = -1, offer = "";
+function FILE() { return LT.dataPath("review.json"); }
+function load() { store = LT.readJson(FILE(), null) || {}; store.reviews = store.reviews || {}; cfg = { folder: store.last || "" }; }
+function save() { try { LT.saveJson(FILE(), store); } catch (e) { alert("Couldn't save the review:\n" + FILE()); } }
+function me() { return LT.settings().userName || ""; }
+function stamp() { var d = new Date(); return LT.today() + " " + LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes()); }
+function stName(st) { for (var i = 0; i < ST.length; i++) if (ST[i][0] == (st || "")) return ST[i][1]; return "To check"; }
+
+/* ---------- open a folder: its review (made the first time) ---------- */
+function open(dir) {
+  if (!dir || !fso.FolderExists(dir)) return;
+  var k = dir.toLowerCase();
+  R = store.reviews[k] || (store.reviews[k] = { folder: dir, from: "", title: "", made: LT.today(), by: "drawing", subs: true, items: {}, seen: {} });
+  R.folder = dir; store.last = dir; cfg.folder = dir;
+  $("subs").checked = R.subs !== false; $("byDwg").checked = R.by != "file"; $("from").value = R.from || ""; $("about").value = R.title || "";
+  $("folderLbl").innerHTML = esc(dir); $("folderLbl").title = dir; $("info").style.display = "";
+  read(); save(); render();
+}
+/* every file -> lines. One per drawing: same folder + same name without the extension */
+function read() {
+  var files = [], deep = R.subs !== false, root = R.folder;
+  var walk = function (d, rel) { var fo; try { fo = fso.GetFolder(d); } catch (e) { return; }
+    var e = new Enumerator(fo.Files); for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$|^_review/i.test(n)) continue; files.push({ name: n, path: "" + f.Path, rel: rel }); }
+    if (deep) { var s = new Enumerator(fo.SubFolders); for (; !s.atEnd(); s.moveNext()) if (!(s.item().Attributes & 6)) walk("" + s.item().Path, (rel ? rel + "\\" : "") + s.item().Name); } };
+  walk(root, "");
+  var by = {}, now = LT.now(); lines = [];
+  for (var i = 0; i < files.length; i++) { var f = files[i], dot = f.name.lastIndexOf("."), base = R.by == "file" || dot <= 0 ? f.name : f.name.substring(0, dot), ext = dot > 0 ? f.name.substring(dot + 1).toLowerCase() : "";
+    var key = ((f.rel ? f.rel + "\\" : "") + base).toLowerCase(), L = by[key];
+    if (!L) { L = by[key] = { key: key, name: base, rel: f.rel, files: [], types: [] }; lines.push(L); }
+    L.files.push(f.path); if (ext && L.types.indexOf(ext) < 0) L.types.push(ext); }
+  /* NEW = first seen after the review started (later than the first read) */
+  var first = !R.started; if (first) R.started = now;
+  for (var j = 0; j < lines.length; j++) { var x = lines[j]; if (!R.seen[x.key]) R.seen[x.key] = first ? R.started : now; x.isNew = R.seen[x.key] > R.started; }
+  /* marked before but not in the folder any more */
+  for (var k in R.items) if (R.items.hasOwnProperty(k) && !by[k] && R.items[k].st) { var it = R.items[k]; lines.push({ key: k, name: it.name || k, rel: it.rel || "", files: [], types: [], gone: true }); }
+  lines.sort(function (a, b) { var x = (a.rel + "\\" + a.name).toLowerCase(), y = (b.rel + "\\" + b.name).toLowerCase(); return x < y ? -1 : x > y ? 1 : 0; });
+}
+function item(L) { var it = R.items[L.key]; if (!it) it = R.items[L.key] = { st: "", note: "", by: "", at: "" }; it.name = L.name; it.rel = L.rel; return it; }
+function counts() { var n = { all: 0, left: 0, ok: 0, cm: 0, no: 0, nw: 0 };
+  for (var i = 0; i < lines.length; i++) { var L = lines[i]; if (L.gone) continue; var st = (R.items[L.key] || {}).st || ""; n.all++; if (!st) n.left++; else n[st]++; if (L.isNew) n.nw++; } return n; }
+
+/* ---------- the list ---------- */
+function pass(L) {
+  var st = (R.items[L.key] || {}).st || "", v = $("show").value, q = LT.trim($("search").value.toLowerCase());
+  if (v == "left" && (st || L.gone)) return false; if (v == "done" && st != "ok") return false; if (v == "cm" && st != "cm" && st != "no") return false;
+  if (q) { var h = (L.rel + " " + L.name + " " + ((R.items[L.key] || {}).note || "")).toLowerCase(), ws = q.split(/\s+/); for (var w = 0; w < ws.length; w++) if (h.indexOf(ws[w]) < 0) return false; }
+  return true;
+}
+function render() {
+  if (!R) { $("sum").innerHTML = ""; $("res").innerHTML = '<div id="empty"><h2>Review a folder</h2>' + (offer ? '<button class="btn primary" id="bStart" style="margin-bottom:12px">&#128221; Review this folder: ' + esc(fso.GetFileName(offer)) + "</button>" : "") + '<div class="muted">Someone sent you drawings to check? Pick their folder: <b>every drawing in it becomes a line on your checklist</b>.<br>' +
+    "&bull; Mark each one <b>Checked</b>, <b>Comments</b> or <b>Not OK</b>, and type a note<br>&bull; Double-click a line to open the drawing &middot; keys: &uarr; &darr; move, <b>Space</b> = Checked, <b>Enter</b> = open, <b>N</b> = note<br>" +
+    "&bull; It's remembered: stop any time and carry on later (<b>Recent &#9662;</b>). Files that arrive later show as <b>NEW</b><br>&bull; <b>Report &#9662;</b>: copy the comments for an email, Excel, or a tidy HTML report</div></div>"; return; }
+  var n = counts(), done = n.ok + n.cm + n.no, pct = n.all ? Math.round(done * 100 / n.all) : 0;
+  var bar = '<div id="bar" title="' + pct + '% reviewed">' + (n.all ? '<i class="b-ok" style="width:' + (n.ok * 100 / n.all) + '%"></i><i class="b-cm" style="width:' + (n.cm * 100 / n.all) + '%"></i><i class="b-no" style="width:' + (n.no * 100 / n.all) + '%"></i>' : "") + "</div>";
+  $("sum").innerHTML = '<b>' + done + " of " + n.all + " reviewed (" + pct + "%)</b>" + (n.nw ? ' &middot; <span class="tag t-new">' + n.nw + " NEW</span>" : "") + bar +
+    '<div id="chips"><span class="cbtn c-left" data-sh="left">To check ' + n.left + '</span><span class="cbtn c-ok" data-sh="done">&#10004; Checked ' + n.ok + '</span><span class="cbtn c-cm" data-sh="cm">&#9998; Comments ' + n.cm + '</span><span class="cbtn c-no" data-sh="cm">&#10006; Not OK ' + n.no + '</span><span class="cbtn" data-sh="all">Everything ' + n.all + "</span></div>";
+  shown = []; for (var i = 0; i < lines.length; i++) if (pass(lines[i])) shown.push(lines[i]);
+  if ($("remTop").checked) { var a = [], b = []; for (var j = 0; j < shown.length; j++) ((R.items[shown[j].key] || {}).st || shown[j].gone ? b : a).push(shown[j]); shown = a.concat(b); var split = a.length && b.length ? a.length : -1; }
+  var h = ['<table class="grid" id="tbl"><tr><th>Drawing / file</th><th>Type</th><th>Review</th><th>Note</th><th>By / when</th><th>Folder</th></tr>'];
+  for (var r = 0; r < shown.length; r++) { var L = shown[r], it = R.items[L.key] || {}, st = it.st || "";
+    if ($("remTop").checked && r == 0 && split > 0) h.push('<tr class="grp"><td colspan="6">To check (' + split + ")</td></tr>");
+    if ($("remTop").checked && r == split) h.push('<tr class="grp"><td colspan="6">Reviewed (' + (shown.length - split) + ")</td></tr>");
+    var tys = ""; for (var t = 0; t < L.types.length; t++) tys += '<span class="ty" data-op="' + r + '" data-ext="' + L.types[t] + '" title="Open the ' + L.types[t] + '">' + esc(L.types[t]) + "</span>";
+    var bs = ""; for (var s = 1; s < ST.length; s++) bs += '<span class="sb' + (st == ST[s][0] ? " on s-" + ST[s][0] : "") + '" data-set="' + r + '" data-v="' + ST[s][0] + '">' + (s == 1 ? "&#10004; " : s == 2 ? "&#9998; " : "&#10006; ") + ST[s][1] + "</span>";
+    h.push('<tr data-r="' + r + '" class="' + (L.gone ? "gone " : "") + (r == cur ? "cur" : "") + '"><td class="nm"><b>' + esc(L.name) + "</b>" + (L.isNew ? '<span class="tag t-new">NEW</span>' : "") + (L.gone ? '<span class="tag t-gone">not in the folder now</span>' : "") + "</td><td>" + tys + '</td><td class="stc">' + bs +
+      '</td><td class="nt"><input type="text" data-note="' + r + '" value="' + esc(it.note || "") + '" placeholder="note..."></td><td class="who muted">' + (st ? esc((it.by ? it.by + " · " : "") + LT.fmtDate(it.at) + " " + (it.at || "").substring(11)) : "") + '</td><td class="muted">' + esc(L.rel) + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">' + (lines.length ? "Nothing here with this filter." : "No files in this folder.") + "</div>";
+}
+function setSt(L, v, toggle) {
+  if (L.gone && !v) return; var it = item(L);
+  it.st = toggle && it.st == v ? "" : v; it.by = it.st ? me() : ""; it.at = it.st ? stamp() : "";
+  save(); var keep = cur; render(); cur = keep; mark();
+}
+function mark() { var trs = $("res").getElementsByTagName("tr"); for (var i = 0; i < trs.length; i++) { var r = trs[i].getAttribute("data-r"); if (r != null) trs[i].className = trs[i].className.replace(/ ?cur/g, "") + (+r == cur ? " cur" : ""); } }
+function openLine(L, ext) {
+  if (!L || !L.files.length) return; var f = L.files[0];
+  if (ext) { for (var i = 0; i < L.files.length; i++) if (L.files[i].toLowerCase().lastIndexOf("." + ext) == L.files[i].length - ext.length - 1) f = L.files[i]; }
+  else for (var j = 0; j < L.files.length; j++) if (/\.pdf$/i.test(L.files[j])) f = L.files[j];   // a PDF first
+  try { LT.open(f); } catch (e) { alert("Couldn't open:\n" + f); }
+}
+
+/* ---------- report ---------- */
+function rowsFor(filter) { var o = []; for (var i = 0; i < lines.length; i++) { var L = lines[i], it = R.items[L.key] || {}; if (!filter || filter(it.st || "", L)) o.push({ L: L, it: it }); } return o; }
+function textReport() {
+  var n = counts(), s = "Review: " + (R.title || fso.GetFileName(R.folder)) + (R.from ? "  (from " + R.from + ")" : "") + "\r\n" + R.folder + "\r\n" + (n.ok + n.cm + n.no) + " of " + n.all + " reviewed  -  " + n.ok + " checked, " + n.cm + " with comments, " + n.no + " not OK, " + n.left + " still to check\r\n";
+  var add = function (title, rs) { if (!rs.length) return; s += "\r\n" + title + " (" + rs.length + ")\r\n"; for (var i = 0; i < rs.length; i++) s += "  • " + rs[i].L.name + (rs[i].it.note ? "  – " + rs[i].it.note : "") + "\r\n"; };
+  add("NOT OK", rowsFor(function (st) { return st == "no"; })); add("COMMENTS", rowsFor(function (st) { return st == "cm"; }));
+  add("STILL TO CHECK", rowsFor(function (st, L) { return !st && !L.gone; }));
+  return s + "\r\n" + (me() ? "Reviewed by " + me() + ", " : "") + LT.fmtDate(LT.today()) + "\r\n";
+}
+function htmlReport() {
+  var n = counts(), e = esc, rows = rowsFor(null), h = ['<!DOCTYPE html><html><head><meta charset="utf-8"><title>Review - ' + e(R.title || fso.GetFileName(R.folder)) + "</title><style>",
+    "body{margin:0;font:10.5pt/1.5 'Segoe UI',Arial,sans-serif;color:#1d2330;background:#eef1f5}.page{max-width:900px;margin:24px auto;background:#fff;box-shadow:0 2px 14px rgba(20,30,50,.12)}@media print{body{background:#fff}.page{margin:0;box-shadow:none}}",
+    ".hd{background:#1f3a5f;color:#fff;padding:20px 26px}.hd .k{font-size:9pt;letter-spacing:1.5px;text-transform:uppercase;opacity:.75}.hd h1{margin:4px 0 0;font-size:19pt;font-weight:600}.hd .p{font-size:9pt;opacity:.8;word-break:break-all}",
+    ".facts{display:flex;flex-wrap:wrap;border-bottom:1px solid #dde3ea}.f{flex:1 1 20%;padding:10px 26px}.f span{display:block;font-size:8pt;text-transform:uppercase;color:#6b7385}.f b{font-size:14pt}",
+    "table{width:100%;border-collapse:collapse;font-size:9.5pt}th{text-align:left;font-size:8pt;text-transform:uppercase;color:#6b7385;border-bottom:1px solid #c9d2dc;padding:6px 8px}td{padding:6px 8px;border-bottom:1px solid #eef1f5;vertical-align:top}",
+    ".sec{padding:14px 26px}.s{display:inline-block;padding:0 8px;border-radius:9px;font-size:8pt;font-weight:600;white-space:nowrap}.ok{background:#e3f4ea;color:#1f7a45}.cm{background:#fff3d6;color:#8a5a0c}.no{background:#fde4e1;color:#b3261e}.to{background:#e9eef5;color:#4b5565}",
+    "a{color:#1f5fbf;text-decoration:none}.ft{padding:12px 26px;font-size:8pt;color:#8a93a3;border-top:1px solid #eef1f5}</style></head><body><div class=\"page\">",
+    '<div class="hd"><div class="k">Drawing review' + (R.from ? " &middot; from " + e(R.from) : "") + "</div><h1>" + e(R.title || fso.GetFileName(R.folder)) + '</h1><div class="p">' + e(R.folder) + "</div></div>",
+    '<div class="facts"><div class="f"><span>Drawings</span><b>' + n.all + '</b></div><div class="f"><span>Checked</span><b>' + n.ok + '</b></div><div class="f"><span>Comments</span><b>' + n.cm + '</b></div><div class="f"><span>Not OK</span><b>' + n.no + '</b></div><div class="f"><span>To check</span><b>' + n.left + "</b></div></div>",
+    '<div class="sec"><table><tr><th>Drawing / file</th><th>Review</th><th>Note</th><th>By / when</th></tr>'];
+  var order = { no: 0, cm: 1, "": 2, ok: 3 }; rows.sort(function (a, b) { return (order[a.it.st || ""] - order[b.it.st || ""]) || (a.L.name < b.L.name ? -1 : 1); });
+  for (var i = 0; i < rows.length; i++) { var L = rows[i].L, it = rows[i].it, st = it.st || "", f = L.files[0] || "";
+    for (var j = 0; j < L.files.length; j++) if (/\.pdf$/i.test(L.files[j])) f = L.files[j];
+    h.push("<tr><td>" + (f ? '<a href="file:///' + e(f.replace(/\\/g, "/")) + '">' + e(L.name) + "</a>" : e(L.name)) + (L.rel ? '<div style="font-size:8pt;color:#8a93a3">' + e(L.rel) + "</div>" : "") + '</td><td><span class="s ' + (st || "to") + '">' + stName(st) + "</span></td><td>" + e(it.note || "") + "</td><td>" + e(st ? (it.by ? it.by + " · " : "") + (it.at || "") : "") + "</td></tr>"); }
+  h.push('</table></div><div class="ft">Made ' + e(LT.fmtDate(LT.today())) + (me() ? " by " + e(me()) : "") + " &middot; Lew's Toolbox</div></div></body></html>");
+  return h.join("\n");
+}
+function reportMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "&#128203; Copy the review as text (for email / Teams)", fn: function () { if (LT.copyText(textReport())) LT.toast("Copied - paste it into an email or Teams"); } },
+    { label: "&#128196; HTML report (saved in the reviewed folder)", fn: function () { var p = R.folder + "\\_Review " + LT.stamp() + ".html"; try { LT.writeUtf8(p, htmlReport(), true); } catch (e) { p = LT.exportsDir() + "\\Review_" + LT.stamp() + ".html"; LT.mkdirs(LT.exportsDir()); LT.writeUtf8(p, htmlReport(), true); } LT.open(p); } },
+    { label: "Excel (CSV)", fn: function () { var rows = [["Drawing / file", "Folder", "Types", "Review", "Note", "By", "When"]], rs = rowsFor(null); for (var i = 0; i < rs.length; i++) rows.push([rs[i].L.name, rs[i].L.rel, rs[i].L.types.join(", "), stName(rs[i].it.st), rs[i].it.note || "", rs[i].it.st ? rs[i].it.by || "" : "", rs[i].it.st ? rs[i].it.at || "" : ""]); LT.mkdirs(LT.exportsDir()); var f = LT.exportsDir() + "\\Review_" + LT.safeName(fso.GetFileName(R.folder)) + "_" + LT.stamp() + ".csv"; LT.writeCsv(f, rows); LT.open(f); } },
+    "-",
+    { label: "&#10004; Mark everything shown as Checked", fn: function () { if (!confirm("Mark the " + shown.length + " line(s) shown as Checked?")) return; for (var i = 0; i < shown.length; i++) if (!shown[i].gone) { var it = item(shown[i]); if (!it.st) { it.st = "ok"; it.by = me(); it.at = stamp(); } } save(); render(); } },
+    { label: "Start this review again (clear every mark)", fn: function () { if (!confirm("Clear every mark and note of this review?")) return; R.items = {}; R.seen = {}; R.started = 0; read(); save(); render(); } }]);
+}
+function recentMenu(x, y) {
+  var a = []; for (var k in store.reviews) if (store.reviews.hasOwnProperty(k)) a.push(store.reviews[k]);
+  a.sort(function (p, q) { return (q.made || "") < (p.made || "") ? -1 : 1; });
+  var m = []; for (var i = 0; i < a.length && i < 20; i++) (function (rv) { var n = 0, d = 0; for (var k2 in rv.items) if (rv.items.hasOwnProperty(k2) && rv.items[k2].st) d++; for (var k3 in rv.seen) if (rv.seen.hasOwnProperty(k3)) n++;
+    m.push({ label: "<b>" + esc(rv.title || fso.GetFileName(rv.folder)) + '</b> <span class="muted">' + (rv.from ? esc(rv.from) + " &middot; " : "") + d + " of " + n + " &middot; " + esc(LT.fmtDate(rv.made)) + (fso.FolderExists(rv.folder) ? "" : " &middot; folder gone") + "</span>", fn: function () { if (fso.FolderExists(rv.folder)) open(rv.folder); else if (confirm("That folder isn't there any more. Remove this review from the list?")) { delete store.reviews[rv.folder.toLowerCase()]; save(); } } }); })(a[i]);
+  if (!m.length) m.push({ label: '<span class="muted">No reviews yet</span>', fn: function () { } });
+  LT.menu(x, y, m);
+}
+
+/* ---------- events ---------- */
+$("bFolder").onclick = function () { var f = LT.pickFolder("The folder of drawings to review"); if (f) { open(f); LT.folderPicked(f); } };
+$("bRecent").onclick = function (e) { var r = this.getBoundingClientRect(); recentMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("bReport").onclick = function (e) { if (!R) return; var r = this.getBoundingClientRect(); reportMenu(r.right - 340, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("bRescan").onclick = function () { if (R) { read(); save(); render(); } };
+$("subs").onclick = function () { if (R) { R.subs = this.checked; read(); save(); render(); } };
+$("byDwg").onclick = function () { if (!R) return; if (Object.keys && Object.keys(R.items).length && !confirm("Change how lines are made? Marks stay on the lines that keep the same name.")) { this.checked = !this.checked; return; } R.by = this.checked ? "drawing" : "file"; read(); save(); render(); };
+$("from").onchange = function () { if (R) { R.from = LT.trim(this.value); save(); } };
+$("about").onchange = function () { if (R) { R.title = LT.trim(this.value); save(); } };
+$("show").onchange = render; $("remTop").onclick = render; $("search").onkeyup = render;
+$("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-sh"); if (c) { $("show").value = c.getAttribute("data-sh"); render(); } };
+$("res").onclick = function (e) { var t0 = e.target || e.srcElement; if (t0.id == "bStart") { var f0 = offer; offer = ""; open(f0); return; }
+  var t = e.target || e.srcElement, s = LT.up(t, "data-set"), o = LT.up(t, "data-op"), tr = LT.up(t, "data-r");
+  if (tr) { cur = +tr.getAttribute("data-r"); mark(); }
+  if (s) { var L = shown[+s.getAttribute("data-set")], v = s.getAttribute("data-v"); setSt(L, v, true); if ((v == "cm" || v == "no") && (item(L).st == v) && !item(L).note) { var inp = $("res").querySelector ? $("res").querySelector('[data-note="' + shown.indexOf(L) + '"]') : null; try { if (inp) inp.focus(); } catch (x) { } } }
+  else if (o) openLine(shown[+o.getAttribute("data-op")], o.getAttribute("data-ext")); };
+$("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.tagName == "INPUT" || LT.up(t, "data-set")) return; var tr = LT.up(t, "data-r"); if (tr) openLine(shown[+tr.getAttribute("data-r")]); };
+$("res").onchange = function (e) { var t = e.target || e.srcElement, n = t.getAttribute && t.getAttribute("data-note"); if (n == null) return; var L = shown[+n], it = item(L); it.note = LT.trim(t.value); if (it.note && !it.st) { it.st = "cm"; it.by = me(); it.at = stamp(); } save(); var keep = cur; render(); cur = keep; mark(); };
+$("res").oncontextmenu = function (e) { e = e || window.event; var tr = LT.up(e.target || e.srcElement, "data-r"); if (!tr) return true; var L = shown[+tr.getAttribute("data-r")], m = [];
+  for (var i = 0; i < L.files.length; i++) (function (f) { m.push({ label: "Open " + esc(fso.GetFileName(f)), fn: function () { try { LT.open(f); } catch (x) { } } }); })(L.files[i]);
+  if (L.files.length) m.push({ label: "Show in Explorer", fn: function () { try { LT.showInFolder(L.files[0]); } catch (x) { } } }, "-");
+  for (var s = 0; s < ST.length; s++) (function (v) { m.push({ label: stName(v), on: ((R.items[L.key] || {}).st || "") == v, fn: function () { setSt(L, v, false); } }); })(ST[s][0]);
+  LT.menu(e.clientX, e.clientY, m); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; };
+/* keys: up / down = move, Space = Checked, Enter = open, N = note */
+document.onkeydown = function (e) { e = e || window.event; var tg = (e.target || e.srcElement).tagName; if (!R || tg == "INPUT" || tg == "SELECT" || tg == "TEXTAREA") { if (tg == "INPUT" && e.keyCode == 13 && (e.target || e.srcElement).getAttribute("data-note") != null) { (e.target || e.srcElement).blur(); return false; } return; }
+  var k = e.keyCode;
+  if (k == 40 || k == 38) { cur = Math.max(0, Math.min(shown.length - 1, cur + (k == 40 ? 1 : -1))); mark(); try { $("res").querySelector('tr[data-r="' + cur + '"]').scrollIntoView(false); } catch (x) { } return false; }
+  if (cur < 0 || !shown[cur]) return;
+  if (k == 32) { var L = shown[cur]; setSt(L, "ok", true); return false; }
+  if (k == 13) { openLine(shown[cur]); return false; }
+  if (k == 78) { try { $("res").querySelector('[data-note="' + cur + '"]').focus(); } catch (x) { } return false; } };
+
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}",
+  "#bar{background:{chip};border-radius:{r}px}#bar .b-ok{background:{ok}}#bar .b-cm{background:{warn}}#bar .b-no{background:{bad}}",
+  "#chips .cbtn{border-radius:{r}px;background:{chip};color:{text}}#chips .c-ok{color:{ok}}#chips .c-cm{color:{warn}}#chips .c-no{color:{bad}}#chips .cbtn:hover{outline:1px solid {accent}}",
+  ".sb{border:{bw}px solid {line};border-radius:{r}px;color:{muted};background:{bg}}.sb:hover{border-color:{accent};color:{text}}.sb.on.s-ok{background:{okSoft};color:{ok};border-color:{ok}}.sb.on.s-cm{background:{warnSoft};color:{warn};border-color:{warn}}.sb.on.s-no{background:{badSoft};color:{bad};border-color:{bad}}",
+  ".ty{background:{chip};color:{text};border-radius:{r}px}.ty:hover{background:{accent};color:{accText}}", ".tag{border-radius:{r}px}.t-new{background:{accent};color:{accText}}.t-gone{background:{chip};color:{muted}}",
+  "tr.grp td{color:{muted};background:{bg}}", "#res tr.cur td{background:{hover}}", "#res tr.cur td:first-child{box-shadow:inset 3px 0 0 {accent}}"]); }
+window.ltTheme = function () { look(); render(); };
+window.ltReload = function () { load(); if (cfg.folder && fso.FolderExists(cfg.folder)) open(cfg.folder); else render(); };
+/* from Folder Check: the folder picked in another view */
+/* (a folder with a review already opens; another one is offered - not every folder you look at is a review) */
+window.ltReceive = function (what, value) { if (what != "open-folder" || !fso.FolderExists(value) || (R && R.folder.toLowerCase() == value.toLowerCase())) return;
+  if (store.reviews[value.toLowerCase()]) open(value); else { offer = value; R = null; $("info").style.display = "none"; $("folderLbl").innerHTML = ""; render(); } };
+look(); load(); if (cfg.folder && fso.FolderExists(cfg.folder)) open(cfg.folder); else render(); LT.tabKeys();
+</script>
+</body>
+</html>

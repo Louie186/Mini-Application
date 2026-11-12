@@ -1,4 +1,4 @@
-// Folder Check: one tab, four views, the folder is picked once
+// Folder Check: one tab, five views, the folder is picked once
 module.exports = async ({ page, out }) => {
   const ok = (c, w) => console.log((c ? 'PASS ' : 'FAIL ') + w);
   await page.evaluate(() => { const fs = window.__mockFs, add = (p) => { fs.files[p.toLowerCase()] = { path: p, text: 'x', time: Date.now() }; let d = p.substring(0, p.lastIndexOf('\\')); while (d) { fs.dirs[d.toLowerCase()] = d; d = d.substring(0, d.lastIndexOf('\\')); } };
@@ -8,7 +8,7 @@ module.exports = async ({ page, out }) => {
   await page.click('.nb[data-k="check"]'); await page.waitForTimeout(500); await page.mouse.move(900, 600);
   const k = page.frame({ url: /check\.html/ });
   ok(await page.evaluate(() => /Folder Check/.test(document.querySelector('.nb[data-k="check"]').innerText)), 'the tab is called Folder Check');
-  ok(await k.evaluate(() => document.querySelectorAll('#fcv button').length == 4 && $('fcv').innerText.indexOf('Submission') >= 0), 'four views: Submission, Contents & checklist, Names, Compare');
+  ok(await k.evaluate(() => document.querySelectorAll('#fcv button').length == 5 && $('fcv').innerText.indexOf('Submission') >= 0 && $('fcv').innerText.indexOf('Review') >= 0), 'five views: Submission, Contents & checklist, Review, Names, Compare');
   await k.evaluate(() => { top.__nextFolder = 'C:\\Sub1'; }); await k.click('#bFolder');
   await k.click('[data-fv="contents"]'); await page.waitForTimeout(600);
   const c = page.frame({ url: /contents\.html/ });

@@ -39,7 +39,7 @@ The side menu follows the way the work flows: **WORK** (log it → hand it out �
 | **DRAWINGS** | |
 | 📘 Drawing Register | Load each new MIDP: new / removed / retitled drawings, and every drawing's Tower / Typology / Model |
 | 🔎 Find Drawings | Where is this drawing? Every file of it in one or more folders: revision, type, location |
-| ✅ Folder Check | One folder, four views: **Submission check** · **Contents & checklist** · **Names** · **Compare** |
+| ✅ Folder Check | One folder, five views: **Submission check** · **Contents & checklist** · **📝 Review** (the folder is your checklist) · **Names** · **Compare** |
 | 🗄 Superseded | Printed sheets: latest revision stays, older ones move to "Superseded" |
 | **FILES** | |
 | 📁 Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
@@ -300,6 +300,19 @@ The folder comes first – "what's in here?"
 3. **Show:** every drawing · not in the reference list · more than one revision · **summary by tower / typology** · other files (not drawings). Filters: Tower, Typology, File type, search
 - **Export ▾:** CSV, copy summary for email / Teams, check this folder in the Submission check view, open it in Bulk Files. Double-click a row to open its folder
 
+### Review (the folder is the checklist)
+
+For drawings someone sends you **to check**: the folder's own contents become your checklist.
+- **📂 Folder to review…** – every drawing becomes one line (its pdf, dwg… with the same name together; untick *one line per drawing* for one line per file). Subfolders included
+- **From** / **About** – who sent it and what it is (shown in the report)
+- Each line: **✔ Checked** · **✎ Comments** · **✖ Not OK** (click again to undo) and a **note**. Typing a note on an unmarked line marks it *Comments*. Your name and the time are kept
+- **To check on top** (under its own heading) · **Show** / the coloured counts filter · progress bar
+- Double-click a line (or click its **pdf** / **dwg**) to open it · right-click for each file, Show in Explorer, status
+- Keys: **↑ ↓** move · **Space** = Checked · **Enter** = open · **N** = type a note
+- **↻ Read again** – files that arrived since show **NEW**; a marked file that's no longer there stays listed (*not in the folder now*)
+- Remembered: stop any time, carry on later – **Recent ▾** lists every review with its progress. A folder picked in another Folder Check view is *offered* (**Review this folder**), not started by itself
+- **Report ▾**: copy as text for email / Teams (Not OK, Comments, Still to check) · **HTML report** (saved in the reviewed folder as `_Review <date>.html`, with links to the drawings) · Excel (CSV) · mark everything shown as Checked · start again
+
 ### Names
 
 1. **Naming rule** – starts with an ISO 19650 rule (Project-Originator-Volume-Level-Type-Role-Number-Revision). **✎ Change the rule** (per part: any text / N letters / N digits / list of codes / revision) or **Rule ▾ > Set up from an example name**. Keep several rules (one per project)
@@ -376,7 +389,7 @@ The folder comes first – "what's in here?"
 
 - **One tab = one file** in `tabs\`. The main window lists every `tabs\*.html` by itself, using the page's
   `<title>`, `<meta name="lt-order">`, `<meta name="lt-group">` (WORK / DRAWINGS / FILES heading, `-` = a line), `<meta name="lt-icon">` and `<meta name="lt-desc">` (the hover tip). Adding or changing a tab needs no other edits
-- `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload (in Delegate); Contents, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
+- `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload (in Delegate); Contents, Review, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
 - `core\lt-refs.js` – references (editor, labels, plain-text lines) used by Tasks and Delegate
 - `core\lt-transmittal.js` – making a transmittal (`LT.trMake`), used by the Transmittal tab and by Delegate
 - `core\lt-taskfolder.js` – task folders (`LT.tfMake`, `tfAdd`, `tfPaste` (Ctrl+V: a snip or files copied in Explorer), `tfSave` = _task.json + Notes.txt + summary HTML/PDF, `tfRead`)

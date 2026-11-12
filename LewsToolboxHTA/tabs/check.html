@@ -38,7 +38,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="fcv" class="bar"><button class="btn" data-fv="sub">&#9989; Submission check</button><button class="btn" data-fv="contents">&#128269; Contents &amp; checklist</button><button class="btn" data-fv="naming">&#127991; Names</button><button class="btn" data-fv="compare">&#128260; Compare</button></div>
+  <div id="fcv" class="bar"><button class="btn" data-fv="sub">&#9989; Submission check</button><button class="btn" data-fv="contents">&#128269; Contents &amp; checklist</button><button class="btn" data-fv="review" title="Drawings sent to you to check: the folder becomes your checklist">&#128221; Review</button><button class="btn" data-fv="naming">&#127991; Names</button><button class="btn" data-fv="compare">&#128260; Compare</button></div>
   <div class="step bar">
     <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Submission folder...</button><span class="path big" id="folderLbl"></span>
     <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
@@ -357,7 +357,7 @@ $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "d
 window.ltTheme = function () { look(); for (var n in subFrames) if (subFrames.hasOwnProperty(n)) { try { subFrames[n].contentWindow.ltTheme(); } catch (e) { } } };
 window.ltReload = function () { loadCfg(); table = null; showPaths(); $("remTop").checked = cfg.remTop !== false; };
 window.ltReceive = function (what, value) { if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); setView("sub"); } };
-/* ---------- the four views ---------- */
+/* ---------- the views ---------- */
 var subFrames = {};
 function setView(v) {
   cfg.view = v; saveCfg();

@@ -126,6 +126,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   <div class="h">Models table <span class="muted small" style="font-weight:normal" id="sModN"></span></div>
   <button class="btn small" id="sModImp">Import from Excel...</button><span class="muted small">one per line:  Tower | Typology | Model | link (optional: the .rvt path or the ACC / BIM 360 link &ndash; makes the model clickable)</span>
   <textarea id="sModels" rows="5"></textarea>
+  <div class="fld" style="margin-top:6px"><label>ACC on this PC (Desktop Connector) &ndash; where an ACC path like <i>Project Files/03 WIP/...rvt</i> is found, e.g. C:\Users\you\DC\ACCDocs\Company\Project</label><div style="display:flex"><input type="text" id="sAcc" style="flex:1 1 auto;margin-right:6px" placeholder="(web links work without this)"><button class="btn" id="sAccB" style="margin:0">Browse...</button></div></div>
   <div class="fld" style="margin-top:6px"><label>Models folder (optional) &ndash; a model with no link opens the file in here whose name has the model's name (.rvt / .nwd / .nwc / .ifc, subfolders too)</label><div style="display:flex"><input type="text" id="sModDir" style="flex:1 1 auto;margin-right:6px"><button class="btn" id="sModDirB" style="margin:0">Browse...</button></div></div>
   <div class="h">Drawings you already have</div>
   <button class="btn small" id="sListImp">Import an existing drawing list (with Tower / Typology)...</button><span class="muted small">e.g. your last generated list. Imported drawings count as confirmed.</span>
@@ -144,6 +145,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
     <div class="fld"><label>Tower</label><select id="iTower"></select></div>
     <div class="fld"><label>Typology</label><select id="iTypo"></select></div>
     <div class="fld"><label>Model</label><select id="iModel"></select></div>
+    <div class="fld" id="iLinkF"><label>Path / link (ACC)</label><select id="iLink"></select></div>
   </div>
   <div class="muted small">First rows as they will be read:</div>
   <table class="grid" id="impPrev"></table>
@@ -432,7 +434,7 @@ function lookView() {
   if (rows.length) { h.push('<div class="lkres"><div class="lkh">2. The result <button class="btn small" id="lkExp">Export &#9662;</button></div><table class="grid nofit nonum" id="lkT" style="width:100%"><colgroup><col style="width:' + Math.max(150, Math.round(lookLongest(rows) * (LT.themeVars().fs || 13) * 0.66) + 16) + 'px"><col><col style="width:56px"><col style="width:76px"><col style="width:26%"><col style="width:120px"></colgroup><tr><th>Drawing</th><th>Description</th><th>Tower</th><th>Typology</th><th>Model</th><th>From</th></tr>');
     for (var j = 0; j < rows.length; j++) { var r = rows[j], g = r.src.indexOf("guess") == 0, nf = r.src == "not found";
       h.push('<tr><td class="no">' + esc(r.num) + '</td><td class="small">' + esc(r.desc || r.title || "") + (r.desc && r.title && up(r.desc) != up(r.title) ? '<div class="muted small">register: ' + esc(r.title) + "</div>" : "") + "</td><td" + (g ? ' class="warn g"' : "") + ">" + esc(r.tower) + "</td><td" + (g ? ' class="warn g"' : "") + ">" + esc(r.typo) + "</td><td>" +
-        (r.model ? (r.link ? '<span class="mlk" data-ml="' + esc(r.model) + '" title="' + esc(r.link) + '">' + esc(r.model) + "</span>" : esc(r.model) + ' <span class="muted small" title="No link - add it in Setup > Models table, or set a models folder">(no link)</span>') : nf ? "" : '<span class="muted">&ndash;</span>') +
+        (r.model ? (r.link ? '<span class="mlk" data-ml="' + esc(r.model) + '" title="' + esc(r.link) + '">' + esc(r.model) + "</span>" : esc(r.model) + (modelRaw(r.model) ? ' <span class="warn small" title="' + esc(modelRaw(r.model)) + ' - set where ACC is on this PC: Setup > ACC on this PC">(ACC path not found here)</span>' : ' <span class="muted small" title="No link - add the path in the models list (Setup > Import from Excel, or the 4th part of a line), or set a models folder">(no link)</span>')) : nf ? "" : '<span class="muted">&ndash;</span>') +
         '</td><td class="' + (nf ? "bad" : g ? "warn" : r.src == "removed" ? "warn" : "muted") + ' small">' + esc(r.src == "removed" ? "removed from the MIDP" : r.src) + "</td></tr>"); }
     h.push("</table></div>"); }
   h.push("</div>");
@@ -449,6 +451,7 @@ function lookView() {
     { label: "HTML page (opens anywhere, links clickable)", fn: function () { lookHtml(); } },
     { label: "Copy as text (Tab-separated, for Excel / email)", fn: function () { var s = "Drawing\tDescription\tTower\tTypology\tModel\tLink\r\n"; for (var i2 = 0; i2 < rows.length; i2++) s += [rows[i2].num, rows[i2].desc || rows[i2].title, rows[i2].tower, rows[i2].typo, rows[i2].model, rows[i2].link].join("\t") + "\r\n"; if (LT.copyText(s)) LT.toast("Copied"); } }]); stop(e); };
 }
+function modelRaw(model) { for (var i = 0; i < P.models.length; i++) if (P.models[i].link && up(P.models[i].model) == up(model)) return P.models[i].link; return ""; }
 function lookLongest(rows) { var n = 10; for (var i = 0; i < rows.length; i++) if (rows[i].num.length > n) n = rows[i].num.length; return n; }
 function lookBase() { LT.mkdirs(LT.exportsDir()); return LT.exportsDir() + "\\Drawing list_" + LT.safeName(P.name) + "_" + LT.stamp(); }
 function lookExcel() {
@@ -606,17 +609,32 @@ function modelsTxt() { var a = []; for (var i = 0; i < P.models.length; i++) a.p
 var MF = null;
 function modelLink(model) {
   model = LT.trim(model || ""); if (!model) return "";
-  for (var i = 0; i < P.models.length; i++) if (P.models[i].link && up(P.models[i].model) == up(model)) return P.models[i].link;
+  for (var i = 0; i < P.models.length; i++) if (P.models[i].link && up(P.models[i].model) == up(model)) { var rl = resolveLink(P.models[i].link); if (rl) return rl; }
   var dir = P.setup.modelsDir; if (!dir || !fso.FolderExists(dir)) return "";
   if (!MF || MF.dir != dir) { MF = { dir: dir, files: [] }; var walk = function (d, depth) { var fo; try { fo = fso.GetFolder(d); } catch (e) { return; } var e2 = new Enumerator(fo.Files); for (; !e2.atEnd(); e2.moveNext()) { var n = "" + e2.item().Name; if (/\.(rvt|nwd|nwc|ifc)$/i.test(n) && !/\.\d{4}\.rvt$/i.test(n)) MF.files.push({ n: up(n), p: "" + e2.item().Path }); }
       if (depth < 4) { var s = new Enumerator(fo.SubFolders); for (; !s.atEnd(); s.moveNext()) walk("" + s.item().Path, depth + 1); } }; walk(dir, 0); }
   var M = up(model), best = null; for (var j = 0; j < MF.files.length; j++) if (MF.files[j].n.indexOf(M) >= 0) { if (!best || /\.RVT$/.test(MF.files[j].n) && !/\.RVT$/.test(best.n)) best = MF.files[j]; }
   return best ? best.p : "";
 }
+/* a path from the models list: a web link or a full path as it is; an ACC path ("Project Files/03 WIP/x.rvt") is found under the
+   Desktop Connector folder set in Setup (also when the path starts with the project or company name). "" = can't open it here. */
+var ACCF = {};
+function resolveLink(raw) {
+  raw = LT.trim(raw || ""); if (!raw) return "";
+  if (/^https?:\/\//i.test(raw) || /^[a-z]:[\\\/]|^\\\\/i.test(raw)) return raw;
+  if (/^(acc|bim360|www)\./i.test(raw)) return "https://" + raw;
+  var root = P.setup.accRoot; if (!root || !fso.FolderExists(root)) return "";
+  if (ACCF[raw] != null) return ACCF[raw];
+  var parts = raw.replace(/^[\\\/]+/, "").split(/[\\\/]+/), hit = "";
+  for (var k = 0; k < parts.length - 1 && !hit; k++) { var p = root + "\\" + parts.slice(k).join("\\"); if (fso.FileExists(p) || fso.FolderExists(p)) hit = p; }   // drop leading "Company / Project /" until it fits
+  return (ACCF[raw] = hit);
+}
+/* after the models (or their paths) change: the List lookup's links follow */
+function lookRelink() { if (!P.lookup || !P.lookup.rows) return; for (var i = 0; i < P.lookup.rows.length; i++) { var r = P.lookup.rows[i]; r.link = r.model ? modelLink(r.model) : ""; } }
 function linkHref(l) { return /^[a-z][a-z0-9+.-]*:/i.test(l) && !/^[a-z]:\\/i.test(l) ? l : "file:///" + l.replace(/\\/g, "/"); }
 function setupShow() {
   var S = P.setup; $("sSheet").value = S.sheet || ""; $("sNum").value = S.num || ""; $("sTitle").value = S.title || ""; $("sPrefix").value = S.prefix || ""; $("sTowerPart").value = S.towerPart || 0;
-  $("sRules").value = rulesTxt(); $("sModels").value = modelsTxt(); $("sModDir").value = S.modelsDir || ""; $("sModN").innerHTML = "(" + P.models.length + ")"; setupEx(); $("ovSetup").style.display = "block";
+  $("sRules").value = rulesTxt(); $("sModels").value = modelsTxt(); $("sModDir").value = S.modelsDir || ""; $("sAcc").value = S.accRoot || ""; $("sModN").innerHTML = "(" + P.models.length + ")"; setupEx(); $("ovSetup").style.display = "block";
 }
 function setupEx() { var ex = ""; for (var k in P.drawings) if (P.drawings.hasOwnProperty(k)) { ex = P.drawings[k].num; break; } var n = +$("sTowerPart").value || 0;
   $("sEx").innerHTML = ex && n ? "Example: " + esc(ex) + " &rarr; part " + n + " = <b>" + esc(ex.split("-")[n - 1] || "") + "</b> (only used when it looks like T1, T2, B3...)" : ""; }
@@ -624,8 +642,8 @@ function setupSave() {
   var S = P.setup; S.sheet = LT.trim($("sSheet").value); S.num = up($("sNum").value); S.title = up($("sTitle").value); S.prefix = LT.trim($("sPrefix").value); S.towerPart = parseInt($("sTowerPart").value, 10) || 0;
   P.rules = rulesFrom($("sRules").value);
   var ms = [], ls = $("sModels").value.split(/\r?\n/); for (var i = 0; i < ls.length; i++) { var p = ls[i].split("|"); if (p.length >= 3 && LT.trim(p[1])) { var lk = LT.trim(p.slice(3).join("|")); ms.push({ tower: LT.trim(p[0]), typo: LT.trim(p[1]), model: LT.trim(p[2]), link: lk }); } }
-  S.modelsDir = LT.trim($("sModDir").value); MF = null;
-  P.models = ms; MM = null; saveP(); $("ovSetup").style.display = "none"; render(); LT.toast("Setup saved");
+  S.modelsDir = LT.trim($("sModDir").value); S.accRoot = LT.trim($("sAcc").value).replace(/[\\\/]+$/, ""); MF = null; ACCF = {};
+  P.models = ms; MM = null; lookRelink(); saveP(); $("ovSetup").style.display = "none"; render(); LT.toast("Setup saved");
 }
 
 /* ---------- import a list / a models table ---------- */
@@ -636,7 +654,7 @@ function readModels(p, sheet) {
   var order = books.names.slice(0); order.sort(function (a, b) { var ha = hr(books.rows[a]), hb = hr(books.rows[b]), ma = ha >= 0 && /model/i.test(books.rows[a][ha].join("|")) ? 1 : 0, mb = hb >= 0 && /model/i.test(books.rows[b][hb].join("|")) ? 1 : 0; return mb - ma; });
   for (var i = 0; i < order.length; i++) { var n = order[i], t = books.rows[n], h = hr(t); if (sheet && n != sheet) continue; if (h < 0 && !(sheet && n == sheet)) continue;
     var head = []; for (var c = 0; c < (t[Math.max(h, 0)] || []).length; c++) head.push(h >= 0 ? LT.trim(t[h][c]) || "Column " + letter(c) : "Column " + letter(c));
-    res = { sheets: books.names, sheet: n, table: t, headRow: h, head: head }; break; }
+    res = { sheets: books.names, sheet: n, table: t, headRow: h, head: head, links: books.links ? books.links[n] || {} : {} }; break; }
   if (!res) throw new Error("No sheet with Tower and Typology headings found.");
   return res;
 }
@@ -644,35 +662,36 @@ function startImport(kind) {
   LT.pickFile(function (p) {
     try { var L = kind == "models" ? readModels(p) : LT.readList(p, ""); } catch (e) { alert("Couldn't read that file - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return; }
     imp = { kind: kind, path: p, L: L }; impCols(true); $("impH").innerHTML = kind == "list" ? "Import drawings: " + esc(fso.GetFileName(p)) : "Import the models table: " + esc(fso.GetFileName(p));
-    $("iNumF").style.display = $("iTitleF").style.display = kind == "list" ? "" : "none"; $("ovImp").style.display = "block";
+    $("iNumF").style.display = $("iTitleF").style.display = kind == "list" ? "" : "none"; $("iLinkF").style.display = kind == "models" ? "" : "none"; $("ovImp").style.display = "block";
   });
 }
 function impHead(re, not) { var h = imp.L.head; for (var i = 0; i < h.length; i++) if (re.test(h[i]) && !(not && not.test(h[i]))) return h[i]; return ""; }
 function impCols(guess) {
   var L = imp.L, c;
   if (imp.kind == "list") c = LT.listColumns(L, imp.c || {}, guess);
-  else c = guess ? { tower: impHead(/tower|building|block/i), typo: impHead(/typolog|unit type|type/i, /model/i), model: impHead(/model n|model ref|^model$/i) || impHead(/model/i, /type/i) } : imp.c;
+  else c = guess ? { tower: impHead(/tower|building|block/i), typo: impHead(/typolog|unit type|type/i, /model/i), model: impHead(/model n|model ref|^model$/i) || impHead(/model/i, /type|path|link|url|location/i), link: impHead(/path|link|url|location|acc|hyperlink/i) } : imp.c;
   imp.c = c;
   var so = ""; for (var s = 0; s < L.sheets.length; s++) so += "<option" + (L.sheets[s] == L.sheet ? " selected" : "") + ">" + esc(L.sheets[s]) + "</option>"; $("iSheet").innerHTML = so;
   var o = function (sel, none) { var h = none ? '<option value="">(none)</option>' : ""; for (var i = 0; i < L.head.length; i++) h += "<option" + (L.head[i] == sel ? " selected" : "") + ">" + esc(L.head[i]) + "</option>"; return h; };
-  $("iNum").innerHTML = o(c.name, false); $("iTitle").innerHTML = o(c.title, true); $("iTower").innerHTML = o(c.tower, true); $("iTypo").innerHTML = o(c.typo, true); $("iModel").innerHTML = o(c.model, true);
+  $("iNum").innerHTML = o(c.name, false); $("iTitle").innerHTML = o(c.title, true); $("iTower").innerHTML = o(c.tower, true); $("iTypo").innerHTML = o(c.typo, true); $("iModel").innerHTML = o(c.model, true); $("iLink").innerHTML = o(c.link, true);
   impPrev();
 }
 function impRows() {
-  var L = imp.L, c = imp.c, ix = function (n) { return n ? L.head.indexOf(n) : -1; }, iN = ix(c.name), iT = ix(c.title), iTw = ix(c.tower), iTy = ix(c.typo), iM = ix(c.model), out = [];
+  var L = imp.L, c = imp.c, ix = function (n) { return n ? L.head.indexOf(n) : -1; }, iN = ix(c.name), iT = ix(c.title), iTw = ix(c.tower), iTy = ix(c.typo), iM = ix(c.model), iL = ix(c.link), out = [];
   for (var r = L.headRow + 1; r < L.table.length; r++) { var row = L.table[r], tw = LT.cell(row, iTw), ty = LT.cell(row, iTy), m = LT.cell(row, iM);
-    var o = { tower: noVal(tw) ? "" : tw, typo: noVal(ty) ? "" : ty, model: noVal(m) || m == "-" ? "" : m };
+    var o = { tower: noVal(tw) ? "" : tw, typo: noVal(ty) ? "" : ty, model: noVal(m) || m == "-" ? "" : m }, lk = LT.cell(row, iL), hl = L.links || {}; lk = (iL >= 0 && hl[r + "," + iL]) || (hl[r + "," + iM]) || lk; o.link = noVal(lk) || lk == "-" ? "" : lk;   // a hyperlinked cell: the link behind it
     if (imp.kind == "list") { var n = LT.cell(row, iN); if (!LT.isDocNo(n)) continue; var s = splitNo(n); o.num = s.base; o.key = s.key; o.title = LT.cell(row, iT); }
     else if (!o.typo || !o.model) continue;
     out.push(o); }
   return out;
 }
-function impPrev() { var rs = impRows(), h = ""; for (var i = 0; i < Math.min(rs.length, 4); i++) { var r = rs[i]; h += "<tr>" + (imp.kind == "list" ? "<td>" + esc(r.num) + "</td><td>" + esc((r.title || "").substring(0, 40)) + "</td>" : "") + "<td>" + esc(r.tower) + "</td><td>" + esc(r.typo) + "</td><td>" + esc(r.model) + "</td></tr>"; }
+function impPrev() { var rs = impRows(), h = ""; for (var i = 0; i < Math.min(rs.length, 4); i++) { var r = rs[i]; h += "<tr>" + (imp.kind == "list" ? "<td>" + esc(r.num) + "</td><td>" + esc((r.title || "").substring(0, 40)) + "</td>" : "") + "<td>" + esc(r.tower) + "</td><td>" + esc(r.typo) + "</td><td>" + esc(r.model) + "</td>" + (imp.kind == "models" ? '<td class="small">' + esc((r.link || "").length > 50 ? "\u2026" + r.link.slice(-50) : r.link || "") + "</td>" : "") + "</tr>"; }
   $("impPrev").innerHTML = (h || '<tr><td class="bad">Nothing found with these columns.</td></tr>') + '<tr><td colspan="5" class="muted">' + rs.length + " rows</td></tr>"; }
 function impDo() {
   var rs = impRows(); if (!rs.length) { alert("Nothing to import with these columns."); return; }
   if (imp.kind == "models") { var oldL = {}; for (var o = 0; o < P.models.length; o++) if (P.models[o].link) oldL[up(P.models[o].model)] = P.models[o].link;
-    P.models = []; for (var i = 0; i < rs.length; i++) P.models.push({ tower: rs[i].tower, typo: rs[i].typo, model: rs[i].model, link: oldL[up(rs[i].model)] || "" }); MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")"; }
+    P.models = []; for (var i = 0; i < rs.length; i++) P.models.push({ tower: rs[i].tower, typo: rs[i].typo, model: rs[i].model, link: rs[i].link || oldL[up(rs[i].model)] || "" }); MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")";
+    lookRelink(); var nl = 0; for (var q = 0; q < P.models.length; q++) if (P.models[q].link) nl++; LT.toast(P.models.length + " models imported" + (nl ? ", " + nl + " with a path / link" : "")); }
   else { var D = P.drawings, nN = 0, nU = 0;
     for (var j = 0; j < rs.length; j++) { var r = rs[j], d = D[r.key];
       if (!d) { d = D[r.key] = { num: r.num, title: r.title, cat: "", rev: "", tower: "", typo: "", model: "", how: "", ok: false, first: LT.today(), inMidp: P.last ? false : undefined }; nN++; } else nU++;
@@ -738,12 +757,13 @@ $("ldOk").onclick = applyMidp; $("ldCancel").onclick = function () { pending = n
 $("shCancel").onclick = function () { $("ovSheet").style.display = "none"; };
 $("edOk").onclick = function () { saveEdit(false); }; $("edNa").onclick = function () { saveEdit(true); }; $("edCancel").onclick = function () { $("ovEdit").style.display = "none"; };
 $("edTower").onkeyup = function () { typoOpts(); hint(); }; $("edTypo").onkeyup = hint;
-$("sOk").onclick = setupSave; $("sModDirB").onclick = function () { var f = LT.pickFolder("The folder with the project's models (.rvt / .nwd)"); if (f) $("sModDir").value = f; }; $("sCancel").onclick = function () { $("ovSetup").style.display = "none"; };
+$("sOk").onclick = setupSave; $("sAccB").onclick = function () { var f = LT.pickFolder("Your ACC project folder on this PC (Desktop Connector: ...\\DC\\ACCDocs\\<company>\\<project>)"); if (f) $("sAcc").value = f; };
+$("sModDirB").onclick = function () { var f = LT.pickFolder("The folder with the project's models (.rvt / .nwd)"); if (f) $("sModDir").value = f; }; $("sCancel").onclick = function () { $("ovSetup").style.display = "none"; };
 $("sTowerPart").onkeyup = setupEx;
 $("sModImp").onclick = function () { startImport("models"); }; $("sListImp").onclick = function () { $("ovSetup").style.display = "none"; startImport("list"); };
 $("iOk").onclick = impDo; $("iCancel").onclick = function () { $("ovImp").style.display = "none"; };
 $("iSheet").onchange = function () { try { imp.L = imp.kind == "models" ? readModels(imp.path, this.value) : LT.readList(imp.path, this.value); } catch (e) { } impCols(true); };
-var iMap = { iNum: "name", iTitle: "title", iTower: "tower", iTypo: "typo", iModel: "model" };
+var iMap = { iNum: "name", iTitle: "title", iTower: "tower", iTypo: "typo", iModel: "model", iLink: "link" };
 for (var im in iMap) if (iMap.hasOwnProperty(im)) (function (id, key) { $(id).onchange = function () { imp.c[key] = this.value; impPrev(); }; })(im, iMap[im]);
 $("views").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-v"); if (c) { view = c.getAttribute("data-v"); render(); } };
 $("filters").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-f"); if (!b) return; var f = b.getAttribute("data-f"); if (pickKey == f) { pickHide(); return; } pickShow(f, b); (e || window.event).cancelBubble = true; };

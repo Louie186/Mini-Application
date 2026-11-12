@@ -239,11 +239,13 @@ var LT = (function () {
   };
   /* every visible sheet in one go: { names: [...], rows: { name: [[...]] } } */
   L.readExcelAll = function (p) {
-    var xl = null, wb = null, out = { names: [], rows: {} };
+    var xl = null, wb = null, out = { names: [], rows: {}, links: {} };
     try {
       xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
       wb = xl.Workbooks.Open(p, 0, true);
-      for (var i = 1; i <= wb.Worksheets.Count; i++) { var ws = wb.Worksheets(i); if (ws.Visible != -1 && ws.Visible !== true) continue; var n = "" + ws.Name; out.names.push(n); out.rows[n] = sheetRows(ws); }
+      for (var i = 1; i <= wb.Worksheets.Count; i++) { var ws = wb.Worksheets(i); if (ws.Visible != -1 && ws.Visible !== true) continue; var n = "" + ws.Name; out.names.push(n); out.rows[n] = sheetRows(ws);
+        /* cells that are hyperlinks: links["row,col"] (0-based, same as rows) = the address behind the text */
+        var lk = out.links[n] = {}; try { var hs = ws.Hyperlinks; for (var h = 1; h <= hs.Count; h++) { var hl = hs.Item(h), ad = "" + (hl.Address || ""); if (hl.SubAddress && !ad) continue; if (ad) lk[(hl.Range.Row - 1) + "," + (hl.Range.Column - 1)] = ad; } } catch (x) { } }
     } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
     return out;
   };
@@ -522,7 +524,8 @@ var LT = (function () {
   L.WHATS_NEW = [
     { v: "2026.11.12e", items: [
       "<b>List lookup</b> (Drawing Register &gt; &#128203; List lookup): paste or load a list of drawing numbers (descriptions optional) &ndash; Tower, Typology and Model are filled in, the <b>model is clickable</b>; export it to Excel or HTML for someone to check",
-      "Models can have a <b>link</b> (Setup &gt; Models table: Tower | Typology | Model | link) or come from a <b>models folder</b> &ndash; then the Model is clickable everywhere in the register" ] },
+      "Models can have a <b>link</b> (Setup &gt; Models table: Tower | Typology | Model | link) or come from a <b>models folder</b> &ndash; then the Model is clickable everywhere in the register",
+      "Models list from Excel: the <b>Path</b> column (ACC) is read too &ndash; web links open ACC; ACC folder paths open through the Desktop Connector (Setup &gt; ACC on this PC). The List lookup updates its links by itself" ] },
     { v: "2026.11.12d", items: [
       "<b>My sets</b> (Drawing Register &gt; &#128193; My sets): your own groups of drawings, e.g. <i>Serviced units</i> when the MIDP doesn't say &ndash; drag drawings from the MIDP into the set once, then pull it into any task (From the MIDP &gt; My set)",
       "<b>Calendar</b> in Tasks: drag a task to another day to move it, hold <b>Ctrl</b> to make a copy on that day" ] },

@@ -249,6 +249,11 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
   2. **▶ Fill in Tower / Typology / Model** – drawings in the register take its values (a revision on the number is ignored); others are **guessed from the description** (orange, "guess: like …") the same way as new MIDP drawings; unknown with no description = *not found*
   3. The **Model is clickable** (opens the .rvt or the ACC link). The list is kept until you Clear it
   4. **Export ▾**: **Excel for checking** – model as a hyperlink, guesses in blue, yellow **Checked** (Yes / No / Query) and **Comments** columns, frozen heading, prints landscape · **HTML page** (opens anywhere, clickable models, a tick box per drawing) · copy as text
+- **Model paths from your models list** (⚙ Setup → Models table → **Import from Excel…**): put the model's location in a column at the end (heading like **Path**, Link, URL, Location or ACC) – it's picked by itself (check it in the **Path / link (ACC)** box) and shown in the preview
+  - A **web link** (`https://acc.autodesk.com/…`) opens the model in ACC
+  - An **ACC folder path** (`Project Files/03 WIP/ARC/T1-2BRB-Unit Model.rvt`, with or without the company / project name in front) opens the file through the **ACC Desktop Connector**: set **ACC on this PC** once (Browse… to e.g. `C:\Users\you\DC\ACCDocs\<company>`). Not found → the lookup says *ACC path not found here*
+  - A cell that is an Excel **hyperlink** (shows text, links somewhere) – the link behind it is used
+  - Importing again keeps the old link of a model that has no path in the new list. The **List lookup** updates its links straight away
 - **Model links** (⚙ Setup): in the models table add a 4th part – `T1 | 1BRA | T1-1BRA-Unit Model | M:\Models\T1-1BRA-Unit Model.rvt` (or the ACC / BIM 360 link). Or set a **Models folder**: a model with no link opens the .rvt / .nwd there whose name contains the model's name (backups like `.0001.rvt` are skipped). The Model column in the register is then clickable too
 - **📁 My sets** – your own groups of drawings, for when the MIDP doesn't group them the way you need (e.g. *Serviced units*, *Print set for the client*). Set one up once:
   1. **+ New set**, give it a name

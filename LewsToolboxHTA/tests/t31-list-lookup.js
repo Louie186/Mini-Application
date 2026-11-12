@@ -40,4 +40,19 @@ module.exports = async ({ page, out }) => {
   await r.click('#views [data-v="sets"]'); await r.click('#views [data-v="midp"]');
   await r.click('#res tr[data-k] td.tk'); 
   ok(await r.evaluate(() => Object.keys(ticked).length == 1), 'after My sets, ticking rows in the list still works');
+  // the models list with a Path column (ACC): imported, ACC paths found through the Desktop Connector folder, the lookup's links follow
+  await page.evaluate(() => { const fs = window.__mockFs, add = (p, t) => { fs.files[p.toLowerCase()] = { path: p, text: t, time: Date.now() }; let d = p.substring(0, p.lastIndexOf('\\')); while (d) { fs.dirs[d.toLowerCase()] = d; d = d.substring(0, d.lastIndexOf('\\')); } };
+    add('C:\\Users\\lew\\DC\\ACCDocs\\KEO\\5013 Tower\\Project Files\\03 WIP\\ARC\\T1-2BRB-Unit Model.rvt', 'RVT');
+    add('C:\\Data\\Models.csv', 'Tower,Typology,Model,Path\r\nT1,1BRA,T1-1BRA-Unit Model,https://acc.autodesk.com/docs/files/projects/abc?entityId=1bra\r\nT1,2BRB,T1-2BRB-Unit Model,5013 Tower/Project Files/03 WIP/ARC/T1-2BRB-Unit Model.rvt\r\nT1,3BRC,T1-3BRC-Unit Model,Project Files/03 WIP/ARC/missing.rvt\r\n'); });
+  await r.click('#views [data-v="look"]'); await r.click('#bSetup');
+  await r.evaluate(() => { top.__nextFile = 'C:\\Data\\Models.csv'; LT.pickFile = cb => cb(top.__nextFile); }); await r.click('#sModImp'); await page.waitForTimeout(150);
+  ok(await r.evaluate(() => $('iLinkF').style.display == '' && $('iLink').value == 'Path' && /T1-2BRB-Unit Model\.rvt/.test($('impPrev').innerText)), 'models import: the Path column is picked by itself and previewed');
+  await r.click('#iOk');
+  ok(/T1-2BRB-Unit Model \| 5013 Tower\/Project Files/.test(await r.evaluate(() => $('sModels').value)), 'the paths are in the models table (4th part)');
+  await r.evaluate(() => { top.__nextFolder = 'C:\\Users\\lew\\DC\\ACCDocs\\KEO'; }); await r.click('#sAccB'); await r.click('#sOk'); await page.waitForTimeout(100);
+  const L2 = await r.evaluate(() => P.lookup.rows.map(x => x.model + ' => ' + x.link));
+  console.log('   ' + L2.join('\n   '));
+  ok(L2[0] == 'T1-1BRA-Unit Model => https://acc.autodesk.com/docs/files/projects/abc?entityId=1bra', 'a web link from the Path column: the model opens it in ACC');
+  ok(L2[1] == 'T1-2BRB-Unit Model => C:\\Users\\lew\\DC\\ACCDocs\\KEO\\5013 Tower\\Project Files\\03 WIP\\ARC\\T1-2BRB-Unit Model.rvt', 'an ACC path: found through the Desktop Connector folder; the List lookup updated by itself');
+  ok(await r.evaluate(() => $('res').querySelectorAll('.mlk').length >= 3), 'the models in the lookup are links');
 };

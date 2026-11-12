@@ -133,7 +133,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
   - **Checklist** – items with their own person, date, status and **📎 references** (click 📎 on the item)
   - **📋 Save and delegate** – saves, then hands it to Delegate
 - **Views:** Today · This week · Overdue (red) · **To delegate** · **Waiting on others** · All open · **Board** · **Calendar** · Done
-- **Calendar** – each task on its due day (red = late, amber = doing, ✔ = done). **Drag** a task to another day = new due date (Undo for 6 seconds). Hold **Ctrl** while dropping = a **copy** on that day (new ID, checklist copied and all *to do*). Tasks without a date wait in a strip at the top – drag them onto a day. ‹ › for months, double-click = edit, right-click = more
+- **Calendar** – each task on its due day (red = late, amber = doing, ✔ = done). **Drag** a task to another day = new due date (Undo for 6 seconds). Hold **Ctrl** while dropping = a **copy** on that day (new ID, checklist copied and all *to do*). Tasks without a date wait in a strip at the top – drag them onto a day. This month's days are white, the days of the months before / after are grey; **today** is outlined with a blue number. Long titles are shortened (full title on hover); a busy day (4+) shows the task numbers (`TL-004`) with a count – **Show all** lists them in full. ‹ › for months, double-click = edit, right-click = more
 - Tick = done · double-click = edit · right-click = **Delegate this task…**, status, due date, timer, add time, duplicate, delete
 - **Repeat** daily / weekdays / weekly / monthly: tick it done and the next one is made
 - **Time:** right-click → Start timer (shown at the top), or Add time (`1.5` or `0:45`)

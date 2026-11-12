@@ -46,7 +46,10 @@ tr.done td.t{text-decoration:line-through}
 #tfTabs{margin:8px 0 6px}
 .calh{padding:6px 12px 8px}.calh b{display:inline-block;min-width:150px;text-align:center;font-size:1.1em;vertical-align:middle;margin:0 6px 6px 0}
 table.cal{width:100%;border-collapse:collapse;table-layout:fixed}table.cal th{padding:5px;font-size:.8em;text-align:center}
-table.cal td{height:92px;vertical-align:top;padding:3px 4px}table.cal td .n{font-weight:bold;font-size:.85em;margin-bottom:2px}
+table.cal td{height:92px;vertical-align:top;padding:3px 4px}table.cal td .n{font-weight:bold;font-size:.85em;margin-bottom:3px;height:20px;line-height:20px}
+table.cal td .tn{display:inline-block;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:10px;padding:0 4px;margin-right:2px}
+table.cal td .cnt{float:right;min-width:18px;height:18px;line-height:18px;text-align:center;border-radius:9px;font-size:.85em;padding:0 3px}
+table.cal td.busy .ev{display:inline-block;margin-right:3px;max-width:100%}.evc{font-family:Consolas,'Lucida Console',monospace;font-size:.95em}
 .ev{display:block;padding:2px 6px;margin:0 0 3px;font-size:.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:move}
 .evm{display:block;font-size:.8em;cursor:pointer;padding-left:4px}
 .nodate{margin-top:6px;padding-top:6px}.nodate .ev{display:inline-block;max-width:220px;margin-right:6px;vertical-align:middle}.tfadd{margin-bottom:6px}.tfp{word-break:break-all}
@@ -334,8 +337,9 @@ function cal() {
   if (!calMonth) { var n0 = todayD(); calMonth = new Date(n0.getFullYear(), n0.getMonth(), 1); }
   var days = {}, nodate = [];
   for (var i = 0; i < shown.length; i++) { var t = shown[i]; if (t.due) (days[t.due] = days[t.due] || []).push(i); else if (t.status != "Done") nodate.push(i); }
-  var ev = function (i) { var t = shown[i], cls = t.status == "Done" ? "ok" : overdue(t) ? "lt" : t.status == "Doing" ? "ip" : t.priority == "High" ? "hi" : "";
-    return '<span class="ev ' + cls + '" draggable="' + (t.fromDelegate ? "false" : "true") + '" data-i="' + i + '" title="' + esc((t.code ? t.code + " " : "") + t.title + (t.who ? " - " + t.who : "") + (t.project ? " - " + t.project : "") + " - " + statusText(t) + (t.fromDelegate ? "" : ". Drag = move, Ctrl + drag = copy. Double-click = edit")) + '">' + (t.fromDelegate ? "&#128203; " : "") + (t.status == "Done" ? "&#10004; " : "") + esc(t.title) + "</span>"; };
+  var short = function (s, n) { s = LT.trim(s || ""); return s.length > n ? s.substring(0, n - 1) + "\u2026" : s; };
+  var ev = function (i, busy) { var t = shown[i], cls = t.status == "Done" ? "ok" : overdue(t) ? "lt" : t.status == "Doing" ? "ip" : t.priority == "High" ? "hi" : "";
+    return '<span class="ev ' + cls + '" draggable="' + (t.fromDelegate ? "false" : "true") + '" data-i="' + i + '" title="' + esc((t.code ? t.code + " " : "") + t.title + (t.who ? " - " + t.who : "") + (t.project ? " - " + t.project : "") + " - " + statusText(t) + (t.fromDelegate ? "" : ". Drag = move, Ctrl + drag = copy. Double-click = edit")) + '">' + (t.fromDelegate ? "&#128203; " : "") + (t.status == "Done" ? "&#10004; " : "") + (busy && t.code ? '<span class="evc">' + esc(t.code) + "</span>" : esc(short(t.title, 24))) + "</span>"; };
   var y = calMonth.getFullYear(), m = calMonth.getMonth(), first = new Date(y, m, 1), start = new Date(y, m, 1 - ((first.getDay() + 6) % 7)), today = LT.today();
   var h = ['<div class="calh"><button class="btn small" data-mon="-1">&#8249;</button><b>' + ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][m] + " " + y +
     '</b><button class="btn small" data-mon="1">&#8250;</button><button class="btn small" data-mon="0">Today</button>'];
@@ -343,10 +347,12 @@ function cal() {
   h.push('</div><table class="cal"><tr>');
   var dn = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; for (var k = 0; k < 7; k++) h.push("<th>" + dn[k] + "</th>"); h.push("</tr>");
   for (var w = 0; w < 6; w++) { h.push("<tr>");
-    for (var dd = 0; dd < 7; dd++) { var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + dd), iso = LT.iso(d), its = days[iso] || [], MAX = calOpen == iso ? 99 : 4, cells = "";
-      for (var z = 0; z < its.length && z < MAX; z++) cells += ev(its[z]);
-      if (its.length > 4) cells += '<span class="evm" data-open="' + iso + '">' + (calOpen == iso ? "Show less" : "+" + (its.length - 4) + " more") + "</span>";
-      h.push('<td data-day="' + iso + '" class="' + (d.getMonth() != m ? "oth" : "") + (iso == today ? " tdy" : "") + (dd > 4 ? " we" : "") + '"><div class="n">' + d.getDate() + "</div>" + cells + "</td>"); }
+    for (var dd = 0; dd < 7; dd++) { var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + w * 7 + dd), iso = LT.iso(d), its = days[iso] || [], open = calOpen == iso, busy = its.length > 3 && !open, MAX = open ? 99 : 6, cells = "";
+      /* a busy day (4 or more): the task numbers side by side instead of titles (titles on hover); "Show all" lists them in full */
+      for (var z = 0; z < its.length && z < MAX; z++) cells += ev(its[z], busy);
+      if (its.length > 6 || (busy && its.length > 3)) cells += '<span class="evm" data-open="' + iso + '">' + (open ? "Show less" : its.length > 6 ? "+" + (its.length - 6) + " more" : "Show all") + "</span>";
+      if (open && its.length > 3) cells += '<span class="evm" data-open="' + iso + '">Show less</span>';
+      h.push('<td data-day="' + iso + '" class="' + (d.getMonth() != m ? "oth" : "cur") + (iso == today ? " tdy" : "") + (dd > 4 ? " we" : "") + (busy ? " busy" : "") + '"><div class="n">' + (iso == today ? '<span class="tn">' + d.getDate() + "</span> Today" : d.getDate()) + (its.length > 1 ? '<span class="cnt" title="' + its.length + ' tasks">' + its.length + "</span>" : "") + "</div>" + cells + "</td>"); }
     h.push("</tr>"); }
   $("main").innerHTML = h.join("") + "</table>";
   $("hint").innerHTML = "Drag a task to another day = move &middot; hold <b>Ctrl</b> while dropping = a copy on that day &middot; double-click = edit &middot; right-click = more";
@@ -769,7 +775,9 @@ function exportMenu(x, y) {
 
 /* ---------- events ---------- */
 function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}", ".tfn{background:{bg};border-left:3px solid {accent};border-radius:{r}px}", "#tfDrop{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}", ".tfc:hover{color:{accent}}",
-  "table.cal th{color:{muted};border-bottom:{bw}px solid {line}}table.cal td{border:1px solid {line};background:{panel}}table.cal td.we{background:{bg}}table.cal td.oth{background:{bg}}table.cal td.oth .n{color:{muted}}table.cal td.tdy .n{color:{accent}}table.cal td.over{background:{hover};outline:2px dashed {accent}}",
+  "table.cal th{color:{muted};border-bottom:{bw}px solid {line}}table.cal td{border:1px solid {line}}table.cal td.cur{background:{panel}}table.cal td.cur .n{color:{text}}table.cal td.cur.we{background:{panel};box-shadow:inset 0 0 0 999px rgba(128,128,128,.04)}",
+  "table.cal td.oth{background:{chip};box-shadow:inset 0 0 0 999px rgba(128,128,128,.10)}table.cal td.oth .n{color:{muted};font-weight:normal}table.cal td.oth .ev{opacity:.5}",
+  "table.cal td.tdy{background:{hover};box-shadow:inset 0 0 0 2px {accent}}table.cal td.tdy .n{color:{accent}}table.cal td.tdy .tn{background:{accent};color:{accText}}table.cal td .cnt{background:{chip};color:{muted}}table.cal td.tdy .cnt{background:{accent};color:{accText}}table.cal td.over{background:{hover};outline:2px dashed {accent}}",
   ".ev{background:{chip};color:{text};border-left:3px solid {accent};border-radius:{r}px}.ev.lt{border-left-color:{bad};color:{bad}}.ev.ok{border-left-color:{ok};opacity:.6}.ev.ip{border-left-color:{warn}}.ev.hi{border-left-color:{bad}}.ev:hover{background:{hover}}.evm{color:{accent}}.nodate{border-top:1px solid {line}}", "#main tr.pick td{background:{hover}}", "#main tr.pick td:first-child{box-shadow:inset 3px 0 0 {accent}}"].concat(LT.REF_CSS)); }
 $("bAdd").onclick = quickAdd;
 $("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { quickAdd(); return false; } };

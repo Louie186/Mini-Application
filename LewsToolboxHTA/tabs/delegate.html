@@ -1109,7 +1109,7 @@ function look() { LT.applyLook(["tr.task td{background:{chip}}", ".chp{backgroun
   ".dc{background:{bg};border:{bw}px solid {line};border-radius:{r}px}.dc:hover{border-color:{accent}}",
   ".pb{background:{chip};border-radius:3px}.pb i{background:{accent}}",
   "table.cal th{color:{muted};border-bottom:{bw}px solid {line}}table.cal td{border:1px solid {line};background:{panel}}",
-  "table.cal td.oth{background:{bg}}table.cal td.oth .n{color:{muted}}table.cal td.tdy .n{color:{accent}}table.cal td.over{background:{hover};outline:2px dashed {accent}}",
+  "table.cal td.oth{background:{chip};box-shadow:inset 0 0 0 999px rgba(128,128,128,.10)}table.cal td.oth .n{color:{muted};font-weight:normal}table.cal td.oth .ev{opacity:.5}table.cal td.tdy{background:{hover};box-shadow:inset 0 0 0 2px {accent}}table.cal td.tdy .n{color:{accent}}table.cal td.over{background:{hover};outline:2px dashed {accent}}",
   ".ev{background:{chip};color:{text};border-left:3px solid {muted};border-radius:{r}px}.ev.ip{border-left-color:{warn}}.ev.ok{border-left-color:{ok};color:{muted};text-decoration:line-through}.ev.lt{border-left-color:{bad};color:{bad}}",
   ".evm{color:{accent}}"]); }
 $("bFrom").onclick = function (e) { var r = this.getBoundingClientRect(); fromMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };

@@ -274,6 +274,22 @@ Pick the folder once – every view uses it (and remembers which view you used l
 - **🏷 Names** – every file name against your naming rule – see *Names*
 - **🔄 Compare** – this folder ("Now") against the last submission – see *Compare*
 
+### 🚦 Check all (the easy way)
+
+Everything about a submission in one go – no more checking Folder 1 against Folder 2 by hand.
+1. **Checklist** (**Pick ▾**): the Submission check's list, another Excel / CSV, **Paste a list…**, or a **My set** from the Drawing Register. **Each drawing needs:** e.g. `pdf, dwg` (a Format column in the list wins)
+2. **Folder 2** – the folder that goes out (the submission)
+3. **Folder 1** – where the drawings come from (WIP / print folder) – optional, but it unlocks the best part
+4. **🚦 Check all** → coloured cards (click one to see only those):
+   - **✔ OK** · **✖ Missing** · **↻ Wrong revision** (e.g. wanted P03, found P02) · **◐ Missing file type** (pdf there, dwg not)
+   - **🏷 Name problems** – against your rule in **Names** (also the extra files) · **➕ Not on the checklist** · **🗑 Old revisions too** (an older revision left in Folder 2)
+   - with Folder 1: **⬆ Newer in Folder 1** (you're about to send an old one) · **↔ Differs from Folder 1** (same name, different file – copied wrong / edited) · **📥 Can collect**
+   - **Quantity:** checklist count · complete · files in Folder 2 per type · expected count – with ✔ when the count matches
+5. Fix it in one click:
+   - **📥 Collect from Folder 1…** – copies exactly what's missing into Folder 2: the right revision, the right file types, same subfolders. You see the list first. It checks again by itself
+   - **🗑 Move old revisions out…** – older revisions go to `Folder 2\_Superseded`
+6. **Report ▾**: copy the result for email / Teams · Excel (CSV) · **📨 Log the complete drawings to Transmittal**
+
 ### Submission check
 
 1. **Submission folder…** (include subfolders)
@@ -385,6 +401,11 @@ For drawings someone sends you **to check**: the folder's own contents become yo
   - **⚠ C02 is in the folder – newer than C01** – red (you picked an old file)
   - **Same rev as TR-003 – a re-issue?** – amber · **↑ from C01** – green · **First issue**
   - Order of revisions: P (preliminary) → T (tender) → C (construction) → A (as built), then the number. **Make the transmittal** asks first if anything is red
+- **Packages** – *also copy the files into a transmittal folder*, or **one zip to send** (`TR-005_Client_<date>.zip`: the sheet + each file once, made straight from where the files are – no copies left behind, a file with the same name as another goes in once). Neither = the sheet + the log only
+- **📜 History** (top) – every transmittal that went out, newest first: date, to, purpose, items, package (📝 log only · 📦 zip · 📁 folder), where it came from (an export, Delegate, this tab). **Search** a drawing number, TR number, company or a word in the notes – matching items are highlighted (*where did A-101 go, and when?*). Filter by package, open the zip / folder / sheet, **Export (CSV)** (one line per item)
+- **Log to Transmittal from anywhere** – after an export (Drawing Register list, List lookup, Review report, Compare, Submission check, Check all, close-out pack) it asks **Log this to Transmittal?** – optional:
+  - **Not this time** · **Don't ask for "…"** (just that kind of export) · or tick what goes out (all, or a few) → To / Attention / Purpose / Notes → **📝 Log only** (files stay on the shared drive / ACC), **📦 One zip** or **📁 Folder** → **Log it**
+  - Settings → **Transmittal log**: switch the question off, or **Ask again everywhere**
 - **Sent log ▾**: reopen or reuse a past transmittal, numbering / prefix, where transmittals are saved, export the log
 
 ## Superseded

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Check all</title>
+<meta name="lt-desc" content="One click: your checklist against the folder that goes out (Folder 2) - quantity, missing, wrong revision, missing file type, names, extra files, old revisions - and against where the drawings come from (Folder 1): newer there, copied wrong. Collect fills Folder 2 from Folder 1.">
+<!--
+  Lew's Toolbox - (a view inside the Folder Check tab) Check all.
+  Checklist (Submission check's list, another Excel / CSV, pasted numbers, or a My set of the Drawing Register)
+  + Folder 2 (what goes out) + optional Folder 1 (where the drawings come from, e.g. the WIP / print folder).
+  Settings: checkall.json in the data folder.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:8px 14px 2px}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.path{display:inline-block;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0;font-weight:bold}
+#cards{flex:none;padding:6px 14px 8px}
+.cd{display:inline-block;min-width:118px;margin:0 8px 8px 0;padding:7px 10px;cursor:pointer;vertical-align:top}
+.cd b{display:block;font-size:1.5em;line-height:1.1}.cd span{font-size:.82em}
+#qty{flex:none;padding:0 14px 6px;font-size:.92em}
+#pasteDlg .card{width:560px}#pText{width:100%;height:260px;font-family:Consolas,'Lucida Console',monospace}
+.st{font-weight:bold;white-space:nowrap}
+</style>
+<script src="../../core/lt-core.js"></script>
+<script src="../../core/lt-transmittal.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><span class="lbl"><b>Checklist</b></span><button class="btn" id="bSrc">Pick &#9662;</button><span class="path" id="srcLbl"></span>
+    <span class="lbl">Each drawing needs:</span><input type="text" id="need" style="width:110px;margin:0 8px 6px 0" placeholder="pdf, dwg" title="File types every drawing must have (empty = any). A Format column in the list wins.">
+  </div>
+  <div class="step bar">
+    <span class="num">2</span><span class="lbl"><b>Folder 2</b> &ndash; what goes out</span><button class="btn" id="bF2">&#128194; Folder...</button><span class="path" id="f2Lbl"></span>
+    <span class="num" style="margin-left:10px">3</span><span class="lbl"><b>Folder 1</b> &ndash; where they come from <span class="muted">(optional)</span></span><button class="btn" id="bF1">&#128194; Folder...</button><span class="path" id="f1Lbl"></span><button class="btn small" id="bF1x" title="No Folder 1">&#10005;</button>
+  </div>
+  <div class="step bar">
+    <button class="btn primary" id="bRun">&#128678; Check all</button>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> subfolders</label>
+    <label class="lbl" id="nmBox"><input type="checkbox" id="names" checked style="height:auto"> names <span class="muted" id="nmRule"></span></label>
+    <button class="btn" id="bCollect" title="Copy what's missing in Folder 2 from Folder 1 (the right revision and file types)">&#128229; Collect from Folder 1...</button>
+    <button class="btn" id="bOld" title="Move older revisions out of Folder 2 into Folder 2\_Superseded">&#128465; Move old revisions out...</button>
+    <span style="float:right"><button class="btn" id="bRep">Report &#9662;</button></span>
+  </div>
+  <div id="cards"></div>
+  <div id="qty" class="muted"></div>
+  <div id="res"></div>
+</div>
+<div class="ov" id="pasteDlg"><div class="card">
+  <h3>Paste the checklist</h3>
+  <div class="muted" style="margin-bottom:6px">One drawing per line. A revision after a Tab or 2 spaces (or on the number: A-101-P02), a title after that.</div>
+  <textarea id="pText"></textarea>
+  <div class="acts"><span class="sp"></span><button class="btn" id="pCancel">Cancel</button><button class="btn primary" id="pOk">Use this list</button></div>
+</div></div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg = {}, R = null, filter = "all";
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
+function FILE() { return LT.dataPath("checkall.json"); }
+function load() { cfg = LT.readJson(FILE(), null) || {}; cfg.src = cfg.src || null; if (cfg.subs === undefined) cfg.subs = true; if (cfg.names === undefined) cfg.names = true; }
+function save() { cfg.need = LT.trim($("need").value); cfg.subs = $("subs").checked; cfg.names = $("names").checked; try { LT.saveJson(FILE(), cfg); } catch (e) { } }
+function up(s) { return LT.trim(s).toUpperCase(); }
+function split(stem) { stem = up(stem); var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1) }; return { base: stem, rev: "" }; }
+function exts(s) { var a = ("" + (s || "")).toLowerCase().split(/[\s,;\/+&]+/), o = []; for (var i = 0; i < a.length; i++) { var x = LT.trim(a[i]).replace(/^\./, ""); if (x && o.indexOf(x) < 0) o.push(x); } return o; }
+function show() {
+  var s = cfg.src, lbl = !s ? '<span class="muted">not picked</span>' : s.kind == "sub" ? "Submission check's list" + (s.path ? ": " + esc(fso.GetFileName(s.path)) : "") : s.kind == "file" ? esc(fso.GetFileName(s.path)) : s.kind == "paste" ? "pasted list (" + (s.lines || []).length + ")" : s.kind == "set" ? "My set: " + esc(s.name) : "";
+  $("srcLbl").innerHTML = lbl; $("srcLbl").title = s && s.path ? s.path : "";
+  $("f2Lbl").innerHTML = cfg.f2 ? esc(cfg.f2) : '<span class="muted">not picked</span>'; $("f2Lbl").title = cfg.f2 || "";
+  $("f1Lbl").innerHTML = cfg.f1 ? esc(cfg.f1) : '<span class="muted">none</span>'; $("f1Lbl").title = cfg.f1 || ""; $("bF1x").style.display = cfg.f1 ? "" : "none";
+  $("need").value = cfg.need || ""; $("subs").checked = cfg.subs !== false; $("names").checked = cfg.names !== false;
+  var r = LT.nameRule(); $("nmRule").innerHTML = r ? "(" + esc(r.name) + ")" : ""; $("nmBox").style.display = r ? "" : "none";
+  $("bCollect").disabled = !cfg.f1;
+}
+
+/* ---------- the checklist: [{ base, rev, title, need: [types] }] ---------- */
+function items() {
+  var s = cfg.src; if (!s) throw new Error("Pick the checklist first (1).");
+  var out = [], seen = {}, add = function (num, rev, title, fmt) { num = LT.trim(num).replace(/\.[a-z][a-z0-9]{1,3}$/i, ""); if (!num) return; var sp = split(num), r2 = up(rev || "") || sp.rev, k = sp.base + "|" + r2; if (seen[k]) return; seen[k] = 1; out.push({ base: sp.base, num: num, rev: r2, title: title || "", need: exts(fmt) }); };
+  if (s.kind == "paste") { for (var i = 0; i < s.lines.length; i++) { var p = s.lines[i].split(/\t|\s{2,}/); add(p[0], p[1] && REV.test(LT.trim(p[1])) ? p[1] : "", p[1] && REV.test(LT.trim(p[1])) ? p[2] : p[1]); } return out; }
+  if (s.kind == "set") { var reg = LT.register(), set = null, ss = reg ? reg.sets() : []; for (var q = 0; q < ss.length; q++) if (ss[q].id == s.id) set = ss[q]; if (!set) throw new Error("That set isn't in the Drawing Register any more.");
+    var all = reg.list(), by = {}; for (var a = 0; a < all.length; a++) by[all[a].key] = all[a]; for (var k = 0; k < set.keys.length; k++) { var d = by[set.keys[k]]; add(d ? d.number : set.keys[k], "", d ? d.title : ""); } return out; }
+  var path = s.kind == "sub" ? (LT.readJson(LT.dataPath("check.json"), null) || {}).list : s.path; if (!path || !fso.FileExists(path)) throw new Error("The checklist file isn't there: " + (path || "(Submission check has no list yet)"));
+  var c0 = s.kind == "sub" ? LT.readJson(LT.dataPath("check.json"), null) || {} : {}, L = LT.readList(path, s.kind == "sub" ? c0.sheet || "" : s.sheet || ""), c = LT.listColumns(L, s.kind == "sub" ? { name: c0.colName, rev: c0.colRev, fmt: c0.colFmt, title: c0.colTitle } : {}, s.kind != "sub");
+  var ix = function (n) { return n ? L.head.indexOf(n) : -1; }, iN = ix(c.name), iR = ix(c.rev), iT = ix(c.title), iF = ix(c.fmt);
+  for (var r = L.headRow + 1; r < L.table.length; r++) { var n = LT.cell(L.table[r], iN); if (!n || !LT.isDocNo(n) && !/^\d{3,}$/.test(n)) continue; add(n, LT.cell(L.table[r], iR), LT.cell(L.table[r], iT), LT.cell(L.table[r], iF)); }
+  return out;
+}
+function scan(root, deep) {
+  var out = [], walk = function (d, rel) { var fo; try { fo = fso.GetFolder(d); } catch (e) { return; }
+    var e2 = new Enumerator(fo.Files); for (; !e2.atEnd(); e2.moveNext()) { var f = e2.item(), n = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$|^_review/i.test(n)) continue;
+      var i = n.lastIndexOf("."), stem = i > 0 ? n.substring(0, i) : n, sp = split(stem); out.push({ name: n, stem: stem, ext: i > 0 ? n.substring(i + 1).toLowerCase() : "", base: sp.base, rev: sp.rev, full: "" + f.Path, rel: rel, size: +f.Size || 0 }); }
+    if (deep) { var s2 = new Enumerator(fo.SubFolders); for (; !s2.atEnd(); s2.moveNext()) { var sf = s2.item(); if (!(sf.Attributes & 6) && !/^_superseded$/i.test("" + sf.Name)) walk("" + sf.Path, (rel ? rel + "\\" : "") + sf.Name); } } };
+  walk(root, ""); return out;
+}
+function index(files) { var o = {}; for (var i = 0; i < files.length; i++) (o[files[i].base] = o[files[i].base] || []).push(files[i]); return o; }
+function latest(fs) { var b = ""; for (var i = 0; i < fs.length; i++) if (!b || LT.revCmp(fs[i].rev, b) > 0) b = fs[i].rev; return b; }
+
+/* ---------- the check ---------- */
+function run() {
+  save(); if (!cfg.f2 || !fso.FolderExists(cfg.f2)) { alert("Pick Folder 2 - the folder that goes out."); return; }
+  var its; try { its = items(); } catch (e) { alert(e.message || e); return; }
+  if (!its.length) { alert("No drawings found in the checklist."); return; }
+  var deep = cfg.subs !== false, f2 = scan(cfg.f2, deep), i2 = index(f2), f1 = cfg.f1 && fso.FolderExists(cfg.f1) ? scan(cfg.f1, deep) : null, i1 = f1 ? index(f1) : null, rule = cfg.names !== false ? LT.nameRule() : null, defNeed = exts(cfg.need);
+  var rows = [], onList = {}, qty = { items: its.length, ok: 0, expect: 0, types: {} };
+  for (var t = 0; t < f2.length; t++) qty.types[f2[t].ext] = (qty.types[f2[t].ext] || 0) + 1;
+  for (var i = 0; i < its.length; i++) { var it = its[i], need = it.need.length ? it.need : defNeed, all = i2[it.base] || [], want = it.rev, hit = [], old = [], newer = [], probs = [], flags = {};
+    onList[it.base] = 1;
+    var useRev = want || latest(all);
+    for (var a = 0; a < all.length; a++) { var c = LT.revCmp(all[a].rev, useRev); if (all[a].rev.toUpperCase() == useRev.toUpperCase()) hit.push(all[a]); else if (c < 0) old.push(all[a]); else newer.push(all[a]); }
+    var types = []; for (var h = 0; h < hit.length; h++) if (types.indexOf(hit[h].ext) < 0) types.push(hit[h].ext);
+    var miss = []; for (var n = 0; n < need.length; n++) if (types.indexOf(need[n]) < 0) miss.push(need[n]);
+    qty.expect += need.length || 1;
+    var row = { it: it, files: hit, old: old, newer: newer, types: types, miss: miss, rev: hit.length ? hit[0].rev : "", notes: [], flags: flags };
+    if (!all.length) { row.st = "Missing"; row.lv = 2; }
+    else if (!hit.length) { row.st = "Wrong revision"; row.lv = 2; row.notes.push("Wanted " + want + ", found " + latest(all)); }
+    else if (miss.length) { row.st = "Missing file type"; row.lv = 2; row.notes.push("Missing " + miss.join(", ")); }
+    else { row.st = "OK"; row.lv = 0; }
+    if (old.length) { flags.old = 1; row.notes.push("Older revision also there: " + old[0].name + (old.length > 1 ? " +" + (old.length - 1) : "")); }
+    if (newer.length && want) { flags.newer2 = 1; row.notes.push("A newer revision is in Folder 2: " + newer[0].rev); }
+    var dn = {}; for (var d = 0; d < hit.length; d++) { var k = hit[d].name.toLowerCase(); if (dn[k]) { flags.dup = 1; row.notes.push("Same file in 2 subfolders: " + hit[d].name); } dn[k] = 1; if (!hit[d].size) { flags.empty = 1; row.notes.push("Empty file (0 KB): " + hit[d].name); } }
+    if (rule) for (var r2 = 0; r2 < hit.length; r2++) { var pr = LT.nameCheck(hit[r2].stem, rule); if (pr.length) { flags.name = 1; row.notes.push(hit[r2].name + ": " + pr[0]); break; } }
+    if (i1) { var one = i1[it.base] || [], l1 = latest(one);
+      row.f1 = one; row.f1rev = l1;
+      if (one.length && l1 && (row.rev || want) && LT.revCmp(l1, row.rev || want) > 0) { flags.newer1 = 1; row.notes.push("Folder 1 has a newer revision: " + l1); }
+      var by1 = {}; for (var o1 = 0; o1 < one.length; o1++) by1[one[o1].name.toLowerCase()] = one[o1];
+      for (var z = 0; z < hit.length; z++) { var m1 = by1[hit[z].name.toLowerCase()]; if (m1 && m1.size != hit[z].size) { flags.diff = 1; row.notes.push("Not the same as in Folder 1 (size differs): " + hit[z].name); } }
+      row.collect = collectFor(row, one); if (row.lv && row.collect.length) flags.can = 1; }
+    if (row.st == "OK" && !flags.name && !flags.diff && !flags.dup && !flags.empty) qty.ok++;
+    if (row.st == "OK" && (flags.name || flags.diff || flags.dup || flags.empty || flags.newer1)) row.lv = 1;
+    rows.push(row); }
+  var extra = []; for (var x = 0; x < f2.length; x++) if (!onList[f2[x].base]) { if (rule) f2[x].probs = LT.nameCheck(f2[x].stem, rule); extra.push(f2[x]); }
+  R = { rows: rows, extra: extra, f2: f2, qty: qty, at: LT.today(), hasF1: !!i1, rule: rule ? rule.name : "" };
+  filter = "all"; render();
+}
+/* what Folder 1 can give to fix a row: the wanted revision (or its latest) in the needed file types not in Folder 2 yet */
+function collectFor(row, one) {
+  if (!one.length) return []; var rev = row.it.rev || latest(one), need = row.it.need.length ? row.it.need : exts(cfg.need), out = [];
+  for (var i = 0; i < one.length; i++) { var f = one[i]; if (f.rev.toUpperCase() != rev.toUpperCase()) continue; if (need.length && need.indexOf(f.ext) < 0) continue; if (row.types.indexOf(f.ext) >= 0 && row.rev.toUpperCase() == rev.toUpperCase()) continue; out.push(f); }
+  return out;
+}
+var CARDS = [["all", "Everything", ""], ["ok", "&#10004; OK", "ok"], ["miss", "&#10006; Missing", "bad"], ["rev", "&#8635; Wrong revision", "bad"], ["type", "&#9680; Missing file type", "bad"], ["name", "&#127991; Name problems", "warn"],
+  ["extra", "&#10133; Not on the checklist", "warn"], ["old", "&#128465; Old revisions too", "warn"], ["newer1", "&#11014; Newer in Folder 1", "warn"], ["diff", "&#8596; Differs from Folder 1", "bad"], ["can", "&#128229; Can collect", "ok"]];
+function inCard(r, k) { var f = r.flags; return k == "all" || k == "ok" && r.st == "OK" && r.lv == 0 || k == "miss" && r.st == "Missing" || k == "rev" && r.st == "Wrong revision" || k == "type" && r.st == "Missing file type" || k == "name" && f.name || k == "old" && f.old || k == "newer1" && f.newer1 || k == "diff" && f.diff || k == "can" && f.can; }
+function render() {
+  if (!R) { $("cards").innerHTML = ""; $("qty").innerHTML = ""; $("res").innerHTML = '<div class="muted" style="padding:20px 24px;line-height:1.8;max-width:760px"><h2 style="margin-top:0">Check everything at once</h2>' +
+    "1. The <b>checklist</b>: the Submission check's list, another Excel / CSV, pasted numbers, or a <b>My set</b> from the Drawing Register<br>2. <b>Folder 2</b> &ndash; the folder that goes out (the submission)<br>3. <b>Folder 1</b> &ndash; where the drawings come from (optional: your WIP / print folder)<br><br>" +
+    "<b>&#128678; Check all</b> shows in coloured cards: <b>quantity</b>, <b>missing</b>, <b>wrong revision</b>, <b>missing file type</b> (pdf / dwg), <b>names</b> against your naming rule, files <b>not on the checklist</b>, <b>old revisions</b> left in, and with Folder 1: a <b>newer revision there</b>, files that <b>differ</b> (copied wrong). Click a card to see only those.<br>" +
+    "<b>&#128229; Collect</b> then copies what's missing into Folder 2 from Folder 1 &ndash; the right revision, the right file types.</div>"; return; }
+  var n = {}; for (var c = 0; c < CARDS.length; c++) { var k = CARDS[c][0], cnt = 0; if (k == "extra") cnt = R.extra.length; else for (var i = 0; i < R.rows.length; i++) if (inCard(R.rows[i], k)) cnt++;
+    if (k == "name") for (var x2 = 0; x2 < R.extra.length; x2++) if (R.extra[x2].probs && R.extra[x2].probs.length) cnt++; n[k] = cnt; }
+  var h = ""; for (var c2 = 0; c2 < CARDS.length; c2++) { var cd = CARDS[c2]; if (!R.hasF1 && /^(newer1|diff|can)$/.test(cd[0])) continue; if (cd[0] == "name" && !R.rule) continue;
+    h += '<span class="cd' + (filter == cd[0] ? " on" : "") + (n[cd[0]] && cd[2] ? " c-" + cd[2] : " c-zero") + '" data-cf="' + cd[0] + '"><b>' + n[cd[0]] + "</b><span>" + cd[1] + "</span></span>"; }
+  $("cards").innerHTML = h;
+  var q = R.qty, tl = []; for (var ty in q.types) if (q.types.hasOwnProperty(ty)) tl.push(ty + " " + q.types[ty]);
+  $("qty").innerHTML = "<b>Quantity:</b> checklist <b>" + q.items + "</b> drawings &middot; <b>" + q.ok + "</b> complete &middot; Folder 2 has <b>" + R.f2.length + "</b> files (" + esc(tl.sort().join(", ") || "none") + ") &middot; expected about <b>" + q.expect + "</b>" + (R.f2.length == q.expect ? ' <span class="ok">&#10004; count matches</span>' : ' <span class="warn">(' + (R.f2.length > q.expect ? "+" : "") + (R.f2.length - q.expect) + ")</span>");
+  var t = ['<table class="grid"><tr><th>Drawing</th>' + LT.dwgHead() + "<th>Rev wanted</th><th>Found</th><th>Types</th><th>Result</th><th>Notes</th>" + (R.hasF1 ? "<th>Folder 1</th>" : "") + "</tr>"], shown = 0;
+  if (filter != "extra") for (var r = 0; r < R.rows.length; r++) { var x = R.rows[r]; if (!inCard(x, filter)) continue; shown++;
+    t.push("<tr><td><b>" + esc(x.it.num) + "</b>" + (x.it.title ? '<div class="muted" style="font-size:.85em">' + esc(x.it.title) + "</div>" : "") + "</td>" + LT.dwgCells(x.it.base) + "<td>" + esc(x.it.rev || "(latest)") + "</td><td>" + esc(x.rev) + "</td><td>" + esc(x.types.join(", ")) + '</td><td class="st ' + (x.lv == 0 ? "ok" : x.lv == 1 ? "warn" : "bad") + '">' + (x.lv == 0 ? "&#10004; " : x.lv == 1 ? "&#9888; " : "&#10006; ") + esc(x.st) + "</td><td class=\"muted\">" + esc(x.notes.join(" · ")) + "</td>" +
+      (R.hasF1 ? "<td>" + (x.f1 && x.f1.length ? esc(x.f1rev || "-") + (x.collect && x.collect.length && x.lv ? ' <span class="ok">&#128229; ' + x.collect.length + "</span>" : "") : '<span class="muted">&ndash;</span>') + "</td>" : "") + "</tr>"); }
+  if (filter == "all" || filter == "extra" || filter == "name") for (var e = 0; e < R.extra.length; e++) { var f = R.extra[e], np = f.probs && f.probs.length; if (filter == "name" && !np) continue; shown++;
+    t.push("<tr><td>" + esc(f.name) + "</td>" + LT.dwgCells(f.base) + "<td></td><td>" + esc(f.rev) + "</td><td>" + esc(f.ext) + '</td><td class="st warn">&#10133; Not on the checklist</td><td class="muted">' + esc((f.rel ? f.rel + " \u00b7 " : "") + (np ? "Name: " + f.probs[0] : "")) + "</td>" + (R.hasF1 ? "<td></td>" : "") + "</tr>"); }
+  t.push("</table>");
+  $("res").innerHTML = shown ? t.join("") : '<div class="ok" style="padding:24px;font-weight:bold">&#10004; Nothing here.</div>';
+}
+/* ---------- fix it ---------- */
+function collect() {
+  if (!R || !R.hasF1) { alert("Pick Folder 1 and run Check all first."); return; }
+  var todo = []; for (var i = 0; i < R.rows.length; i++) if (R.rows[i].lv && R.rows[i].collect) for (var k = 0; k < R.rows[i].collect.length; k++) todo.push(R.rows[i].collect[k]);
+  if (!todo.length) { alert("Nothing to collect - Folder 1 has nothing that Folder 2 is missing."); return; }
+  var names = []; for (var j = 0; j < todo.length && j < 15; j++) names.push(todo[j].name);
+  if (!confirm("Copy " + todo.length + " file(s) from Folder 1 into Folder 2 (same subfolders)?\n\n" + names.join("\n") + (todo.length > 15 ? "\n..." : ""))) return;
+  var n = 0, errs = [];
+  for (var t = 0; t < todo.length; t++) { var f = todo[t], dir = cfg.f2 + (f.rel ? "\\" + f.rel : ""), to = dir + "\\" + f.name;
+    try { LT.mkdirs(dir); if (fso.FileExists(to)) { errs.push(f.name + " (already there)"); continue; } fso.CopyFile(f.full, to, false); n++; } catch (e) { errs.push(f.name + " (" + (e.message || e) + ")"); } }
+  LT.toast(n + " file(s) collected into Folder 2"); if (errs.length) alert("Not copied:\n" + errs.slice(0, 15).join("\n"));
+  run();
+}
+function moveOld() {
+  if (!R) return; var todo = []; for (var i = 0; i < R.rows.length; i++) for (var k = 0; k < R.rows[i].old.length; k++) todo.push(R.rows[i].old[k]);
+  if (!todo.length) { alert("No older revisions in Folder 2."); return; }
+  if (!confirm("Move " + todo.length + " older revision file(s) out of Folder 2 into  _Superseded ?")) return;
+  var dir = cfg.f2 + "\\_Superseded", n = 0; LT.mkdirs(dir);
+  for (var t = 0; t < todo.length; t++) { try { var to = dir + "\\" + todo[t].name; if (!fso.FileExists(to)) { fso.MoveFile(todo[t].full, to); n++; } } catch (e) { } }
+  LT.toast(n + " moved to _Superseded"); run();
+}
+function reportText() {
+  var s = "Check all – " + LT.fmtDate(LT.today()) + "\r\nFolder 2: " + cfg.f2 + (R.hasF1 ? "\r\nFolder 1: " + cfg.f1 : "") + "\r\nChecklist: " + R.qty.items + " drawings, " + R.qty.ok + " complete; Folder 2 has " + R.f2.length + " files\r\n";
+  var grp = function (title, fn) { var l = []; for (var i = 0; i < R.rows.length; i++) if (fn(R.rows[i])) l.push(R.rows[i]); if (!l.length) return; s += "\r\n" + title + " (" + l.length + ")\r\n"; for (var k = 0; k < l.length; k++) s += "  • " + l[k].it.num + (l[k].notes.length ? "  – " + l[k].notes.join("; ") : "") + "\r\n"; };
+  grp("MISSING", function (r) { return r.st == "Missing"; }); grp("WRONG REVISION", function (r) { return r.st == "Wrong revision"; }); grp("MISSING FILE TYPE", function (r) { return r.st == "Missing file type"; });
+  grp("OTHER NOTES", function (r) { return r.st == "OK" && r.lv == 1; });
+  if (R.extra.length) { s += "\r\nNOT ON THE CHECKLIST (" + R.extra.length + ")\r\n"; for (var e = 0; e < R.extra.length; e++) s += "  • " + R.extra[e].name + "\r\n"; }
+  return s;
+}
+function okItems() { var o = []; for (var i = 0; i < R.rows.length; i++) { var r = R.rows[i]; if (r.st != "OK") continue; var fs = []; for (var k = 0; k < r.files.length; k++) fs.push(r.files[k].full); o.push({ number: r.it.base, title: r.it.title || (LT.dwgInfo(r.it.base) || {}).title || "", rev: r.rev, types: r.types.join(", "), files: fs }); } return o; }
+function reportMenu(x, y) {
+  if (!R) { alert("Run Check all first."); return; }
+  LT.menu(x, y, [{ label: "&#128203; Copy the result (for email / Teams)", fn: function () { if (LT.copyText(reportText())) LT.toast("Copied"); } },
+    { label: "Excel (CSV) of every line", fn: function () { var t = [["Drawing", "Tower", "Typology", "Model", "Rev wanted", "Found", "Types", "Result", "Notes"]];
+      for (var i = 0; i < R.rows.length; i++) { var r = R.rows[i], f = LT.dwgInfo(r.it.base) || {}; t.push([r.it.num, f.tower || "", f.typo || "", f.model || "", r.it.rev, r.rev, r.types.join(", "), r.st, r.notes.join("; ")]); }
+      for (var e = 0; e < R.extra.length; e++) t.push([R.extra[e].name, "", "", "", "", R.extra[e].rev, R.extra[e].ext, "Not on the checklist", R.extra[e].rel]);
+      LT.mkdirs(LT.exportsDir()); var p = LT.exportsDir() + "\\CheckAll_" + LT.stamp() + ".csv"; LT.writeCsv(p, t); LT.open(p);
+      LT.logOut({ source: "Check all", file: p, items: okItems(), notes: "Submission from " + fso.GetFileName(cfg.f2) }); } },
+    { label: "&#128232; Log the complete drawings to Transmittal...", fn: function () { var it = okItems(); if (!it.length) { alert("No complete drawings yet."); return; } var s = LT.settings(), was = s.askLog; if (was === false) { s.askLog = true; LT.saveSettings(s); } LT.logOut({ source: "Check all", items: it, notes: "Submission from " + fso.GetFileName(cfg.f2) }); if (was === false) { s.askLog = false; LT.saveSettings(s); } } }]);
+}
+function srcMenu(x, y) {
+  var m = [{ label: "Use the Submission check's list" + ((LT.readJson(LT.dataPath("check.json"), null) || {}).list ? "" : ' <span class="muted">(none yet)</span>'), fn: function () { cfg.src = { kind: "sub" }; save(); show(); } },
+    { label: "Pick an Excel / CSV list...", fn: function () { LT.pickFile(function (p) { cfg.src = { kind: "file", path: p }; save(); show(); }); } },
+    { label: "Paste a list...", fn: function () { $("pText").value = cfg.src && cfg.src.kind == "paste" ? cfg.src.lines.join("\r\n") : ""; $("pasteDlg").style.display = "block"; try { $("pText").focus(); } catch (e) { } } }];
+  try { var reg = LT.register(), ss = reg ? reg.sets() : []; if (ss.length) { m.push("-"); for (var i = 0; i < ss.length; i++) (function (s) { m.push({ label: "&#128193; My set: " + esc(s.name) + ' <span class="muted">' + s.keys.length + "</span>", fn: function () { cfg.src = { kind: "set", id: s.id, name: s.name }; save(); show(); } }); })(ss[i]); } } catch (e) { }
+  LT.menu(x, y, m);
+}
+var at = function (b) { var r = b.getBoundingClientRect(); return [r.left, r.bottom + 2]; };
+$("bSrc").onclick = function (e) { var a = at(this); srcMenu(a[0], a[1]); (e || window.event).cancelBubble = true; };
+$("bRep").onclick = function (e) { var a = at(this); reportMenu(a[0] - 220, a[1]); (e || window.event).cancelBubble = true; };
+$("bF2").onclick = function () { var f = LT.pickFolder("Folder 2 - the folder that goes out (the submission)"); if (f) { cfg.f2 = f; save(); show(); LT.folderPicked(f); } };
+$("bF1").onclick = function () { var f = LT.pickFolder("Folder 1 - where the drawings come from (WIP / print folder)"); if (f) { cfg.f1 = f; save(); show(); } };
+$("bF1x").onclick = function () { cfg.f1 = ""; save(); show(); };
+$("bRun").onclick = run; $("bCollect").onclick = collect; $("bOld").onclick = moveOld;
+$("need").onchange = save; $("subs").onclick = save; $("names").onclick = save;
+$("cards").onclick = function (e) { var c = LT.up(e ? e.target : window.event.srcElement, "data-cf"); if (c) { filter = c.getAttribute("data-cf"); render(); } };
+$("pCancel").onclick = function () { $("pasteDlg").style.display = "none"; };
+$("pOk").onclick = function () { var ls = $("pText").value.split(/\r?\n/), o = []; for (var i = 0; i < ls.length; i++) if (LT.trim(ls[i])) o.push(LT.trim(ls[i])); if (!o.length) return; cfg.src = { kind: "paste", lines: o }; save(); show(); $("pasteDlg").style.display = "none"; };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{background:{panel}}", "#qty{border-bottom:1px solid {line}}",
+  ".cd{background:{panel};border:{bw}px solid {line};border-radius:{r}px}.cd:hover{border-color:{accent}}.cd.on{box-shadow:inset 0 -3px 0 {accent};border-color:{accent}}.cd.c-ok b{color:{ok}}.cd.c-bad b{color:{bad}}.cd.c-warn b{color:{warn}}.cd.c-zero b{color:{muted}}"]); }
+window.ltTheme = function () { look(); render(); };
+window.ltReload = function () { load(); show(); };
+/* from Folder Check: a folder picked in another view = Folder 2 (when none yet) */
+window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value) && !cfg.f2) { cfg.f2 = value; save(); show(); } };
+look(); load(); show(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

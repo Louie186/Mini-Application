@@ -539,8 +539,12 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.12e";
+  L.VERSION = "2026.11.13";
   L.WHATS_NEW = [
+    { v: "2026.11.13", items: [
+      "<b>&#128678; Check all</b> (Folder Check): your checklist + the folder that goes out + where the drawings come from &ndash; quantity, missing, wrong revision, missing pdf / dwg, names, extra files, old revisions, newer in the source, copied wrong &ndash; as cards. <b>Collect</b> fills the gaps from the source folder",
+      "<b>Log to Transmittal</b>: after an export it asks (you choose) &ndash; tick what goes out, then <b>log only</b>, <b>one zip</b> (each file once, nothing doubled) or a <b>folder</b>. Transmittal &gt; <b>&#128220; History</b> shows everything that went out &ndash; search a drawing number to see where it went",
+      "Tower / Typology / Model (clickable) in every drawing list" ] },
     { v: "2026.11.12e", items: [
       "<b>List lookup</b> (Drawing Register &gt; &#128203; List lookup): paste or load a list of drawing numbers (descriptions optional) &ndash; Tower, Typology and Model are filled in, the <b>model is clickable</b>; export it to Excel or HTML for someone to check",
       "Models can have a <b>link</b> (Setup &gt; Models table: Tower | Typology | Model | link) or come from a <b>models folder</b> &ndash; then the Model is clickable everywhere in the register",
@@ -589,6 +593,26 @@ var LT = (function () {
   L.modelHtml = function (model) { if (!model) return ""; L.dwgInfo("-"); var lk = ""; try { lk = DWG && DWG.R ? DWG.R.modelLink(model) : ""; } catch (e) { }
     return lk ? '<span class="mlk" data-ml="' + L.esc(lk) + '" title="' + L.esc(model) + ' - click to open">&#128279; ' + L.esc(model) + "</span>" : L.esc(model); };
   L.dwgText = function (name) { var f = L.dwgInfo(name); return f ? L.trim([f.tower, f.typo, f.model].join(" ")) : ""; };
+  /* ---------- naming rule (Folder Check > Names): the rule in use, and the problems of one name ---------- */
+  L.nameRule = function () { var s = L.readJson(L.dataPath("naming.json"), null); if (!s || !s.rules || !s.rules.length) return null; return s.rules[Math.min(s.last || 0, s.rules.length - 1)]; };
+  var NREV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/;
+  L.nameCheck = function (stem, r) {
+    var bits = stem.split(r.sep), parts = r.parts, probs = [], n = parts.length;
+    var hasRev = parts.length && parts[n - 1].kind == "rev";
+    if (bits.length == n - 1 && hasRev && r.revOptional) { parts = parts.slice(0, n - 1); n--; }
+    if (bits.length != n) return ["Has " + bits.length + " parts, the rule has " + parts.length + (hasRev && r.revOptional ? " (or " + (parts.length - 1) + " without revision)" : "") + ' - separator "' + r.sep + '"'];
+    for (var i = 0; i < n; i++) { var p = parts[i], b = bits[i];
+      if (!b) { probs.push(p.name + " is empty"); continue; }
+      if (b != b.toUpperCase() && p.kind != "any") probs.push(p.name + ' "' + b + '" should be UPPER CASE');
+      var B = b.toUpperCase();
+      if (p.kind == "letters" && !new RegExp("^[A-Z]{" + p.val + "}$").test(B)) probs.push(p.name + ' "' + b + '" must be ' + p.val + " letters");
+      else if (p.kind == "digits" && !new RegExp("^\\d{" + p.val + "}$").test(B)) probs.push(p.name + ' "' + b + '" must be ' + p.val + " digits");
+      else if (p.kind == "list" && ("," + p.val + ",").indexOf("," + B + ",") < 0) probs.push(p.name + ' "' + b + '" is not an allowed code' + (p.val.length < 60 ? " (" + p.val.replace(/,/g, ", ") + ")" : ""));
+      else if (p.kind == "rev" && !NREV.test(B)) probs.push(p.name + ' "' + b + '" doesn\'t look like a revision (P01, C02...)');
+      else if (p.kind == "any" && /\s/.test(b)) probs.push(p.name + ' "' + b + '" has a space'); }
+    return probs;
+  };
+
   /* ---------- after an export: offer to log it to Transmittal (you choose; Settings can switch the question off) ----------
      L.logOut({ source: "Drawing Register list", file: "<the exported file>", items: [{ number, title, rev, types, files: [paths] }] }) */
   L.logOut = function (o) {

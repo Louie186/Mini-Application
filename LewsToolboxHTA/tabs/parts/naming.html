@@ -97,22 +97,7 @@ function fromExample() {
 
 /* ---------- check one name ---------- */
 var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/;
-function checkName(stem, r) {
-  var bits = stem.split(r.sep), parts = r.parts, probs = [], n = parts.length;
-  var hasRev = parts.length && parts[n - 1].kind == "rev";
-  if (bits.length == n - 1 && hasRev && r.revOptional) { parts = parts.slice(0, n - 1); n--; }
-  if (bits.length != n) return ["Has " + bits.length + " parts, the rule has " + parts.length + (hasRev && r.revOptional ? " (or " + (parts.length - 1) + " without revision)" : "") + ' - separator "' + r.sep + '"'];
-  for (var i = 0; i < n; i++) { var p = parts[i], b = bits[i];
-    if (!b) { probs.push(p.name + " is empty"); continue; }
-    if (b != b.toUpperCase() && p.kind != "any") probs.push(p.name + ' "' + b + '" should be UPPER CASE');
-    var B = b.toUpperCase();
-    if (p.kind == "letters" && !new RegExp("^[A-Z]{" + p.val + "}$").test(B)) probs.push(p.name + ' "' + b + '" must be ' + p.val + " letters");
-    else if (p.kind == "digits" && !new RegExp("^\\d{" + p.val + "}$").test(B)) probs.push(p.name + ' "' + b + '" must be ' + p.val + " digits");
-    else if (p.kind == "list" && ("," + p.val + ",").indexOf("," + B + ",") < 0) probs.push(p.name + ' "' + b + '" is not an allowed code' + (p.val.length < 60 ? " (" + p.val.replace(/,/g, ", ") + ")" : ""));
-    else if (p.kind == "rev" && !REV.test(B)) probs.push(p.name + ' "' + b + '" doesn\'t look like a revision (P01, C02...)');
-    else if (p.kind == "any" && /\s/.test(b)) probs.push(p.name + ' "' + b + '" has a space'); }
-  return probs;
-}
+function checkName(stem, r) { return LT.nameCheck(stem, r); }   // (in lt-core: Check all uses it too)
 function scan(dir, deep, only, out) {
   try { var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
     for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name, i = n.lastIndexOf("."), ext = i > 0 ? n.substring(i + 1).toLowerCase() : "";

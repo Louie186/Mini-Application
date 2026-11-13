@@ -26,7 +26,7 @@ module.exports = async ({ page, out }) => {
   ok(pend == 'A-101-P01.pdf:changed A-103-P01.pdf:new Sub\\A-104-P01.dwg:new', 'the 10-minute check finds 2 new (also in a subfolder) + 1 changed (' + pend + ')');
   ok(await page.evaluate(() => LT.$('bellN').innerText == '3' && /glow/.test(LT.$('bellB').className)), 'the bell counts them and glows');
   await h.evaluate(() => render());
-  ok(await h.evaluate(() => /Incoming\s*3 new/.test($('incoming').innerText) && $('incoming').querySelectorAll('[data-open]').length == 3 && $('nIn').innerText == '3'), 'Home > Incoming: the folder with "3 new" and the files (click opens)');
+  ok(await h.evaluate(() => /Incoming\s*3[\s\S]*2 new · 1 changed/.test($('incoming').innerText) && $('incoming').querySelectorAll('[data-open]').length == 3 && $('nIn').innerText == '3'), 'Home > Incoming: the folder with "3 new" and the files (click opens)');
   await page.click('#bellB'); await page.waitForTimeout(100);
   ok(await page.evaluate(() => /3 new \/ changed files in the folders you watch/.test(LT.$('remind').innerText) && !!LT.$('rIn')), 'the bell list: "3 new / changed files…" + See the new files');
   await page.evaluate(() => LT.$('remind').style.display = 'none');

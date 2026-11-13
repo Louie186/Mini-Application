@@ -149,6 +149,9 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Templates** – right-click a task → **📑 Save as template…** (its checklist, who, references and how many days it usually takes). **📑 From template ▾** (top) starts a new task from one, due that many days from today. Delete a template from the same menu
 - **Close-out pack** – right-click a task (or **📦 Close-out pack** in its folder window): a zip of its **Output** folder + the summary (PDF + HTML) + notes, saved in the task folder as `<ID> <task> - close-out <date>.zip`
 
+- **✎ Needs details** (floating, bottom right) – open tasks with **no date** or **no project**. Type the date (`20/11`) and project, pick the priority, **✓** – or **drag** the task onto a calendar day (it gets that date) or a board column. **✕** = it doesn't need them, stop asking. Click the heading to fold it away
+- Dragging a card between board columns changes **only its status** – Priority and Status always show in the task (never empty)
+
 ### Task folders (everything about one task in one place)
 
 - In Tasks: right-click a task → **📁 Make a task folder…** (or **📁 Task folder…** in the task window)
@@ -217,6 +220,15 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **📊 Workload** – people and hours per week (click a name to change hours, e.g. part-time); type the **hours each open task needs**; the heat-map shows green has room · amber 80–100% · red overloaded. Click a box to see its tasks. **Options ▾**: include your own tasks, hours for tasks with no estimate, weeks to show, export
 - Right-click a row: status, send this task, history, duplicate, delete. **More ▾**: new task here, new group, CSV export, sent / received log, project name, copy Lew's Tracker tasks in
 
+**🔗 Output** (right-click a task or an item → *Output…*, or click its 🔗 chip)
+- What the team sent back. **Paste a link** (e.g. from ACC) · **drop files or folders** (or drag a link from the browser) · **📋 Paste files (Ctrl+V)** after Ctrl+C in Explorer · **Browse…**
+- **Files stay where they are** – only their location is kept (click to open). The list shows **each folder once with its files under it**; links on their own
+- Each file's name is checked against your **naming rule** (✔ / ✖ name)
+- **Copy into the task folder › Output** – only if you want a copy (the task came from Tasks and has a folder)
+- A **reply note** with a link or a path (`https://…`, `C:\…`, `\\server\…`) puts it in the Output by itself
+- A **new file in a watched folder** (Home › Incoming) with the drawing number of an open item goes into its Output by itself – Home says *output of T001.2*
+- **↩ Send back for changes…** – not right yet: back to *In progress*, your comment goes in its notes (and the Team Board), *↩ sent back* shows on it
+
 ## Drawing Register
 
 One list of every drawing in a project, kept up to date from the MIDP. One register per project (**Project ▾**: new, rename, remove).
@@ -253,6 +265,9 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
   2. **▶ Fill in Tower / Typology / Model** – drawings in the register take its values (a revision on the number is ignored); others are **guessed from the description** (orange, "guess: like …") the same way as new MIDP drawings; unknown with no description = *not found*
   3. The **Model is clickable** (opens the .rvt or the ACC link). The list is kept until you Clear it
   4. **Export ▾**: **Excel for checking** – model as a hyperlink, guesses in blue, yellow **Checked** (Yes / No / Query) and **Comments** columns, frozen heading, prints landscape · **HTML page** (opens anywhere, clickable models, a tick box per drawing) · copy as text
+  5. **Rev · MIDP** column – your list's revision against the MIDP: `= P02` same · **`P01 ≠ P02`** different (and *N revision(s) differ from the MIDP* on top) · `P01 · –` the MIDP has none. The revision can be on the number (`…-P01`) or in its own column
+  6. **Models in the list** – paste model names (with or without a version, e.g. `T1-2BRB-Unit Model.0003`): Tower, Typology and the **clickable model** are filled in
+  7. **📁 Make a set** – everything found (and every drawing of the pasted models) becomes a **My set**
 - **Model links from your drawing list** (⚙ Setup → **Import an existing drawing list (with Tower / Typology)…**): add a **Path** column at the end of the list (DRAWING NUMBER · DESCRIPTION · TOWER · TYPOLOGY · MODEL · **Path**) with the model's ACC link. It's found by itself (**Path / link (ACC)** box); the preview says how many rows have one. After the import every drawing's **Model is clickable** – in the register and in the List lookup – and opens the model in ACC. Rows with no path just stay plain text
 - **Model paths from your models list** (⚙ Setup → Models table → **Import from Excel…**): put the model's location in a column at the end (heading like **Path**, Link, URL, Location or ACC) – it's picked by itself (check it in the **Path / link (ACC)** box) and shown in the preview
   - A **web link** (`https://acc.autodesk.com/…`) opens the model in ACC
@@ -264,6 +279,7 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
   1. **+ New set**, give it a name
   2. Left = the MIDP (narrow it with the Section / Tower / Typology filters and the search box above). Right = your set
   3. **Drag** drawings from left to right (select several with **Ctrl** / **Shift** + click), or double-click, or **Add →** / **All shown →**. Drag back (or **← Remove**) to take them out
+     - The left list **stays as it was** while you add: drawings already in the set stay in place, dimmed with *✓ in the set*, and the scroll doesn't jump
   - Saved with the project. A drawing later removed from the MIDP shows struck through in the set
   - Use it: Tasks → a task → **📘 From the MIDP…** → **My set** – and **↻ Update from the MIDP** follows the set when you change it
 - **Online link** – double-click a drawing → **Online link** (ACC / SharePoint / BIM 360). It shows as **🔗 link** in the list; drawing references in Tasks / Delegate then open it, and summaries, packs and emails include it
@@ -406,7 +422,7 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 - **Top cards:** **My day** (due today + late) · **My team** (open delegated work, late, replies waiting on team boards) · **Task status** (open, with a ring: done · doing · to do) · **Sent this month** (transmittals, the last one)
 - **Today** · **Waiting on others** · **Next 2 weeks** (every date from every tab, by day; 3+ things on a day in red) · **Done in the last 7 days** (a small bar chart, yours + the team's) · **Team this week** (load bars: green has room, amber 80–100%, red overloaded) · **Last transmittals** · **Recent files**
 - **Add a task** at the top (the same quick words as Tasks)
-- **📥 Incoming** – **+ Watch a folder** (where drawings arrive: an Incoming folder, an ACC sync folder…). The first look only remembers what's there; after that every **new** or **changed** file (subfolders too) shows here and on the **bell** – checked when the Toolbox opens and every 10 minutes. Click a file to open it · **Check** sends the folder to Folder Check · **Seen** clears it · ✕ stops watching
+- **📥 Incoming** – **+ Watch a folder** (where drawings arrive: an Incoming folder, an ACC sync folder…). The first look only remembers what's there; after that every **new** or **changed** file (subfolders too) shows here and on the **bell** – checked when the Toolbox opens and every 10 minutes, or now with **↻ Refresh**. Per folder: *2 new · 1 changed · 1 deleted / moved · checked 3 min ago*, the files grouped **Today / Yesterday / Earlier** (deleted ones struck through). Click a file to open it · **Check** sends the folder to Folder Check · **Seen** clears it · ✕ stops watching. A file that is a delegated item's output says *🔗 output of T001.2*
 - **Your weekly report is ready** – when the report made itself (Settings), a banner on top: **Open** · **Copy for email** · ✕
 - **📊 Weekly report** – opens inside Home (was its own tab); **‹ Back to Home** to return
 
@@ -423,6 +439,12 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
    - **Names** against your naming rule (**Fix them in Folder Check › Names**)
    - **Titles** missing (**Fill from my list**)
 4. **Send** – **One zip** (nothing copied or doubled), **A folder** (copies), or **Sheet only** → **Make the transmittal** → *TR-005 is ready* (open the folder / see it in History)
+
+### Replies (optional)
+
+- Only for transmittals that get a reply. **History** → **↩** on the transmittal → date, **status** (A Approved · B Approved with comments · C Revise and resubmit · D Rejected · Noted), comment, a link or file
+- The **Reply** column shows *Sent* or *Replied · C*; click the row to see every reply (with its link)
+- A transmittal made by **Delegate** shows its tasks' status there too (read-only, e.g. *T001 · In progress (1/3 items)*) – you change it in Delegate
 
 ### New transmittal (the full form)
 

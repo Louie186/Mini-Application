@@ -119,6 +119,15 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
 </div></div>
 
 <!-- a group: name, lead, members -->
+<div class="ov" id="odlg"><div class="card" style="width:720px;max-width:94%">
+  <h3 id="oTitle">Output</h3>
+  <div class="muted" style="margin-bottom:8px">What the team sent back: an ACC link, or files / folders. Files stay where they are &ndash; only their location is kept (click to open).</div>
+  <div id="oDrop" title="Drop files or folders from Explorer, or a link from the browser"><b>Drop files or folders here</b><span class="muted"> &ndash; or drag a link from the browser</span></div>
+  <div style="display:flex;margin:8px 0"><input type="text" id="oLink" placeholder="Paste a link (https://acc...) or a file / folder path" style="flex:1 1 auto;margin:0 8px 0 0"><button class="btn primary" id="oAdd" style="margin:0">+ Add</button></div>
+  <div><button class="btn small" id="oPaste" title="Copy the files in Explorer (Ctrl+C) first">&#128203; Paste files (Ctrl+V)</button><button class="btn small" id="oFile">Browse a file...</button><button class="btn small" id="oFolder">A folder...</button><button class="btn small" id="oCopy" title="Copies the files into the task's folder (Output) - from Tasks">Copy into the task folder &rsaquo; Output</button></div>
+  <div id="oList"></div>
+  <div class="acts"><span class="muted" id="oMsg"></span><span class="sp"></span><button class="btn" id="oBack" title="Not right yet: back to In progress with your comment">&#8617; Send back for changes...</button><button class="btn primary" id="oDone">Done</button></div>
+</div></div>
 <div class="ov" id="gdlg"><div class="card">
   <h3 id="gTitle">Group</h3>
   <div class="row2"><div class="fld"><label>Group name</label><input type="text" id="gName" placeholder="e.g. MEP Team"></div><div class="fld"><label>Lead (gets the group's tasks)</label><input type="text" id="gLead" list="pplList"></div></div>
@@ -328,7 +337,7 @@ function board() {
       var t = list[i], st = statusOf(t); if (st != ST[c]) continue; n++;
       rowMap.push({ t: t, s: null }); dragMap.push({ t: t, kind: "status" });
       var done = 0; for (var j = 0; j < t.subs.length; j++) if (t.subs[j].status == "Completed") done++;
-      cards.push('<div class="dc" draggable="true" data-r="' + (rowMap.length - 1) + '" data-dg="' + (dragMap.length - 1) + '"><div class="m muted">' + esc(t.code) + (t.group ? " &middot; " + esc(t.group) : "") + "</div><b>" + esc(t.title) + '</b><div class="m">' +
+      cards.push('<div class="dc" draggable="true" data-r="' + (rowMap.length - 1) + '" data-dg="' + (dragMap.length - 1) + '"><div class="m muted">' + esc(t.code) + (t.group ? " &middot; " + esc(t.group) : "") + "</div><b>" + esc(t.title) + "</b>" + outChip(t) + (function () { var n = 0; for (var q = 0; q < t.subs.length; q++) n += outCount(t.subs[q]); return n ? ' <span class="och">&#128279; ' + n + " in items</span>" : ""; })() + '<div class="m">' +
         (t.who ? "&#128100; " + esc(t.who) : '<span class="muted">No one yet</span>') + (t.due ? ' &nbsp; <span class="' + (late(t.due, st) ? "bad" : "muted") + '">&#128197; ' + esc(LT.fmtDate(t.due)) + "</span>" : "") +
         (t.subs.length ? ' &nbsp; <span class="muted">&#9745; ' + done + "/" + t.subs.length + "</span>" : "") + "</div>" +
         (t.subs.length ? '<div class="pb"><i style="width:' + Math.round(progress(t) * 100) + '%"></i></div>' : "") + "</div>");
@@ -436,11 +445,11 @@ function list(tasks) {
     if (!match(t, who, words)) continue;
     var whole = !who || has(t.who, who);
     rowMap.push({ t: t, s: null });
-    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td>' + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + "</td><td>" + esc(t.title) + "</td><td>" + esc(t.group) + "</td><td>" + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
+    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td>' + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + "</td><td>" + esc(t.title) + outChip(t) + "</td><td>" + esc(t.group) + "</td><td>" + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
     for (var j = 0; j < t.subs.length; j++) {
       var s = t.subs[j]; if (!whole && !has(s.who, who)) continue;
       rowMap.push({ t: t, s: s });
-      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.status == "Completed" ? ' class="muted"' : "") + "><td>" + esc(s.code) + '</td><td class="it">&#8627; ' + esc(s.title) + "</td><td></td><td>" + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
+      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.status == "Completed" ? ' class="muted"' : "") + "><td>" + esc(s.code) + '</td><td class="it">&#8627; ' + esc(s.title) + outChip(s) + "</td><td></td><td>" + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
     }
   }
   h.push("</table>");
@@ -564,12 +573,78 @@ function saveGroup() {
   if (newBoard && confirm("Make the Team Board for " + n + " in\n" + gf + "\nnow?")) publishBoard(G);
 }
 
+/* ---------- output: what the team sent back (links, files, folders), kept on the task or the item ----------
+   x.outputs = [{ kind: "link" | "file" | "folder", path, at, auto? }] - files stay where they are; the list groups them per folder */
+var oFor = null;
+function outCount(x) { return (x.outputs || []).length; }
+function outChip(x) { var n = outCount(x), b = x.backs && x.backs.length && x.status != "Completed"; return (n ? ' <span class="och" title="Output: ' + n + ' - click to see">&#128279; ' + n + "</span>" : "") + (b ? ' <span class="obk" title="' + esc(x.backs[x.backs.length - 1].note) + '">&#8617; sent back</span>' : ""); }
+function openOut(t, s) { oFor = { t: t, x: s || t }; $("oTitle").innerHTML = "Output &ndash; " + esc(oFor.x.code) + " " + esc(oFor.x.title); $("oLink").value = ""; $("oMsg").innerHTML = ""; drawOut(); $("odlg").style.display = "block"; }
+function addOut(paths, how) {
+  var x = oFor.x, n = 0; x.outputs = x.outputs || [];
+  for (var i = 0; i < paths.length; i++) { var p = LT.trim(paths[i]).replace(/^"|"$/g, ""); if (!p) continue; var dup = false; for (var k = 0; k < x.outputs.length; k++) if (x.outputs[k].path.toLowerCase() == p.toLowerCase()) dup = true; if (dup) continue;
+    var kind = /^[a-z][a-z0-9+.-]*:\/\//i.test(p) ? "link" : fso.FolderExists(p) ? "folder" : "file"; x.outputs.push({ kind: kind, path: p, at: LT.today() }); n++; }
+  if (n) { x.outAt = LT.today(); oFor.t.history.push(stampNow() + "  " + x.code + ": output added (" + n + (how ? ", " + how : "") + ")"); save(); render(); }
+  drawOut(); return n;
+}
+/* per folder: the folder once, its files under it; links on their own */
+function drawOut() {
+  var x = oFor.x, a = x.outputs || [], links = [], dirs = {}, order = [], r = LT.nameRule(), h = "", bad = 0;
+  for (var i = 0; i < a.length; i++) { var o = a[i]; if (o.kind == "link") { links.push(i); continue; } var d = o.kind == "folder" ? o.path : fso.GetParentFolderName(o.path); if (!dirs[d]) { dirs[d] = []; order.push(d); } dirs[d].push(i); }
+  if (links.length) { h += '<div class="og"><div class="ogh">&#127760; Links</div>'; for (var l = 0; l < links.length; l++) { var L = a[links[l]]; h += '<div class="oi"><span class="mlk" data-ml="' + esc(L.path) + '">' + esc(L.path.length > 90 ? L.path.substring(0, 87) + "..." : L.path) + '</span><span class="ox" data-ox="' + links[l] + '">&#10005;</span></div>'; } h += "</div>"; }
+  for (var g = 0; g < order.length; g++) { var d2 = order[g], it = dirs[d2], here = fso.FolderExists(d2);
+    h += '<div class="og"><div class="ogh"><span class="mlk" data-ml="' + esc(d2) + '" title="Open the folder">&#128193; ' + esc(d2) + "</span>" + (here ? "" : ' <span class="bad">not found</span>') + ' <span class="muted">' + it.length + " item" + (it.length > 1 ? "s" : "") + "</span></div>";
+    for (var f = 0; f < it.length; f++) { var o2 = a[it[f]]; if (o2.kind == "folder") { h += '<div class="oi muted">(the whole folder)<span class="ox" data-ox="' + it[f] + '">&#10005;</span></div>'; continue; }
+      var nm = fso.GetFileName(o2.path), j = nm.lastIndexOf("."), pr = r ? LT.nameCheck(j > 0 ? nm.substring(0, j) : nm, r) : []; if (pr.length) bad++;
+      h += '<div class="oi"><span class="mlk" data-ml="' + esc(o2.path) + '">' + esc(nm) + "</span>" + (o2.auto ? ' <span class="muted small">(found in a watched folder)</span>' : "") + (!fso.FileExists(o2.path) ? ' <span class="bad">moved?</span>' : "") + (r ? (pr.length ? ' <span class="bad small" title="' + esc(pr.join(" · ")) + '">&#10006; name</span>' : ' <span class="ok small" title="Follows ' + esc(r.name) + '">&#10004;</span>') : "") + '<span class="ox" data-ox="' + it[f] + '">&#10005;</span></div>'; } h += "</div>"; }
+  $("oList").innerHTML = h || '<div class="muted" style="padding:10px 0">Nothing yet.</div>';
+  $("oMsg").innerHTML = a.length ? a.length + " output(s)" + (bad ? ' &middot; <span class="bad">' + bad + " name(s) don't follow " + esc(r.name) + "</span>" : r && order.length ? ' &middot; <span class="ok">names follow ' + esc(r.name) + "</span>" : "") : "";
+  var tf = taskFolder(oFor.t); $("oCopy").style.display = tf ? "" : "none";
+}
+/* the task's folder (made in Tasks) when this delegated task came from there */
+function taskFolder(t) { if (!t.log) return ""; var tr = LT.readJson(LT.dataPath("tracker.json"), null) || { tasks: [] }; for (var i = 0; i < tr.tasks.length; i++) if (tr.tasks[i].code == t.log && tr.tasks[i].folder && fso.FolderExists(tr.tasks[i].folder)) return tr.tasks[i].folder; return ""; }
+/* a reply note with a link (an ACC link...) or a file / folder path: it goes into the Output by itself */
+function outsIn(text) { var o = [], m, re = /(https?:\/\/[^\s"<>|]+)|((?:[a-z]:\\|\\\\)[^"<>|\r\n]+?\.[a-z0-9]{2,5})(?=$|[\s,;])|((?:[a-z]:\\|\\\\)[^"<>|\r\n.]+?)(?=$|[,;\r\n])/ig;
+  while ((m = re.exec(text || ""))) o.push(LT.trim(m[1] || m[2] || m[3]).replace(/[).,;]+$/, "")); return o; }
+function replyOut(t, s, text, from) { var ps = outsIn(text); if (!ps.length) return; var keep = oFor; oFor = { t: t, x: s || t }; var x = oFor.x, n0 = outCount(x);
+  x.outputs = x.outputs || []; for (var i = 0; i < ps.length; i++) { var dup = false; for (var k = 0; k < x.outputs.length; k++) if (x.outputs[k].path.toLowerCase() == ps[i].toLowerCase()) dup = true;
+    if (!dup) x.outputs.push({ kind: /^https?:/i.test(ps[i]) ? "link" : fso.FolderExists(ps[i]) ? "folder" : "file", path: ps[i], at: LT.today(), from: from }); }
+  if (outCount(x) > n0) { x.outAt = LT.today(); t.history.push(stampNow() + "  " + x.code + ": output from " + from + "'s reply (" + (outCount(x) - n0) + ")"); } oFor = keep; }
+/* D: not right yet - back to In progress with your comment (Team Board and the next pack show it) */
+function sendBack(t, s) {
+  var x = s || t, c = prompt("Send " + x.code + " back for changes - what needs changing?", ""); if (c == null) return false; c = LT.trim(c) || "changes needed";
+  x.backs = x.backs || []; x.backs.push({ at: LT.today(), note: c }); x.status = "In progress"; x.doneOn = ""; x.updated = stampNow() + " · me";
+  x.notes = ("↩ " + LT.fmtDate(LT.today()) + ": " + c + (x.notes ? " | " + x.notes : "")).substring(0, 400);
+  t.history.push(stampNow() + "  " + x.code + " sent back for changes: " + c); save(); render();
+  var gb = groupOf(t.who); if (gb && gb.folder && gb.boardAt) publishBoard(gb, true);
+  LT.toast(x.code + " is back to In progress"); return true;
+}
+$("oAdd").onclick = function () { var v = LT.trim($("oLink").value); if (!v) { $("oLink").focus(); return; } if (addOut(v.split(/\r?\n/), "")) $("oLink").value = ""; };
+$("oLink").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { $("oAdd").onclick(); return false; } };
+$("oPaste").onclick = function () { var p = []; try { p = LT.clipPaths(); } catch (e) { } if (!p.length) { alert("Nothing to paste - in Explorer, select the files and press Ctrl+C first."); return; } addOut(p, "pasted"); };
+$("oFile").onclick = function () { LT.pickFile(function (p) { addOut([p], ""); }); };
+$("oFolder").onclick = function () { var f = LT.pickFolder("The folder with the output"); if (f) addOut([f], ""); };
+$("oCopy").onclick = function () { var tf = taskFolder(oFor.t), fs = []; for (var i = 0; i < (oFor.x.outputs || []).length; i++) if (oFor.x.outputs[i].kind == "file") fs.push(oFor.x.outputs[i].path);
+  if (!fs.length) { alert("No files to copy (links stay links)."); return; } var r = LT.tfAdd(tf, "Output", fs, false); LT.toast((r.added || []).length + " file(s) copied into the task folder > Output"); };
+$("oList").onclick = function (e) { var x = LT.up(e.target || e.srcElement, "data-ox"); if (x) { oFor.x.outputs.splice(+x.getAttribute("data-ox"), 1); save(); render(); drawOut(); } };
+$("oDone").onclick = function () { $("odlg").style.display = "none"; };
+$("oBack").onclick = function () { if (sendBack(oFor.t, oFor.x === oFor.t ? null : oFor.x)) $("odlg").style.display = "none"; };
+$("oDrop").ondragover = $("oDrop").ondragenter = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); this.className = "over"; return false; };
+$("oDrop").ondragleave = function () { this.className = ""; };
+$("oDrop").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); this.className = ""; var dt = e.dataTransfer, ps = [], noPath = 0;
+  try { for (var i = 0; i < (dt.files || []).length; i++) { var f = dt.files[i], p = f.path || f.fullPath || f.mozFullPath || ""; if (p) ps.push(p); else noPath++; } } catch (x) { }
+  if (!ps.length) { var t = ""; try { t = dt.getData("URL") || dt.getData("Text") || ""; } catch (x2) { } if (t) ps = t.split(/\r?\n/); }
+  if (ps.length) addOut(ps, "dropped"); else if (noPath) alert("Windows didn't pass on where " + (noPath > 1 ? "those files are" : "that file is") + " - in Explorer press Ctrl+C on the files, then click Paste files (Ctrl+V) here.");
+  return false; };
+$("odlg").onkeydown = function (e) { e = e || window.event; if (e.ctrlKey && e.keyCode == 86 && (e.target || e.srcElement).id != "oLink") { $("oPaste").onclick(); return false; } };
+
 /* ---------- row menu ---------- */
 function rowMenu(t, s, x, y) {
   var m = [{ label: "<b>Edit task...</b>", fn: function () { edit(t); } }];
   if (s || !t.subs.length) for (var i = 0; i < ST.length; i++) (function (v) {
     m.push({ label: "Status: " + v, on: (s ? s.status : t.status) == v, fn: function () { var st = stampNow() + " · me"; if (s) { s.status = v; s.updated = st; s.doneOn = v == "Completed" ? LT.today() : ""; } else { t.status = v; t.doneOn = v == "Completed" ? LT.today() : ""; } t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); save(); render(); } });
   })(ST[i]);
+  m.push("-", { label: "&#128279; Output" + (outCount(s || t) ? " (" + outCount(s || t) + ")" : "") + "...", fn: function () { openOut(t, s); } },
+    { label: "&#8617; Send back for changes...", fn: function () { sendBack(t, s); } });
   m.push("-", { label: "&#128228; Send this task...", fn: function () { openSend(t); } },
     { label: "History", fn: function () { alert(t.history.length ? t.history.slice(-30).join("\n") : "No history yet."); } },
     { label: "Duplicate", fn: function () { var c = copy(t); c.id = LT.uid("t"); c.code = nextCode(); c.status = "Not started"; c.updated = ""; c.history = [stampNow() + "  Copied from " + t.code]; for (var k = 0; k < c.subs.length; k++) { c.subs[k].id = LT.uid("s"); c.subs[k].code = c.code + "." + (k + 1); c.subs[k].status = "Not started"; c.subs[k].updated = ""; } data.tasks.push(c); save(); render(); } },
@@ -960,7 +1035,7 @@ function applyReplies(reps) {
         if (s && LT.trim(row.who) && !same(row.who, s.who)) { var wv = LT.trim(row.who), ow = s.who;   // a lead assigned (or moved) the item
           ch.push({ text: s.code + " " + s.title + ":  " + (ow ? ow + " → " : "assigned to ") + wv + "   (" + from + ")", run: function () { s.who = wv; s.updated = st; t.updated = st; t.history.push(st + "  " + from + " assigned " + s.code + " to " + wv); } }); }
         if (row.notes != null && LT.trim(row.notes) != LT.trim(oldNo || "")) { var nv = LT.trim(row.notes);
-          ch.push({ text: label + ':  notes → "' + (nv.length > 60 ? nv.substring(0, 60) + "…" : nv) + '"   (' + from + ")", run: function () { if (s) { s.notes = nv; s.updated = st; } else t.notes = nv; t.updated = st; } }); }
+          ch.push({ text: label + ':  notes → "' + (nv.length > 60 ? nv.substring(0, 60) + "…" : nv) + '"   (' + from + ")", run: function () { if (s) { s.notes = nv; s.updated = st; } else t.notes = nv; t.updated = st; replyOut(t, s, nv, from); } }); }
         return;
       }
       if (!row.title) return;
@@ -1104,7 +1179,7 @@ function copyWeb() {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
+function look() { LT.applyLook(["#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
   ".col{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}.col.over{border-color:{accent};background:{hover}}",
   ".dc{background:{bg};border:{bw}px solid {line};border-radius:{r}px}.dc:hover{border-color:{accent}}",
   ".pb{background:{chip};border-radius:3px}.pb i{background:{accent}}",
@@ -1141,6 +1216,7 @@ $("main").ondragenter = function (e) { e = e || window.event; var t = dropTarget
 $("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); if (overEl) { mark(overEl, false); overEl = null; } dropOn(e.target || e.srcElement); return false; };
 $("main").ondragend = function () { dragI = null; if (overEl) { mark(overEl, false); overEl = null; } };
 $("main").onclick = function (e) { var el0 = e ? e.target : window.event.srcElement; if (el0 && el0.id == "gAdd") { editGroup(null); return; }
+  if (el0 && /\b(och|obk)\b/.test(el0.className || "")) { var rr = LT.up(el0, "data-r"); if (rr) { var mm = rowMap[+rr.getAttribute("data-r")]; if (mm && mm.t && !mm.t.fromWeb) { openOut(mm.t, mm.s); return; } } }
   var bp = LT.up(el0, "data-bpub"), bo = LT.up(el0, "data-bopen"), bs = LT.up(el0, "data-bset");
   if (bp) { publishBoard(data.groups[+bp.getAttribute("data-bpub")]); return; }
   if (bo) { var G0 = data.groups[+bo.getAttribute("data-bopen")]; try { LT.open(boardPage(G0)); } catch (x) { LT.open(G0.folder); } return; }

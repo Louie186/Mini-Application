@@ -147,10 +147,27 @@ var LT = (function () {
       walk(F.path, "", 0);
       if (F.seen) { var pend = {}; for (var p = 0; p < F.pending.length; p++) pend[F.pending[p].rel] = F.pending[p];
         for (var k in now) if (now.hasOwnProperty(k)) { var old = F.seen[k]; if (old === undefined || old != now[k]) { var it = pend[k] || (pend[k] = { rel: k, path: F.path + "\\" + k, kind: old === undefined ? "new" : "changed" }); it.time = now[k]; } }
-        F.pending = []; for (var q in pend) if (pend.hasOwnProperty(q) && now[q] !== undefined) F.pending.push(pend[q]);
+        for (var g in F.seen) if (F.seen.hasOwnProperty(g) && now[g] === undefined && !(pend[g] && pend[g].kind == "new")) { var dd = pend[g] || (pend[g] = { rel: g, path: F.path + "\\" + g }); dd.kind = "deleted"; dd.time = +new Date(); }
+        F.pending = []; for (var q in pend) if (pend.hasOwnProperty(q) && (now[q] !== undefined || pend[q].kind == "deleted")) { if (now[q] !== undefined && pend[q].kind == "deleted") pend[q].kind = "changed"; F.pending.push(pend[q]); }
         F.pending.sort(function (a, b) { return b.time - a.time; }); }
       F.seen = now; F.at = +new Date(); total += F.pending.length; }
     w.at = +new Date(); L.watchSave(w); return total;
+  };
+  /* new files in watched folders whose drawing number is on an open delegated item: they go into that item's Output by themselves.
+     Returns [{ code, file }] of what was matched (each file once). */
+  L.watchMatch = function () {
+    var w = L.watchLoad(), dj = L.readJson(L.dataPath("delegate.json"), null), out = [], changed = false; if (!dj || !dj.tasks) return out;
+    var nums = function (x) { var o = [], r = x.refs || []; for (var i = 0; i < r.length; i++) if (r[i].kind == "drawing" && r[i].value) o.push(L.trim(r[i].value).toUpperCase());
+      var ws = ("" + (x.title || "")).split(/[\s,;()]+/); for (var j = 0; j < ws.length; j++) { var t = ws[j].replace(/\.[a-z0-9]{2,4}$/i, "").toUpperCase(); if (/\d/.test(t) && /[A-Z]/.test(t) && /-/.test(t) && t.length >= 5) o.push(L.trSplit ? L.trSplit(t).base.toUpperCase() : t); } return o; };
+    var items = []; for (var a = 0; a < dj.tasks.length; a++) { var T = dj.tasks[a], subs = T.subs && T.subs.length ? T.subs : [T]; for (var b = 0; b < subs.length; b++) if (subs[b].status != "Completed") { var ns = nums(subs[b]); if (ns.length) items.push({ t: T, x: subs[b], ns: ns }); } }
+    if (!items.length) return out;
+    for (var f = 0; f < w.folders.length; f++) { var pd = w.folders[f].pending || [];
+      for (var p = 0; p < pd.length; p++) { var it = pd[p]; if (it.kind == "deleted" || it.m) continue; it.m = 1; changed = true;
+        var nm = it.rel.split("\\").pop(), k = nm.lastIndexOf("."), stem = (k > 0 ? nm.substring(0, k) : nm).toUpperCase(), base = L.trSplit ? L.trSplit(stem).base.toUpperCase() : stem;
+        for (var q = 0; q < items.length; q++) { var I = items[q], hit = false; for (var z = 0; z < I.ns.length; z++) { var n = I.ns[z]; if (base == n || stem == n || (n.length >= 5 && (base.slice(-n.length - 1) == "-" + n || base.slice(-n.length - 1) == "_" + n))) hit = true; }
+          if (!hit) continue; var x = I.x; x.outputs = x.outputs || []; var dup = false; for (var y = 0; y < x.outputs.length; y++) if (x.outputs[y].path.toLowerCase() == it.path.toLowerCase()) dup = true;
+          if (!dup) { x.outputs.push({ kind: "file", path: it.path, at: L.today(), auto: true }); x.outAt = L.today(); (I.t.history = I.t.history || []).push(L.fmtDate(L.today()) + "  " + (x.code || I.t.code) + ": output received - " + nm + " (watched folder)"); out.push({ code: x.code || I.t.code, file: nm }); it.code = x.code || I.t.code; } } } }
+    if (out.length) L.saveJson(L.dataPath("delegate.json"), dj); if (changed) L.watchSave(w); return out;
   };
   L.watchPending = function () { var w = L.watchLoad(), n = 0; for (var i = 0; i < w.folders.length; i++) n += (w.folders[i].pending || []).length; return n; };
   /* i = a folder's index (or all when left out): its new files have been seen */
@@ -637,8 +654,13 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.17";
+  L.VERSION = "2026.11.18";
   L.WHATS_NEW = [
+    { v: "2026.11.18", items: [
+      "<b>Tasks</b>: Priority and Status always show (dragging to Done changes only the status) &middot; a floating <b>Needs details</b> tray for tasks without a date or project",
+      "<b>Delegate &rsaquo; Output</b>: the link or files the team sent back (files stay where they are, listed per folder), names checked, <b>Send back for changes</b> &ndash; and outputs found by themselves in watched folders and reply notes",
+      "<b>Transmittal replies</b> (optional): Sent / Replied with A&ndash;D codes and the reply log; Delegate tasks' status on their transmittal",
+      "<b>List lookup</b>: a Rev &middot; MIDP column, model names understood, <b>Make a set</b> &middot; <b>My sets</b> keep the list in place &middot; <b>Incoming</b>: Refresh, deleted files, by day" ] },
     { v: "2026.11.17", items: [
       "<b>&#128229; Incoming</b> (Home): watch the folders where drawings arrive &ndash; new and changed files show on Home and the bell (every 10 minutes)",
       "<b>Weekly report by itself</b> (Settings): made every week on your day, ready to open or copy into an email",

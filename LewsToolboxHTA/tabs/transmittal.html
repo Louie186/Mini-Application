@@ -73,6 +73,15 @@
   </div>
 </div>
 <datalist id="toList"></datalist>
+<div class="ov" id="rpDlg"><div class="card" style="width:600px;max-width:94%">
+  <h3 id="rpTitle">Log a reply</h3>
+  <div class="muted" style="margin-bottom:8px">Only for transmittals that get a reply &ndash; the review comments, an approval, a marked-up set.</div>
+  <div class="fld" style="display:inline-block;width:150px;margin-right:10px"><label>Date</label><input type="text" id="rpDate" placeholder="dd/mm/yyyy"></div>
+  <div class="fld" style="display:inline-block;width:330px"><label>Status</label><select id="rpCode"><option value="">(no code)</option><option value="A">A &ndash; Approved</option><option value="B">B &ndash; Approved with comments</option><option value="C">C &ndash; Revise and resubmit</option><option value="D">D &ndash; Rejected</option><option value="N">Noted / for information</option></select></div>
+  <div class="fld"><label>Comment</label><input type="text" id="rpNote" placeholder="e.g. Comments on A-102 and A-104, rest approved"></div>
+  <div class="fld"><label>Link or file (optional)</label><div style="display:flex"><input type="text" id="rpLink" placeholder="https://... or a file / folder path" style="flex:1 1 auto;margin:0 8px 0 0"><button class="btn small" id="rpBrowse" style="margin:0">Browse...</button></div></div>
+  <div class="acts"><span class="sp"></span><button class="btn" id="rpCancel">Cancel</button><button class="btn primary" id="rpOk">Save the reply</button></div>
+</div></div>
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso, store, docs = [];
 function load() { store = LT.trLoad(); }
@@ -172,11 +181,33 @@ function logEntry(t) {
 }
 $("bFolder").onclick = fromFolder; $("bPaste").onclick = pasteList; $("bTitles").onclick = function () { fillTitles(false); };
 $("bMake").onclick = make; $("copyFiles").onclick = function () { if (this.checked) $("zipFiles").checked = false; header(); }; $("zipFiles").onclick = function () { if (this.checked) $("copyFiles").checked = false; header(); };
+/* ---------- replies (optional): t.replies = [{ date, code, note, link }] - and the status of the tasks it came from (Delegate, read-only) ---------- */
+var CODES = { A: "Approved", B: "Approved with comments", C: "Revise and resubmit", D: "Rejected", N: "Noted" }, rpFor = null;
+function replyChip(t) { var r = t.replies || []; if (!r.length) return '<span class="muted">Sent</span>'; var L = r[r.length - 1];
+  return '<span class="rpc rp' + (L.code || "x") + '" title="' + esc(L.note || "") + '">Replied' + (L.code ? " &middot; " + esc(L.code) : "") + "</span>" + (r.length > 1 ? ' <span class="muted">' + r.length + "</span>" : ""); }
+function taskStatus() { var d = LT.readJson(LT.dataPath("delegate.json"), null) || { tasks: [] }, o = {};
+  for (var i = 0; i < (d.tasks || []).length; i++) { var t = d.tasks[i], st = t.status, sub = t.subs || []; if (sub.length) { var c = 0, ip = 0; for (var j = 0; j < sub.length; j++) { if (sub[j].status == "Completed") c++; else if (sub[j].status == "In progress") ip++; } st = c == sub.length ? "Completed" : c || ip ? "In progress" : "Not started"; st += " (" + c + "/" + sub.length + " items)"; }
+    o[t.code] = { title: t.title, st: st, who: t.who }; } return o; }
+function replyLog(t, dlg) {
+  var h = "", r = t.replies || [];
+  if (t.tasks && t.tasks.length) { h += '<div class="rtk"><b>From Delegate:</b> '; for (var k = 0; k < t.tasks.length; k++) { var x = dlg[t.tasks[k]]; h += '<span class="rtc">' + esc(t.tasks[k]) + (x ? " &middot; " + esc(x.title) + ' &middot; <b class="' + (/^Completed/.test(x.st) ? "ok" : /^In progress/.test(x.st) ? "warn" : "") + '">' + esc(x.st) + "</b>" : ' <span class="muted">(not in Delegate any more)</span>') + "</span>"; } h += "</div>"; }
+  if (r.length) { h += '<div class="rlog"><b>Replies</b>'; for (var i = r.length - 1; i >= 0; i--) h += '<div><span class="rpc rp' + (r[i].code || "x") + '">' + esc(LT.fmtDate(r[i].date)) + (r[i].code ? " &middot; " + esc(r[i].code) + " " + esc(CODES[r[i].code] || "") : "") + "</span> " + esc(r[i].note || "") + (r[i].link ? ' <span class="mlk" data-ml="' + esc(r[i].link) + '">&#128279; open</span>' : "") + ' <span class="hl rx" data-rpx="' + esc(t.no) + "|" + i + '" title="Remove">&#10005;</span></div>'; h += "</div>"; }
+  return h;
+}
+function openReply(no) { load(); var t = null; for (var i = 0; i < store.log.length; i++) if (store.log[i].no == no) t = store.log[i]; if (!t) return; rpFor = t;
+  var d = new Date(); $("rpTitle").innerHTML = "Reply to " + esc(t.no) + (t.to ? " &ndash; " + esc(t.to) : ""); $("rpDate").value = LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear(); $("rpCode").selectedIndex = 0; $("rpNote").value = ""; $("rpLink").value = ""; $("rpDlg").style.display = "block"; $("rpNote").focus(); }
+$("rpCancel").onclick = function () { $("rpDlg").style.display = "none"; };
+$("rpBrowse").onclick = function () { LT.pickFile(function (p) { $("rpLink").value = p; }); };
+$("rpOk").onclick = function () {
+  var m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/.exec(LT.trim($("rpDate").value)), iso = m ? LT.iso(new Date(+m[3] < 100 ? 2000 + +m[3] : +m[3], +m[2] - 1, +m[1])) : LT.today();
+  var no2 = rpFor.no; load(); for (var i = 0; i < store.log.length; i++) if (store.log[i].no == no2) { var t = store.log[i]; t.replies = t.replies || []; t.replies.push({ date: iso, code: $("rpCode").value, note: LT.trim($("rpNote").value), link: LT.trim($("rpLink").value) }); }
+  save(); $("rpDlg").style.display = "none"; hOpen[no2] = true; histView(); LT.toast("Reply logged on " + no2); };
+
 /* ---------- History: everything that went out ---------- */
 var hOpen = {};
 function pkIcon(t) { var p = t.package || (t.dir && t.copied ? "folder" : "log"); return p == "zip" ? "&#128230; Zip" : p == "folder" ? "&#128193; Folder" : "&#128221; Log only"; }
 function histView() {
-  load(); var q = LT.trim($("hQ").value).toLowerCase(), pk = $("hPk").value, h = ['<table class="grid"><tr><th>TR</th><th>Date</th><th>To</th><th>Purpose</th><th>Items</th><th>Package</th><th>From</th><th></th></tr>'], n = 0, hitItems = 0;
+  load(); var q = LT.trim($("hQ").value).toLowerCase(), pk = $("hPk").value, h = ['<table class="grid"><tr><th>TR</th><th>Date</th><th>To</th><th>Purpose</th><th>Items</th><th>Package</th><th>Reply</th><th>From</th><th></th></tr>'], n = 0, hitItems = 0, dlg = taskStatus();
   for (var i = store.log.length - 1; i >= 0; i--) { var t = store.log[i], items = t.items || [], match = [];
     if (pk && (t.package || "log") != pk) continue;
     if (q) { var head = (t.no + " " + t.to + " " + (t.attn || "") + " " + (t.purpose || "") + " " + (t.notes || "") + " " + (t.source || "") + " " + (t.project || "")).toLowerCase();
@@ -184,8 +215,8 @@ function histView() {
       if (head.indexOf(q) < 0 && !match.length) continue; hitItems += match.length; }
     n++; var open = hOpen[t.no] || match.length;
     h.push('<tr class="hr" data-tr="' + esc(t.no) + '"><td><b>' + esc(t.no) + "</b></td><td>" + esc(LT.fmtDate(t.date)) + " " + esc((t.date || "").substring(0, 4)) + "</td><td>" + esc(t.to || "") + (t.attn ? ' <span class="muted">' + esc(t.attn) + "</span>" : "") + "</td><td>" + esc(t.purpose || "") + "</td><td>" + items.length + (match.length ? ' <span class="ok">(' + match.length + " match)</span>" : "") +
-      "</td><td>" + pkIcon(t) + '</td><td class="muted">' + esc(t.source || (t.tasks ? "Delegate" : "Transmittal tab")) + '</td><td style="white-space:nowrap">' + (t.zip ? '<span class="hl" data-op="' + esc(t.zip) + '" title="Show the zip">&#128230;</span> ' : "") + (t.dir ? '<span class="hl" data-op="' + esc(t.dir) + '" title="Open the folder">&#128194;</span> ' : "") + (t.file ? '<span class="hl" data-of="' + esc(t.file) + '" title="Open the sheet">&#128196;</span>' : "") + "</td></tr>");
-    if (open) { var sub = '<tr class="hi"><td></td><td colspan="7">'; for (var m = 0; m < items.length; m++) sub += '<div' + (match.indexOf(m) >= 0 ? ' class="hit"' : "") + "><b>" + esc(items[m].number) + "</b> " + esc(items[m].rev || "") + ' <span class="muted">' + esc(items[m].title || "") + (items[m].types ? " &middot; " + esc(items[m].types) : "") + "</span></div>";
+      "</td><td>" + pkIcon(t) + "</td><td>" + replyChip(t) + '</td><td class="muted">' + esc(t.source || (t.tasks ? "Delegate" : "Transmittal tab")) + '</td><td style="white-space:nowrap">' + (t.zip ? '<span class="hl" data-op="' + esc(t.zip) + '" title="Show the zip">&#128230;</span> ' : "") + (t.dir ? '<span class="hl" data-op="' + esc(t.dir) + '" title="Open the folder">&#128194;</span> ' : "") + (t.file ? '<span class="hl" data-of="' + esc(t.file) + '" title="Open the sheet">&#128196;</span>' : "") + ' <span class="hl" data-rp="' + esc(t.no) + '" title="Log a reply (only if they reply)">&#8617;</span></td></tr>');
+    if (open) { var sub = '<tr class="hi"><td></td><td colspan="8">' + replyLog(t, dlg); for (var m = 0; m < items.length; m++) sub += '<div' + (match.indexOf(m) >= 0 ? ' class="hit"' : "") + "><b>" + esc(items[m].number) + "</b> " + esc(items[m].rev || "") + ' <span class="muted">' + esc(items[m].title || "") + (items[m].types ? " &middot; " + esc(items[m].types) : "") + "</span></div>";
       h.push(sub + (t.notes ? '<div class="muted">Notes: ' + esc(t.notes) + "</div>" : "") + "</td></tr>"); } }
   h.push("</table>");
   $("hRes").innerHTML = n ? h.join("") : '<div class="muted" style="padding:24px">' + (store.log.length ? "Nothing matches." : "Nothing sent yet. Make a transmittal, or say yes when an export asks <b>Log this to Transmittal?</b>") + "</div>";
@@ -201,6 +232,10 @@ $("hQ").onkeyup = histView; $("hPk").onchange = histView;
 $("hRes").onclick = function (e) { var t = e ? e.target : window.event.srcElement, op = LT.up(t, "data-op"), of = LT.up(t, "data-of"), r = LT.up(t, "data-tr");
   if (op) { try { LT.showInFolder(op.getAttribute("data-op")); } catch (x) { alert("It has moved."); } return; }
   if (of) { try { LT.open(of.getAttribute("data-of")); } catch (x) { alert("The file has moved."); } return; }
+  var rp = LT.up(t, "data-rp"), rx = LT.up(t, "data-rpx");
+  if (rp) { openReply(rp.getAttribute("data-rp")); return; }
+  if (rx) { var pr = rx.getAttribute("data-rpx").split("|"); if (confirm("Remove this reply?")) { load(); for (var z = 0; z < store.log.length; z++) if (store.log[z].no == pr[0]) store.log[z].replies.splice(+pr[1], 1); save(); histView(); } return; }
+  if (LT.up(t, "data-ml")) return;
   if (r) { var no2 = r.getAttribute("data-tr"); hOpen[no2] = !hOpen[no2]; histView(); } };
 $("hCsv").onclick = function () { load(); var t = [["No.", "Date", "To", "Attention", "Purpose", "Package", "From", "Drawing / document", "Rev", "Title", "Types", "Notes"]];
   for (var i = 0; i < store.log.length; i++) { var x = store.log[i]; for (var k = 0; k < (x.items || []).length; k++) { var it = x.items[k]; t.push([x.no, x.date, x.to, x.attn || "", x.purpose || "", x.package || "log", x.source || "", it.number, it.rev || "", it.title || "", it.types || "", x.notes || ""]); } }
@@ -212,7 +247,7 @@ $("docs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data
 function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#docs{background:{panel}}", "#hRes{background:{panel}}tr.hr{cursor:pointer}tr.hi td{background:{bg};font-size:.92em}tr.hi .hit{background:{okSoft}}.hl{cursor:pointer;font-size:1.1em}.hl:hover{opacity:.7}", "#wSteps .ws{background:{panel};color:{muted};border:1px solid {line}}#wSteps .ws i{background:{chip};color:{muted}}#wSteps .ws.on{background:{pill};color:{pillText};border-color:{pill}}#wSteps .ws.on i{background:{accent};color:{accText}}#wSteps .ws.done{color:{text}}#wSteps .ws.done i{background:{ok};color:#fff}",
     ".wc{background:{panel};border:1px solid {line}}.wc .st.sok{background:{okSoft};color:{ok}}.wc .st.swarn{background:{accSoft};color:{warn}}",
     ".gchip.cnew{background:{okSoft};color:{ok}}.gchip.crev{background:{accSoft};color:{text}}.gchip.csame{background:{chip};color:{warn}}.gchip.cbad{background:{chip};color:{bad}}",
-    ".pk{background:{panel};border:2px solid {line}}.pk:hover{border-color:{accent}}.pk.on{border-color:{accent};box-shadow:0 0 0 3px {accSoft}}#wFoot{border-top:1px solid {line}}#wBody .btn{margin:0 8px 6px 0}", "td.rc{font-size:.88em}td.rc.bad{color:{bad};font-weight:bold}td.rc.warn{color:{warn}}td.rc.ok{color:{ok}}td.rc.new{color:{muted}}"]); }
+    ".pk{background:{panel};border:2px solid {line}}.pk:hover{border-color:{accent}}.pk.on{border-color:{accent};box-shadow:0 0 0 3px {accSoft}}#wFoot{border-top:1px solid {line}}#wBody .btn{margin:0 8px 6px 0}", ".rpc{display:inline-block;padding:1px 9px;border-radius:99px;font-size:.82em;font-weight:600;background:{chip}}.rpc.rpA{background:{okSoft};color:{ok}}.rpc.rpB{background:{okSoft};color:{ok}}.rpc.rpC{background:{warnSoft};color:{warn}}.rpc.rpD{background:{badSoft};color:{bad}}.rtk,.rlog{margin:4px 0 8px}.rtc{display:inline-block;margin:0 10px 4px 0}.rlog div{margin:3px 0}.rx{font-size:.85em;color:{muted}}", "td.rc{font-size:.88em}td.rc.bad{color:{bad};font-weight:bold}td.rc.warn{color:{warn}}td.rc.ok{color:{ok}}td.rc.new{color:{muted}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); header(); if ($("hist").style.display != "none") histView(); };
 /* from Folder Check (Submission check view): "add-files" with a JSON list of file paths */
 window.ltReceive = function (what, value) { if (what == "view") { setTv(value); return; } if (what == "reload") { load(); header(); histView(); return; } if (what == "add-files") { try { var n = addFiles(JSON.parse(value)); LT.toast(n + " document(s) added from Folder Check"); fillTitles(true); } catch (e) { } } };

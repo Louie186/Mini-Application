@@ -81,6 +81,7 @@ table.cal td.busy .ev{display:inline-block;margin-right:3px;max-width:100%}.evc{
   </div>
   <div id="main"></div>
 </div>
+<div id="nd" style="display:none"><div id="ndH"></div><div id="ndL"></div></div>
 
 <div class="ov" id="dlg"><div class="card">
   <h3 id="dTitle">Task</h3>
@@ -93,8 +94,8 @@ table.cal td.busy .ev{display:inline-block;margin-right:3px;max-width:100%}.evc{
     <div class="fld"><label>Due (click to pick, or type dd/mm/yyyy; empty = no date)</label><input type="text" id="eDue"></div>
   </div>
   <div class="row2">
-    <div class="fld"><label>Priority</label><select id="ePrio"><option>High</option><option selected>Normal</option><option>Low</option></select></div>
-    <div class="fld"><label>Status</label><select id="eStat"><option>To do</option><option>Doing</option><option>Waiting</option><option>Done</option></select></div>
+    <div class="fld"><label>Priority</label><select id="ePrio"><option value="High">High</option><option value="Normal" selected>Normal</option><option value="Low">Low</option></select></div>
+    <div class="fld"><label>Status</label><select id="eStat"><option value="To do">To do</option><option value="Doing">Doing</option><option value="Waiting">Waiting</option><option value="Done">Done</option></select></div>
   </div>
   <div class="row2">
     <div class="fld"><label>Who does it (empty = me; a person or a group)</label><input type="text" id="eAssign" list="pplList" placeholder="me"></div>
@@ -290,7 +291,7 @@ function render() {
     h += '<button class="btn' + (data.view == k ? " on" : "") + (k == "overdue" && n > 0 ? " late" : "") + '" data-v="' + k + '">' + VIEWS[v][1] + (n >= 0 ? " &nbsp;" + n : "") + "</button>"; }
   $("views").innerHTML = h;
   if (data.view == "board") board(); else if (data.view == "cal") cal(); else list();
-  timer();
+  timer(); tray();
 }
 function list() {
   shown = pick(data.view);
@@ -453,6 +454,42 @@ function timer() {
   $("bStop").style.display = "";
 }
 
+/* a drop-down shows the value even in the HTA (Internet Explorer) window: picks the option by its value or text, else the default */
+function setSel(sel, val, def) { var o = sel.options, i, hit = -1; for (i = 0; i < o.length; i++) if (o[i].value == val || o[i].text == val) hit = i;
+  if (hit < 0) for (i = 0; i < o.length; i++) if (o[i].value == def || o[i].text == def) hit = i; sel.selectedIndex = Math.max(0, hit); }
+
+/* ---------- Needs details: a floating tray with the open tasks that have no date or no project ---------- */
+var dragTask = null;
+function needs() { var o = [], a = data.tasks; for (var i = 0; i < a.length; i++) { var t = a[i]; if (t.status == "Done" || t.noDetails || t.delegated) continue; if (!t.due || !t.project) o.push(t); } return o; }
+function tray() {
+  var n = needs(), box = $("nd"); if (!n.length) { box.style.display = "none"; return; } box.style.display = "block";
+  var open = data.ndOpen !== false;
+  $("ndH").innerHTML = '<b>&#9998; Needs details</b> <span class="ndn">' + n.length + '</span><span class="ndt">' + (open ? "&#8211;" : "+") + "</span>";
+  if (!open) { $("ndL").style.display = "none"; return; } $("ndL").style.display = "";
+  var h = '<div class="muted ndhint">Fill in what\'s missing, or drag a task onto a calendar day / board column.</div>';
+  for (var i = 0; i < n.length && i < 12; i++) { var t = n[i];
+    h += '<div class="ndi" data-nd="' + esc(t.id) + '" draggable="true"><div class="ndt1"><b title="Double-click = all details">' + esc(t.title) + '</b><span class="ndx" data-ndx="' + esc(t.id) + '" title="Doesn\'t need a date or project - stop asking">&#10005;</span></div>' +
+      '<div class="ndf"><input type="text" data-ndd="' + esc(t.id) + '" placeholder="' + (t.due ? esc(nice(t.due)) : "Due dd/mm") + '"' + (t.due ? ' disabled title="Has a date"' : "") + '><input type="text" data-ndp="' + esc(t.id) + '" list="projList" placeholder="' + (t.project ? esc(t.project) : "Project") + '"' + (t.project ? " disabled" : "") + '>' +
+      '<select data-ndr="' + esc(t.id) + '"><option value="High"' + (t.priority == "High" ? " selected" : "") + '>High</option><option value="Normal"' + (t.priority != "High" && t.priority != "Low" ? " selected" : "") + '>Normal</option><option value="Low"' + (t.priority == "Low" ? " selected" : "") + '>Low</option></select><button class="btn small" data-nds="' + esc(t.id) + '">&#10003;</button></div></div>'; }
+  if (n.length > 12) h += '<div class="muted ndhint">&hellip; and ' + (n.length - 12) + " more</div>";
+  $("ndL").innerHTML = h;
+}
+function byId(id) { for (var i = 0; i < data.tasks.length; i++) if (data.tasks[i].id == id) return data.tasks[i]; return null; }
+function ndSave(id) {
+  var t = byId(id); if (!t) return; var row = LT.up($("nd").querySelector('[data-nds="' + id + '"]'), "data-nd"), q = function (a) { return row.querySelector("[" + a + '="' + id + '"]'); };
+  var dv = LT.trim(q("data-ndd").value), pv = LT.trim(q("data-ndp").value), due = dv ? parseDate(dv) : "";
+  if (due === null) { alert("The date isn't clear - use dd/mm (or dd/mm/yyyy)."); return; }
+  var what = []; if (due) { t.due = due; what.push("due " + LT.fmtDate(due)); } if (pv) { t.project = pv; what.push(pv); } t.priority = q("data-ndr").value;
+  if (what.length) LT.taskEvent(t, "Details added: " + what.join(", ")); save(); render(); LT.toast((t.code || t.title) + (what.length ? ": " + what.join(" · ") : " saved"));
+}
+$("nd").onclick = function (e) { var t = e.target || e.srcElement, s2 = LT.up(t, "data-nds"), x = LT.up(t, "data-ndx");
+  if ((function (x) { while (x && x.id != "nd") { if (x.id == "ndH") return true; x = x.parentNode; } return false; })(t)) { data.ndOpen = data.ndOpen === false; save(); tray(); return; }
+  if (s2) { ndSave(s2.getAttribute("data-nds")); return; }
+  if (x) { var tk = byId(x.getAttribute("data-ndx")); if (tk) { tk.noDetails = true; save(); render(); LT.toast("Won't ask about it again", function () { tk.noDetails = false; save(); render(); }); } } };
+$("nd").onkeydown = function (e) { e = e || window.event; if (e.keyCode != 13) return; var t = e.target || e.srcElement, id = t.getAttribute("data-ndd") || t.getAttribute("data-ndp"); if (id) { ndSave(id); return false; } };
+$("nd").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "data-nd"); if (r && (e.target || e.srcElement).tagName != "INPUT") edit(byId(r.getAttribute("data-nd"))); };
+$("nd").ondragstart = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-nd"); if (!r) return; dragTask = byId(r.getAttribute("data-nd")); dragI = null; try { e.dataTransfer.setData("text", "nd"); e.dataTransfer.effectAllowed = "copyMove"; } catch (x) { } };
+
 /* ---------- edit dialog ---------- */
 function edit(t, preset) {
   if (t && t.fromDelegate) return;
@@ -463,7 +500,7 @@ function edit(t, preset) {
   LT.refEditor($("eRefs"), work.refs); subRef = -1; $("subRefs").style.display = "none"; drawSubs();
   $("eDeleg").style.display = work.delegated ? "none" : ""; mpButtons();
   $("eTitle").value = work.title; $("eProj").value = work.project; $("eDue").value = work.due ? (function (d) { return LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear(); })(D(work.due)) : "";
-  $("ePrio").value = work.priority; $("eStat").value = work.status; $("eWho").value = work.waitingOn; $("eRep").value = work.repeat || ""; $("eNotes").value = work.notes || ""; $("eAddH").value = "";
+  setSel($("ePrio"), work.priority, "Normal"); setSel($("eStat"), work.status, "To do"); $("eWho").value = work.waitingOn; $("eRep").value = work.repeat || ""; $("eNotes").value = work.notes || ""; $("eAddH").value = "";
   showTime(); $("eDel").style.display = t ? "" : "none";
   $("dlg").style.display = "block"; $("eTitle").focus();
 }
@@ -775,7 +812,8 @@ function exportMenu(x, y) {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}", ".tfn{background:{bg};border-left:3px solid {accent};border-radius:{r}px}", "#tfDrop{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}", ".tfc:hover{color:{accent}}",
+function look() { LT.applyLook(["#nd{position:fixed;right:16px;bottom:16px;width:330px;max-height:60%;overflow:auto;z-index:40;background:{panel};border:1px solid {line};border-radius:16px;box-shadow:{big}}#ndH{position:sticky;top:0;padding:10px 14px;cursor:pointer;background:{panel};border-bottom:1px solid {line};display:flex;align-items:center}#ndH .ndn{background:{accent};color:{accText};border-radius:99px;padding:0 8px;font-size:.8em;font-weight:700;margin-left:8px}#ndH .ndt{margin-left:auto;color:{muted};font-weight:700}",
+    ".ndhint{font-size:.82em;padding:6px 14px 2px}.ndi{padding:8px 14px;border-bottom:1px solid {line};cursor:grab}.ndi:last-child{border-bottom:0}.ndt1{display:flex}.ndt1 b{flex:1 1 auto;font-weight:600}.ndx{cursor:pointer;color:{muted};margin-left:8px}.ndx:hover{color:{bad}}.ndf{display:flex;margin-top:6px}.ndf input{width:86px;height:28px;margin:0 6px 0 0;padding:0 8px}.ndf input+input{width:96px}.ndf select{width:78px;height:28px;margin:0 6px 0 0;padding:0 6px}.ndf .btn{margin:0;height:28px}","td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}", ".tfn{background:{bg};border-left:3px solid {accent};border-radius:{r}px}", "#tfDrop{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}", ".tfc:hover{color:{accent}}",
   "table.cal th{color:{muted};border-bottom:{bw}px solid {line}}table.cal td{border:1px solid {line}}table.cal td.cur{background:{panel}}table.cal td.cur .n{color:{text}}table.cal td.cur.we{background:{panel};box-shadow:inset 0 0 0 999px rgba(128,128,128,.04)}",
   "table.cal td.oth{background:{chip};box-shadow:inset 0 0 0 999px rgba(128,128,128,.10)}table.cal td.oth .n{color:{muted};font-weight:normal}table.cal td.oth .ev{opacity:.5}",
   "table.cal td.tdy{background:{hover};box-shadow:inset 0 0 0 2px {accent}}table.cal td.tdy .n{color:{accent}}table.cal td.tdy .tn{background:{accent};color:{accText}}table.cal td .cnt{background:{chip};color:{muted}}table.cal td.tdy .cnt{background:{accent};color:{accText}}table.cal td.over{background:{hover};outline:2px dashed {accent}}",
@@ -795,14 +833,15 @@ $("main").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "d
 $("main").oncontextmenu = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-i"); if (r) taskMenu(shown[+r.getAttribute("data-i")], e.clientX, e.clientY); return false; };
 /* board: drag a card to another column */
 var dragI = null;
-$("main").ondragstart = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-i"); if (!c) return; dragI = +c.getAttribute("data-i"); try { e.dataTransfer.setData("text", "" + dragI); e.dataTransfer.effectAllowed = "copyMove"; } catch (x) { } };
+$("main").ondragstart = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-i"); if (!c) return; dragTask = null; dragI = +c.getAttribute("data-i"); try { e.dataTransfer.setData("text", "" + dragI); e.dataTransfer.effectAllowed = "copyMove"; } catch (x) { } };
 function dayOver(td, on) { if (td) td.className = td.className.replace(/ ?over/g, "") + (on ? " over" : ""); }
 $("main").ondragover = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col || day) { if (day) { try { e.dataTransfer.dropEffect = e.ctrlKey ? "copy" : "move"; } catch (x) { } } if (e.preventDefault) e.preventDefault(); e.returnValue = false; } return false; };
 $("main").ondragenter = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col) { if (e.preventDefault) e.preventDefault(); col.className = "col over"; } if (day) { if (e.preventDefault) e.preventDefault(); dayOver(day, true); } return false; };
 $("main").ondragleave = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col) col.className = "col"; if (day && el === day) dayOver(day, false); };
 $("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault();
-  var day = LT.up(e.target || e.srcElement, "data-day"); if (day) { var di = dragI; dragI = null; dropDay(di != null ? shown[di] : null, day.getAttribute("data-day"), !!e.ctrlKey); return false; }
-  var col = LT.up(e.target || e.srcElement, "data-st"); if (col && dragI != null && shown[dragI]) { var st = col.getAttribute("data-st"), t = shown[dragI]; dragI = null; if (t.status != st) setStatus(t, st); else render(); } return false; };
+  var day = LT.up(e.target || e.srcElement, "data-day"); if (day) { var di = dragI, dt = dragTask; dragI = null; dragTask = null; dropDay(di != null ? shown[di] : dt, day.getAttribute("data-day"), !!e.ctrlKey && !dt); return false; }
+  var col = LT.up(e.target || e.srcElement, "data-st"); if (col && dragI == null && dragTask) { var t2 = dragTask; dragTask = null; if (t2.status != col.getAttribute("data-st")) setStatus(t2, col.getAttribute("data-st")); else render(); return false; }
+  if (col && dragI != null && shown[dragI]) { var st = col.getAttribute("data-st"), t = shown[dragI]; dragI = null; if (t.status != st) setStatus(t, st); else render(); } return false; };
 $("eOk").onclick = function () { saveEdit(); };
 $("eDeleg").onclick = function () { if (!LT.trim($("eAssign").value)) { alert("Fill in who does it first (a person or a group)."); return; } saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) delegate(t); } };
 $("eTF").onclick = function () { saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) openTF(t); } };

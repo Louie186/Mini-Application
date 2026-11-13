@@ -59,6 +59,14 @@
   /* Ctrl+V: whatever is on the clipboard goes into <dir>\<sub> -
      files / folders copied in Explorer (Ctrl+C) are copied in; a picture (snip) is saved as a PNG.
      Returns { kind: "files" | "image" | "", added: [names], errors: [] } */
+  /* the files / folders copied in Explorer (Ctrl+C): just their full paths - nothing is copied */
+  L.clipPaths = function () {
+    var lst = L.env("%TEMP%") + "\\lt-clipp-" + new Date().getTime() + ".txt", q = function (x) { return x.replace(/'/g, "''"); }, paths = [];
+    var ps = "Add-Type -AssemblyName System.Windows.Forms; $f=[Windows.Forms.Clipboard]::GetFileDropList(); if($f.Count){[IO.File]::WriteAllLines('" + q(lst) + "',[string[]]$f,[Text.Encoding]::Unicode)}";
+    L.wsh.Run('powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -Command "' + ps.replace(/"/g, '\\"') + '"', 0, true);
+    if (fso.FileExists(lst)) { try { var t = fso.OpenTextFile(lst, 1, false, -1); paths = (t.AtEndOfStream ? "" : t.ReadAll()).split(/\r?\n/); t.Close(); fso.DeleteFile(lst); } catch (e) { } }
+    var o = []; for (var i = 0; i < paths.length; i++) if (L.trim(paths[i])) o.push(L.trim(paths[i])); return o;
+  };
   L.tfPaste = function (dir, sub) {
     var d = new Date(), b = "Screenshot " + L.iso(d) + " " + L.pad(d.getHours()) + L.pad(d.getMinutes()) + L.pad(d.getSeconds()), nm = b + ".png", n = 1;
     while (fso.FileExists(dir + "\\" + sub + "\\" + nm)) nm = b + " (" + (++n) + ").png";

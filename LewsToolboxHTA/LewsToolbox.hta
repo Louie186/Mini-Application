@@ -459,7 +459,10 @@ function remindData() {
 }
 /* ---------- in the background (every 10 minutes): watched folders, the automatic weekly report ---------- */
 function background() {
-  try { var before = LT.watchPending(), n = LT.watchScan(); if (n > before) { LT.$("bellB").className = "tb glow"; LT.toast((n - before) + " new / changed file" + (n - before > 1 ? "s" : "") + " in the folders you watch"); try { frames.home.contentWindow.ltReload(); } catch (e) { } } } catch (e2) { }
+  try { var before = LT.watchPending(), n = LT.watchScan(), mt = LT.watchMatch();
+    if (n > before) { LT.$("bellB").className = "tb glow"; LT.toast((n - before) + " new / changed file" + (n - before > 1 ? "s" : "") + " in the folders you watch"); }
+    if (mt.length) { LT.toast("Output received: " + mt.slice(0, 3).map(function (x) { return x.code; }).join(", ") + (mt.length > 3 ? "..." : "") + " (Delegate)"); try { frames.delegate.contentWindow.ltReload(); } catch (e) { } }
+    if (n != before || mt.length) try { frames.home.contentWindow.ltReload(); } catch (e) { } } catch (e2) { }
   try { autoReport(); } catch (e3) { }
   bell();
 }

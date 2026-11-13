@@ -110,7 +110,7 @@ function refresh() {
   var tl = LT.main() ? LT.main().tabList() : [], th = "";
   for (var t = 0; t < tl.length; t++) th += '<tr><td style="white-space:nowrap"><b>' + tl[t].icon + " " + LT.esc(tl[t].title) + '</b></td><td class="muted">' + tl[t].desc + "</td></tr>";
   LT.$("tabList").innerHTML = th;
-  LT.$("about").innerHTML = "Lew's Toolbox (HTA) &middot; program folder: " + LT.esc(LT.appDir()) + " &middot; settings for this PC: " + LT.esc(LT.settingsFile());
+  LT.$("about").innerHTML = "Lew's Toolbox (HTA) &middot; <b>version " + LT.VERSION + "</b> &middot; program folder: " + LT.esc(LT.appDir()) + " &middot; settings for this PC: " + LT.esc(LT.settingsFile());
 }
 function save(fn) { var s = LT.settings(); fn(s); LT.saveSettings(s); refresh(); }
 function look() { LT.applyLook(); }

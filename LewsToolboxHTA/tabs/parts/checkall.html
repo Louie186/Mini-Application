@@ -30,6 +30,7 @@
 </head>
 <body>
 <div id="app">
+  <div class="step bar" id="saved"></div>
   <div class="step bar">
     <span class="num">1</span><span class="lbl"><b>Checklist</b></span><button class="btn" id="bSrc">Pick &#9662;</button><span class="path" id="srcLbl"></span>
     <span class="lbl">Each drawing needs:</span><input type="text" id="need" style="width:110px;margin:0 8px 6px 0" placeholder="pdf, dwg" title="File types every drawing must have (empty = any). A Format column in the list wins.">
@@ -133,9 +134,34 @@ function run() {
     rows.push(row); }
   var extra = []; for (var x = 0; x < f2.length; x++) if (!onList[f2[x].base]) { if (rule) f2[x].probs = LT.nameCheck(f2[x].stem, rule); extra.push(f2[x]); }
   R = { rows: rows, extra: extra, f2: f2, qty: qty, at: LT.today(), hasF1: !!i1, rule: rule ? rule.name : "" };
-  filter = "all"; render();
+  filter = "all"; render(); savedResult();
 }
 /* what Folder 1 can give to fix a row: the wanted revision (or its latest) in the needed file types not in Folder 2 yet */
+/* ---------- saved checks: the checklist + folders + settings under a name, run again in one click ---------- */
+var KEEP = ["src", "f1", "f2", "need", "subs", "names"];
+function summary() { var ok = 0, bad = 0; for (var i = 0; i < R.rows.length; i++) if (R.rows[i].st == "OK") ok++; else bad++; return ok + " of " + R.rows.length + " OK" + (bad ? " · " + bad + " to fix" : "") + (R.extra.length ? " · " + R.extra.length + " extra" : ""); }
+function savedRow() {
+  var a = cfg.saved || [], h = '<span class="lbl"><b>Saved checks</b></span>';
+  for (var i = 0; i < a.length; i++) h += '<span class="sv' + (a[i].name == cfg.cur ? " on" : "") + '" data-sv="' + i + '" title="' + esc((a[i].f2 || "") + (a[i].last ? "\n" + a[i].last : "")) + '">' + esc(a[i].name) + (a[i].last ? ' <small>' + esc(a[i].last) + (a[i].at ? " · " + esc(LT.fmtDate(a[i].at)) : "") + "</small>" : "") + '<i data-svx="' + i + '" title="Delete">&#10005;</i></span>';
+  if (!a.length) h += '<span class="lbl muted">Set it up once, save it, then run it again with one click (e.g. "Tower 1 IFC to client").</span>';
+  $("saved").innerHTML = h + '<button class="btn small" id="bSave">+ Save this check...</button>';
+  $("bSave").onclick = saveCheck;
+}
+function saveCheck() {
+  save(); if (!cfg.f2) { alert("Pick Folder 2 first."); return; }
+  var n = prompt("A name for this check:", cfg.cur || (cfg.src && cfg.src.name) || fso.GetFileName(cfg.f2)); if (!n) return; n = LT.trim(n);
+  cfg.saved = cfg.saved || []; var x = null; for (var i = 0; i < cfg.saved.length; i++) if (cfg.saved[i].name.toLowerCase() == n.toLowerCase()) x = cfg.saved[i];
+  if (!x) { x = { name: n }; cfg.saved.push(x); } for (var k = 0; k < KEEP.length; k++) x[KEEP[k]] = cfg[KEEP[k]] === undefined ? null : JSON.parse(JSON.stringify(cfg[KEEP[k]]));
+  if (R) { x.last = summary(); x.at = LT.today(); } cfg.cur = n; save(); savedRow(); LT.toast('Saved "' + n + '"');
+}
+function runSaved(i) {
+  var x = cfg.saved[i]; for (var k = 0; k < KEEP.length; k++) if (x[KEEP[k]] !== undefined) cfg[KEEP[k]] = x[KEEP[k]] === null ? undefined : JSON.parse(JSON.stringify(x[KEEP[k]]));
+  cfg.cur = x.name; LT.saveJson(FILE(), cfg); show(); savedRow();
+  if (!cfg.f2 || !fso.FolderExists(cfg.f2)) { alert("Folder 2 of this check isn't there any more:\n" + (cfg.f2 || "")); return; }
+  $("bRun").onclick();
+}
+function savedResult() { if (!cfg.cur || !cfg.saved) return; for (var i = 0; i < cfg.saved.length; i++) if (cfg.saved[i].name == cfg.cur && cfg.saved[i].f2 == cfg.f2) { cfg.saved[i].last = summary(); cfg.saved[i].at = LT.today(); try { LT.saveJson(FILE(), cfg); } catch (e) { } } savedRow(); }
+
 function collectFor(row, one) {
   if (!one.length) return []; var rev = row.it.rev || latest(one), need = row.it.need.length ? row.it.need : exts(cfg.need), out = [];
   for (var i = 0; i < one.length; i++) { var f = one[i]; if (f.rev.toUpperCase() != rev.toUpperCase()) continue; if (need.length && need.indexOf(f.ext) < 0) continue; if (row.types.indexOf(f.ext) >= 0 && row.rev.toUpperCase() == rev.toUpperCase()) continue; out.push(f); }
@@ -221,15 +247,19 @@ $("bF1x").onclick = function () { cfg.f1 = ""; save(); show(); };
 $("bRun").onclick = run; $("bCollect").onclick = collect; $("bOld").onclick = moveOld;
 $("need").onchange = save; $("subs").onclick = save; $("names").onclick = save;
 $("cards").onclick = function (e) { var c = LT.up(e ? e.target : window.event.srcElement, "data-cf"); if (c) { filter = c.getAttribute("data-cf"); render(); } };
+$("saved").onclick = function (e) { var t = e.target || e.srcElement, x = LT.up(t, "data-svx"), v = LT.up(t, "data-sv");
+  if (x) { var i = +x.getAttribute("data-svx"); if (confirm('Delete the saved check "' + cfg.saved[i].name + '"?')) { if (cfg.saved[i].name == cfg.cur) cfg.cur = ""; cfg.saved.splice(i, 1); save(); savedRow(); } return; }
+  if (v) runSaved(+v.getAttribute("data-sv")); };
 $("pCancel").onclick = function () { $("pasteDlg").style.display = "none"; };
 $("pOk").onclick = function () { var ls = $("pText").value.split(/\r?\n/), o = []; for (var i = 0; i < ls.length; i++) if (LT.trim(ls[i])) o.push(LT.trim(ls[i])); if (!o.length) return; cfg.src = { kind: "paste", lines: o }; save(); show(); $("pasteDlg").style.display = "none"; };
 function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{background:{panel}}", "#qty{border-bottom:1px solid {line}}",
+  "#saved .sv{display:inline-block;margin:0 8px 6px 0;padding:5px 8px 5px 14px;border-radius:99px;cursor:pointer;font-weight:600;background:{panel};border:1px solid {line};vertical-align:middle}#saved .sv:hover{border-color:{accent}}#saved .sv.on{background:{pill};color:{pillText};border-color:{pill}}#saved .sv small{font-weight:400;opacity:.75;margin-left:6px}#saved .sv i{font-style:normal;margin-left:8px;opacity:.45;font-size:.85em;padding:0 4px}#saved .sv i:hover{opacity:1;color:{bad}}",
   ".cd{background:{panel};border:{bw}px solid {line};border-radius:{r}px}.cd:hover{border-color:{accent}}.cd.on{box-shadow:inset 0 -3px 0 {accent};border-color:{accent}}.cd.c-ok b{color:{ok}}.cd.c-bad b{color:{bad}}.cd.c-warn b{color:{warn}}.cd.c-zero b{color:{muted}}"]); }
 window.ltTheme = function () { look(); render(); };
 window.ltReload = function () { load(); show(); };
 /* from Folder Check: a folder picked in another view = Folder 2 (when none yet) */
 window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value) && !cfg.f2) { cfg.f2 = value; save(); show(); } };
-look(); load(); show(); render(); LT.tabKeys();
+look(); load(); show(); savedRow(); render(); LT.tabKeys();
 </script>
 </body>
 </html>

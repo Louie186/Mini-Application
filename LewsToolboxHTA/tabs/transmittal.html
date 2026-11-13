@@ -24,6 +24,14 @@
 #head .fld.w{width:470px}
 #docs input{width:100%;height:26px}
 #docs td{padding:2px 4px}
+#wSteps{flex:none;display:flex;padding:14px 20px 4px}#wSteps .ws{flex:1 1 0;display:flex;align-items:center;margin-right:8px;padding:8px 14px;border-radius:99px;cursor:pointer;font-weight:600;white-space:nowrap;overflow:hidden}
+#wSteps .ws i{font-style:normal;display:inline-block;width:22px;height:22px;line-height:22px;text-align:center;border-radius:50%;margin-right:8px;font-size:.85em;flex:none}
+#wBody{flex:1 1 auto;overflow:auto;min-height:0;padding:12px 20px 20px}#wBody h2{margin:4px 0 4px}#wBody .lead{margin-bottom:14px}
+.wc{border-radius:16px;padding:14px 16px;margin:0 0 12px}.wc h4{margin:0 0 6px;font-size:1em;display:flex;align-items:center}.wc h4 .st{margin-left:auto;font-size:.8em;padding:2px 10px;border-radius:99px}
+.wc .ln{font-size:.9em;margin:2px 0}.wgrid{display:flex;flex-wrap:wrap;margin:0 -6px}.wgrid .wc{flex:1 1 300px;margin:0 6px 12px}
+.wf{display:inline-block;width:260px;margin:0 12px 10px 0;vertical-align:top}.wf.w{width:532px;max-width:100%}
+.pk{display:inline-block;width:220px;margin:0 10px 10px 0;padding:14px 16px;border-radius:16px;cursor:pointer;vertical-align:top}.pk b{display:block;margin-bottom:4px}
+.gchip{display:inline-block;padding:3px 10px;border-radius:99px;margin:0 6px 6px 0;font-size:.85em;font-weight:600}
 .right{float:right}
 </style>
 <script src="../core/lt-core.js"></script>
@@ -31,12 +39,17 @@
 </head>
 <body>
 <div id="app">
-  <div class="step vtabs" id="tvBar"><button class="btn on" data-tv="new">&#9993; New transmittal</button><button class="btn" data-tv="hist">&#128220; History <span id="hN"></span></button></div>
+  <div class="step vtabs" id="tvBar"><button class="btn" data-tv="wiz" title="Step by step: what, to whom, the checks, how to send">&#128640; Issue wizard</button><button class="btn on" data-tv="new">&#9993; New transmittal</button><button class="btn" data-tv="hist">&#128220; History <span id="hN"></span></button></div>
   <div id="hist" style="display:none;flex:1 1 auto;min-height:0;flex-direction:column">
     <div class="step bar"><input type="text" id="hQ" placeholder="Search: a drawing number, TR-005, a company, a word in the notes..." style="width:420px;margin:0 8px 6px 0">
       <select id="hPk" style="width:150px;height:26px;margin:0 8px 6px 0"><option value="">Every package</option><option value="log">&#128221; Log only</option><option value="zip">&#128230; Zip</option><option value="folder">&#128193; Folder</option></select>
       <span class="lbl muted" id="hInfo"></span><span class="right"><button class="btn small" id="hCsv">Export (CSV)</button></span></div>
     <div id="hRes" style="flex:1 1 auto;overflow:auto;min-height:0"></div>
+  </div>
+  <div id="wiz" style="display:none;flex:1 1 auto;min-height:0;flex-direction:column">
+    <div id="wSteps"></div>
+    <div id="wBody"></div>
+    <div class="step bar" id="wFoot"><button class="btn" id="wBack">&lsaquo; Back</button><span class="lbl muted" id="wInfo"></span><span class="right"><button class="btn primary" id="wNext">Next &rsaquo;</button></span></div>
   </div>
   <div class="step bar" id="head">
     <span class="num">1</span><span class="lbl big" id="noLbl"></span><span class="lbl muted" id="dateLbl"></span><span class="right"><button class="btn small" id="bLog">Sent log &#9662;</button><button class="btn small" id="bNew">New transmittal</button></span><br>
@@ -118,8 +131,15 @@ function render() {
     h.push("<tr><td>" + (i + 1) + '</td><td><input type="text" data-i="' + i + '" data-k="number" value="' + esc(d.number) + '"></td><td><input type="text" data-i="' + i + '" data-k="title" value="' + esc(d.title) + '"></td><td><input type="text" data-i="' + i + '" data-k="rev" value="' + esc(d.rev) + '"></td><td><input type="text" data-i="' + i + '" data-k="types" value="' + esc(d.types.join(", ")) + '"></td>' + LT.dwgCell(d.number) + '<td class="rc ' + rc.level + '">' + esc(rc.text) + '</td><td><button class="btn small" data-rm="' + i + '" style="margin:0">&#10005;</button></td></tr>'); }
   h.push("</table>");
   $("docs").innerHTML = docs.length ? h.join("") : '<div class="muted" style="padding:24px;line-height:1.8">Add the documents: <b>From a folder</b>, <b>Paste a list</b>, or in <b>Folder Check</b> (Submission check) use <b>Report &#9662; &gt; Make a transmittal</b>. Delegating a task in <b>Delegate</b> makes one by itself.<br>Titles can be filled from your list (the one set up in Folder Check).</div>';
-  $("cnt").innerHTML = docs.length ? docs.length + " document(s)" + (nBad ? ' &middot; <span class="bad">&#9888; ' + nBad + " revision problem" + (nBad > 1 ? "s" : "") + "</span>" : "") : "";
+  var sl = docs.length ? LT.sinceLast(docs, LT.trim($("hTo").value), store) : null, g = sl && sl.groups;
+  $("cnt").innerHTML = docs.length ? docs.length + " document(s)" + (nBad ? ' &middot; <span class="bad">&#9888; ' + nBad + " revision problem" + (nBad > 1 ? "s" : "") + "</span>" : "") +
+    ' &middot; since the last issue' + (LT.trim($("hTo").value) ? " to " + esc(LT.trim($("hTo").value)) : "") + ": <b>" + g["new"].length + "</b> new, <b>" + g.revised.length + "</b> revised" + (g.same.length ? ', <span class="warn"><b>' + g.same.length + '</b> already sent</span> <a href="#" id="dropSame">leave them out</a>' : "") : "";
+  if ($("dropSame")) $("dropSame").onclick = function () { dropSame(); return false; };
 }
+
+/* leave out what was already sent with the same revision (to this recipient, or to anyone) */
+function dropSame(to) { var g = LT.sinceLast(docs, to != null ? to : LT.trim($("hTo").value), store).groups, n = g.same.length; if (!n) return 0;
+  for (var i = docs.length - 1; i >= 0; i--) if (g.same.indexOf(docs[i]) >= 0) docs.splice(i, 1); render(); LT.toast(n + " already-sent document(s) left out"); return n; }
 
 /* ---------- make it ---------- */
 function make() {
@@ -173,8 +193,9 @@ function histView() {
   $("hN").innerHTML = store.log.length ? "&nbsp;" + store.log.length : "";
 }
 function setTv(v) { var bs = $("tvBar").getElementsByTagName("button"); for (var i = 0; i < bs.length; i++) bs[i].className = "btn" + (bs[i].getAttribute("data-tv") == v ? " on" : "");
-  var kids = $("app").children; for (var k = 0; k < kids.length; k++) if (kids[k].id != "tvBar" && kids[k].id != "hist") kids[k].style.display = v == "hist" ? "none" : "";
-  $("hist").style.display = v == "hist" ? "flex" : "none"; if (v == "hist") histView(); }
+  var kids = $("app").children; for (var k = 0; k < kids.length; k++) if (kids[k].id != "tvBar" && kids[k].id != "hist" && kids[k].id != "wiz") kids[k].style.display = v == "new" ? "" : "none";
+  $("hist").style.display = v == "hist" ? "flex" : "none"; if (v == "hist") histView();
+  $("wiz").style.display = v == "wiz" ? "flex" : "none"; if (v == "wiz") wizShow(); else if (v == "new") render(); }
 $("tvBar").onclick = function (e) { var b = LT.up(e ? e.target : window.event.srcElement, "data-tv"); if (b) setTv(b.getAttribute("data-tv")); };
 $("hQ").onkeyup = histView; $("hPk").onchange = histView;
 $("hRes").onclick = function (e) { var t = e ? e.target : window.event.srcElement, op = LT.up(t, "data-op"), of = LT.up(t, "data-of"), r = LT.up(t, "data-tr");
@@ -188,10 +209,117 @@ $("bNew").onclick = function () { if (docs.length && !confirm("Clear the documen
 $("bLog").onclick = function (e) { var r = this.getBoundingClientRect(); logMenu(r.left - 200, r.bottom + 2); (e || window.event).cancelBubble = true; };
 $("docs").onchange = function (e) { var t = e.target || e.srcElement, i = t.getAttribute && t.getAttribute("data-i"); if (i == null) return; var k = t.getAttribute("data-k"); docs[+i][k] = k == "types" ? LT.trim(t.value).split(/\s*,\s*/) : k == "rev" ? LT.trim(t.value).toUpperCase() : LT.trim(t.value); if (k == "rev" || k == "number") render(); };
 $("docs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-rm"); if (b) { docs.splice(+b.getAttribute("data-rm"), 1); render(); } };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#docs{background:{panel}}", "#hRes{background:{panel}}tr.hr{cursor:pointer}tr.hi td{background:{bg};font-size:.92em}tr.hi .hit{background:{okSoft}}.hl{cursor:pointer;font-size:1.1em}.hl:hover{opacity:.7}", "td.rc{font-size:.88em}td.rc.bad{color:{bad};font-weight:bold}td.rc.warn{color:{warn}}td.rc.ok{color:{ok}}td.rc.new{color:{muted}}"]); }
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#docs{background:{panel}}", "#hRes{background:{panel}}tr.hr{cursor:pointer}tr.hi td{background:{bg};font-size:.92em}tr.hi .hit{background:{okSoft}}.hl{cursor:pointer;font-size:1.1em}.hl:hover{opacity:.7}", "#wSteps .ws{background:{panel};color:{muted};border:1px solid {line}}#wSteps .ws i{background:{chip};color:{muted}}#wSteps .ws.on{background:{pill};color:{pillText};border-color:{pill}}#wSteps .ws.on i{background:{accent};color:{accText}}#wSteps .ws.done{color:{text}}#wSteps .ws.done i{background:{ok};color:#fff}",
+    ".wc{background:{panel};border:1px solid {line}}.wc .st.sok{background:{okSoft};color:{ok}}.wc .st.swarn{background:{accSoft};color:{warn}}",
+    ".gchip.cnew{background:{okSoft};color:{ok}}.gchip.crev{background:{accSoft};color:{text}}.gchip.csame{background:{chip};color:{warn}}.gchip.cbad{background:{chip};color:{bad}}",
+    ".pk{background:{panel};border:2px solid {line}}.pk:hover{border-color:{accent}}.pk.on{border-color:{accent};box-shadow:0 0 0 3px {accSoft}}#wFoot{border-top:1px solid {line}}#wBody .btn{margin:0 8px 6px 0}", "td.rc{font-size:.88em}td.rc.bad{color:{bad};font-weight:bold}td.rc.warn{color:{warn}}td.rc.ok{color:{ok}}td.rc.new{color:{muted}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); header(); if ($("hist").style.display != "none") histView(); };
 /* from Folder Check (Submission check view): "add-files" with a JSON list of file paths */
-window.ltReceive = function (what, value) { if (what == "reload") { load(); header(); histView(); return; } if (what == "add-files") { try { var n = addFiles(JSON.parse(value)); LT.toast(n + " document(s) added from Folder Check"); fillTitles(true); } catch (e) { } } };
+window.ltReceive = function (what, value) { if (what == "view") { setTv(value); return; } if (what == "reload") { load(); header(); histView(); return; } if (what == "add-files") { try { var n = addFiles(JSON.parse(value)); LT.toast(n + " document(s) added from Folder Check"); fillTitles(true); } catch (e) { } } };
+/* ---------- Issue wizard: 1 What · 2 To whom · 3 Checks · 4 Send ---------- */
+var wStep = 0, wDone = null, W = { pk: "zip" }, STEPS = ["What goes out", "To whom", "Checks", "Send"];
+function wv(id) { return LT.trim($(id) ? $(id).value : ""); }
+function wKeep() { if ($("wTo")) { W.to = wv("wTo"); W.attn = wv("wAttn"); W.purp = $("wPurp").value; W.notes = wv("wNotes"); W.proj = wv("wProj"); } }
+function wizShow() {
+  var h = ""; for (var i = 0; i < STEPS.length; i++) h += '<div class="ws' + (i == wStep && !wDone ? " on" : i < wStep || wDone ? " done" : "") + '" data-ws="' + i + '"><i>' + (i < wStep || wDone ? "&#10003;" : i + 1) + "</i>" + STEPS[i] + "</div>";
+  $("wSteps").innerHTML = h; $("wBack").style.visibility = wStep && !wDone ? "" : "hidden";
+  var b = $("wBody"), n = docs.length; $("wNext").disabled = false;
+  if (wDone) { b.innerHTML = '<div class="wc box2" style="max-width:640px"><h2 class="ok">&#10004; ' + esc(wDone.no) + ' is ready</h2><div class="lead muted">' + esc(wDone.text) + '</div><button class="btn" id="wOpen">Open the folder</button><button class="btn" id="wHist">See it in History</button></div>';
+    $("wNext").innerHTML = "Start another"; $("wInfo").innerHTML = ""; $("wOpen").onclick = function () { try { LT.open(wDone.dir); } catch (e) { } }; $("wHist").onclick = function () { setTv("hist"); }; return; }
+  $("wNext").innerHTML = wStep == 3 ? "&#128232; Make the transmittal" : "Next &rsaquo;";
+  if (wStep == 0) {
+    var nf = 0; for (var k = 0; k < n; k++) if (!docs[k].files.length) nf++;
+    h = '<h2>What goes out?</h2><div class="lead muted">Add the drawings &ndash; from the folder you\'re issuing, a pasted list, or one of your sets in the Drawing Register.</div>' +
+      '<button class="btn" id="wFolder">' + LT.icon("folders", 15) + ' From a folder...</button><button class="btn" id="wPaste">' + LT.icon("clip", 15) + ' Paste a list...</button><button class="btn" id="wSet">' + LT.icon("register", 15) + ' One of my sets &#9662;</button>' +
+      (nf ? '<button class="btn" id="wFind">' + LT.icon("search", 15) + " Find the files of " + nf + " in a folder...</button>" : "") + (n ? '<button class="btn" id="wClear">Clear</button>' : "");
+    if (n) { h += '<table class="grid nonum" style="margin-top:12px"><tr><th>Drawing</th><th>Rev</th><th>Title</th><th>Files</th></tr>'; for (var d = 0; d < n; d++) h += "<tr><td><b>" + esc(docs[d].number) + "</b></td><td>" + esc(docs[d].rev) + "</td><td>" + esc(docs[d].title) + '</td><td class="muted">' + (docs[d].files.length ? esc(docs[d].types.join(", ")) : "no file yet") + "</td></tr>"; h += "</table>"; }
+    b.innerHTML = h; $("wInfo").innerHTML = n ? n + " document(s)" : "Add at least one";
+    $("wFolder").onclick = function () { fromFolder(); wizShow(); }; $("wPaste").onclick = function () { pasteList(); wizShow(); };
+    $("wSet").onclick = function () { var r = this.getBoundingClientRect(); setMenu(r.left, r.bottom + 2); };
+    if ($("wFind")) $("wFind").onclick = findFiles; if ($("wClear")) $("wClear").onclick = function () { docs = []; render(); wizShow(); };
+  } else if (wStep == 1) {
+    load(); var to = W.to != null ? W.to : wv("hTo");
+    b.innerHTML = '<h2>To whom?</h2><div class="lead muted">The checks on the next page compare with what this recipient already has.</div>' +
+      '<div class="wf"><label>To (company)</label><input type="text" id="wTo" list="toList" value="' + esc(to) + '"></div><div class="wf"><label>Attention (person)</label><input type="text" id="wAttn" value="' + esc(W.attn != null ? W.attn : wv("hAttn")) + '"></div><br>' +
+      '<div class="wf"><label>Purpose of issue</label><select id="wPurp">' + $("hPurp").innerHTML + '</select></div><div class="wf"><label>Project</label><input type="text" id="wProj" value="' + esc(W.proj != null ? W.proj : wv("hProj")) + '"></div><br>' +
+      '<div class="wf w"><label>Notes</label><input type="text" id="wNotes" placeholder="optional" value="' + esc(W.notes || "") + '"></div><div id="wLast" class="muted"></div>';
+    $("wPurp").value = W.purp || $("hPurp").value;
+    var lastTo = function () { var t = wv("wTo").toUpperCase(), L = null; for (var i = store.log.length - 1; i >= 0 && !L; i--) if (LT.trim(store.log[i].to || "").toUpperCase() == t) L = store.log[i];
+      $("wLast").innerHTML = !t ? "" : L ? "Last sent to them: <b>" + esc(L.no) + "</b> on " + esc(LT.fmtDate(L.date)) + " &middot; " + L.items.length + " document(s) &middot; " + esc(L.purpose || "") + (L.attn && !wv("wAttn") ? ' &middot; <a href="#" id="wSameAttn">attention ' + esc(L.attn) + "</a>" : "") : "Nothing sent to them yet &ndash; everything will be a first issue.";
+      if ($("wSameAttn")) $("wSameAttn").onclick = function () { $("wAttn").value = L.attn; lastTo(); return false; }; };
+    $("wTo").onkeyup = $("wTo").onchange = lastTo; lastTo(); $("wInfo").innerHTML = n + " document(s)"; try { $("wTo").focus(); } catch (e) { }
+  } else if (wStep == 2) {
+    b.innerHTML = wChecks(); $("wInfo").innerHTML = n + " document(s) to " + esc(W.to || "(no recipient)");
+    if ($("wDrop")) $("wDrop").onclick = function () { dropSame(W.to || ""); wizShow(); };
+    if ($("wTitles")) $("wTitles").onclick = function () { fillTitles(false); wizShow(); };
+    if ($("wNames")) $("wNames").onclick = function () { if (LT.main()) LT.main().send("check", "view", "naming"); };
+    if ($("wRm")) $("wRm").onclick = function () { var iss = LT.trIssued(store), c = 0; for (var i = docs.length - 1; i >= 0; i--) if (LT.revCheck(iss, docs[i].number, docs[i].rev, docs[i].files).level == "bad") { docs.splice(i, 1); c++; } render(); LT.toast(c + " left out"); wizShow(); };
+  } else {
+    var P = [["zip", "&#128230; One zip", "The sheet + each file once, made from where the files are. Nothing is copied or doubled. Best for email / upload."], ["folder", "&#128193; A folder", "The sheet + a copy of the files in the transmittal folder."], ["log", "&#128221; Sheet only", "Just the transmittal sheet and the log. The files stay where they are."]];
+    h = "<h2>How should it go out?</h2><div class=\"lead muted\">" + esc(no(store.next)) + " to <b>" + esc(W.to || "(no recipient)") + "</b>" + (W.attn ? " (" + esc(W.attn) + ")" : "") + " &middot; " + esc(W.purp || "") + " &middot; " + n + " document(s)</div>";
+    for (var q = 0; q < P.length; q++) h += '<div class="pk' + (W.pk == P[q][0] ? " on" : "") + '" data-pk="' + P[q][0] + '"><b>' + P[q][1] + '</b><span class="muted">' + P[q][2] + "</span></div>";
+    b.innerHTML = h + '<div class="muted" style="margin-top:6px">Saved in: ' + esc(outDir()) + "</div>"; $("wInfo").innerHTML = "";
+  }
+}
+/* the checks page: since the last issue, revisions, names, titles */
+function wChecks() {
+  var sl = LT.sinceLast(docs, W.to || "", store), g = sl.groups, iss = LT.trIssued(store), bad = [], h = '<h2>Checks</h2><div class="lead muted">Everything is checked before anything goes out &ndash; nothing is changed without you.</div><div class="wgrid">', todo = 0;
+  var chips = function (a, cls) { var o = ""; for (var i = 0; i < a.length && i < 40; i++) o += '<span class="gchip ' + cls + '">' + esc(a[i].number) + " " + esc(a[i].rev) + (a[i].was ? ' <span style="opacity:.7">was ' + esc(a[i].was) + "</span>" : "") + "</span>"; return o + (a.length > 40 ? "&hellip;" : ""); };
+  var card = function (title, ok, stTxt, body) { if (!ok) todo++; return '<div class="wc"><h4>' + title + '<span class="st ' + (ok ? "sok" : "swarn") + '">' + stTxt + "</span></h4>" + body + "</div>"; };
+  h += card("What's new since the last issue" + (W.to ? " to " + esc(W.to) : ""), !g.same.length && !g.older.length, g.same.length || g.older.length ? "look at this" : "all new or revised",
+    '<div class="ln muted">' + (sl.last ? "Compared with everything sent" + (W.to ? " to them" : "") + " &ndash; the last was <b>" + esc(sl.last.no) + "</b> on " + esc(LT.fmtDate(sl.last.date)) : "Nothing sent" + (W.to ? " to them" : "") + " yet") + "</div>" +
+    (g["new"].length ? '<div class="ln"><b>' + g["new"].length + " new</b> (never sent)</div>" + chips(g["new"], "cnew") : "") + (g.revised.length ? '<div class="ln"><b>' + g.revised.length + " revised</b></div>" + chips(g.revised, "crev") : "") +
+    (g.same.length ? '<div class="ln warn"><b>' + g.same.length + " already sent</b> with this revision</div>" + chips(g.same, "csame") + '<div><button class="btn small" id="wDrop">Leave these ' + g.same.length + " out</button></div>" : "") +
+    (g.older.length ? '<div class="ln bad"><b>' + g.older.length + " lower</b> than what they have</div>" + chips(g.older, "cbad") : ""));
+  for (var i = 0; i < docs.length; i++) { var rc = LT.revCheck(iss, docs[i].number, docs[i].rev, docs[i].files); if (rc.level == "bad") bad.push(docs[i].number + " " + docs[i].rev + " &ndash; " + esc(rc.text.replace(/^⚠ /, ""))); }
+  h += card("Revisions", !bad.length, bad.length ? bad.length + " problem" + (bad.length > 1 ? "s" : "") : "fine", bad.length ? '<div class="ln">' + bad.slice(0, 12).join('</div><div class="ln">') + '</div><button class="btn small" id="wRm">Leave them out</button>' : '<div class="ln muted">No lower revisions, and no newer revision waiting in the same folder.</div>');
+  var r = LT.nameRule(), wrong = [];
+  if (r) for (var j = 0; j < docs.length; j++) { var names = docs[j].files.length ? docs[j].files : [docs[j].number + (docs[j].rev ? r.sep + docs[j].rev : "")];
+    for (var f = 0; f < names.length; f++) { var nm = fso.GetFileName(names[f]), st = nm.lastIndexOf(".") > 0 && docs[j].files.length ? nm.substring(0, nm.lastIndexOf(".")) : nm; if (LT.nameCheck(st, r).length) { wrong.push(nm); break; } } }
+  h += card("Names (" + (r ? esc(r.name) : "no rule set") + ")", !wrong.length, !r ? "not checked" : wrong.length ? wrong.length + " wrong" : "all follow the rule", !r ? '<div class="ln muted">Set up your naming rule in Folder Check &rsaquo; Names.</div>' : wrong.length ? '<div class="ln">' + esc(wrong.slice(0, 8).join(", ")) + (wrong.length > 8 ? "&hellip;" : "") + '</div><button class="btn small" id="wNames">Fix them in Folder Check &rsaquo; Names</button>' : '<div class="ln muted">Every name follows your rule.</div>');
+  var nt = 0; for (var t = 0; t < docs.length; t++) if (!docs[t].title) nt++;
+  h += card("Titles", !nt, nt ? nt + " without a title" : "all have one", nt ? '<div class="ln muted">The sheet reads better with titles.</div><button class="btn small" id="wTitles">Fill from my list</button>' : '<div class="ln muted">Every document has a title.</div>');
+  return h + '</div><div class="' + (todo ? "warn" : "ok") + '" style="font-weight:600">' + (todo ? todo + " thing" + (todo > 1 ? "s" : "") + " to look at &ndash; you can still go on." : "&#10004; Ready to send.") + "</div>";
+}
+/* a set from the Drawing Register: its drawings (no files yet - "Find the files" adds them) */
+function setMenu(x, y) {
+  var R = null; try { R = LT.register(); } catch (e) { } var S = R ? R.sets() : [], m = [];
+  if (!S.length) { alert("No sets yet - make one in the Drawing Register (My sets)."); return; }
+  var all = R.list(), by = {}; for (var i = 0; i < all.length; i++) by[all[i].key] = all[i];
+  for (var k = 0; k < S.length; k++) (function (st) { m.push({ label: esc(st.name) + ' <span class="muted">' + st.keys.length + "</span>", fn: function () {
+    var c = 0; for (var j = 0; j < st.keys.length; j++) { var d = by[st.keys[j]], num = d ? d.number : st.keys[j], dup = false; for (var q = 0; q < docs.length; q++) if (docs[q].number.toUpperCase() == num.toUpperCase()) dup = true;
+      if (!dup) { docs.push({ number: num, title: d ? d.title : "", rev: "", types: [], files: [] }); c++; } }
+    render(); LT.toast(c + " drawing(s) from " + st.name); wizShow(); } }); })(S[k]);
+  LT.menu(x, y, m);
+}
+/* for drawings without files: look in a folder, take the highest revision of each */
+function findFiles() {
+  var dir = LT.pickFolder("Where are the files of these drawings?"); if (!dir) return;
+  var best = {}, walk = function (d) { var fo = fso.GetFolder(d), e = new Enumerator(fo.Files); for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name, i = n.lastIndexOf("."), sp = split(i > 0 ? n.substring(0, i) : n), k = sp.base.toUpperCase();
+      var b = best[k]; if (!b || LT.revCmp(sp.rev, b.rev) > 0) best[k] = b = { rev: sp.rev, files: [] }; if (LT.revCmp(sp.rev, b.rev) == 0) b.files.push("" + f.Path); }
+    var s2 = new Enumerator(fo.SubFolders); for (; !s2.atEnd(); s2.moveNext()) walk("" + s2.item().Path); };
+  try { walk(dir); } catch (e) { alert("Couldn't read that folder."); return; }
+  var c = 0, miss = [];
+  for (var j = 0; j < docs.length; j++) { var d = docs[j]; if (d.files.length) continue; var x = best[d.number.toUpperCase()]; if (!x) { miss.push(d.number); continue; }
+    d.rev = d.rev || x.rev; d.files = x.files.slice(0); d.types = []; for (var t = 0; t < x.files.length; t++) { var ext = x.files[t].substring(x.files[t].lastIndexOf(".") + 1).toLowerCase(); if (d.types.indexOf(ext) < 0) d.types.push(ext); } c++; }
+  render(); LT.toast(c + " found" + (miss.length ? " &middot; " + miss.length + " not in that folder" : "")); wizShow();
+}
+function wizMake() {
+  $("hTo").value = W.to || ""; $("hAttn").value = W.attn || ""; $("hPurp").value = W.purp || $("hPurp").value; $("hNotes").value = W.notes || ""; if (W.proj) $("hProj").value = W.proj;
+  $("zipFiles").checked = W.pk == "zip"; $("copyFiles").checked = W.pk == "folder";
+  var before = store.log.length; make(); load();
+  if (store.log.length > before) { var t = store.log[store.log.length - 1]; wDone = { no: t.no, dir: t.zip ? fso.GetParentFolderName(t.zip) : t.dir || fso.GetParentFolderName(t.file), text: (t.items || []).length + " document(s) to " + (t.to || "(no recipient)") + " · " + (t.purpose || "") + " · " + (t.package == "zip" ? "one zip" : t.package == "folder" ? "a folder with copies" : "sheet only") }; wizShow(); }
+}
+$("wNext").onclick = function () {
+  if (wDone) { wDone = null; wStep = 0; W = { pk: W.pk }; wizShow(); return; }
+  if (wStep == 0 && !docs.length) { alert("Add the documents first."); return; }
+  if (wStep == 1) { wKeep(); if (!W.to && !confirm("No recipient (To) - go on anyway?")) return; }
+  if (wStep == 3) { wizMake(); return; }
+  wStep++; wizShow(); };
+$("wBack").onclick = function () { if (wStep == 1) wKeep(); if (wStep) wStep--; wizShow(); };
+$("wSteps").onclick = function (e) { var s2 = LT.up(e.target || e.srcElement, "data-ws"); if (!s2 || wDone) return; var k = +s2.getAttribute("data-ws"); if (k > wStep && !docs.length) return; if (wStep == 1) wKeep(); wStep = k; wizShow(); };
+$("wBody").onclick = function (e) { var p2 = LT.up(e.target || e.srcElement, "data-pk"); if (p2) { W.pk = p2.getAttribute("data-pk"); wizShow(); } };
+
 look(); load(); header(); render(); histView(); LT.tabKeys();
 </script>
 </body>

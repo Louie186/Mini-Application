@@ -19,9 +19,9 @@
   /* "A-101-C02" -> { base: "A-101", rev: "C02" } (the revision is the last part after - or _) */
   L.trSplit = function (stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; };
   /* every drawing ever issued: { "A-101": { rev: highest rev, no: "TR-005", date, last: { rev, no, date } } } */
-  L.trIssued = function (s) {
-    s = s || L.trLoad(); var o = {};
-    for (var i = 0; i < s.log.length; i++) { var t = s.log[i]; for (var k = 0; k < (t.items || []).length; k++) { var it = t.items[k], key = L.trim(it.number || "").toUpperCase(); if (!key) continue;
+  L.trIssued = function (s, to) {
+    s = s || L.trLoad(); var o = {}, who = L.trim(to || "").toUpperCase();
+    for (var i = 0; i < s.log.length; i++) { var t = s.log[i]; if (who && L.trim(t.to || "").toUpperCase() != who) continue; for (var k = 0; k < (t.items || []).length; k++) { var it = t.items[k], key = L.trim(it.number || "").toUpperCase(); if (!key) continue;
       var x = o[key] || (o[key] = { rev: "", no: "", date: "", last: null, count: 0 }); x.count++; x.last = { rev: it.rev || "", no: t.no, date: t.date };
       if (!x.no || L.revCmp(it.rev, x.rev) >= 0) { x.rev = it.rev || ""; x.no = t.no; x.date = t.date; } } }
     return o;
@@ -42,6 +42,18 @@
         if (sp.base.toUpperCase() == key && sp.rev && rev && L.revCmp(sp.rev, rev) > 0 && (!newer || L.revCmp(sp.rev, newer) > 0)) newer = sp.rev; } } catch (e2) { } }
     if (newer) res = { level: "bad", text: "\u26a0 " + newer + " is in the folder \u2013 newer than " + rev };
     return res;
+  };
+
+  /* what's new since the last issue (to everyone, or to one recipient):
+     docs = [{ number, rev }] -> { last: the last transmittal (to them), groups: { "new": [...], revised: [...], same: [...], older: [...] } }
+     new = never sent · revised = a higher revision than sent · same = this revision was sent already · older = lower than sent */
+  L.sinceLast = function (docs, to, s) {
+    s = s || L.trLoad(); var iss = L.trIssued(s, to), g = { "new": [], revised: [], same: [], older: [] }, last = null, who = L.trim(to || "").toUpperCase();
+    for (var i = s.log.length - 1; i >= 0 && !last; i--) if (!who || L.trim(s.log[i].to || "").toUpperCase() == who) last = s.log[i];
+    for (var k = 0; k < docs.length; k++) { var d = docs[k], x = iss[L.trim(d.number || "").toUpperCase()];
+      if (!x) g["new"].push(d); else if (L.trim(d.rev).toUpperCase() == L.trim(x.rev).toUpperCase()) g.same.push(d); else if (x.rev && d.rev && L.revCmp(d.rev, x.rev) < 0) g.older.push(d); else g.revised.push(d);
+      d.was = x ? x.rev + " (" + x.no + ")" : ""; }
+    return { last: last, groups: g };
   };
 
   /* t = { project, to, attn, purpose, notes, items: [...], tasks? }; opts.copy = copy each item's files in;

@@ -52,7 +52,7 @@
     <span class="num">3</span><button class="btn primary" id="bRun">&#9654; Check names</button>
     <span class="lbl">Show:</span><select id="show" style="width:150px;height:26px;margin:0 8px 6px 0"><option value="bad" selected>Problems only</option><option value="all">Everything</option></select>
     <span class="lbl big" id="sum"></span>
-    <span class="right"><button class="btn" id="bCsv">Export (CSV)</button><button class="btn" id="bFix">Fix names in Bulk Files</button></span>
+    <span class="right"><button class="btn primary" id="bRen" style="display:none" title="Renames the ticked files to the suggested name - in the same folder">Rename to the rule</button><button class="btn" id="bUndo" style="display:none">Undo last rename</button><button class="btn" id="bCsv">Export (CSV)</button><button class="btn" id="bFix">Fix names in Bulk Files</button></span>
   </div>
   <div id="res"></div>
 </div>
@@ -111,19 +111,41 @@ function run() {
   var only = LT.trim($("only").value.toLowerCase()).split(/[\s,;.]+/); if (!only[0]) only = [];
   var files = []; scan(folder, $("subs").checked, only, files);
   var r = rule(), bad = 0;
-  for (var i = 0; i < files.length; i++) { files[i].probs = checkName(files[i].stem, r); if (files[i].probs.length) bad++; }
+  for (var i = 0; i < files.length; i++) { files[i].probs = checkName(files[i].stem, r); if (files[i].probs.length) { bad++; files[i].fix = LT.nameFix(files[i].stem, r); files[i].tick = !!files[i].fix; } }
   results = files;
   $("sum").innerHTML = files.length ? (bad ? '<span class="bad">&#10006; ' + bad + " of " + files.length + " names have problems</span>" : '<span class="ok">&#10004; All ' + files.length + " names follow the rule</span>") : "No files found.";
   render();
 }
 function render() {
   if (!results) { $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick a folder and click <b>Check names</b>.<br>Change the rule with <b>&#9998; Change the rule</b> (or Rule &#9662; &gt; Set up from an example name).</div>'; return; }
-  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th>' + LT.dwgHead() + '<th>Result</th><th>What\'s wrong</th></tr>'], n = 0;
+  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th>' + LT.dwgHead() + '<th>Result</th><th>What\'s wrong</th><th title="The name it should have - tick the ones to rename">Rename to</th></tr>'], n = 0, nf = 0;
   for (var i = 0; i < results.length; i++) { var f = results[i]; if (!all && !f.probs.length) continue; n++;
-    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + "</td>" + LT.dwgCells(f.rel.split("\\").pop()) + '<td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted">' + esc(f.probs.join(" · ")) + "</td></tr>"); }
+    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + "</td>" + LT.dwgCells(f.rel.split("\\").pop()) + '<td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted">' + esc(f.probs.join(" · ")) + "</td><td>" + (f.fix ? '<label class="fx"><input type="checkbox" data-t="' + i + '"' + (f.tick ? " checked" : "") + ' style="height:auto"> <b>' + esc(f.fix) + "</b>" + esc(f.name.substring(f.stem.length)) + "</label>" : f.probs.length ? '<span class="muted">by hand</span>' : "") + "</td></tr>"); if (f.fix && f.tick) nf++; }
   h.push("</table>");
   $("res").innerHTML = n ? h.join("") : '<div class="ok big" style="padding:24px">&#10004; Nothing wrong.</div>';
+  $("bRen").style.display = nf ? "" : "none"; $("bRen").innerHTML = "Rename to the rule (" + nf + ")";
+  $("bUndo").style.display = store.undo && store.undo.length ? "" : "none";
 }
+/* rename the ticked files to the suggested names (same folder); remembered so it can be undone */
+function renameAll() {
+  var todo = []; for (var i = 0; i < results.length; i++) if (results[i].fix && results[i].tick) todo.push(results[i]);
+  if (!todo.length) return;
+  if (!confirm("Rename " + todo.length + " file(s) to the rule?\n\n" + todo.slice(0, 8).map(function (f) { return f.name + "  \u2192  " + f.fix + f.name.substring(f.stem.length); }).join("\n") + (todo.length > 8 ? "\n..." : "") + "\n\nYou can undo it afterwards.")) return;
+  var undo = [], skip = [];
+  for (var k = 0; k < todo.length; k++) { var f = todo[k], to = fso.GetParentFolderName(f.full) + "\\" + f.fix + f.name.substring(f.stem.length);
+    if (fso.FileExists(to)) { skip.push(f.name + " (" + fso.GetFileName(to) + " is already there)"); continue; }
+    try { fso.MoveFile(f.full, to); undo.push([to, f.full]); } catch (e) { skip.push(f.name + " (open in another program?)"); } }
+  store.undo = undo; save(); run();
+  LT.toast(undo.length + " file(s) renamed"); if (skip.length) alert("Not renamed (" + skip.length + "):\n" + skip.slice(0, 12).join("\n"));
+}
+function undoRename() {
+  var u = store.undo || [], back = 0; if (!u.length) return;
+  if (!confirm("Put the last " + u.length + " renamed file(s) back to their old names?")) return;
+  for (var i = 0; i < u.length; i++) try { if (fso.FileExists(u[i][0]) && !fso.FileExists(u[i][1])) { fso.MoveFile(u[i][0], u[i][1]); back++; } } catch (e) { }
+  store.undo = []; save(); if (results) run(); else render(); LT.toast(back + " name(s) put back");
+}
+$("bRen").onclick = renameAll; $("bUndo").onclick = undoRename;
+$("res").onclick = function (e) { var t = e.target || e.srcElement, k = t.getAttribute && t.getAttribute("data-t"); if (k == null) return; results[+k].tick = t.checked; var n = 0; for (var i = 0; i < results.length; i++) if (results[i].fix && results[i].tick) n++; $("bRen").style.display = n ? "" : "none"; $("bRen").innerHTML = "Rename to the rule (" + n + ")"; };
 function exportCsv() { if (!results) { alert("Run a check first."); return; } var t = [["File", "Result", "What's wrong"]]; for (var i = 0; i < results.length; i++) t.push([results[i].rel, results[i].probs.length ? "Wrong" : "OK", results[i].probs.join(" / ")]);
   var f = LT.exportsDir() + "\\NamingCheck_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f); }
 
@@ -143,7 +165,7 @@ $("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder to c
 $("bRun").onclick = run; $("show").onchange = render; $("bCsv").onclick = exportCsv;
 $("bFix").onclick = function () { if (folder && LT.main()) LT.main().send("files", "open-folder", folder); else alert("Pick the folder first."); };
 $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-f"); if (tr) try { LT.showInFolder(results[+tr.getAttribute("data-f")].full); } catch (x) { } };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", ".pt{background:{chip}}", "#ruleBox{background:{bg}}"]); }
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", ".pt{background:{chip}}", "#ruleBox{background:{bg}}", ".fx{cursor:pointer;display:block;min-width:220px;word-break:break-all}.fx b{color:{ok}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); fillPick(); };
 window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { folder = value; store.folder = value; save(); $("folderLbl").innerHTML = esc(value); run(); } };
 look(); load(); fillPick(); $("folderLbl").innerHTML = folder ? esc(folder) : '<span class="muted">not picked</span>'; render(); LT.tabKeys();

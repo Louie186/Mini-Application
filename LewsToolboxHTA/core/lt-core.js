@@ -611,8 +611,13 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.15";
+  L.VERSION = "2026.11.16";
   L.WHATS_NEW = [
+    { v: "2026.11.16", items: [
+      "<b>&#128640; Issue wizard</b> (Transmittal, or + New &rsaquo; Issue drawings): what goes out &rsaquo; to whom &rsaquo; checks &rsaquo; send &ndash; step by step",
+      "<b>What's new since the last issue</b>: new, revised, already sent and lower &ndash; per recipient. Leave the already-sent ones out in one click",
+      "<b>Rename to the rule</b> (Folder Check &rsaquo; Names): the right name worked out for you, ticked &ndash; rename in one click, with Undo",
+      "<b>Saved checks</b> (Folder Check &rsaquo; Check all): save a check with its list and folders, run it again with one click" ] },
     { v: "2026.11.15", items: [
       "<b>A new look &ndash; Ember</b>: floating rounded panels, a <b>pill that slides</b> to the tab you open, amber buttons. <b>Ember Light</b> and dark with the &#9728; / &#9790; toggle at the top",
       "<b>Home</b>: <b>Where the work stands</b> (pill bars for tasks, delegated work and drawings) and an amber <b>project card</b> &ndash; with cards rising in and numbers counting up",
@@ -679,6 +684,23 @@ var LT = (function () {
   /* ---------- naming rule (Folder Check > Names): the rule in use, and the problems of one name ---------- */
   L.nameRule = function () { var s = L.readJson(L.dataPath("naming.json"), null); if (!s || !s.rules || !s.rules.length) return null; return s.rules[Math.min(s.last || 0, s.rules.length - 1)]; };
   var NREV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/;
+  /* a name that follows the rule, made from a wrong one - or null when it can't be guessed safely.
+     Fixes: the wrong separator (_ . space), lower case, numbers too short (101 -> 0101), revisions like P1 -> P01, spaces. */
+  L.nameFix = function (stem, r) {
+    if (!r || !r.parts || !r.parts.length) return null;
+    var bits = L.trim(stem).split(/[\s\-_.]+/), parts = r.parts, n = parts.length, out = [];
+    for (var z = bits.length - 1; z >= 0; z--) if (!bits[z]) bits.splice(z, 1);
+    if (bits.length == n - 1 && parts[n - 1].kind == "rev" && r.revOptional) { parts = parts.slice(0, n - 1); n--; }
+    if (bits.length != n) return null;
+    for (var i = 0; i < n; i++) { var p = parts[i], b = bits[i];
+      if (p.kind == "any") { out.push(b == b.toLowerCase() ? b.toUpperCase() : b); continue; }   // t1 -> T1, but "Unit Model" stays
+      b = b.toUpperCase();
+      if (p.kind == "digits" && /^\d+$/.test(b) && b.length < +p.val) while (b.length < +p.val) b = "0" + b;
+      if (p.kind == "rev") { var m = /^([A-Z]{1,2})(\d{1,3})$/.exec(b); if (m && m[2].length == 1) b = m[1] + "0" + m[2]; }
+      out.push(b); }
+    var fixed = out.join(r.sep);
+    return fixed != stem && !L.nameCheck(fixed, r).length ? fixed : null;
+  };
   L.nameCheck = function (stem, r) {
     var bits = stem.split(r.sep), parts = r.parts, probs = [], n = parts.length;
     var hasRev = parts.length && parts[n - 1].kind == "rev";

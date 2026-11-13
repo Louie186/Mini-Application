@@ -293,6 +293,7 @@ Everything about a submission in one go – no more checking Folder 1 against Fo
    - **📥 Collect from Folder 1…** – copies exactly what's missing into Folder 2: the right revision, the right file types, same subfolders. You see the list first. It checks again by itself
    - **🗑 Move old revisions out…** – older revisions go to `Folder 2\_Superseded`
 6. **Report ▾**: copy the result for email / Teams · Excel (CSV) · **📨 Log the complete drawings to Transmittal**
+- **Saved checks** (the row on top) – set a check up once (checklist, Folder 2, Folder 1, file types), **+ Save this check…** with a name (e.g. *Tower 1 IFC to client*). Next time **one click** on it loads everything and runs it; it shows the last result (*12 of 14 OK · Fri 13 Nov*). ✕ deletes it
 
 ### Submission check
 
@@ -364,6 +365,7 @@ For drawings someone sends you **to check**: the folder's own contents become yo
 1. **Naming rule** – starts with an ISO 19650 rule (Project-Originator-Volume-Level-Type-Role-Number-Revision). **✎ Change the rule** (per part: any text / N letters / N digits / list of codes / revision) or **Rule ▾ > Set up from an example name**. Keep several rules (one per project)
 2. **Folder** (subfolders, only some types)
 3. **Check names** – each wrong name says which part is wrong ("Type XX is not an allowed code"). **Export (CSV)**, **Fix names in Bulk Files**
+4. **Rename to the rule** – where the right name can be worked out (wrong separator `_` `.` or spaces, lower case, a number too short like `101` → `00101`, `P1` → `P01`), the **Rename to** column shows it, ticked. Untick any you don't want, click **Rename to the rule (N)** – same folder, extension kept. A name that's already taken is skipped (never overwritten). **Undo last rename** puts the old names back. Names it can't guess say *by hand*
 
 ### Compare
 
@@ -402,9 +404,24 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 
 ## Transmittal
 
+### 🚀 Issue wizard (the easy way)
+
+**+ New → Issue drawings**, or the **Issue wizard** view. Four steps, nothing goes out until the last one:
+1. **What goes out** – **From a folder**, **Paste a list**, or **One of my sets** (Drawing Register). Drawings from a set have no files yet: **Find the files in a folder…** takes the highest revision of each
+2. **To whom** – To, Attention, Purpose, Project, Notes. It shows what you last sent them (e.g. *TR-003 on 12 Nov · 14 documents*)
+3. **Checks** – cards:
+   - **What's new since the last issue to them** – **new** (never sent), **revised**, **already sent** with this revision (**Leave these out**), **lower** than what they have
+   - **Revisions** – lower than issued, or a newer revision waiting in the same folder (**Leave them out**)
+   - **Names** against your naming rule (**Fix them in Folder Check › Names**)
+   - **Titles** missing (**Fill from my list**)
+4. **Send** – **One zip** (nothing copied or doubled), **A folder** (copies), or **Sheet only** → **Make the transmittal** → *TR-005 is ready* (open the folder / see it in History)
+
+### New transmittal (the full form)
+
 1. Project, **To**, Attention, Purpose of issue, Notes
 2. Documents: **From a folder**, **Paste a list**, or Folder Check (Submission check) → Report ▾ → **Make a transmittal** – and **Delegate** makes one for each person by itself. **Fill titles from my list** uses the list set up in Folder Check
 3. **Make the transmittal** – Excel issue sheet (CSV without Excel), numbered **TR-001, TR-002…**; tick *also copy the files* to put the files in the transmittal folder
+- Under the documents: **since the last issue to (To)** – how many are new, revised, and already sent (**leave them out** in one click)
 - **Revision check** (the last column), from the Transmittal log and the files' folder:
   - **⚠ Lower than C01 already issued (TR-001)** – red
   - **⚠ C02 is in the folder – newer than C01** – red (you picked an old file)

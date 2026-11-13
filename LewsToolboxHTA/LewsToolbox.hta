@@ -408,7 +408,7 @@ function navBadges() {
 }
 function newMenu() {
   var r = LT.$("newB").getBoundingClientRect(), h = '<div class="ph">New</div><div class="pi" data-nw="task">' + LT.icon("taskcheck", 16) + "Task...</div>" + '<div class="pi" data-nw="tpl">' + LT.icon("files", 16) + "Task from a template...</div>" +
-    '<div class="pi" data-nw="tr">' + LT.icon("transmittal", 16) + "Transmittal</div>" + '<div class="pi" data-nw="check">' + LT.icon("check", 16) + "Check a submission (Check all)</div>" + '<div class="sep"></div><div class="pi" data-pa="new">' + LT.icon("project", 16) + "Project...</div>";
+    '<div class="pi" data-nw="tr">' + LT.icon("transmittal", 16) + "Issue drawings (wizard)</div>" + '<div class="pi" data-nw="check">' + LT.icon("check", 16) + "Check a submission (Check all)</div>" + '<div class="sep"></div><div class="pi" data-pa="new">' + LT.icon("project", 16) + "Project...</div>";
   var pm = LT.$("pm"); pm.innerHTML = h; pm.style.left = Math.round(Math.max(8, r.right - 330)) + "px"; pm.style.top = Math.round(r.bottom + 6) + "px"; pm.style.display = "block";
 }
 function curProject() { var p = projects(); for (var i = 0; i < p.list.length; i++) if (p.list[i].id == p.cur) return p.list[i]; return null; }
@@ -511,7 +511,7 @@ function taskbarShortcut() {
   if (LT.settings().rail) setRail(true, false);
   LT.$("proj").onclick = function (e) { if (LT.$("pm").style.display == "block") { LT.$("pm").style.display = "none"; return; } projMenu(); (e || window.event).cancelBubble = true; };
   LT.$("pm").onclick = function (e) { var t = e ? e.target : window.event.srcElement, pj = LT.up(t, "data-pj"), pa = LT.up(t, "data-pa"); LT.$("pm").style.display = "none";
-    var nw = LT.up(t, "data-nw"); if (nw) { var w = nw.getAttribute("data-nw"); if (w == "task") LTMain.send("tracker", "new-task", ""); else if (w == "tpl") LTMain.send("tracker", "templates", ""); else if (w == "tr") show("transmittal"); else if (w == "check") LTMain.send("check", "view", "checkall"); return; }
+    var nw = LT.up(t, "data-nw"); if (nw) { var w = nw.getAttribute("data-nw"); if (w == "task") LTMain.send("tracker", "new-task", ""); else if (w == "tpl") LTMain.send("tracker", "templates", ""); else if (w == "tr") LTMain.send("transmittal", "view", "wiz"); else if (w == "check") LTMain.send("check", "view", "checkall"); return; }
     if (pj) pickProject(pj.getAttribute("data-pj")); else if (pa) LTMain.send("register", pa.getAttribute("data-pa") == "new" ? "new-project" : "setup", ""); };
   document.onmousedown = function (e) { var t = e ? e.target : window.event.srcElement;
     if (!(function (x) { while (x) { if (x.id == "remind" || x.id == "bellB") return true; x = x.parentNode; } return false; })(t)) LT.$("remind").style.display = "none"; if (!LT.up(t, "data-pm") && t.id != "pm" && !(function (x) { while (x) { if (x.id == "pm" || x.id == "proj" || x.id == "newB") return true; x = x.parentNode; } return false; })(t)) LT.$("pm").style.display = "none"; };

@@ -270,6 +270,12 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **Folder Check** looks drawings up here (Contents & checklist: Checklist ▾ → Drawing Register)
 - Nothing about a project is written into the program – each project lives in `register\` in your data folder
 
+**🧱 Models** (a view next to My sets)
+- A card per model: its drawings' **% issued**, a bar of not started · in progress · checked · issued, and the counts
+- The model name opens it (ACC link / file) with a click; *(no link)* means add its Path in Setup → Models
+- **Show the N drawings** – each with its status · **📁 Make a set** – the model's drawings become a My set (to print, check or issue)
+- **No model yet** – drawings without a tower / typology match · the search box finds a model, tower or typology
+
 ## Folder Check
 
 Pick the folder once – every view uses it (and remembers which view you used last):
@@ -400,6 +406,8 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 - **Top cards:** **My day** (due today + late) · **My team** (open delegated work, late, replies waiting on team boards) · **Task status** (open, with a ring: done · doing · to do) · **Sent this month** (transmittals, the last one)
 - **Today** · **Waiting on others** · **Next 2 weeks** (every date from every tab, by day; 3+ things on a day in red) · **Done in the last 7 days** (a small bar chart, yours + the team's) · **Team this week** (load bars: green has room, amber 80–100%, red overloaded) · **Last transmittals** · **Recent files**
 - **Add a task** at the top (the same quick words as Tasks)
+- **📥 Incoming** – **+ Watch a folder** (where drawings arrive: an Incoming folder, an ACC sync folder…). The first look only remembers what's there; after that every **new** or **changed** file (subfolders too) shows here and on the **bell** – checked when the Toolbox opens and every 10 minutes. Click a file to open it · **Check** sends the folder to Folder Check · **Seen** clears it · ✕ stops watching
+- **Your weekly report is ready** – when the report made itself (Settings), a banner on top: **Open** · **Copy for email** · ✕
 - **📊 Weekly report** – opens inside Home (was its own tab); **‹ Back to Home** to return
 
 ## Transmittal
@@ -450,6 +458,7 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 
 - **This week / Last week**, tick the parts you want: my work (done, still open, time), delegated work by person (and late items), submissions sent, next week, team load
 - **Copy for email / Teams**, **Open as an email**, or **Save** (text + CSV)
+- **By itself every week** (Settings → Weekly report): pick the day; it's saved in `exports\Weekly reports` (a page + text), the bell glows and Home shows *Your weekly report is ready*. Not open that day? It's made the next time the Toolbox opens that week
 
 ## Settings
 
@@ -457,6 +466,15 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 - Looks (Light, Dark, Blueprint, Retro 8-bit, Retro Grey, Retro Console, Slate, Slate Light) and text size – every tab follows
 - Your name, data folder, Launcher list, Lew's Tracker link, taskbar shortcut
 - `Ctrl+1` … `Ctrl+9` switch tabs
+- **Weekly report** by itself – on / off and the day, **Make it now**
+- **🩺 Health check** – looks over everything and says what needs attention (✔ / ⚠ / ✖), with a fix button where there is one:
+  - the program (version, running from a zip?) · the data folder (can it save? inside the program folder?) · data files that can't be read · how old the newest backup is
+  - Drawing Register projects · transmittal log files that moved · task folders not found · watched folders and saved checks whose folder is gone · Launcher links not found · the naming rule
+- **⬇ Update the Toolbox (safely)** – extract the new version's zip, **Update from a folder…**, pick it:
+  1. it checks it really is the Toolbox and shows *Update from 2026.11.16 to …* (warns if the new one is older)
+  2. the program you have now is backed up to `Backups\Program <version> <date>` (LewsToolbox.hta, core, tabs, README)
+  3. the new program files are copied in – **your data is never touched** – then *Restart the Toolbox now?*
+  - **↩ Go back to this version…** – pick an earlier version from the list; the current one is backed up first, so you can always come back
 
 ## For whoever maintains this
 

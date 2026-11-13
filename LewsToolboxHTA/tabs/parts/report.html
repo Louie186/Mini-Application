@@ -116,6 +116,13 @@ $("bCopy").onclick = function () { build(); if (LT.copyText(text)) LT.toast("Rep
 $("bMail").onclick = function () { build(); var subj = text.split("\r\n")[0], body = text.length > 1800 ? text.substring(0, 1800) + "\r\n… (shortened - use Copy for the full report)" : text;
   try { LT.open("mailto:?subject=" + encodeURIComponent(subj) + "&body=" + encodeURIComponent(body)); } catch (e) { alert("Couldn't open your email program - use Copy instead."); } };
 $("bSave").onclick = function () { build(); var base = LT.exportsDir() + "\\WeeklyReport_" + LT.today(); try { LT.writeUtf8(base + ".txt", text, true); LT.writeCsv(base + ".csv", rows); LT.showInFolder(base + ".txt"); } catch (e) { alert("Couldn't save the report."); } };
+/* made by itself (Settings > Weekly report): this week, saved as a page + text in exports\Weekly reports; returns the page */
+window.ltAuto = function () {
+  $("week").value = "0"; build(); var dir = LT.exportsDir() + "\\Weekly reports", base = dir + "\\WeeklyReport_" + LT.today();
+  LT.mkdirs(dir); LT.writeUtf8(base + ".txt", text, true);
+  LT.writeUtf8(base + ".html", '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Weekly report</title><style>body{font-family:Segoe UI,Arial,sans-serif;max-width:780px;margin:30px auto;color:#18181b;line-height:1.5}h2{font-weight:600}h3{color:#d97706;margin-bottom:4px}li{margin:2px 0}</style></head><body>' + $("out").innerHTML + '<p style="color:#888;font-size:12px">Made by Lew\'s Toolbox on ' + LT.fmtDate(LT.today()) + "</p></body></html>", true);
+  return base + ".html";
+};
 function look() { LT.applyLook(["#out{background:{panel}}", "#out h3{color:{accent}}"]); }
 window.ltTheme = look; window.ltShown = build; window.ltReload = build;
 look(); build(); LT.tabKeys();

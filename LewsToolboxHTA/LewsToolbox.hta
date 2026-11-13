@@ -172,6 +172,9 @@ var LTMain = {
   show: show,
   showIndex: function (n) { if (tabs[n]) show(tabs[n].key); },
   /* opens a tab and hands it a message, e.g. Launcher -> Bulk Files "open-folder" */
+  background: function () { background(); },
+  bell: function () { bell(); },
+  autoReport: function () { autoReport(true); },
   send: function (key, what, value) {
     if (MOVED[key] && !findTab(key)) { var mv = MOVED[key]; key = mv[0]; what = mv[1]; value = mv[2]; }   // e.g. "find" opens Folder Check > Find drawings
     show(key);
@@ -367,7 +370,7 @@ function whatsNew(force) {
 function reminders(force) {
   var s = LT.settings(); if (!force && (s.remind === false || s.remindOn == LT.today())) return false;
   var today = LT.today(), R0 = remindData(), mineToday = R0.mineToday, mineLate = R0.mineLate, team = R0.team, nLate = R0.nLate, i;
-  if (!mineToday.length && !mineLate.length && !nLate) { if (!force) { s.remindOn = today; LT.saveSettings(s); } return false; }
+  if (!mineToday.length && !mineLate.length && !nLate && !R0.incoming && !R0.report) { if (!force) { s.remindOn = today; LT.saveSettings(s); } return false; }
   var h = '<span class="rx" id="rX" title="Close">&#10005;</span><h4><span> Good ' + (new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening") + (s.userName ? ", " + LT.esc(s.userName) : "") + "</span></h4><div class=\"tx\"><ul>";
   if (mineToday.length) h += "<li><b>" + mineToday.length + "</b> of your tasks due today</li>";
   if (mineLate.length) h += '<li class="late">' + mineLate.length + " of your tasks late</li>";
@@ -375,11 +378,15 @@ function reminders(force) {
   ppl.sort(function (a, b) { return team[b].length - team[a].length; });
   for (i = 0; i < ppl.length && i < 4; i++) h += '<li class="late">' + LT.esc(ppl[i]) + ": " + team[ppl[i]].length + " late (" + LT.esc(team[ppl[i]].slice(0, 3).join(", ")) + (team[ppl[i]].length > 3 ? "..." : "") + ")</li>";
   if (ppl.length > 4) h += "<li>+ " + (ppl.length - 4) + " more people with late work</li>";
-  h += "</ul>" + (mineToday.length || mineLate.length ? '<button class="rb" id="rMine">My tasks</button>' : "") + (nLate ? '<button class="rb" id="rChase">&#128276; Chase up (' + nLate + ")</button>" : "") + "</div>";
+  if (R0.incoming) h += "<li><b>" + R0.incoming + "</b> new / changed file" + (R0.incoming > 1 ? "s" : "") + " in the folders you watch</li>";
+  if (R0.report) h += "<li>Your <b>weekly report</b> is ready</li>";
+  h += "</ul>" + (mineToday.length || mineLate.length ? '<button class="rb" id="rMine">My tasks</button>' : "") + (R0.incoming ? '<button class="rb" id="rIn">See the new files</button>' : "") + (R0.report ? '<button class="rb" id="rRep">Open the report</button>' : "") + (nLate ? '<button class="rb" id="rChase">&#128276; Chase up (' + nLate + ")</button>" : "") + "</div>";
   var box = LT.$("remind"); box.innerHTML = h; box.style.display = "block";
   var shut = function () { box.style.display = "none"; };
   LT.$("rX").onclick = shut;
   if (LT.$("rMine")) LT.$("rMine").onclick = function () { shut(); LTMain.send("tracker", "view", mineLate.length ? "overdue" : "today"); };
+  if (LT.$("rIn")) LT.$("rIn").onclick = function () { shut(); show("home"); };
+  if (LT.$("rRep")) LT.$("rRep").onclick = function () { shut(); var s2 = LT.settings(); try { LT.open(s2.reportReady); } catch (e) { } s2.reportReady = ""; LT.saveSettings(s2); bell(); };
   if (LT.$("rChase")) LT.$("rChase").onclick = function () { shut(); LTMain.send("delegate", "chase", ""); };
   if (!force) { s.remindOn = today; LT.saveSettings(s); }
   return true;
@@ -447,9 +454,26 @@ function remindData() {
   for (i = 0; i < dt.length; i++) { var d = dt[i], subs = d.subs || [], gl = lead[LT.trim(d.who || "").toLowerCase()];
     if (subs.length) { for (j = 0; j < subs.length; j++) { var du = subs[j].due || d.due; if (subs[j].status != "Completed" && du && du < today) lateFor(gl || subs[j].who || d.who, subs[j].code); } }
     else if (d.status != "Completed" && d.due && d.due < today) lateFor(d.who, d.code); }
+  try { o.incoming = LT.watchPending(); } catch (e) { o.incoming = 0; } o.report = s.reportReady && fso.FileExists(s.reportReady) ? s.reportReady : "";
   return o;
 }
-function bell() { try { window.setTimeout(navBadges, 0); REM = remindData(); var n = REM.mineToday.length + REM.mineLate.length + REM.nLate, b = LT.$("bellN"); LT.$("bellB").innerHTML = LT.icon("bell", 19) + '<span id="bellN"></span>'; b = LT.$("bellN"); b.innerHTML = n > 99 ? "99+" : "" + n; b.style.display = n ? "block" : "none"; } catch (e) { } }
+/* ---------- in the background (every 10 minutes): watched folders, the automatic weekly report ---------- */
+function background() {
+  try { var before = LT.watchPending(), n = LT.watchScan(); if (n > before) { LT.$("bellB").className = "tb glow"; LT.toast((n - before) + " new / changed file" + (n - before > 1 ? "s" : "") + " in the folders you watch"); try { frames.home.contentWindow.ltReload(); } catch (e) { } } } catch (e2) { }
+  try { autoReport(); } catch (e3) { }
+  bell();
+}
+/* the weekly report makes itself (Settings): on the chosen day or later in the week, once a week, into exports\Weekly reports */
+function autoReport(force) {
+  var s = LT.settings(); if (!s.autoReport && !force) return;
+  var d = new Date(), dow = d.getDay() || 7, day = +(s.autoReportDay || 5), ws = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow + 1), wk = LT.iso(ws);
+  if (!force && (dow < day || s.lastAutoReport == wk)) return;
+  var f = document.createElement("iframe"); f.setAttribute("application", "yes"); f.style.display = "none"; f.src = "tabs/parts/report.html";
+  f.onload = function () { var p = null; try { p = f.contentWindow.ltAuto(); } catch (e) { } window.setTimeout(function () { try { f.parentNode.removeChild(f); } catch (e) { } }, 0);
+    if (!p) return; var s2 = LT.settings(); s2.lastAutoReport = wk; s2.reportReady = p; LT.saveSettings(s2); LT.$("bellB").className = "tb glow"; LT.toast("Your weekly report is ready (bell)"); bell(); try { frames.home.contentWindow.ltReload(); } catch (e) { } };
+  document.body.appendChild(f);
+}
+function bell() { try { window.setTimeout(navBadges, 0); REM = remindData(); var n = REM.mineToday.length + REM.mineLate.length + REM.nLate + REM.incoming + (REM.report ? 1 : 0), b = LT.$("bellN"); LT.$("bellB").innerHTML = LT.icon("bell", 19) + '<span id="bellN"></span>'; b = LT.$("bellN"); b.innerHTML = n > 99 ? "99+" : "" + n; b.style.display = n ? "block" : "none"; } catch (e) { } }
 
 /* ---------- window size + icon (same tricks as QuickLaunch) ---------- */
 function sizeWindow() {
@@ -499,6 +523,7 @@ function taskbarShortcut() {
   try { LT.mkdirs(LT.dataDir()); } catch (e) { var w2 = LT.$("warn"); w2.innerHTML = "Can't save in the data folder: " + LT.esc(LT.dataDir()) + " - pick another one in Settings."; w2.style.display = "block"; }
   tabs = findTabs(); tipsOn = LT.settings().tips !== false;
   window.setTimeout(function () { try { LT.dailyBackup(); } catch (e) { } }, 1500);   // once a day: a copy of the data folder in Backups\<date>
+  window.setTimeout(background, 5000); window.setInterval(background, 10 * 60000);   // every 10 minutes: watched folders, the weekly report
   dataHereWarning();
   LT.$("tabs").onmouseover = function (e) { var b = LT.up(e.target || e.srcElement, "data-k"); if (b) showTip(b); else hideTip(); };
   LT.$("tabs").onmouseout = function (e) { var to = e.relatedTarget || e.toElement; if (!to || !LT.up(to, "data-k")) hideTip(); };

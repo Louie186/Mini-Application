@@ -29,6 +29,23 @@
   <label><input type="checkbox" id="remind" style="height:auto"> Once a day, when the Toolbox opens: what's due today and what's late (yours and your team's)</label>
   <button class="btn small" id="bRemind">Show it now</button> <button class="btn small" id="bNew">What's new</button> <span class="muted">Ctrl+K in any tab searches everything (tasks, drawings, transmittals, people, files).</span>
 
+  <div class="h">Weekly report</div>
+  <label><input type="checkbox" id="autoRep" style="height:auto"> Make my weekly report by itself every week on</label>
+  <select id="autoDay" style="width:120px;height:26px;margin:0 6px"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option></select>
+  <button class="btn small" id="bRepNow">Make it now</button>
+  <div class="muted">Saved in <b>exports\Weekly reports</b> (a page + text). The bell and Home tell you when it's ready &ndash; open it or copy it into an email. If the Toolbox isn't open that day, it's made the next time it opens that week.</div>
+
+  <div class="h">Health check</div>
+  <div class="muted">Looks over your data, folders and links and tells you what needs attention &ndash; nothing is changed unless you click a fix.</div>
+  <button class="btn primary" id="bHealth">&#129658; Run the health check</button> <span class="muted" id="hcSum"></span>
+  <div id="hcRes"></div>
+
+  <div class="h">Update the Toolbox (safely)</div>
+  <div class="muted">Got a new version? Extract the zip first, then pick its folder (the one with <b>LewsToolbox.hta</b>). The program you have now is backed up first (<b>Backups\Program &hellip;</b>); your data is never touched. Something wrong? <b>Go back</b> puts the old version back.</div>
+  <div id="upInfo" style="margin:6px 0"></div>
+  <button class="btn primary" id="bUpdate">&#11015; Update from a folder...</button>
+  <select id="upList" style="width:320px;margin:0 6px 6px 0"></select><button class="btn" id="bRollback">&#8617; Go back to this version...</button>
+
   <div class="h">Your name</div>
   <input type="text" id="uname" style="width:220px"> <button class="btn" id="bName">Save</button>
   <span class="muted">Shown as "Issued by" on task sheets you send.</span>
@@ -83,7 +100,8 @@ function refresh() {
   LT.$("sizes").innerHTML = h;
   LT.$("uname").value = S.userName || "";
   LT.$("dataPath").innerHTML = LT.esc(LT.dataDir()) + (S.dataFolder ? ' <span class="ok" style="font-weight:normal">&#10004; safe when you update the Toolbox</span>' : ' <span class="warn" style="font-weight:normal">(inside the program folder &ndash; use Change folder... so updating the Toolbox can never delete it)</span>');
-  showBackups();
+  showBackups(); showUpdate();
+  LT.$("autoRep").checked = !!S.autoReport; LT.$("autoDay").value = "" + (S.autoReportDay || 5);
   LT.$("lhPath").innerHTML = S.launcherHome ? LT.esc(S.launcherHome + "\\QuickLaunch-data") + ' <span class="muted">(shared with QuickLaunch.hta)</span>' : LT.esc(LT.dataDir() + "\\QuickLaunch-data") + ' <span class="muted">(the Toolbox\'s own list)</span>';
   LT.$("trPath").innerHTML = S.trackerFolder ? LT.esc(S.trackerFolder) : '<span class="muted">Not linked</span>';
   LT.$("tips").checked = S.tips !== false;
@@ -155,6 +173,95 @@ LT.$("bTr").onclick = function () {
 };
 LT.$("bTrOff").onclick = function () { save(function (s) { s.trackerFolder = ""; }); };
 LT.$("bPin").onclick = function () { if (LT.main()) { var l = LT.main().makeShortcut(); if (l) alert("A Lew's Toolbox shortcut is on your Desktop (it's selected).\n\nRight-click it > Pin to taskbar\n(Windows 11: right-click > Show more options > Pin to taskbar)."); } };
+
+/* ---------- weekly report by itself ---------- */
+LT.$("autoRep").onclick = function () { var on = this.checked; save(function (s) { s.autoReport = on; }); if (on) LT.toast("Your weekly report will be made every " + LT.$("autoDay").options[LT.$("autoDay").selectedIndex].text); };
+LT.$("autoDay").onchange = function () { var d = +this.value; save(function (s) { s.autoReportDay = d; }); };
+LT.$("bRepNow").onclick = function () { if (LT.main()) LT.main().autoReport(); };
+
+/* ---------- health check: { lv: "ok" | "warn" | "bad", title, text, fix: [label, fn] } ---------- */
+var HC = [];
+function health() {
+  var fso = LT.fso, out = [], add = function (lv, title, text, fix) { out.push({ lv: lv, title: title, text: text, fix: fix }); }, dd = LT.dataDir(), s = LT.settings();
+  // the program
+  var app = LT.appDir(); add(/\\Temp\\|\.zip\\/i.test(app) ? "bad" : "ok", "Program", "Version " + LT.VERSION + " &middot; " + LT.esc(app) + (/\\Temp\\|\.zip\\/i.test(app) ? " &ndash; running from a zip or temporary folder: extract it first" : ""));
+  // the data folder
+  var canWrite = false; try { LT.mkdirs(dd); var tf = dd + "\\_hc.tmp"; LT.writeUtf8(tf, "x"); fso.DeleteFile(tf, true); canWrite = true; } catch (e) { }
+  var inside = dd.toLowerCase().indexOf(app.toLowerCase() + "\\") == 0;
+  add(!canWrite ? "bad" : inside ? "warn" : "ok", "Data folder", LT.esc(dd) + (!canWrite ? " &ndash; can't save there" : inside ? " &ndash; inside the program folder: replacing the program folder by hand could delete it" : " &ndash; saving works"), inside ? ["Move it...", function () { LT.$("bData").onclick(); }] : null);
+  // data files
+  var bad = [], n = 0, look = function (dir, rel) { if (!fso.FolderExists(dir)) return; var e = new Enumerator(fso.GetFolder(dir).Files); for (; !e.atEnd(); e.moveNext()) { var nm = "" + e.item().Name; if (!/\.json$/i.test(nm)) continue; n++; try { JSON.parse(LT.readText("" + e.item().Path)); } catch (x) { bad.push(rel + nm); } } };
+  look(dd, ""); look(dd + "\\register", "register\\");
+  add(bad.length ? "bad" : "ok", "Data files", bad.length ? bad.length + " of " + n + " can't be read: " + LT.esc(bad.join(", ")) + " &ndash; restore it from a backup (below)" : n + " file(s), all readable");
+  // backups
+  var bk = LT.backups(), last = bk.length ? bk[0].name.substring(0, 10) : "", age = last ? Math.round((LT.parseIso(LT.today()) - LT.parseIso(last)) / 864e5) : 999;
+  add(!bk.length ? "warn" : age > 7 ? "warn" : "ok", "Backups", bk.length ? bk.length + " kept &middot; newest " + LT.esc(bk[0].name) + (age > 7 ? " &ndash; more than a week old" : "") : "none yet", !bk.length || age > 7 ? ["Back up now", function () { LT.$("bBackup").onclick(); }] : null);
+  // Drawing Register projects
+  var ix = LT.registerIndex(), miss = []; for (var p = 0; p < (ix.projects || []).length; p++) if (!fso.FileExists(LT.registerFile(ix.projects[p].id))) miss.push(ix.projects[p].name);
+  add(miss.length ? "bad" : "ok", "Drawing Register", (ix.projects || []).length ? (ix.projects || []).length + " project(s)" + (miss.length ? " &ndash; missing: " + LT.esc(miss.join(", ")) : "") : '<span class="muted">no projects yet</span>');
+  // transmittal log: files that moved
+  var tm = LT.trLoad ? LT.trLoad() : (LT.readJson(LT.dataPath("transmittals.json"), null) || { log: [] }), moved = 0, files = 0, sheets = 0;
+  for (var t = 0; t < (tm.log || []).length; t++) { var x = tm.log[t]; if (x.file && !fso.FileExists(x.file)) sheets++; for (var k = 0; k < (x.items || []).length && files < 2000; k++) for (var f = 0; f < (x.items[k].files || []).length; f++) { files++; if (!fso.FileExists(x.items[k].files[f])) moved++; } }
+  add(moved || sheets ? "warn" : "ok", "Transmittal log", (tm.log || []).length + " transmittal(s)" + (sheets ? " &middot; " + sheets + " sheet(s) moved" : "") + (moved ? " &middot; " + moved + " of " + files + " issued file(s) have moved or been renamed (History still lists them)" : files ? " &middot; every issued file is still there" : ""));
+  // task folders
+  var tr = LT.readJson(LT.dataPath("tracker.json"), null) || { tasks: [] }, gone = [];
+  for (var q = 0; q < (tr.tasks || []).length; q++) if (tr.tasks[q].folder && !fso.FolderExists(tr.tasks[q].folder)) gone.push((tr.tasks[q].code || "") + " " + tr.tasks[q].title);
+  add(gone.length ? "warn" : "ok", "Task folders", gone.length ? gone.length + " task folder(s) not found: " + LT.esc(gone.slice(0, 5).join(", ")) + (gone.length > 5 ? "&hellip;" : "") + " &ndash; moved or renamed? Open the task and pick it again" : "all found");
+  // watched folders + saved checks
+  var W = LT.watchLoad(), wm = []; for (var w = 0; w < W.folders.length; w++) if (!fso.FolderExists(W.folders[w].path)) wm.push(W.folders[w].name);
+  add(wm.length ? "warn" : "ok", "Watched folders", W.folders.length ? W.folders.length + " watched" + (wm.length ? " &ndash; not found: " + LT.esc(wm.join(", ")) : "") : '<span class="muted">none (Home &rsaquo; Incoming &rsaquo; + Watch a folder)</span>');
+  var ca = LT.readJson(LT.dataPath("checkall.json"), null) || {}, cm = []; for (var c = 0; c < (ca.saved || []).length; c++) if (ca.saved[c].f2 && !fso.FolderExists(ca.saved[c].f2)) cm.push(ca.saved[c].name);
+  if ((ca.saved || []).length) add(cm.length ? "warn" : "ok", "Saved checks", (ca.saved || []).length + " saved" + (cm.length ? " &ndash; folder gone: " + LT.esc(cm.join(", ")) : ""));
+  // launcher list
+  var lh = (s.launcherHome || dd) + "\\QuickLaunch-data\\library.json", lib = LT.readJson(lh, null), lm = 0, ln = 0;
+  if (lib && lib.items) for (var l = 0; l < lib.items.length; l++) { var lp = lib.items[l].path || ""; if (!/^[a-z]:\\|^\\\\/i.test(lp)) continue; ln++; if (!fso.FileExists(lp) && !fso.FolderExists(lp)) lm++; }
+  if (ln) add(lm ? "warn" : "ok", "Launcher", ln + " file / folder link(s)" + (lm ? " &ndash; " + lm + " not found (moved or on a drive that isn't connected)" : " &ndash; all found"));
+  // naming rule
+  add(LT.nameRule() ? "ok" : "warn", "Naming rule", LT.nameRule() ? LT.esc(LT.nameRule().name) : "none set &ndash; Folder Check &rsaquo; Names", null);
+  return out;
+}
+LT.$("bHealth").onclick = function () {
+  HC = health(); var h = '<table class="grid nonum" style="max-width:980px;margin-top:8px">', nb = 0, nw = 0;
+  for (var i = 0; i < HC.length; i++) { var r = HC[i]; if (r.lv == "bad") nb++; if (r.lv == "warn") nw++;
+    h += '<tr><td class="' + r.lv + '" style="width:26px;font-weight:bold">' + (r.lv == "ok" ? "&#10004;" : r.lv == "warn" ? "&#9888;" : "&#10006;") + '</td><td style="width:160px"><b>' + r.title + "</b></td><td>" + r.text + "</td><td>" + (r.fix ? '<button class="btn small" data-hc="' + i + '">' + r.fix[0] + "</button>" : "") + "</td></tr>"; }
+  LT.$("hcRes").innerHTML = h + "</table>";
+  LT.$("hcSum").innerHTML = nb ? '<span class="bad">' + nb + " problem(s)</span>" + (nw ? ", " + nw + " to look at" : "") : nw ? '<span class="warn">' + nw + " thing(s) to look at</span>" : '<span class="ok">&#10004; All healthy</span>';
+};
+LT.$("hcRes").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-hc"); if (b) { HC[+b.getAttribute("data-hc")].fix[1](); LT.$("bHealth").onclick(); } };
+
+/* ---------- safe update: back up the program, copy the new one in; go back any time ---------- */
+var PROG = ["LewsToolbox.hta", "README.md"], PDIRS = ["core", "tabs"];
+function versionIn(dir) { try { var m = /L\.VERSION\s*=\s*"([^"]+)"/.exec(LT.readText(dir + "\\core\\lt-core.js")); return m ? m[1] : "?"; } catch (e) { return null; } }
+function progBackups() { var o = [], b = LT.backups(); for (var i = 0; i < b.length; i++) if (/^Program /.test(b[i].name)) o.push(b[i]); return o; }
+function copyProgram(from, to) {
+  var fso = LT.fso, n = 0; LT.mkdirs(to);
+  for (var i = 0; i < PROG.length; i++) if (fso.FileExists(from + "\\" + PROG[i])) { fso.CopyFile(from + "\\" + PROG[i], to + "\\" + PROG[i], true); n++; }
+  for (var k = 0; k < PDIRS.length; k++) if (fso.FolderExists(from + "\\" + PDIRS[k])) n += LT.copyTree(from + "\\" + PDIRS[k], to + "\\" + PDIRS[k], false);
+  return n;
+}
+function backupProgram(why) { var d = new Date(), dst = LT.backupDir() + "\\Program " + LT.VERSION + " " + LT.today() + " " + LT.pad(d.getHours()) + LT.pad(d.getMinutes()) + (why ? " (" + why + ")" : ""), k = 2; while (LT.fso.FolderExists(dst)) dst += " " + k++;
+  copyProgram(LT.appDir(), dst); return dst; }
+function showUpdate() {
+  var b = progBackups(), h = ""; for (var i = 0; i < b.length; i++) h += '<option value="' + LT.esc(b[i].path) + '">' + LT.esc(b[i].name.replace(/^Program /, "Version ")) + "</option>";
+  LT.$("upList").innerHTML = h || '<option value="">No earlier version kept yet</option>'; LT.$("bRollback").disabled = !b.length;
+  LT.$("upInfo").innerHTML = "You have version <b>" + LT.VERSION + "</b>";
+}
+function restartAsk(msg) { if (confirm(msg + "\n\nRestart the Toolbox now to use it?")) { try { (LT.main() ? LT.main().window || top : top).location.reload(); } catch (e) { try { top.location.reload(); } catch (x) { } } } }
+LT.$("bUpdate").onclick = function () {
+  var f = LT.pickFolder("Pick the folder of the new version (the one with LewsToolbox.hta in it)"); if (!f) return;
+  var fso = LT.fso; if (!fso.FileExists(f + "\\LewsToolbox.hta") || !fso.FileExists(f + "\\core\\lt-core.js")) { alert("That folder doesn't look like Lew's Toolbox - it needs LewsToolbox.hta and the core folder.\n\nIf you got a zip: extract it first, then pick the extracted folder."); return; }
+  if (f.toLowerCase() == LT.appDir().toLowerCase()) { alert("That's the folder you're running now - pick the new version's folder."); return; }
+  var nv = versionIn(f), older = nv && nv != "?" && nv < LT.VERSION;
+  if (!confirm("Update from " + LT.VERSION + " to " + nv + "?" + (older ? "\n\n⚠ That version is OLDER than the one you have." : "") + "\n\n1. The program you have now is backed up (Backups\\Program " + LT.VERSION + " ...)\n2. The new program files are copied in\nYour data isn't touched.")) return;
+  var bk; try { bk = backupProgram(""); } catch (e) { alert("Couldn't back up the program first - nothing was changed.\n" + (e.message || e)); return; }
+  var n = 0; try { n = copyProgram(f, LT.appDir()); } catch (e) { alert("The update stopped half way: " + (e.message || e) + "\n\nUse Go back to put the old version back."); showUpdate(); return; }
+  showUpdate(); restartAsk("Updated to " + nv + " (" + n + " files). The old version is kept in " + LT.fso.GetFileName(bk) + ".");
+};
+LT.$("bRollback").onclick = function () {
+  var p = LT.$("upList").value; if (!p) return; var nm = LT.$("upList").options[LT.$("upList").selectedIndex].text;
+  if (!confirm("Go back to " + nm + "?\n\nThe version you have now is backed up first, so you can come back to it.")) return;
+  try { backupProgram("before going back"); var n = copyProgram(p, LT.appDir()); showUpdate(); restartAsk("Back to " + nm + " (" + n + " files)."); } catch (e) { alert("Couldn't go back: " + (e.message || e)); }
+};
 
 /* called by the main window */
 window.ltTheme = function () { look(); refresh(); };

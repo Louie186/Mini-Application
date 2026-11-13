@@ -95,6 +95,7 @@ var LT = (function () {
     for (; !s.atEnd(); s.moveNext()) { var d = s.item(), nm = "" + d.Name; if (top && /^(backups|exports)$/i.test(nm)) continue; n += copyTree("" + d.Path, dst + "\\" + nm, false); }
     return n;
   }
+  L.copyTree = copyTree;
   L.backups = function () {
     var out = [], b = L.backupDir(); if (!fso.FolderExists(b)) return out;
     var e = new Enumerator(fso.GetFolder(b).SubFolders); for (; !e.atEnd(); e.moveNext()) out.push({ name: "" + e.item().Name, path: "" + e.item().Path });
@@ -129,6 +130,31 @@ var LT = (function () {
     return { files: n, before: before };
   };
   L.dataPath = function (name) { return L.dataDir() + "\\" + name; };
+  /* ---------- incoming watch: folders you want to know about (watch.json) ----------
+     { folders: [{ path, name, seen: { "rel\\name": time }, pending: [{ rel, path, time, kind: "new" | "changed" }], at }] }
+     The first look at a folder only remembers what's there; after that, new and changed files wait in "pending" until you've seen them. */
+  L.watchLoad = function () { var w = L.readJson(L.dataPath("watch.json"), null) || {}; w.folders = w.folders || []; return w; };
+  L.watchSave = function (w) { try { L.saveJson(L.dataPath("watch.json"), w); } catch (e) { } };
+  L.watchAdd = function (path, name) { var w = L.watchLoad(); for (var i = 0; i < w.folders.length; i++) if (w.folders[i].path.toLowerCase() == path.toLowerCase()) return false;
+    w.folders.push({ path: path, name: name || fso.GetFileName(path), seen: null, pending: [] }); L.watchSave(w); L.watchScan(); return true; };
+  L.watchScan = function () {
+    var w = L.watchLoad(), total = 0;
+    for (var i = 0; i < w.folders.length; i++) { var F = w.folders[i], now = {}, n = 0; F.pending = F.pending || [];
+      if (!fso.FolderExists(F.path)) { F.missing = true; continue; } F.missing = false;
+      var walk = function (dir, rel, depth) { var fo; try { fo = fso.GetFolder(dir); } catch (e) { return; }
+        var e = new Enumerator(fo.Files); for (; !e.atEnd() && n < 3000; e.moveNext()) { var f = e.item(), nm = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$|\.tmp$/i.test(nm)) continue; var t = 0; try { t = +new Date(f.DateLastModified); } catch (x) { } now[rel + nm] = t; n++; }
+        if (depth < 3) { var sf = new Enumerator(fo.SubFolders); for (; !sf.atEnd(); sf.moveNext()) if (!(sf.item().Attributes & 6)) walk("" + sf.item().Path, rel + sf.item().Name + "\\", depth + 1); } };
+      walk(F.path, "", 0);
+      if (F.seen) { var pend = {}; for (var p = 0; p < F.pending.length; p++) pend[F.pending[p].rel] = F.pending[p];
+        for (var k in now) if (now.hasOwnProperty(k)) { var old = F.seen[k]; if (old === undefined || old != now[k]) { var it = pend[k] || (pend[k] = { rel: k, path: F.path + "\\" + k, kind: old === undefined ? "new" : "changed" }); it.time = now[k]; } }
+        F.pending = []; for (var q in pend) if (pend.hasOwnProperty(q) && now[q] !== undefined) F.pending.push(pend[q]);
+        F.pending.sort(function (a, b) { return b.time - a.time; }); }
+      F.seen = now; F.at = +new Date(); total += F.pending.length; }
+    w.at = +new Date(); L.watchSave(w); return total;
+  };
+  L.watchPending = function () { var w = L.watchLoad(), n = 0; for (var i = 0; i < w.folders.length; i++) n += (w.folders[i].pending || []).length; return n; };
+  /* i = a folder's index (or all when left out): its new files have been seen */
+  L.watchSeen = function (i) { var w = L.watchLoad(); for (var k = 0; k < w.folders.length; k++) if (i == null || i == k) w.folders[k].pending = []; L.watchSave(w); };
   L.exportsDir = function () { return L.dataDir() + "\\exports"; };
 
   /* ---------- Windows actions ---------- */
@@ -611,8 +637,13 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.16";
+  L.VERSION = "2026.11.17";
   L.WHATS_NEW = [
+    { v: "2026.11.17", items: [
+      "<b>&#128229; Incoming</b> (Home): watch the folders where drawings arrive &ndash; new and changed files show on Home and the bell (every 10 minutes)",
+      "<b>Weekly report by itself</b> (Settings): made every week on your day, ready to open or copy into an email",
+      "<b>&#129521; Models</b> (Drawing Register): every model with its drawings &ndash; % issued, the link to open it, make a set from it",
+      "<b>&#129658; Health check</b> and <b>safe update</b> (Settings): what needs attention in one list; update from a folder with the old version kept &ndash; go back any time" ] },
     { v: "2026.11.16", items: [
       "<b>&#128640; Issue wizard</b> (Transmittal, or + New &rsaquo; Issue drawings): what goes out &rsaquo; to whom &rsaquo; checks &rsaquo; send &ndash; step by step",
       "<b>What's new since the last issue</b>: new, revised, already sent and lower &ndash; per recipient. Leave the already-sent ones out in one click",

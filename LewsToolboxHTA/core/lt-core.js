@@ -544,7 +544,8 @@ var LT = (function () {
     { v: "2026.11.13", items: [
       "<b>&#128678; Check all</b> (Folder Check): your checklist + the folder that goes out + where the drawings come from &ndash; quantity, missing, wrong revision, missing pdf / dwg, names, extra files, old revisions, newer in the source, copied wrong &ndash; as cards. <b>Collect</b> fills the gaps from the source folder",
       "<b>Log to Transmittal</b>: after an export it asks (you choose) &ndash; tick what goes out, then <b>log only</b>, <b>one zip</b> (each file once, nothing doubled) or a <b>folder</b>. Transmittal &gt; <b>&#128220; History</b> shows everything that went out &ndash; search a drawing number to see where it went",
-      "Tower / Typology / Model (clickable) in every drawing list" ] },
+      "Tower / Typology / Model (clickable) in every drawing list",
+      "Drawing Register: a <b>filter box under every heading</b> (e.g. Section <i>residential</i> + Title <i>enlarged</i>), <b>&#9734; Saved filters</b>, and column widths you can drag also while scrolled down" ] },
     { v: "2026.11.12e", items: [
       "<b>List lookup</b> (Drawing Register &gt; &#128203; List lookup): paste or load a list of drawing numbers (descriptions optional) &ndash; Tower, Typology and Model are filled in, the <b>model is clickable</b>; export it to Excel or HTML for someone to check",
       "Models can have a <b>link</b> (Setup &gt; Models table: Tower | Typology | Model | link) or come from a <b>models folder</b> &ndash; then the Model is clickable everywhere in the register",

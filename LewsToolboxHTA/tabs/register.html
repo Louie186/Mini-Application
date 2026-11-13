@@ -60,7 +60,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   <div class="step bar" id="filters">
     <span id="views"></span><br>
     <span class="lbl">Filter:</span><button class="btn small fb" data-f="cat" id="fbCat"></button><button class="btn small fb" data-f="tower" id="fbTower"></button><button class="btn small fb" data-f="typo" id="fbTypo"></button>
-    <input type="text" id="search" placeholder="Search number / title / section" style="width:220px;margin:0 8px 6px 0"><button class="btn small" id="fClear" style="display:none">&#10005; Clear filters</button>
+    <input type="text" id="search" placeholder="Search number / title / section" style="width:220px;margin:0 8px 6px 0"><button class="btn small" id="fSaved" title="Filters you saved (e.g. Residential Enlarged) - and save the one you have now">&#9734; Saved filters &#9662;</button><button class="btn small" id="fClear" style="display:none">&#10005; Clear filters</button>
   </div>
   <div id="sum" class="muted"></div>
   <div id="tickBar"><span class="lbl big" id="tickN"></span><button class="btn small primary" id="bSet">Set Tower / Typology...</button><button class="btn small" id="bStat" style="display:none">Set status &#9662;</button><button class="btn small" id="bAccept">&#10004; Accept the guesses</button><button class="btn small" id="bUntick">Clear ticks</button></div>
@@ -346,7 +346,7 @@ var F = { cat: {}, tower: {}, typo: {} }, FN = { cat: "Section", tower: "Tower",
 function fillFilters() {
   var bs = { cat: "fbCat", tower: "fbTower", typo: "fbTypo" }, any = false;
   for (var f in bs) if (bs.hasOwnProperty(f)) { var n = keys(F[f]).length; if (n) any = true; $(bs[f]).innerHTML = FN[f] + ": " + (n == 0 ? "All" : n == 1 ? esc(keys(F[f])[0]) : n + " ticked") + " &#9662;"; $(bs[f]).className = "btn small fb" + (n ? " on" : ""); }
-  $("fClear").style.display = any || LT.trim($("search").value) ? "" : "none";
+  $("fClear").style.display = any || LT.trim($("search").value) || cfOn() ? "" : "none";
 }
 function values(f) { var D = P.drawings, c = {}, a = []; for (var k in D) if (D.hasOwnProperty(k)) { var v = D[k][f] || "(empty)"; if (view != "all" && view != "gone" && D[k].inMidp === false) continue; if (!c[v]) { c[v] = 0; a.push(v); } c[v]++; } if (f != "cat") a.sort(); return { list: a, count: c }; }
 function pickShow(f, btn) {
@@ -366,7 +366,32 @@ function pass(k, d, s) {
   var q = LT.trim($("search").value).toLowerCase();
   for (var f in F) if (F.hasOwnProperty(f) && keys(F[f]).length && !F[f][d[f] || "(empty)"]) return false;
   if (q) { var all = (d.num + " " + d.title + " " + (d.cat || "")).toLowerCase(), ws = q.split(/\s+/); for (var w = 0; w < ws.length; w++) if (ws[w] && all.indexOf(ws[w]) < 0) return false; }
+  for (var cf in CF) if (CF.hasOwnProperty(cf) && LT.trim(CF[cf]) && !wordsIn(cfText(cf, k, d, s), CF[cf])) return false;
   return true;
+}
+/* ---------- column filters: a box under each heading. Words must all be there; -word = must not be there ---------- */
+var CF = {}, cfTimer = null;
+function cfOn() { for (var k in CF) if (CF.hasOwnProperty(k) && LT.trim(CF[k])) return true; return false; }
+function wordsIn(text, q) { text = (" " + (text || "") + " ").toLowerCase(); var ws = LT.trim(q).toLowerCase().split(/\s+/);
+  for (var i = 0; i < ws.length; i++) { var w = ws[i]; if (!w) continue; if (w.charAt(0) == "-" && w.length > 1) { if (text.indexOf(w.substring(1)) >= 0) return false; } else if (text.indexOf(w) < 0) return false; } return true; }
+function cfText(c, k, d, s) {
+  if (c == "num") return d.num; if (c == "rev") return d.rev; if (c == "title") return d.title + " " + (d.oldTitle || ""); if (c == "cat") return d.cat; if (c == "tower") return d.tower; if (c == "typo") return d.typo;
+  if (c == "model") return modelOf(d); if (c == "st") return dStat(k, d).text;
+  if (c == "note") return (s.isNew ? "new " : "") + (s.chg ? "title changed " : "") + (s.gone ? "removed " : "") + (!d.typo && !s.gone ? "set tower typology " : !d.ok && d.typo ? "guess " : "") + (d.link ? "link" : "");
+  return "";
+}
+function cfBox(c) { return '<input type="text" class="cfi" data-cf="' + c + '" value="' + esc(CF[c] || "") + '" placeholder="filter" title="Words to keep (all of them). -word = leave out. e.g. enlarged -kitchen">'; }
+/* saved filters (per project): the search, the Section / Tower / Typology ticks and the column filters together */
+function savedMenu(x, y) {
+  P.filters = P.filters || []; var m = [];
+  for (var i = 0; i < P.filters.length; i++) (function (f) { m.push({ label: "&#9734; <b>" + esc(f.name) + "</b>", fn: function () { F = JSON.parse(JSON.stringify(f.F || { cat: {}, tower: {}, typo: {} })); CF = JSON.parse(JSON.stringify(f.CF || {})); $("search").value = f.q || ""; fillFilters(); render(); LT.toast(f.name + ": " + shown.length + " drawing(s)"); } }); })(P.filters[i]);
+  if (m.length) m.push("-");
+  m.push({ label: "&#43; Save the filter you have now...", fn: function () { if (!cfOn() && !LT.trim($("search").value) && !keys(F.cat).length && !keys(F.tower).length && !keys(F.typo).length) { alert("Set a filter first (the boxes under the headings, the search, or Section / Tower / Typology)."); return; }
+    var n = prompt("Name for this filter (e.g. Residential Enlarged):", ""); if (!n || !LT.trim(n)) return; n = LT.trim(n);
+    for (var j = 0; j < P.filters.length; j++) if (P.filters[j].name.toLowerCase() == n.toLowerCase()) P.filters.splice(j--, 1);
+    P.filters.push({ name: n, q: LT.trim($("search").value), F: JSON.parse(JSON.stringify(F)), CF: JSON.parse(JSON.stringify(CF)) }); P.filters.sort(function (a, b) { return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; }); saveP(); LT.toast("Saved: " + n); } });
+  for (var d = 0; d < P.filters.length; d++) (function (f) { m.push({ label: '<span class="muted">&#10005; Delete &quot;' + esc(f.name) + "&quot;</span>", fn: function () { if (confirm('Delete the saved filter "' + f.name + '"?')) { P.filters.splice(P.filters.indexOf(f), 1); saveP(); } } }); })(P.filters[d]);
+  LT.menu(x, y, m);
 }
 function order(D) { var a = [], seen = {}, o = P.order || []; for (var i = 0; i < o.length; i++) if (D[o[i]] && !seen[o[i]]) { seen[o[i]] = 1; a.push(o[i]); }
   var rest = []; for (var k in D) if (D.hasOwnProperty(k) && !seen[k]) rest.push(k); rest.sort(); return a.concat(rest); }
@@ -385,8 +410,8 @@ function render() {
   var fs = LT.themeVars().fs || 13, wNo = Math.round(longest * fs * 0.66) + 22, tot = 34 + wNo, cg = '<colgroup><col style="width:34px"><col style="width:' + wNo + 'px">', th = "";
   var CL = cols(); ISS = LT.trIssued();
   if (view == "status") $("sum").innerHTML = statusSummary();
-  for (var c = 0; c < CL.length; c++) { var cc = CL[c]; tot += W[cc[0]]; cg += '<col data-c="' + cc[0] + '" style="width:' + W[cc[0]] + 'px">'; th += "<th>" + cc[1] + '<span class="rz" data-rz="' + cc[0] + '" title="Drag to change the width (double-click = back to normal)"></span></th>'; }
-  var h = ['<table class="grid" id="tbl" style="width:' + tot + 'px">' + cg + '</colgroup><tr><th class="tk"><input type="checkbox" id="tkAll" style="height:auto" title="Tick all shown"></th><th>Drawing</th>' + th + "</tr>"];
+  for (var c = 0; c < CL.length; c++) { var cc = CL[c]; tot += W[cc[0]]; cg += '<col data-c="' + cc[0] + '" style="width:' + W[cc[0]] + 'px">'; th += "<th>" + cc[1] + '<span class="rz" data-rz="' + cc[0] + '" title="Drag to change the width (double-click = back to normal)"></span>' + cfBox(cc[0]) + "</th>"; }
+  var h = ['<table class="grid" id="tbl" style="width:' + tot + 'px">' + cg + '</colgroup><tr><th class="tk"><input type="checkbox" id="tkAll" style="height:auto" title="Tick all shown"></th><th>Drawing' + cfBox("num") + "</th>" + th + "</tr>"];
   shown = []; var max = 2000;
   for (var i = 0; i < ks.length; i++) { var k = ks[i], d = D[k], s = stat(k, d); if (!pass(k, d, s)) continue; shown.push(k); if (shown.length > max) continue;
     var gcls = d.ok ? "" : ' class="warn g"', note = [];
@@ -398,6 +423,7 @@ function render() {
     else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
     h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td>" + (view == "status" ? stCell(k, d) : "") + "<td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + (modelOf(d) && modelLink(modelOf(d)) ? '<span class="mlk" data-ml="' + esc(modelLink(modelOf(d))) + '">' + esc(modelOf(d)) + "</span>" : esc(modelOf(d))) + "</td><td>" + note.join(" ") + "</td></tr>"); }
   h.push("</table>");
+  if (cfOn() || LT.trim($("search").value) || keys(F.cat).length || keys(F.tower).length || keys(F.typo).length) $("sum").innerHTML += ' &middot; <b class="ok">filtered: ' + shown.length + " shown</b>";
   if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
   if ($("tkAll")) { var all = shown.length > 0; for (var ta = 0; ta < shown.length && all; ta++) if (!ticked[shown[ta]]) all = false; $("tkAll").checked = all; }
@@ -777,7 +803,13 @@ for (var im in iMap) if (iMap.hasOwnProperty(im)) (function (id, key) { $(id).on
 $("views").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-v"); if (c) { view = c.getAttribute("data-v"); render(); } };
 $("filters").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-f"); if (!b) return; var f = b.getAttribute("data-f"); if (pickKey == f) { pickHide(); return; } pickShow(f, b); (e || window.event).cancelBubble = true; };
 $("search").onkeyup = function () { fillFilters(); render(); };
-$("fClear").onclick = function () { F = { cat: {}, tower: {}, typo: {} }; $("search").value = ""; fillFilters(); render(); };
+$("fClear").onclick = function () { F = { cat: {}, tower: {}, typo: {} }; CF = {}; $("search").value = ""; fillFilters(); render(); };
+$("fSaved").onclick = function (e) { if (!P) return; var a = at(this); savedMenu(a[0], a[1]); stop(e); };
+/* typing in a column filter (also in the heading that stays on top while scrolling) */
+(function () { var h = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-cf") == null || !P) return; var c = t.getAttribute("data-cf");
+    if (e.keyCode == 27) t.value = ""; CF[c] = t.value; if (cfTimer) window.clearTimeout(cfTimer);
+    cfTimer = window.setTimeout(function () { fillFilters(); render(); var ins = $("res").getElementsByTagName("input"); for (var i = 0; i < ins.length; i++) if (ins[i].getAttribute("data-cf") == c) { try { ins[i].focus(); var v = ins[i].value; ins[i].value = ""; ins[i].value = v; } catch (x) { } } }, 300); };
+  if (document.attachEvent) document.attachEvent("onkeyup", h); else document.addEventListener("keyup", h, false); })();
 $("pkQ").onkeyup = pickList;
 $("pkList").onclick = function (e) { var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-pv") == null) return; var v = t.getAttribute("data-pv"); if (t.checked) F[pickKey][v] = 1; else delete F[pickKey][v]; fillFilters(); render(); };
 $("pkAll").onclick = function () { var c = $("pkList").getElementsByTagName("input"); for (var i = 0; i < c.length; i++) F[pickKey][c[i].getAttribute("data-pv")] = 1; pickList(); fillFilters(); render(); };
@@ -789,18 +821,25 @@ $("pkDone").onclick = pickHide;
 var COLS = [["rev", "Rev", 60], ["title", "Title", 360], ["cat", "Section", 200], ["tower", "Tower", 70], ["typo", "Typology", 120], ["model", "Model", 250], ["note", "Note", 200]], drag = null;
 function colW() { var s = LT.settings(), w = s.regCols || {}, o = {}, C = COLS.concat([["st", "Status", 230]]); for (var i = 0; i < C.length; i++) o[C[i][0]] = w[C[i][0]] || C[i][2]; return o; }
 function saveColW(o) { var s = LT.settings(); s.regCols = o; LT.saveSettings(s); }
-$("res").onmousedown = function (e) {
-  e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || !t.getAttribute("data-rz")) return;
-  var c = t.getAttribute("data-rz"), W = colW(), cols = $("tbl").getElementsByTagName("col"), col = null; for (var i = 0; i < cols.length; i++) if (cols[i].getAttribute("data-c") == c) col = cols[i];
-  drag = { c: c, x: e.clientX, w: W[c], W: W, col: col, tw: $("tbl").offsetWidth };
+/* a column edge, in the table or in the heading that stays on top when you scroll down */
+function rzDown(e) {
+  e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || !t.getAttribute("data-rz") || !$("tbl")) return;
+  var c = t.getAttribute("data-rz"), W = colW(), find = function (tb) { if (!tb) return null; var cs = tb.getElementsByTagName("col"); for (var i = 0; i < cs.length; i++) if (cs[i].getAttribute("data-c") == c) return cs[i]; return null; };
+  var copy = t; while (copy && copy.tagName != "TABLE") copy = copy.parentNode; if (copy === $("tbl")) copy = null;
+  drag = { c: c, x: e.clientX, w: W[c], W: W, col: find($("tbl")), col2: find(copy), tb2: copy, tw: $("tbl").offsetWidth };
   if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false;
-};
+}
+if (document.attachEvent) document.attachEvent("onmousedown", rzDown); else document.addEventListener("mousedown", rzDown, false);
 (function () {
-  var mv = function (e) { if (!drag) return; e = e || window.event; var w = Math.max(36, drag.w + e.clientX - drag.x); drag.col.style.width = w + "px"; $("tbl").style.width = (drag.tw + w - drag.w) + "px"; drag.now = w; if (e.preventDefault) e.preventDefault(); e.returnValue = false; };
+  var mv = function (e) { if (!drag) return; e = e || window.event; var w = Math.max(36, drag.w + e.clientX - drag.x), tw = (drag.tw + w - drag.w) + "px"; if (drag.col) drag.col.style.width = w + "px"; $("tbl").style.width = tw;
+    if (drag.col2) { drag.col2.style.width = w + "px"; drag.tb2.style.width = tw; } drag.now = w; if (e.preventDefault) e.preventDefault(); e.returnValue = false; };
   var upf = function () { if (!drag) return; if (drag.now) { drag.W[drag.c] = drag.now; saveColW(drag.W); } drag = null; };
   if (document.attachEvent) { document.attachEvent("onmousemove", mv); document.attachEvent("onmouseup", upf); } else { document.addEventListener("mousemove", mv, false); document.addEventListener("mouseup", upf, false); }
 })();
-$("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.getAttribute && t.getAttribute("data-rz")) { var W = colW(), CL = cols(); for (var i = 0; i < CL.length; i++) if (CL[i][0] == t.getAttribute("data-rz")) W[CL[i][0]] = CL[i][2]; saveColW(W); render(); return; }
+/* double-click a column edge: back to its normal width */
+(function () { var h = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || !t.getAttribute("data-rz") || !P) return; var W = colW(), CL = cols(); for (var i = 0; i < CL.length; i++) if (CL[i][0] == t.getAttribute("data-rz")) W[CL[i][0]] = CL[i][2]; saveColW(W); render(); };
+  if (document.attachEvent) document.attachEvent("ondblclick", h); else document.addEventListener("dblclick", h, false); })();
+$("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.getAttribute && (t.getAttribute("data-rz") || t.getAttribute("data-cf") != null)) return;
   var tr = LT.up(t, "data-k"); if (tr) edit([tr.getAttribute("data-k")]); };
 $("res").onclick = function (e) {
   e = e || window.event; var t = e.target || e.srcElement;
@@ -832,7 +871,7 @@ function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{ba
   ".mlk{color:{accent};cursor:pointer;text-decoration:underline}.mlk:hover{color:{text}}", ".sets{display:flex;height:100%;padding:8px;box-sizing:border-box}.sl{flex:0 0 190px;overflow-y:auto;padding-right:8px}.slh{font-weight:bold;margin-bottom:6px}.si{padding:6px 8px;cursor:pointer;border-radius:{r}px;margin-bottom:2px}.si:hover{background:{hover}}.si.on{background:{chip};box-shadow:inset 3px 0 0 {accent}}",
   ".pane{flex:1 1 0px;min-width:0;display:flex;flex-direction:column;border:{bw}px solid {line};border-radius:{r}px;background:{panel}}.pane.over{outline:2px dashed {accent};background:{hover}}.ph{flex:none;padding:6px 10px;border-bottom:1px solid {line};background:{bg}}.pl{flex:1 1 auto;overflow-y:auto;min-height:0}",
   ".mid{flex:0 0 110px;display:flex;flex-direction:column;justify-content:center;padding:0 8px}.mid .btn{margin:0 0 8px;width:100%}",
-  ".dr{padding:4px 10px;border-bottom:1px solid {line};cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}.dr:hover{background:{hover}}.dr.sel{background:{chip};box-shadow:inset 3px 0 0 {accent}}.dr .no{font-family:{mono};font-weight:bold}.dr.gone{opacity:.55;text-decoration:line-through}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
+  ".dr{padding:4px 10px;border-bottom:1px solid {line};cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}.dr:hover{background:{hover}}.dr.sel{background:{chip};box-shadow:inset 3px 0 0 {accent}}.dr .no{font-family:{mono};font-weight:bold}.dr.gone{opacity:.55;text-decoration:line-through}", "input.cfi{display:block;width:100%;height:20px;margin-top:3px;padding:1px 5px;font-size:.85em;font-weight:normal;text-transform:none;letter-spacing:0;box-sizing:border-box}input.cfi:focus{border-color:{accent}}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
 window.ltTheme = look; window.ltReload = loadAll; window.ltShown = function () { if (P) render(); };
 /* from search (Ctrl+K): show that drawing */
 window.ltReceive = function (what, value) { if (what == "find" && P) { $("search").value = value; fillFilters(); render(); } };

@@ -239,7 +239,9 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 
 **Views:** In the MIDP · Changes in the last MIDP · To check · Removed from the MIDP · Everything
 - **Filter:** Section ▾, Tower ▾, Typology ▾ – tick one or more; type in the box to narrow the list (e.g. `enlarged` → **Tick all shown**). The search box looks in number, title and section. **✕ Clear filters**. Export follows the filters
-- **Column widths:** drag the edge of a heading (all but Drawing); double-click the edge = back to normal. Remembered on this PC
+- **Column widths:** drag the edge of a heading (all but Drawing) – also in the heading that stays on top when you scroll down; double-click the edge = back to normal. Remembered on this PC
+- **Column filters** – a small **filter** box under every heading (Drawing, Rev, Title, Section, Tower, Typology, Model, Note / Status). Type words: all must be there; `-word` leaves out. E.g. Section `residential` + Title `enlarged` = Residential Enlarged only; Title `enlarged -kitchen`. Esc empties a box. The summary line says how many are shown
+- **☆ Saved filters ▾** – **Save the filter you have now…** (name it, e.g. *Residential Enlarged*): the column boxes, the search and the Section / Tower / Typology ticks together, saved with the project. Pick it from the list next time – one click. **✕ Clear filters** clears them all
 - **Export ▾:** Excel with Number, Description, Tower, Typology, Model (like the generated list), or with revision / section / status; copy the MIDP changes for email / Teams
 - **History ▾:** every MIDP loaded, with its changes
 - **📋 Status** view – where every sheet is: **Not started · In progress · Checked · Issued**, with counts, a progress bar and **% issued** (click a count to see only those)

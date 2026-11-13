@@ -874,7 +874,7 @@ function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{ba
   ".dr{padding:4px 10px;border-bottom:1px solid {line};cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}.dr:hover{background:{hover}}.dr.sel{background:{chip};box-shadow:inset 3px 0 0 {accent}}.dr .no{font-family:{mono};font-weight:bold}.dr.gone{opacity:.55;text-decoration:line-through}", "input.cfi{display:block;width:100%;height:20px;margin-top:3px;padding:1px 5px;font-size:.85em;font-weight:normal;text-transform:none;letter-spacing:0;box-sizing:border-box}input.cfi:focus{border-color:{accent}}", ".lnk{color:{accent};cursor:pointer;font-weight:bold;white-space:nowrap}.lnk:hover{text-decoration:underline}", ".chipO{background:{chip};border-radius:{r}px}.chipO:hover{background:{accent};color:{accText}}", "#pick{background:{panel};border:{bw}px solid {line};border-radius:{r}px;box-shadow:{big}}", "#pkList label:hover{background:{hover}}", ".rz:hover{background:{accent};opacity:.5}"]); }
 window.ltTheme = look; window.ltReload = loadAll; window.ltShown = function () { if (P) render(); };
 /* from search (Ctrl+K): show that drawing */
-window.ltReceive = function (what, value) { if (what == "find" && P) { $("search").value = value; fillFilters(); render(); } };
+window.ltReceive = function (what, value) { if (what == "new-project") { newProject(); return; } if (what == "setup") { if (P) setupShow(); else newProject(); return; } if (what == "find" && P) { $("search").value = value; fillFilters(); render(); } };
 look(); loadAll(); LT.tabKeys();
 </script>
 </body>

@@ -13,7 +13,7 @@ module.exports = async ({ page, out }) => {
     add('P:\\Proj\\02 Shared\\Tower 2\\notes.txt');
     add('Q:\\Archive\\Old\\' + N('T1', '10100') + '-T0.pdf');
   });
-  await page.click('.nb[data-k="find"]'); await page.waitForTimeout(400);
+  await page.evaluate(() => LTMain.show('find')); await page.waitForTimeout(1200);   // Find drawings lives in Folder Check now
   const f = page.frame({ url: /find\.html/ });
   for (const p of ['P:\\Proj', 'Q:\\Archive']) { await f.evaluate((p) => { top.__nextFolder = p; }, p); await f.click('#bAdd'); }
   ok(await f.evaluate(() => cfg.roots.length == 2), 'two folders added');

@@ -38,7 +38,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="fcv" class="bar"><button class="btn" data-fv="checkall" title="Checklist + the folder that goes out + where it comes from: everything in one go">&#128678; Check all</button><button class="btn" data-fv="sub">&#9989; Submission check</button><button class="btn" data-fv="contents">&#128269; Contents &amp; checklist</button><button class="btn" data-fv="review" title="Drawings sent to you to check: the folder becomes your checklist">&#128221; Review</button><button class="btn" data-fv="naming">&#127991; Names</button><button class="btn" data-fv="compare">&#128260; Compare</button></div>
+  <div id="fcv" class="bar vtabs"><button class="btn" data-fv="checkall" title="Checklist + the folder that goes out + where it comes from: everything in one go">&#128678; Check all</button><button class="btn" data-fv="sub">&#9989; Submission check</button><button class="btn" data-fv="contents">&#128269; Contents &amp; checklist</button><button class="btn" data-fv="review" title="Drawings sent to you to check: the folder becomes your checklist">&#128221; Review</button><button class="btn" data-fv="naming">&#127991; Names</button><button class="btn" data-fv="compare">&#128260; Compare</button><button class="btn" data-fv="find" title="Find drawings by number in many folders (was its own tab)">&#128270; Find drawings</button><button class="btn" data-fv="superseded" title="Move old revisions out of a print folder (was its own tab)">&#128465; Superseded</button></div>
   <div class="step bar">
     <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Submission folder...</button><span class="path big" id="folderLbl"></span>
     <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
@@ -359,7 +359,7 @@ $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "d
 /* called by the main window */
 window.ltTheme = function () { look(); for (var n in subFrames) if (subFrames.hasOwnProperty(n)) { try { subFrames[n].contentWindow.ltTheme(); } catch (e) { } } };
 window.ltReload = function () { loadCfg(); table = null; showPaths(); $("remTop").checked = cfg.remTop !== false; };
-window.ltReceive = function (what, value) { if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); setView("sub"); } };
+window.ltReceive = function (what, value) { if (what == "view") { setView(value); return; } if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); setView("sub"); } };
 /* ---------- the views ---------- */
 var subFrames = {};
 function setView(v) {
@@ -374,7 +374,7 @@ function setView(v) {
   share(v);
 }
 /* the folder picked in another view goes to this one (if it's different) */
-function share(v) { try { var w = subFrames[v].contentWindow; if (cfg.folder && w.ltReceive && (v == "compare" || !w.cfg || w.cfg.folder != cfg.folder) && !(v == "naming" && w.folder == cfg.folder)) w.ltReceive("open-folder", cfg.folder); } catch (e) { } }
+function share(v) { if (v == "find" || v == "superseded") return; try { var w = subFrames[v].contentWindow; if (cfg.folder && w.ltReceive && (v == "compare" || !w.cfg || w.cfg.folder != cfg.folder) && !(v == "naming" && w.folder == cfg.folder)) w.ltReceive("open-folder", cfg.folder); } catch (e) { } }
 window.ltFolderPicked = function (f) { cfg.folder = f; saveCfg(); showPaths(); };
 $("fcv").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-fv"); if (b) setView(b.getAttribute("data-fv")); };
 look(); loadCfg(); $("remTop").checked = cfg.remTop !== false; setView(cfg.view || "sub");

@@ -26,26 +26,23 @@ No install, no build step.
 
 ## Tabs
 
-The side menu follows the way the work flows: **WORK** (log it → hand it out → send it), **DRAWINGS**, **FILES**.
+The side menu follows the way the work flows: **WORK** (log it → hand it out → send it), **DRAWINGS**, **FILES**. Ten tabs (was 13): Find Drawings and Superseded now live in Folder Check, the Weekly Report in Home.
 
 | Tab | What it does |
 |---|---|
-| 🏠 Home | Start of the day: today's tasks, waiting on others, next 2 weeks, recent files, team this week |
-| 🚀 Launcher | Your full QuickLaunch, inside the Toolbox |
+| Home | Your dashboard: my day, my team, the project's drawings (% issued), what went out; today, waiting on others, next 2 weeks, done in the last 7 days, team load, last transmittals, recent files · **Weekly report** |
+| Launcher | Your full QuickLaunch, inside the Toolbox |
 | **WORK** | |
-| 🗂 Tasks | Every task starts here: your own to-dos and work to hand out – description, checklist, who (a person or a group), references |
-| 📋 Delegate | Hand tasks out from Tasks: task packs with the references, groups with a lead, replies back · Board, Calendar, Team & groups, Workload |
-| 📨 Transmittal | Numbered issue sheets (TR-001…) and their log – delegating makes one for each person by itself |
+| Tasks | Every task starts here: your own to-dos and work to hand out – description, checklist, who (a person or a group), references · List, Board, Calendar |
+| Delegate | Hand tasks out from Tasks: task packs with the references, groups with a lead, replies back · Board, Calendar, Team & groups, Workload, Team Board, Chase up |
+| Transmittal | Numbered issue sheets (TR-001…), log only / zip / folder, and the **History** of everything that went out |
 | **DRAWINGS** | |
-| 📘 Drawing Register | Load each new MIDP: new / removed / retitled drawings, and every drawing's Tower / Typology / Model |
-| 🔎 Find Drawings | Where is this drawing? Every file of it in one or more folders: revision, type, location |
-| ✅ Folder Check | One folder, five views: **Submission check** · **Contents & checklist** · **📝 Review** (the folder is your checklist) · **Names** · **Compare** |
-| 🗄 Superseded | Printed sheets: latest revision stays, older ones move to "Superseded" |
+| Drawing Register | Load each new MIDP: new / removed / retitled drawings, every drawing's Tower / Typology / Model, Status, My sets, List lookup, filters |
+| Folder Check | **Check all** · Submission check · Contents & checklist · Review · Names · Compare · **Find drawings** · **Superseded** |
 | **FILES** | |
-| 📁 Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
-| 📂 Project Folders | Your standard folder tree for a new project in one click |
-| 📊 Weekly Report | One click: done, delegated, sent, next week, team load – copy / email / save |
-| ⚙ Settings | Looks, data folder, Launcher list, links, taskbar shortcut |
+| Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
+| Project Folders | Your standard folder tree for a new project in one click |
+| Settings | Looks, data folder, Launcher list, links, taskbar shortcut, backups |
 
 ## The workflow: Tasks → Delegate → Transmittal
 
@@ -67,14 +64,16 @@ The side menu follows the way the work flows: **WORK** (log it → hand it out �
 - **Reminder on opening** (in the side menu) – once a day: your tasks due today, your late tasks, and who on the team has late work. **Chase up** goes straight to Delegate → Chase up. Turn it off / show it now: **Settings → Reminders**
 - **Copy as email** – right-click a task → **✉ Copy as email** (or **✉ Email it** = an Outlook draft): subject, greeting, details, checklist, references and the task folder, ready to send
 
-## Looks and the side menu
+## The window (new look)
 
-- **Settings → Looks:** two new looks, **Slate** (dark) and **Slate Light**
-  - Clean dashboard style: one steel-blue colour, pill-shaped buttons, rounded cards
-  - The tab you're on gets a thin blue bar on its left
-- **Fold the menu:** click **◀** next to *Lew's Toolbox* (or press **Ctrl+[**)
-  - The menu shrinks to icons only. Click **▶** (or Ctrl+[ again) to open it
-  - Remembered next time
+- **Studio** – the new look: a dark side menu with line icons, a white work area, clear buttons, soft cards, striped tables. **Studio Dark** for evenings. Everyone moves to Studio once after the update; **Settings → Looks** still has the others (Slate, Light, Blueprint…)
+- **Top bar**, the same on every tab:
+  - **Project ▾** – the project you're working on (the Drawing Register's projects): switch, **New project…**, **Project setup (MIDP, models, ACC)…**. Home, the Register, the model links and the drawing columns everywhere follow it
+  - **Search** – click it or press **Ctrl+K**: tasks, drawings, transmittals, people, files
+  - **🔔 Bell** – how many things need you (your tasks due / late + the team's late work). Once a day on opening it glows; click it for the list (My tasks · Chase up). Nothing pops up over your work
+  - **☾ / ☀** – light / dark in one click · **your initials** – Settings
+- **Fold the menu:** click **‹** next to *Lew's Toolbox* (or press **Ctrl+[**) – icons only; remembered
+- Buttons that had an emoji now show the matching line icon (same on every PC)
 
 ## Tables (every tab)
 
@@ -389,9 +388,11 @@ For drawings someone sends you **to check**: the folder's own contents become yo
 
 ## Home
 
-- Opens first. **Add a task for today** goes straight into Tasks
-- **Today** (late, due today, doing) · **Waiting on others** (open delegated items, late first) · **Next 2 weeks** (every date from Tasks and Delegate, busy days in red) · **Recent files** (from the Launcher) · **Team this week** (once Delegate → Workload is used)
-- Click anything to jump to its tab
+Your dashboard – it only reads what the other tabs saved, and every card opens the right place.
+- **Top cards:** **My day** (due today + late) · **My team** (open delegated work, late, replies waiting on team boards) · **the project's drawings** (% issued, with a ring: issued · checked · in progress · not started) · **Sent this month** (transmittals, the last one)
+- **Today** · **Waiting on others** · **Next 2 weeks** (every date from every tab, by day; 3+ things on a day in red) · **Done in the last 7 days** (a small bar chart, yours + the team's) · **Team this week** (load bars: green has room, amber 80–100%, red overloaded) · **Last transmittals** · **Recent files**
+- **Add a task** at the top (the same quick words as Tasks)
+- **📊 Weekly report** – opens inside Home (was its own tab); **‹ Back to Home** to return
 
 ## Transmittal
 

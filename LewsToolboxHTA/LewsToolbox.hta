@@ -14,18 +14,27 @@
 -->
 <style>
 #shell{display:flex;height:100%}
-#nav{flex:none;width:200px;display:flex;flex-direction:column;padding:10px 8px;overflow:hidden;transition:width .35s ease-out}
-#brand{font-weight:bold;font-size:16px;padding:6px 8px 14px;white-space:nowrap;position:relative}
-#railBtn{position:absolute;right:2px;top:4px;width:28px;height:26px;padding:0;cursor:pointer;font:inherit;font-size:14px;line-height:22px;text-align:center;outline:none}
-#shell.rail #nav{width:58px}#shell.rail .nb .tx,#shell.rail #brand .tx,#shell.rail #clock span{display:none}
-#shell.rail .nb{padding:0;text-align:center;text-overflow:clip}#shell.rail .nb .ic{width:auto}
-#shell.rail #brand{padding-bottom:40px}#shell.rail #railBtn{left:6px;right:auto;top:34px}
-#tabs{flex:1 1 auto;overflow-y:auto}
-.nb{display:block;width:100%;text-align:left;height:34px;margin:0 0 2px;padding:0 10px;cursor:pointer;font:inherit;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;outline:none}
-.nb .ic{display:inline-block;width:24px}
-.ng{margin:10px 8px 4px;font-size:.72em;font-weight:bold;letter-spacing:.8px;text-transform:uppercase;white-space:nowrap;min-height:1px}#shell.rail .ng{margin:8px 6px}
-#clock{flex:none;text-align:center;padding:8px 0;line-height:1.4}
-#clock b{font-size:1.15em}
+#nav{flex:none;width:220px;display:flex;flex-direction:column;padding:12px 10px 10px;overflow:hidden;transition:width .25s ease-out}
+#brand{display:flex;align-items:center;font-weight:600;font-size:15px;padding:2px 4px 18px;white-space:nowrap}
+#brand .logo{flex:none;width:32px;height:32px;line-height:32px;text-align:center;border-radius:9px;font-weight:700;font-size:13px;letter-spacing:.5px;margin-right:10px}
+#railBtn{margin-left:auto;width:26px;height:26px;padding:0;cursor:pointer;font:inherit;font-size:12px;line-height:24px;text-align:center;outline:none;border-radius:6px}
+#shell.rail #nav{width:64px}#shell.rail .tx{display:none}#shell.rail #brand{flex-direction:column;padding-bottom:12px}#shell.rail #brand .logo{margin:0 0 8px}#shell.rail #railBtn{margin:0}
+#shell.rail .nb{justify-content:center;padding:0}#shell.rail .nb svg.ic,#shell.rail .nb span.ic{margin:0}
+#tabs{flex:1 1 auto;overflow-y:auto;overflow-x:hidden}
+.nb{display:flex;align-items:center;width:100%;height:38px;margin:0 0 2px;padding:0 12px;cursor:pointer;font:inherit;font-weight:500;white-space:nowrap;overflow:hidden;outline:none;border:0;border-radius:9px;text-align:left}
+.nb svg.ic,.nb span.ic{flex:none;margin-right:12px}.nb span.ic{width:20px;text-align:center}
+.ng{margin:14px 12px 6px;font-size:.7em;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;min-height:1px}#shell.rail .ng{margin:10px 8px;height:1px}
+#clock{flex:none;margin-left:12px;white-space:nowrap;font-size:.9em}
+#main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
+#top{flex:none;height:56px;display:flex;align-items:center;padding:0 18px 0 14px}
+#proj{display:flex;align-items:center;height:38px;padding:0 12px;cursor:pointer;border-radius:9px;max-width:320px;white-space:nowrap;overflow:hidden}
+#proj .pl{margin:0 8px 0 10px;line-height:1.15}#proj .pl small{display:block;font-size:.72em;font-weight:600;letter-spacing:.6px;text-transform:uppercase}#proj b{font-weight:600}
+#sbox{flex:0 1 440px;display:flex;align-items:center;height:38px;margin-left:14px;padding:0 12px;cursor:text;border-radius:9px;white-space:nowrap;overflow:hidden}
+#sbox span{margin-left:10px}#sbox kbd{margin-left:auto;font:11px Consolas,monospace;padding:2px 6px;border-radius:5px}
+#topSp{flex:1 1 auto}
+.tb{position:relative;width:38px;height:38px;margin-left:4px;cursor:pointer;border:0;border-radius:9px;background:transparent;outline:none;text-align:center}
+#bellN{display:none;position:absolute;right:3px;top:3px;min-width:17px;height:17px;line-height:17px;padding:0 4px;font-size:10px;font-weight:700;border-radius:9px}
+#me{flex:none;width:34px;height:34px;line-height:34px;text-align:center;border-radius:50%;margin-left:10px;font-weight:700;font-size:12px;cursor:pointer}
 #body{flex:1 1 auto;position:relative;min-width:0}
 #body iframe{position:absolute;left:0;top:0;width:100%;height:100%;border:0;display:none}
 #tip{display:none;position:fixed;z-index:50;width:280px;padding:10px 12px;line-height:1.45;font-size:13px}
@@ -49,11 +58,11 @@
 #qsHint{font-size:.8em;margin-top:6px}
 #wn{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:61;background:rgba(0,0,0,.35)}
 #wnBox{width:600px;max-width:92%;max-height:80%;overflow-y:auto;margin:50px auto 0;padding:16px 20px;line-height:1.5}#wnBox h3{margin:0 0 4px}#wnBox ul{margin:8px 0 12px;padding-left:20px}#wnBox li{margin-bottom:5px}#wnBox .v{font-size:.85em}
-#remind{display:none;flex:none;position:relative;margin:6px 2px;padding:7px 8px;font-size:.85em;line-height:1.35}
-#remind h4{margin:0 14px 4px 0;font-size:1em}#remind ul{margin:0 0 4px;padding-left:14px}#remind .rb{margin:4px 4px 0 0;padding:2px 7px;font:inherit;font-weight:bold;cursor:pointer}
-#remind .rx{position:absolute;right:6px;top:4px;cursor:pointer;font-weight:bold}
-#shell.rail #remind{padding:4px;text-align:center}
-@media (max-width:700px){ #nav{width:58px} .nb{padding:0;text-align:center;text-overflow:clip} .nb .ic{width:auto} .nb .tx,#brand .tx{display:none} #clock span{display:none} #railBtn{display:none} }
+#remind{display:none;position:fixed;right:16px;top:60px;z-index:45;width:350px;padding:14px 16px;line-height:1.5}
+#remind h4{margin:0 20px 6px 0;font-size:1.05em;font-weight:600}#remind ul{margin:0 0 8px;padding-left:18px}#remind .rb{margin:4px 6px 0 0;padding:4px 11px;font:inherit;font-weight:600;cursor:pointer}
+#remind .rx{position:absolute;right:12px;top:10px;cursor:pointer;font-weight:bold}
+#pm{display:none;position:fixed;z-index:46;width:330px;padding:8px}#pm .pi{display:flex;align-items:center;padding:8px 10px;cursor:pointer;border-radius:8px}#pm .pi svg{margin-right:10px}#pm .pi small{margin-left:auto}#pm .sep{height:1px;margin:6px 4px}#pm .ph{padding:6px 10px 4px;font-size:.72em;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+@media (max-width:760px){ #nav{width:64px} .tx{display:none} #railBtn{display:none} #sbox span,#sbox kbd,#clock{display:none} }
 </style>
 <script src="core/lt-core.js"></script>
 <script src="core/lt-taskfolder.js"></script>
@@ -62,14 +71,25 @@
 <body>
 <div id="shell">
   <div id="nav">
-    <div id="brand">&#129520;<span class="tx"> Lew's Toolbox</span><button id="railBtn" title="Fold the menu to icons / open it again (Ctrl+[)">&#9664;</button></div>
+    <div id="brand"><span class="logo">LT</span><span class="tx">Lew's Toolbox</span><button id="railBtn" title="Fold the menu to icons / open it again (Ctrl+[)">&#8249;</button></div>
     <div id="tabs"></div>
-    <div id="remind"></div>
     <div id="dataWarn"></div>
-    <div id="clock"><b id="clkT">--:--</b><br><span id="clkD"></span></div>
   </div>
-  <div id="body"><div id="warn"></div></div>
+  <div id="main">
+    <div id="top">
+      <div id="proj" title="The project you're working on - every tab follows it"></div>
+      <div id="sbox" title="Search everything (Ctrl+K)"></div>
+      <div id="topSp"></div>
+      <span id="clock"><span id="clkD"></span> &middot; <b id="clkT">--:--</b></span>
+      <button class="tb" id="bellB" title="Today: what's due, what's late (yours and the team's)"><span id="bellN"></span></button>
+      <button class="tb" id="themeB" title="Light / dark"></button>
+      <div id="me" title="Settings"></div>
+    </div>
+    <div id="body"><div id="warn"></div></div>
+  </div>
 </div>
+<div id="remind"></div>
+<div id="pm"></div>
 <div id="tip"></div>
 <div id="wn"><div id="wnBox"></div></div>
 <div id="lo"><div id="loBox"></div></div>
@@ -82,6 +102,8 @@
    ================================================================ */
 var fso = LT.fso, APP = LT.appDir(), SELF = LT.pathFromUrl(location.href);
 var tabs = [], frames = {}, current = null, tipsOn = true;
+/* each tab's icon (line icons, core\lt-core.js L.ICONS); a tab not listed here keeps its own (emoji) icon */
+var ICON_OF = { home: "home", launcher: "launch", tracker: "taskcheck", delegate: "delegate", transmittal: "transmittal", register: "register", check: "check", find: "find", superseded: "superseded", files: "files", folders: "folders", report: "report", settings: "settings" };
 
 /* reads the name / order / icon of each tabs\*.html without opening it */
 function findTabs() {
@@ -100,16 +122,20 @@ function findTabs() {
   return list;
 }
 
+function findTab(k) { for (var i = 0; i < tabs.length; i++) if (tabs[i].key == k) return tabs[i]; return null; }
 function renderNav() {
   var h = "", g = "";
   for (var i = 0; i < tabs.length; i++) {
     // a small heading where the group changes (WORK / DRAWINGS / FILES); "-" = just a line
     if (tabs[i].group != g) { g = tabs[i].group; if (g) h += '<div class="ng">' + (g == "-" ? "" : '<span class="tx">' + LT.esc(g) + "</span>") + "</div>"; }
-    h += '<button class="nb' + (tabs[i].key == current ? " on" : "") + '" data-k="' + tabs[i].key + '" title="' + (tipsOn ? "" : LT.esc(tabs[i].title) + (i < 9 ? " (Ctrl+" + (i + 1) + ")" : "")) + '"><span class="ic">' + tabs[i].icon + '</span><span class="tx">' + LT.esc(tabs[i].title) + "</span></button>"; }
+    h += '<button class="nb' + (tabs[i].key == current ? " on" : "") + '" data-k="' + tabs[i].key + '" title="' + (tipsOn ? "" : LT.esc(tabs[i].title) + (i < 9 ? " (Ctrl+" + (i + 1) + ")" : "")) + '">' + (ICON_OF[tabs[i].key] ? LT.icon(ICON_OF[tabs[i].key], 19) : '<span class="ic">' + tabs[i].icon + "</span>") + '<span class="tx">' + LT.esc(tabs[i].title) + "</span></button>"; }
   LT.$("tabs").innerHTML = h || '<div class="muted" style="padding:8px">The "tabs" folder is missing. Keep LewsToolbox.hta together with its "core" and "tabs" folders.</div>';
 }
 
+/* tabs that now live inside another tab: [the tab, what to tell it] */
+var MOVED = { find: ["check", "view", "find"], superseded: ["check", "view", "superseded"], report: ["home", "report", ""] };
 function show(key) {
+  if (MOVED[key] && !findTab(key)) { var mv = MOVED[key]; LTMain.send(mv[0], mv[1], mv[2]); return; }
   var t = null;
   for (var i = 0; i < tabs.length; i++) if (tabs[i].key == key) t = tabs[i];
   if (!t) t = tabs[0];
@@ -133,6 +159,7 @@ var LTMain = {
   showIndex: function (n) { if (tabs[n]) show(tabs[n].key); },
   /* opens a tab and hands it a message, e.g. Launcher -> Bulk Files "open-folder" */
   send: function (key, what, value) {
+    if (MOVED[key] && !findTab(key)) { var mv = MOVED[key]; key = mv[0]; what = mv[1]; value = mv[2]; }   // e.g. "find" opens Folder Check > Find drawings
     show(key);
     var tries = 0, f = frames[key];
     (function go() {
@@ -148,11 +175,12 @@ var LTMain = {
     for (var k in frames) if (frames.hasOwnProperty(k)) { try { var w = frames[k].contentWindow; if (w && w !== from && w.ltTheme) w.ltTheme(); } catch (x) { } }
   },
   dataChanged: function () {
-    dataHereWarning();
+    dataHereWarning(); try { topBar(); } catch (e) { }
     for (var k in frames) if (frames.hasOwnProperty(k)) { try { var w = frames[k].contentWindow; if (w && w.ltReload) w.ltReload(); } catch (x) { } }
   },
   makeShortcut: function () { return taskbarShortcut(); },
   search: function () { openSearch(); },
+  project: function () { return curProject(); },
   logOut: function (json) { try { logOut(JSON.parse(json)); } catch (e) { } },
   toggleRail: function () { setRail(LT.$("shell").className != "rail", true); },
   /* for Settings: every tab with its description */
@@ -165,23 +193,23 @@ var LTMain = {
 
 function look() {
   var rules = [
-    "#nav{background:{panel};border-right:{bw}px solid {line}}",
-    ".nb{background:transparent;color:{text};border:{bw}px solid transparent;border-radius:{r}px}",
-    ".nb:hover{background:{hover}}",
-    ".nb.on{background:{hover};border-color:{accent};color:{text}}",
-    "#railBtn{background:transparent;color:{muted};border:{bw}px solid {line};border-radius:{r}px}#railBtn:hover{color:{text};border-color:{accent}}",
-    ".ng{color:{muted};border-top:1px solid {line};padding-top:8px}",
-    "#clock{color:{text};cursor:default}#clkD{color:{muted};font-size:.85em}",
-    "#loBox{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#loList{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}.pk{border:{bw}px solid {line};border-radius:{r}px}.pk.on{border-color:{accent};background:{hover}}#loBox .acts button{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}#loBox .acts .pri{background:{accent};color:{accText};border-color:{accent}}#loBox .mut{color:{muted};font-size:.85em}",
-    "#wnBox{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#wnBox .v{color:{muted}}",
-    "#qsBox{background:{panel};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#qsHint{color:{muted}}",
-    ".qr{border-radius:{r}px;color:{text}}.qr.on{background:{hover};box-shadow:inset 3px 0 0 {accent}}.qr .k{color:{muted}}.qr .s{color:{muted}}",
-    "#remind{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#remind .rb{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}#remind .rb:hover{border-color:{accent}}#remind .late{color:{bad};font-weight:bold}#remind .rx{color:{muted}}",
-    "#tip{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#tip .k{margin-top:6px;font-size:.85em;color:{muted}}"
+    "#nav{background:{side};color:{sideText};border-right:1px solid {sideLine}}#brand{color:{sideHi}}#brand .logo{background:{accent};color:#fff}",
+    ".nb{background:transparent;color:{sideText}}.nb:hover{background:{sideHover};color:{sideHi}}.nb.on{background:{accent};color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.35)}",
+    "#railBtn{background:transparent;color:{sideMuted};border:1px solid {sideHover}}#railBtn:hover{color:{sideHi};background:{sideHover}}",
+    ".ng{color:{sideMuted}}",
+    "#top{background:{panel};border-bottom:1px solid {line}}#proj{color:{text}}#proj:hover{background:{hover}}#proj small{color:{muted}}#proj svg{color:{accent}}",
+    "#sbox{background:{bg};border:1px solid {line};color:{muted}}#sbox:hover{border-color:{accent}}#sbox kbd{background:{panel};border:1px solid {line};color:{muted}}",
+    ".tb{color:{muted}}.tb:hover{background:{hover};color:{text}}.tb.glow{color:{accent};background:{accSoft};box-shadow:0 0 0 3px {accSoft}}#bellN{background:{bad};color:#fff}#me{background:{accSoft};color:{accent}}#clock{color:{muted}}#clkT{color:{text}}",
+    "#pm{background:{panel};color:{text};border:1px solid {line};border-radius:12px;box-shadow:{big}}#pm .pi:hover{background:{hover}}#pm .pi.on{background:{accSoft};color:{accent};font-weight:600}#pm .pi small{color:{muted}}#pm .sep{background:{line}}#pm .ph{color:{muted}}",
+    "#loBox{background:{panel};color:{text};border:1px solid {line};border-radius:14px;box-shadow:{big}}#loList{border:1px solid {line};border-radius:{r}px;background:{bg}}.pk{border:1px solid {line};border-radius:{r}px}.pk.on{border-color:{accent};background:{accSoft}}#loBox .acts button{background:{bg};color:{text};border:1px solid {line};border-radius:{r}px}#loBox .acts .pri{background:{accent};color:{accText};border-color:{accent}}#loBox .mut{color:{muted};font-size:.85em}",
+    "#wnBox{background:{panel};color:{text};border:1px solid {line};border-radius:14px;box-shadow:{big}}#wnBox .v{color:{muted}}",
+    "#qsBox{background:{panel};border:1px solid {line};border-radius:14px;box-shadow:{big}}#qsHint{color:{muted}}",
+    ".qr{border-radius:{r}px;color:{text}}.qr.on{background:{accSoft};box-shadow:inset 3px 0 0 {accent}}.qr .k{color:{muted}}.qr .s{color:{muted}}",
+    "#remind{background:{panel};color:{text};border:1px solid {line};border-radius:14px;box-shadow:{big}}#remind .rb{background:{bg};color:{text};border:1px solid {line};border-radius:{r}px}#remind .rb:hover{border-color:{accent}}#remind .late{color:{bad};font-weight:600}#remind .rx{color:{muted}}",
+    "#tip{background:{panel};color:{text};border:1px solid {line};border-radius:12px;box-shadow:{big}}#tip .k{margin-top:6px;font-size:.85em;color:{muted}}"
   ];
-  /* Slate: the menu item you're on gets a soft fill and a thin blue bar on its left */
-  if (LT.themeVars().slate) rules.push(".nb.on{border-color:transparent;background:{chip};box-shadow:inset 3px 0 0 {accent2}}");
   LT.applyLook(rules);
+  topBar();
 }
 /* while the data folder is inside the program folder, replacing the program could delete it: say so (once per start) */
 function dataHereWarning() {
@@ -195,7 +223,7 @@ function dataHereWarning() {
 /* fold the side menu down to icons (remembered in settings) */
 function setRail(on, keep) {
   LT.$("shell").className = on ? "rail" : "";
-  LT.$("railBtn").innerHTML = on ? "&#9654;" : "&#9664;";
+  LT.$("railBtn").innerHTML = on ? "&#8250;" : "&#8249;";
   LT.$("railBtn").title = on ? "Open the menu (Ctrl+[)" : "Fold the menu to icons (Ctrl+[)";
   if (keep) { var s = LT.settings(); s.rail = !!on; LT.saveSettings(s); }
 }
@@ -314,18 +342,9 @@ function whatsNew(force) {
 /* ---------- once a day, on opening: what's due today, what's late (yours and your team's) ---------- */
 function reminders(force) {
   var s = LT.settings(); if (!force && (s.remind === false || s.remindOn == LT.today())) return false;
-  var today = LT.today(), mineToday = [], mineLate = [], team = {}, nLate = 0, i, j;
-  var tr = (LT.readJson(LT.dataPath("tracker.json"), null) || {}).tasks || [];
-  for (i = 0; i < tr.length; i++) { var t = tr[i]; if (t.status == "Done" || !t.due || t.delegated) continue; if (t.due == today) mineToday.push(t); else if (t.due < today) mineLate.push(t); }
-  var dj = LT.readJson(LT.dataPath("delegate.json"), null) || {}, dt = dj.tasks || [], lead = {};
-  if (s.chaseLead !== false) for (i = 0; i < (dj.groups || []).length; i++) lead[LT.trim(dj.groups[i].name).toLowerCase()] = dj.groups[i].lead;   // a group's work: its lead answers for it
-  var lateFor = function (who, code) { who = LT.trim(who || "") || "?"; team[who] = team[who] || []; team[who].push(code); nLate++; };
-  for (i = 0; i < dt.length; i++) { var d = dt[i], subs = d.subs || [];
-    var gl = lead[LT.trim(d.who || "").toLowerCase()];
-    if (subs.length) { for (j = 0; j < subs.length; j++) { var du = subs[j].due || d.due; if (subs[j].status != "Completed" && du && du < today) lateFor(gl || subs[j].who || d.who, subs[j].code); } }
-    else if (d.status != "Completed" && d.due && d.due < today) lateFor(d.who, d.code); }
+  var today = LT.today(), R0 = remindData(), mineToday = R0.mineToday, mineLate = R0.mineLate, team = R0.team, nLate = R0.nLate, i;
   if (!mineToday.length && !mineLate.length && !nLate) { if (!force) { s.remindOn = today; LT.saveSettings(s); } return false; }
-  var h = '<span class="rx tx" id="rX" title="Close">&#10005;</span><h4>&#128276;<span class="tx"> Good ' + (new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening") + (s.userName ? ", " + LT.esc(s.userName) : "") + "</span></h4><div class=\"tx\"><ul>";
+  var h = '<span class="rx" id="rX" title="Close">&#10005;</span><h4><span> Good ' + (new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening") + (s.userName ? ", " + LT.esc(s.userName) : "") + "</span></h4><div class=\"tx\"><ul>";
   if (mineToday.length) h += "<li><b>" + mineToday.length + "</b> of your tasks due today</li>";
   if (mineLate.length) h += '<li class="late">' + mineLate.length + " of your tasks late</li>";
   var ppl = []; for (var p in team) if (team.hasOwnProperty(p)) ppl.push(p);
@@ -341,6 +360,46 @@ function reminders(force) {
   if (!force) { s.remindOn = today; LT.saveSettings(s); }
   return true;
 }
+
+/* ---------- the top bar: project, search, bell, light / dark, you ---------- */
+/* the project = a project of the Drawing Register (register.json); every tab reads it with LT.project() */
+function projects() { var ix = LT.registerIndex(); return { list: ix.projects || [], cur: ix.current || "" }; }
+function curProject() { var p = projects(); for (var i = 0; i < p.list.length; i++) if (p.list[i].id == p.cur) return p.list[i]; return null; }
+function topBar() {
+  var p = curProject(), s = LT.settings(), n = LT.trim(s.userName || ""), ini = "";
+  LT.$("proj").innerHTML = LT.icon("project", 20) + '<span class="pl"><small>Project</small><b>' + LT.esc(p ? p.name : "No project yet") + "</b></span>" + LT.icon("chev", 14);
+  LT.$("sbox").innerHTML = LT.icon("search", 17) + "<span>Search tasks, drawings, transmittals, people...</span><kbd>Ctrl K</kbd>";
+  LT.$("themeB").innerHTML = LT.icon(/dark|slate$|blueprint|retro/.test(s.theme || "") ? "sun" : "moon", 19);
+  var ps = n.split(/[\s._]+/); for (var i = 0; i < ps.length && ini.length < 2; i++) if (ps[i]) ini += ps[i].charAt(0).toUpperCase(); LT.$("me").innerHTML = LT.esc(ini || "ME"); LT.$("me").title = (n || "You") + " - Settings";
+  bell();
+}
+function projMenu() {
+  var P = projects(), r = LT.$("proj").getBoundingClientRect(), h = '<div class="ph">Projects</div>';
+  for (var i = 0; i < P.list.length; i++) { var pr = P.list[i], n = 0; try { var j = LT.readJson(LT.registerFile(pr.id), null); if (j && j.drawings) for (var k in j.drawings) if (j.drawings.hasOwnProperty(k) && j.drawings[k].inMidp !== false) n++; } catch (e) { }
+    h += '<div class="pi' + (pr.id == P.cur ? " on" : "") + '" data-pj="' + LT.esc(pr.id) + '">' + LT.icon(pr.id == P.cur ? "ok" : "project", 16) + LT.esc(pr.name) + "<small>" + n + " drawings</small></div>"; }
+  if (!P.list.length) h += '<div class="pi" style="cursor:default"><span class="muted">No project yet</span></div>';
+  h += '<div class="sep"></div><div class="pi" data-pa="new">' + LT.icon("plus", 16) + "New project...</div>" + (P.cur ? '<div class="pi" data-pa="setup">' + LT.icon("settings", 16) + "Project setup (MIDP, models, ACC)...</div>" : "");
+  var pm = LT.$("pm"); pm.innerHTML = h; pm.style.left = Math.round(r.left) + "px"; pm.style.top = Math.round(r.bottom + 6) + "px"; pm.style.display = "block";
+}
+function pickProject(id) {
+  var ix = LT.registerIndex(); if (ix.current == id) return; ix.current = id; try { LT.saveJson(LT.dataPath("register.json"), ix); } catch (e) { }
+  var p = curProject(); LT.toast("Project: " + (p ? p.name : "")); topBar(); LTMain.dataChanged();
+}
+/* the bell: how many things need you today (yours due / late + the team's late work) */
+var REM = null;
+function remindData() {
+  var s = LT.settings(), today = LT.today(), o = { mineToday: [], mineLate: [], team: {}, nLate: 0 }, i, j;
+  var tr = (LT.readJson(LT.dataPath("tracker.json"), null) || {}).tasks || [];
+  for (i = 0; i < tr.length; i++) { var t = tr[i]; if (t.status == "Done" || !t.due || t.delegated) continue; if (t.due == today) o.mineToday.push(t); else if (t.due < today) o.mineLate.push(t); }
+  var dj = LT.readJson(LT.dataPath("delegate.json"), null) || {}, dt = dj.tasks || [], lead = {};
+  if (s.chaseLead !== false) for (i = 0; i < (dj.groups || []).length; i++) lead[LT.trim(dj.groups[i].name).toLowerCase()] = dj.groups[i].lead;   // a group's work: its lead answers for it
+  var lateFor = function (who, code) { who = LT.trim(who || "") || "?"; o.team[who] = o.team[who] || []; o.team[who].push(code); o.nLate++; };
+  for (i = 0; i < dt.length; i++) { var d = dt[i], subs = d.subs || [], gl = lead[LT.trim(d.who || "").toLowerCase()];
+    if (subs.length) { for (j = 0; j < subs.length; j++) { var du = subs[j].due || d.due; if (subs[j].status != "Completed" && du && du < today) lateFor(gl || subs[j].who || d.who, subs[j].code); } }
+    else if (d.status != "Completed" && d.due && d.due < today) lateFor(d.who, d.code); }
+  return o;
+}
+function bell() { try { REM = remindData(); var n = REM.mineToday.length + REM.mineLate.length + REM.nLate, b = LT.$("bellN"); LT.$("bellB").innerHTML = LT.icon("bell", 19) + '<span id="bellN"></span>'; b = LT.$("bellN"); b.innerHTML = n > 99 ? "99+" : "" + n; b.style.display = n ? "block" : "none"; } catch (e) { } }
 
 /* ---------- window size + icon (same tricks as QuickLaunch) ---------- */
 function sizeWindow() {
@@ -382,6 +441,8 @@ function taskbarShortcut() {
 }
 
 (function start() {
+  /* the new look (Studio) once for everyone; Settings can still pick another */
+  (function () { var s = LT.settings(); if (!s.look2) { s.look2 = 1; s.theme = /dark|slate$|blueprint|retro|gameboy|console/.test(s.theme || "") ? "studiodark" : "studio"; LT.saveSettings(s); } })();
   look(); sizeWindow(); clock();
   window.setInterval(clock, 15000);
   if (/\\Temp\\|\.zip\\/i.test(APP)) { var w = LT.$("warn"); w.innerHTML = "You're running Lew's Toolbox from inside a zip or temporary folder. Extract the whole folder first, or your work won't be saved."; w.style.display = "block"; }
@@ -398,10 +459,20 @@ function taskbarShortcut() {
     if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57) { LTMain.showIndex(e.keyCode - 49); return false; } if (e.ctrlKey && e.keyCode == 219) { setRail(LT.$("shell").className != "rail", true); return false; } };
   LT.$("railBtn").onclick = function (e) { setRail(LT.$("shell").className != "rail", true); (e || window.event).cancelBubble = true; };
   if (LT.settings().rail) setRail(true, false);
+  LT.$("proj").onclick = function (e) { if (LT.$("pm").style.display == "block") { LT.$("pm").style.display = "none"; return; } projMenu(); (e || window.event).cancelBubble = true; };
+  LT.$("pm").onclick = function (e) { var t = e ? e.target : window.event.srcElement, pj = LT.up(t, "data-pj"), pa = LT.up(t, "data-pa"); LT.$("pm").style.display = "none";
+    if (pj) pickProject(pj.getAttribute("data-pj")); else if (pa) LTMain.send("register", pa.getAttribute("data-pa") == "new" ? "new-project" : "setup", ""); };
+  document.onmousedown = function (e) { var t = e ? e.target : window.event.srcElement;
+    if (!(function (x) { while (x) { if (x.id == "remind" || x.id == "bellB") return true; x = x.parentNode; } return false; })(t)) LT.$("remind").style.display = "none"; if (!LT.up(t, "data-pm") && t.id != "pm" && !(function (x) { while (x) { if (x.id == "pm" || x.id == "proj") return true; x = x.parentNode; } return false; })(t)) LT.$("pm").style.display = "none"; };
+  LT.$("sbox").onclick = function () { openSearch(); };
+  LT.$("bellB").onclick = function () { this.className = "tb"; if (LT.$("remind").style.display == "block") { LT.$("remind").style.display = "none"; return; } if (!reminders(true)) LT.toast("All clear - nothing due today, nothing late"); };
+  LT.$("themeB").onclick = function () { var s = LT.settings(); s.theme = s.theme == "studiodark" ? "studio" : s.theme == "studio" || !s.theme ? "studiodark" : /dark|slate$|blueprint|retro|console/.test(s.theme) ? "studio" : "studiodark"; LT.saveSettings(s); LTMain.themeChanged(); };
+  LT.$("me").onclick = function () { show("settings"); };
   LT.$("qsIn").onkeyup = function (e) { e = e || window.event; if (e.keyCode != 38 && e.keyCode != 40 && e.keyCode != 13 && e.keyCode != 27) qsFind(); };
   LT.$("qsRes").onclick = function (e) { var r = LT.up(e ? e.target : window.event.srcElement, "data-q"); if (r) qsGo(+r.getAttribute("data-q")); };
   LT.$("qs").onclick = function (e) { if ((e ? e.target : window.event.srcElement) === LT.$("qs")) closeSearch(); };
-  window.setTimeout(function () { try { reminders(false); } catch (e) { } }, 2500);
+  /* once a day on opening: the bell glows (click it for the list) - nothing pops up over your work */
+  window.setTimeout(function () { try { var s = LT.settings(); bell(); if (s.remind !== false && s.remindOn != LT.today() && LT.$("bellN").style.display == "block") { LT.$("bellB").className = "tb glow"; s.remindOn = LT.today(); LT.saveSettings(s); } } catch (e) { } }, 2500);
   window.setTimeout(function () { try { whatsNew(false); } catch (e) { } }, 900);
   var rt = null;
   window.onresize = function () { if (rt) window.clearTimeout(rt); rt = window.setTimeout(function () { var s = LT.settings(); s.win = { w: document.documentElement.clientWidth, h: document.documentElement.clientHeight }; LT.saveSettings(s); }, 700); };

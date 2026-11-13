@@ -6,44 +6,67 @@
 <title>Home</title>
 <meta name="lt-order" content="0">
 <meta name="lt-icon" content="&#127968;">
-<meta name="lt-desc" content="Your start page. Shows what is due today, what you are waiting on from others, deadlines in the next 2 weeks, recent files and how busy the team is.">
+<meta name="lt-desc" content="Your dashboard: your day, your team, the project's drawings and what went out - each card opens the right place. The weekly report is here too.">
 <!--
-  Lew's Toolbox - Home / Today: one screen to start the day.
-  Only READS what the other tabs saved (tracker.json, delegate.json, workload.json, transmittals.json, the Launcher list);
-  a task typed here is handed to the Tasks tab, which saves it.
+  Lew's Toolbox - Home (dashboard). Only READS what the other tabs saved (tracker.json, delegate.json, workload.json,
+  transmittals.json, the Drawing Register of the project in the top bar, the Launcher list); a task typed here goes to Tasks.
+  The weekly report (tabs\parts\report.html) opens inside Home.
 -->
 <style>
-#wrap{height:100%;overflow:auto;padding:18px 22px}
-#hello{font-size:1.5em;font-weight:bold}
-#date{margin:2px 0 14px}
-#quickRow{margin-bottom:14px}
-#quick{width:420px;max-width:70%}
-#cols{display:flex;flex-wrap:wrap;margin:0 -7px}
-.box{flex:1 1 360px;min-width:300px;margin:0 7px 14px;padding:12px 14px}
-.box h3{font-size:1em;margin-bottom:8px}
-.box h3 .n{font-weight:normal;margin-left:6px}
-.it{padding:5px 0;cursor:pointer}
-.it .s{font-size:.85em}
-.day{font-weight:bold;margin:8px 0 2px;font-size:.85em;text-transform:uppercase;letter-spacing:.4px}
-.empty{padding:4px 0}
-.tile{display:inline-block;width:46%;margin:0 4% 6px 0;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
-.go{float:right;font-size:.85em;cursor:pointer}
+#wrap{height:100%;overflow:auto;padding:22px 26px 30px}
+#head{display:flex;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
+#hello{font-size:1.65em;font-weight:600;line-height:1.2}
+#date{margin-top:3px}
+#headR{margin-left:auto;display:flex;align-items:center;flex-wrap:wrap}
+#quick{width:340px;max-width:60vw;margin:0 8px 0 0}
+#headR .btn{margin:0 0 0 8px}
+.kpis{display:flex;flex-wrap:wrap;margin:0 -8px 8px}
+.kpi{flex:1 1 180px;min-width:175px;margin:0 8px 16px;padding:16px 18px;cursor:pointer;position:relative;overflow:hidden}
+.kpi .t{display:flex;align-items:center;font-size:.85em;font-weight:600}.kpi .t svg{margin-right:8px}
+.kpi .v{font-size:2.1em;font-weight:600;line-height:1.1;margin-top:10px}.kpi .v small{font-size:.45em;font-weight:600;margin-left:6px}
+.kpi .s{font-size:.85em;margin-top:4px}
+.kpi .viz{position:absolute;right:14px;top:14px}.kpi.hv{padding-right:86px}
+.grid2{display:flex;flex-wrap:wrap;margin:0 -8px}
+.col{flex:1 1 380px;min-width:320px;margin:0 8px}
+.box{margin:0 0 16px;padding:16px 18px}
+.box h3{display:flex;align-items:center;font-size:1em;font-weight:600;margin-bottom:10px}.box h3 svg{margin-right:8px}.box h3 .n{font-weight:600;margin-left:8px;font-size:.85em;padding:1px 8px;border-radius:99px}
+.go{margin-left:auto;font-size:.85em;font-weight:600;cursor:pointer}
+.it{display:flex;align-items:flex-start;padding:8px 0;cursor:pointer}.it .dot{flex:none;width:8px;height:8px;border-radius:50%;margin:6px 10px 0 2px}
+.it .m{min-width:0;flex:1 1 auto}.it b{font-weight:600}.it .s{font-size:.85em;margin-top:1px}.it .r{flex:none;font-size:.82em;margin-left:10px;white-space:nowrap}
+.day{font-weight:700;margin:10px 0 2px;font-size:.75em;text-transform:uppercase;letter-spacing:.6px}
+.empty{padding:6px 0}
+.bars .br{display:flex;align-items:center;margin:7px 0;cursor:pointer}.bars .nm{width:110px;flex:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.bars .tr{flex:1 1 auto;height:9px;border-radius:5px;overflow:hidden;margin:0 10px}.bars .tr i{display:block;height:100%;border-radius:5px}.bars .pc{width:90px;flex:none;text-align:right;font-size:.85em}
+.leg{font-size:.82em;margin-top:8px}.leg span{display:inline-block;margin:0 12px 4px 0;white-space:nowrap}.leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:0}
+.tile{display:inline-block;width:48%;margin:0 2% 6px 0;padding:6px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
+#repWrap{display:none;position:absolute;left:0;top:0;right:0;bottom:0}#repBar{height:46px;display:flex;align-items:center;padding:0 16px}#repBar b{margin-left:10px}
+#repFrame{position:absolute;left:0;top:46px;right:0;bottom:0;width:100%;height:calc(100% - 46px);border:0}
 </style>
 <script src="../core/lt-core.js"></script>
+<script src="../core/lt-transmittal.js"></script>
 </head>
 <body>
 <div id="wrap">
-  <div id="hello"></div>
-  <div id="date" class="muted"></div>
-  <div id="quickRow"><input type="text" id="quick" placeholder="Add a task for today...  e.g.  Check RFI drawings #Tower1 !"> <button class="btn primary" id="bAdd">+ Add</button></div>
-  <div id="cols">
-    <div class="box"><h3>&#9728; Today <span class="n muted" id="nToday"></span><span class="go" data-go="tracker">Open Tasks &rsaquo;</span></h3><div id="today"></div></div>
-    <div class="box"><h3>&#9203; Waiting on others <span class="n muted" id="nWait"></span><span class="go" data-go="delegate">Open Delegate &rsaquo;</span></h3><div id="wait"></div></div>
-    <div class="box"><h3>&#128197; Next 2 weeks <span class="n muted" id="nNext"></span></h3><div id="next"></div></div>
-    <div class="box"><h3>&#128640; Recent files <span class="go" data-go="launcher">Open Launcher &rsaquo;</span></h3><div id="recent"></div></div>
-    <div class="box" id="teamBox" style="display:none"><h3>&#128101; Team this week <span class="go" data-go="delegate" data-view="workload">Open Workload &rsaquo;</span></h3><div id="team"></div></div>
+  <div id="head">
+    <div><div id="hello"></div><div id="date" class="muted"></div></div>
+    <div id="headR"><input type="text" id="quick" placeholder="Add a task...  e.g.  Check RFI drawings fri #Tower1 !"><button class="btn primary" id="bAdd">+ Add</button><button class="btn" id="bRep" title="Your weekly update in one click - ready to paste into an email">&#128202; Weekly report</button></div>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid2">
+    <div class="col">
+      <div class="box"><h3><span id="iToday"></span>Today <span class="n" id="nToday"></span><span class="go" data-go="tracker">Open Tasks &rsaquo;</span></h3><div id="today"></div></div>
+      <div class="box"><h3><span id="iNext"></span>Next 2 weeks <span class="n" id="nNext"></span></h3><div id="next"></div></div>
+      <div class="box"><h3><span id="iDone"></span>Done in the last 7 days <span class="go" data-go="tracker" data-view="done">Done &rsaquo;</span></h3><div id="done7"></div></div>
+    </div>
+    <div class="col">
+      <div class="box"><h3><span id="iWait"></span>Waiting on others <span class="n" id="nWait"></span><span class="go" data-go="delegate">Open Delegate &rsaquo;</span></h3><div id="wait"></div></div>
+      <div class="box" id="teamBox" style="display:none"><h3><span id="iTeam"></span>Team this week <span class="go" data-go="delegate" data-view="workload">Workload &rsaquo;</span></h3><div id="team" class="bars"></div></div>
+      <div class="box"><h3><span id="iTr"></span>Last transmittals <span class="go" data-go="transmittal">History &rsaquo;</span></h3><div id="trs"></div></div>
+      <div class="box"><h3><span id="iRec"></span>Recent files <span class="go" data-go="launcher">Launcher &rsaquo;</span></h3><div id="recent"></div></div>
+    </div>
   </div>
 </div>
+<div id="repWrap"><div id="repBar"><button class="btn small" id="repBack" style="margin:0">&lsaquo; Back to Home</button><b>Weekly report</b></div><iframe application="yes" id="repFrame"></iframe></div>
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso, links = [];
 function D(s) { return LT.parseIso(s); }
@@ -53,70 +76,114 @@ function daysFrom(iso) { var d = D(iso); return d ? Math.round((d - todayD()) / 
 function when(iso) { var n = daysFrom(iso); if (n == null) return ""; if (n == 0) return "today"; if (n == 1) return "tomorrow"; if (n < 0) return (-n) + " day" + (n == -1 ? "" : "s") + " late"; return LT.fmtDate(iso); }
 function read(name) { try { return LT.readJson(LT.dataPath(name), null); } catch (e) { return null; } }
 function link(tab, what, value) { links.push({ tab: tab, what: what, value: value }); return ' data-l="' + (links.length - 1) + '"'; }
+function V() { return LT.themeVars(); }
+
+/* ---------- small charts (SVG; work in the HTA's engine) ---------- */
+function donut(parts, size, label) {   // parts: [[value, colour]]
+  var tot = 0; for (var i = 0; i < parts.length; i++) tot += parts[i][0]; var r = size / 2 - 6, c = 2 * Math.PI * r, off = 0, h = '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + " " + size + '">';
+  h += '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="' + V().chip + '" stroke-width="9"/>';
+  if (tot) for (var j = 0; j < parts.length; j++) { var len = parts[j][0] / tot * c; if (!len) continue;
+    h += '<circle cx="' + size / 2 + '" cy="' + size / 2 + '" r="' + r + '" fill="none" stroke="' + parts[j][1] + '" stroke-width="9" stroke-dasharray="' + len.toFixed(2) + " " + (c - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 ' + size / 2 + " " + size / 2 + ')"/>'; off += len; }
+  if (label) h += '<text x="50%" y="54%" text-anchor="middle" font-size="13" font-weight="700" fill="' + V().text + '">' + esc(label) + "</text>";
+  return h + "</svg>";
+}
+function spark(vals, w, hgt, col) {   // little column chart
+  var mx = 1; for (var i = 0; i < vals.length; i++) if (vals[i] > mx) mx = vals[i];
+  var bw = w / vals.length, h = '<svg width="' + w + '" height="' + hgt + '">';
+  for (var j = 0; j < vals.length; j++) { var bh = Math.max(2, Math.round(vals[j] / mx * (hgt - 4))); h += '<rect x="' + (j * bw + 2).toFixed(1) + '" y="' + (hgt - bh) + '" width="' + (bw - 4).toFixed(1) + '" height="' + bh + '" rx="2" fill="' + (vals[j] ? col : V().chip) + '"/>'; }
+  return h + "</svg>";
+}
 
 function render() {
-  links = [];
-  var s = LT.settings(), h = new Date().getHours(), name = (s.userName || "").split(/[ .]/)[0];
-  $("hello").innerHTML = (h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening") + (name ? ", " + esc(name.charAt(0).toUpperCase() + name.substring(1)) : "");
-  var d = new Date(); $("date").innerHTML = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getDay()] + " " + d.getDate() + " " + LT.MON[d.getMonth()] + " " + d.getFullYear();
+  links = []; var v = V();
+  var s = LT.settings(), hr = new Date().getHours(), name = (s.userName || "").split(/[ .]/)[0];
+  $("hello").innerHTML = (hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening") + (name ? ", " + esc(name.charAt(0).toUpperCase() + name.substring(1)) : "");
+  var d0 = new Date(), pj = LT.project(); $("date").innerHTML = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d0.getDay()] + " " + d0.getDate() + " " + LT.MON[d0.getMonth()] + " " + d0.getFullYear() + (pj ? " &middot; " + esc(pj.name) : "");
+  var ic = { iToday: "taskcheck", iNext: "calendar", iDone: "ok", iWait: "clock", iTeam: "users", iTr: "transmittal", iRec: "files" }; for (var k0 in ic) if (ic.hasOwnProperty(k0)) $(k0).innerHTML = LT.icon(ic[k0], 18);
 
   var tr = read("tracker.json") || { tasks: [] }, dl = read("delegate.json") || { tasks: [] }, events = [];
-  /* today: my tasks that are late, due today, or being worked on */
-  var mine = [];
+  /* my day */
+  var mine = [], late = 0, dueToday = 0;
   for (var i = 0; i < (tr.tasks || []).length; i++) { var t = tr.tasks[i]; if (t.status == "Done") continue; var n = daysFrom(t.due);
-    if ((n != null && n <= 0) || t.status == "Doing") mine.push(t);
+    if ((n != null && n <= 0) || t.status == "Doing") mine.push(t); if (n != null && n < 0) late++; if (n === 0) dueToday++;
     if (n != null && n > 0 && n <= 14) events.push({ due: t.due, text: t.title, sub: t.project || "my task", tab: "tracker" }); }
   mine.sort(function (a, b) { return (a.due || "9") < (b.due || "9") ? -1 : 1; });
   var html = "";
-  for (var j = 0; j < mine.length && j < 12; j++) { var m = mine[j], late = daysFrom(m.due) < 0;
-    html += '<div class="it"' + link("tracker", "view", "today") + "><b>" + (m.priority == "High" ? '<span class="bad">!</span> ' : "") + esc(m.title) + '</b><div class="s ' + (late ? "bad" : "muted") + '">' + esc([m.who ? "\u2192 " + m.who : "", m.project, m.status == "Doing" ? "doing" : "", when(m.due)].filter(Boolean).join(" · ")) + "</div></div>"; }
-  $("today").innerHTML = html || '<div class="empty muted">Nothing due today &ndash; add one above.</div>';
-  $("nToday").innerHTML = mine.length ? mine.length : "";
-
-  /* waiting on others: delegated items not completed, late first */
-  var wait = [];
-  for (var k = 0; k < (dl.tasks || []).length; k++) { var t2 = dl.tasks[k];
-    var items = t2.subs && t2.subs.length ? t2.subs : [t2];
-    for (var q = 0; q < items.length; q++) { var it = items[q]; if (it.status == "Completed") continue; var due = it.due || t2.due, who = it.who || t2.who;
-      if (!who) continue;
-      wait.push({ code: it.code, title: (items === t2.subs ? t2.title + " – " : "") + it.title, who: who, due: due, status: it.status });
-      var nd = daysFrom(due); if (nd != null && nd >= 0 && nd <= 14) events.push({ due: due, text: it.code + " " + it.title, sub: "from " + who, tab: "delegate" }); } }
+  for (var j = 0; j < mine.length && j < 8; j++) { var m = mine[j], lt = daysFrom(m.due) < 0;
+    html += '<div class="it"' + link("tracker", "show-task", m.code || "") + '><span class="dot" style="background:' + (lt ? v.bad : m.status == "Doing" ? v.warn : v.accent) + '"></span><div class="m"><b>' + (m.priority == "High" ? '<span class="bad">! </span>' : "") + esc(m.title) + '</b><div class="s muted">' + esc([m.who ? "→ " + m.who : "", m.project, m.status == "Doing" ? "doing" : ""].filter(Boolean).join(" · ")) + '</div></div><span class="r ' + (lt ? "bad" : "muted") + '">' + esc(when(m.due)) + "</span></div>"; }
+  if (mine.length > 8) html += '<div class="muted s">&hellip; and ' + (mine.length - 8) + " more</div>";
+  $("today").innerHTML = html || '<div class="empty muted">Nothing due today &ndash; add one at the top.</div>';
+  $("nToday").innerHTML = mine.length || "";
+  /* waiting on others */
+  var wait = [], wLate = 0, people = {};
+  for (var k = 0; k < (dl.tasks || []).length; k++) { var t2 = dl.tasks[k], items = t2.subs && t2.subs.length ? t2.subs : [t2];
+    for (var q = 0; q < items.length; q++) { var it = items[q]; if (it.status == "Completed") continue; var due = it.due || t2.due, who = it.who || t2.who; if (!who) continue;
+      wait.push({ code: it.code, task: t2.code, title: (items === t2.subs ? t2.title + " – " : "") + it.title, who: who, due: due, status: it.status });
+      var nd = daysFrom(due); if (nd != null && nd < 0) { wLate++; people[who] = (people[who] || 0) + 1; } if (nd != null && nd >= 0 && nd <= 14) events.push({ due: due, text: it.code + " " + it.title, sub: "from " + who, tab: "delegate" }); } }
   wait.sort(function (a, b) { var x = daysFrom(a.due), y = daysFrom(b.due); x = x == null ? 999 : x; y = y == null ? 999 : y; return x - y; });
-  html = ""; var nLate = 0;
-  for (var w = 0; w < wait.length; w++) { var lt = daysFrom(wait[w].due) < 0; if (lt) nLate++;
-    if (w < 10) html += '<div class="it"' + link("delegate", "", "") + "><b>" + esc(wait[w].who) + "</b> &ndash; " + esc(wait[w].title) + '<div class="s ' + (lt ? "bad" : "muted") + '">' + esc([wait[w].code, wait[w].status, when(wait[w].due)].filter(Boolean).join(" · ")) + "</div></div>"; }
-  if (wait.length > 10) html += '<div class="muted s">&hellip; and ' + (wait.length - 10) + " more</div>";
+  html = "";
+  for (var w = 0; w < wait.length && w < 8; w++) { var wl2 = daysFrom(wait[w].due) < 0;
+    html += '<div class="it"' + link("delegate", "show-task", wait[w].task) + '><span class="dot" style="background:' + (wl2 ? v.bad : wait[w].status == "In progress" ? v.warn : v.muted) + '"></span><div class="m"><b>' + esc(wait[w].who) + "</b> &ndash; " + esc(wait[w].title) + '<div class="s muted">' + esc([wait[w].code, wait[w].status].filter(Boolean).join(" · ")) + '</div></div><span class="r ' + (wl2 ? "bad" : "muted") + '">' + esc(when(wait[w].due)) + "</span></div>"; }
+  if (wait.length > 8) html += '<div class="muted s">&hellip; and ' + (wait.length - 8) + " more</div>";
   $("wait").innerHTML = html || '<div class="empty muted">Nothing delegated is open.</div>';
-  $("nWait").innerHTML = wait.length ? wait.length + (nLate ? ' &middot; <span class="bad">' + nLate + " late</span>" : "") : "";
-
-  /* next 2 weeks: every date from every tab, by day */
-  var tm = read("transmittals.json"); if (tm && tm.planned) for (var p = 0; p < tm.planned.length; p++) { var pd = daysFrom(tm.planned[p].due); if (pd != null && pd >= 0 && pd <= 14) events.push({ due: tm.planned[p].due, text: tm.planned[p].title, sub: "submission", tab: "transmittal" }); }
+  $("nWait").innerHTML = wait.length ? wait.length + (wLate ? " &middot; " + wLate + " late" : "") : "";
+  /* next 2 weeks */
+  var tm = read("transmittals.json") || { log: [] };
+  if (tm.planned) for (var p = 0; p < tm.planned.length; p++) { var pd = daysFrom(tm.planned[p].due); if (pd != null && pd >= 0 && pd <= 14) events.push({ due: tm.planned[p].due, text: tm.planned[p].title, sub: "submission", tab: "transmittal" }); }
   events.sort(function (a, b) { return a.due < b.due ? -1 : a.due > b.due ? 1 : 0; });
   html = ""; var lastDay = "", perDay = {};
   for (var e = 0; e < events.length; e++) perDay[events[e].due] = (perDay[events[e].due] || 0) + 1;
-  for (var e2 = 0; e2 < events.length && e2 < 18; e2++) { var ev = events[e2];
-    if (ev.due != lastDay) { lastDay = ev.due; html += '<div class="day' + (perDay[ev.due] >= 3 ? " bad" : "") + '">' + esc(when(ev.due) == "tomorrow" ? "Tomorrow" : LT.fmtDate(ev.due)) + (perDay[ev.due] >= 3 ? " &middot; " + perDay[ev.due] + " things due" : "") + "</div>"; }
-    html += '<div class="it"' + link(ev.tab, "", "") + ">" + esc(ev.text) + ' <span class="s muted">&middot; ' + esc(ev.sub) + "</span></div>"; }
+  for (var e2 = 0; e2 < events.length && e2 < 14; e2++) { var ev = events[e2];
+    if (ev.due != lastDay) { lastDay = ev.due; html += '<div class="day' + (perDay[ev.due] >= 3 ? " bad" : " muted") + '">' + esc(when(ev.due) == "tomorrow" ? "Tomorrow" : LT.fmtDate(ev.due)) + (perDay[ev.due] >= 3 ? " &middot; " + perDay[ev.due] + " things due" : "") + "</div>"; }
+    html += '<div class="it"' + link(ev.tab, "", "") + '><div class="m">' + esc(ev.text) + ' <span class="s muted">&middot; ' + esc(ev.sub) + "</span></div></div>"; }
   $("next").innerHTML = html || '<div class="empty muted">No dates in the next 2 weeks.</div>';
-  $("nNext").innerHTML = events.length ? events.length : "";
+  $("nNext").innerHTML = events.length || "";
+  /* done in the last 7 days (yours + the team's) */
+  var days = [], labels = [];
+  for (var dd = 6; dd >= 0; dd--) { var di = LT.iso(addDays(todayD(), -dd)), c = 0; for (var a = 0; a < (tr.tasks || []).length; a++) if (tr.tasks[a].status == "Done" && tr.tasks[a].doneOn == di) c++;
+    for (var b = 0; b < (dl.tasks || []).length; b++) { var its = dl.tasks[b].subs && dl.tasks[b].subs.length ? dl.tasks[b].subs : [dl.tasks[b]]; for (var z = 0; z < its.length; z++) if (its[z].status == "Completed" && its[z].doneOn == di) c++; }
+    days.push(c); labels.push(LT.DAYS[addDays(todayD(), -dd).getDay()].charAt(0)); }
+  var tot7 = 0; for (var x7 = 0; x7 < days.length; x7++) tot7 += days[x7];
+  var lab = ""; for (var l = 0; l < labels.length; l++) lab += '<span style="display:inline-block;width:' + (100 / 7).toFixed(2) + '%;text-align:center">' + labels[l] + "</span>";
+  $("done7").innerHTML = '<div style="display:flex;align-items:flex-end"><div style="flex:1 1 auto">' + spark(days, 280, 64, v.ok) + '<div class="muted" style="font-size:.75em;width:280px">' + lab + '</div></div><div style="margin-left:16px;text-align:right"><div style="font-size:1.8em;font-weight:600">' + tot7 + '</div><div class="muted" style="font-size:.85em">done</div></div></div>';
 
+  /* the drawings of the project (Drawing Register + what went out) */
+  var R = null, P = null, st = [0, 0, 0, 0], all = 0; try { var ix = LT.registerIndex(); if (ix.current) P = LT.readJson(LT.registerFile(ix.current), null); } catch (x) { }
+  if (P && P.drawings) { var iss = LT.trIssued(tm.log ? tm : null); var ST = ["Not started", "In progress", "Checked"];
+    for (var key in P.drawings) if (P.drawings.hasOwnProperty(key)) { var dw = P.drawings[key]; if (dw.inMidp === false) continue; all++; var xi = iss[key] || iss[(dw.num || "").toUpperCase()];
+      if (xi && (!dw.st || !dw.stAt || dw.stAt <= xi.last.date)) st[3]++; else st[Math.max(0, ST.indexOf(dw.st || "Not started"))]++; } }
+  var pct = all ? Math.round(st[3] * 100 / all) : 0;
+  /* transmittals this month */
+  var mon = LT.today().substring(0, 7), nMon = 0, lastTr = tm.log && tm.log.length ? tm.log[tm.log.length - 1] : null; for (var t3 = 0; t3 < (tm.log || []).length; t3++) if ((tm.log[t3].date || "").substring(0, 7) == mon) nMon++;
+  /* team replies waiting on team boards */
+  var reps = 0; for (var g = 0; g < (dl.groups || []).length; g++) { var gf = dl.groups[g].folder; if (!gf) continue; try { var rd = gf + "\\_Replies"; if (fso.FolderExists(rd)) { var en = new Enumerator(fso.GetFolder(rd).Files); for (; !en.atEnd(); en.moveNext()) if (/\.txt$/i.test("" + en.item().Name)) reps++; } } catch (x2) { } }
+
+  var kp = function (go, view, icon, title, val, unit, sub, viz, col) { return '<div class="kpi' + (viz ? " hv" : "") + '" data-go="' + go + '"' + (view ? ' data-view="' + view + '"' : "") + '><div class="t muted">' + LT.icon(icon, 16) + esc(title) + '</div><div class="v"' + (col ? ' style="color:' + col + '"' : "") + ">" + val + (unit ? "<small class=\"muted\">" + unit + "</small>" : "") + '</div><div class="s muted">' + sub + '</div><div class="viz">' + (viz || "") + "</div></div>"; };
+  $("kpis").innerHTML =
+    kp("tracker", late ? "overdue" : "today", "taskcheck", "My day", dueToday + late, dueToday + late == 1 ? "task" : "tasks", (dueToday ? dueToday + " due today" : "nothing due today") + (late ? ' &middot; <span class="bad">' + late + " late</span>" : ""), "", late ? v.bad : "") +
+    kp("delegate", "", "users", "My team", wait.length, "open", (wLate ? '<span class="bad">' + wLate + " late</span>" : "nothing late") + (reps ? " &middot; " + reps + " repl" + (reps == 1 ? "y" : "ies") + " waiting" : ""), "", wLate ? v.bad : "") +
+    kp("register", "status", "register", pj ? pj.name : "Drawings", all ? pct + "%" : "&ndash;", all ? "issued" : "", all ? st[3] + " of " + all + " issued &middot; " + st[1] + " in progress" : "Load the MIDP in the Drawing Register", all ? donut([[st[3], v.ok], [st[2], v.accent], [st[1], v.warn], [st[0], v.line]], 58, "") : "") +
+    kp("transmittal", "", "transmittal", "Sent this month", nMon, nMon == 1 ? "transmittal" : "transmittals", lastTr ? "last " + esc(lastTr.no) + " &middot; " + esc(LT.fmtDate(lastTr.date)) + (lastTr.to ? " &middot; " + esc(lastTr.to) : "") : "nothing sent yet", "");
+
+  /* last transmittals */
+  html = ""; for (var r5 = (tm.log || []).length - 1, c5 = 0; r5 >= 0 && c5 < 5; r5--, c5++) { var x5 = tm.log[r5], pk = x5.package || "log";
+    html += '<div class="it"' + link("transmittal", "", "") + '><span class="dot" style="background:' + (pk == "zip" ? v.accent : pk == "folder" ? v.warn : v.muted) + '"></span><div class="m"><b>' + esc(x5.no) + "</b> &ndash; " + esc(x5.to || "(no recipient)") + '<div class="s muted">' + (x5.items || []).length + " item(s) &middot; " + esc(x5.purpose || "") + (x5.source ? " &middot; " + esc(x5.source) : "") + '</div></div><span class="r muted">' + esc(LT.fmtDate(x5.date)) + "</span></div>"; }
+  $("trs").innerHTML = html || '<div class="empty muted">Nothing sent yet.</div>';
   /* recent files from the Launcher */
-  var home = s.launcherHome || LT.dataDir(), lib = null;
-  try { lib = LT.readJson(home + "\\QuickLaunch-data\\library.json", null); } catch (x) { }
+  var home = s.launcherHome || LT.dataDir(), lib = null; try { lib = LT.readJson(home + "\\QuickLaunch-data\\library.json", null); } catch (x3) { }
   var rec = []; if (lib && lib.items) for (var r = 0; r < lib.items.length; r++) if (lib.items[r].last) rec.push(lib.items[r]);
-  rec.sort(function (a, b) { return b.last - a.last; });
-  html = ""; for (var r2 = 0; r2 < rec.length && r2 < 10; r2++) html += '<span class="tile" title="' + esc(rec[r2].path) + '" data-open="' + esc(rec[r2].path) + '">&#128196; ' + esc(rec[r2].name) + "</span>";
+  rec.sort(function (a2, b2) { return b2.last - a2.last; });
+  html = ""; for (var r2 = 0; r2 < rec.length && r2 < 8; r2++) html += '<span class="tile" title="' + esc(rec[r2].path) + '" data-open="' + esc(rec[r2].path) + '">' + LT.icon("files", 14) + " " + esc(rec[r2].name) + "</span>";
   $("recent").innerHTML = html || '<div class="empty muted">Files you open from the Launcher show up here.</div>';
-
-  /* team this week (when the Team workload tab has been used) */
+  /* team this week (when Workload is used) */
   var wl = read("workload.json");
   if (wl && wl.people && wl.people.length) {
-    var th = ""; for (var pp = 0; pp < wl.people.length; pp++) { var pr = wl.people[pp], load = loadOf(pr.name, wl, dl), pct = pr.hours ? Math.round(load / pr.hours * 100) : 0;
-      th += '<div class="it"' + link("workload", "", "") + "><b>" + esc(pr.name) + '</b> <span class="' + (pct > 100 ? "bad" : pct >= 80 ? "warn" : "ok") + '">' + pct + "%</span> <span class=\"s muted\">" + Math.round(load * 10) / 10 + " of " + pr.hours + " h</span></div>"; }
-    $("team").innerHTML = th; $("teamBox").style.display = "";
+    var th = ""; for (var pp = 0; pp < wl.people.length; pp++) { var pr = wl.people[pp], load = loadOf(pr.name, wl, dl), pc = pr.hours ? Math.round(load / pr.hours * 100) : 0, colr = pc > 100 ? v.bad : pc >= 80 ? v.warn : v.ok;
+      th += '<div class="br"' + link("delegate", "view", "workload") + '><span class="nm">' + esc(pr.name) + '</span><span class="tr" style="background:' + v.chip + '"><i style="width:' + Math.min(100, pc) + "%;background:" + colr + '"></i></span><span class="pc"><b style="color:' + colr + '">' + pc + '%</b> <span class="muted">' + Math.round(load * 10) / 10 + "/" + pr.hours + "h</span></span></div>"; }
+    $("team").innerHTML = th + '<div class="leg muted"><span><i style="background:' + v.ok + '"></i>has room</span><span><i style="background:' + v.warn + '"></i>80&ndash;100%</span><span><i style="background:' + v.bad + '"></i>overloaded</span></div>'; $("teamBox").style.display = "";
   } else $("teamBox").style.display = "none";
 }
-/* hours planned this week for a person (same rule as the Team workload tab: open delegated items with hours) */
+/* hours planned this week for a person (same rule as Workload: open delegated items with hours) */
 function loadOf(name, wl, dl) {
   var h = 0, ws = addDays(todayD(), -((todayD().getDay() + 6) % 7)), we = addDays(ws, 6), est = wl.estimates || {};
   for (var i = 0; i < (dl.tasks || []).length; i++) { var t = dl.tasks[i], items = t.subs && t.subs.length ? t.subs : [t];
@@ -128,17 +195,21 @@ function loadOf(name, wl, dl) {
       var e = est[it.code]; h += (e == null || e === "" ? (wl.defaultHours || 0) : +e) / n; } }
   return h;
 }
+/* the weekly report opens inside Home */
+function report(on) { $("repWrap").style.display = on ? "block" : "none"; $("wrap").style.display = on ? "none" : ""; if (on) { var f = $("repFrame"); if (!f.src) f.src = "parts/report.html"; else try { f.contentWindow.ltShown && f.contentWindow.ltShown(); } catch (e) { } } }
+$("bRep").onclick = function () { report(true); }; $("repBack").onclick = function () { report(false); render(); };
 $("bAdd").onclick = function () { var v = LT.trim($("quick").value); if (!v) { $("quick").focus(); return; } if (LT.main()) { LT.main().send("tracker", "add-task", v); $("quick").value = ""; } };
 $("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { $("bAdd").onclick(); return false; } };
 $("wrap").onclick = function (e) {
   var t = e.target || e.srcElement, g = LT.up(t, "data-go"), l = LT.up(t, "data-l"), o = LT.up(t, "data-open");
+  if (o) { try { LT.open(o.getAttribute("data-open")); } catch (x) { alert("Couldn't open it - it may have moved."); } return; }
+  if (l && LT.main()) { var k = links[+l.getAttribute("data-l")]; if (k.what && k.value !== "") LT.main().send(k.tab, k.what, k.value); else if (k.what == "view") LT.main().send(k.tab, "view", k.value); else LT.main().show(k.tab); return; }
   if (g && LT.main()) { if (g.getAttribute("data-view")) LT.main().send(g.getAttribute("data-go"), "view", g.getAttribute("data-view")); else LT.main().show(g.getAttribute("data-go")); }
-  else if (l && LT.main()) { var k = links[+l.getAttribute("data-l")]; if (k.what) LT.main().send(k.tab, k.what, k.value); else LT.main().show(k.tab); }
-  else if (o) { try { LT.open(o.getAttribute("data-open")); } catch (x) { alert("Couldn't open it - it may have moved."); } }
 };
-function look() { LT.applyLook([".box{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}", ".it{border-bottom:1px solid {lineSoft}}", ".it:hover,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".day{color:{muted}}"]); }
-window.ltTheme = function () { look(); };
-window.ltShown = render; window.ltReload = render;
+function look() { LT.applyLook([".box,.kpi{background:{panel};border:1px solid {line};border-radius:14px;box-shadow:{shadow}}", ".kpi:hover{border-color:{accent}}", ".it{border-bottom:1px solid {line}}.it:last-child{border-bottom:0}", ".it:hover b,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".box h3 .n{background:{chip};color:{muted}}", ".box h3 svg,.kpi .t svg{color:{accent}}", ".tile{background:{bg};border-radius:8px}", "#repBar{background:{panel};border-bottom:1px solid {line}}"]); }
+window.ltTheme = function () { look(); render(); try { $("repFrame").contentWindow.ltTheme(); } catch (e) { } };
+window.ltShown = function () { if ($("repWrap").style.display != "block") render(); }; window.ltReload = render;
+window.ltReceive = function (what) { if (what == "report") report(true); };
 look(); render(); LT.tabKeys();
 </script>
 </body>

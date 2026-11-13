@@ -20,7 +20,7 @@ module.exports = async ({ page, out }) => {
     ['5013-KEO-T1-ZZ-DR-A-10101-P02.pdf', '5013-KEO-T1-ZZ-DR-A-10102-P01.pdf', '5013-KEO-T1-ZZ-DR-A-10104-P01.pdf'].forEach(n => add('C:\\Sub2\\' + n, n.indexOf('10102') > 0 ? 'bbbb' : 'aa'));
     window.__mockFs.dirs['c:\\projects'] = 'C:\\Projects';
   }, D);
-  const go = async k => { await page.click('.nb[data-k="' + k + '"]'); await page.waitForTimeout(500); return page.frame({ url: new RegExp(k + '\\.html') }); };
+  const go = async k => { if (/^(find|superseded|report)$/.test(k)) { await page.evaluate(k => LTMain.show(k), k); await page.waitForTimeout(1200); } else { await page.click('.nb[data-k="' + k + '"]'); await page.waitForTimeout(500); } return page.frame({ url: new RegExp(k + '\\.html') }); };   // find / superseded / report now live inside Folder Check / Home
   console.log('   menu: ' + (await page.$$eval('.nb', b => b.map(x => x.textContent.trim()))).join(' | '));
   // Home
   let f = await go('home');

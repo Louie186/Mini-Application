@@ -20,12 +20,12 @@ module.exports = async ({ page, out }) => {
   ok(await page.evaluate(() => top.__o[0] == 'https://acc.autodesk.com/m/21000'), 'Compare: click the model opens it');
   await page.screenshot({ path: out + '/e_compare.png' });
   // Find Drawings
-  await page.click('.nb[data-k="find"]'); await page.waitForTimeout(500); await page.mouse.move(900, 600);
+  await page.evaluate(() => LTMain.show('find')); await page.waitForTimeout(1200); await page.mouse.move(900, 600);
   const fd = page.frame({ url: /find\.html/ });
   await fd.evaluate(() => { addFolder('C:\\New'); $('q').value = 'T1-ZZ-DR-A-2101\nT1-ZZ-DR-A-9999'; find(); });
   const ft = await txt(fd); ok(/T1 1BRA 🔗 A-21000/.test(ft), 'Find Drawings: Twr / Typo / Model');
   // Superseded
-  await page.click('.nb[data-k="superseded"]'); await page.waitForTimeout(500); await page.mouse.move(900, 600);
+  await page.evaluate(() => LTMain.show('superseded')); await page.waitForTimeout(1200); await page.mouse.move(900, 600);
   const sp = page.frame({ url: /superseded\.html/ });
   await sp.evaluate(() => { cfg.folder = 'C:\\Prints'; find(); });
   ok(/T1-ZZ-DR-A-2101 T1 1BRA 🔗 A-21000/.test(await txt(sp)), 'Superseded: Twr / Typo / Model on the drawing line');

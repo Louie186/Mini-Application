@@ -328,8 +328,46 @@ var LT = (function () {
   };
   L.cell = function (row, i) { return i >= 0 && i < row.length ? L.trim(row[i]) : ""; };
 
+  /* ---------- icons: simple line icons (24 x 24, drawn with the text colour) ----------
+     L.icon("tasks") -> '<svg ...>'.  Same look on every PC (emoji differ between Windows versions). */
+  L.ICONS = {
+    home: "M3 11l9-7 9 7M5 10v10h5v-6h4v6h5V10", launch: "M5 19l3-3M9 15l-3-1 2-4 4-1M14 9l1 4-4 2M14 9c2-4 5-5 7-5 0 2-1 5-5 7M15 13c0 2-1 3-1 3", tasks: "M4 6h2M4 12h2M4 18h2M9 6h11M9 12h11M9 18h11",
+    taskcheck: "M4 12l3 3 6-6M14 7h6M14 12h6M14 17h6", delegate: "M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a6 6 0 0112 0v1M16 3.5a4 4 0 010 7.5M18 15a5 5 0 014 5v1", transmittal: "M3 11l18-8-8 18-2-8-8-2zM11 13l10-10",
+    register: "M5 4h11l3 3v13H5zM9 9h7M9 13h7M9 17h4", check: "M3 7h6l2 2h10v10H3zM9 14l2 2 4-4", files: "M7 3h7l5 5v13H7zM14 3v5h5M4 7v14h11", folders: "M3 5h6l2 2h10v4H3zM3 11h18v8H3zM7 15h4",
+    settings: "M12 15a3 3 0 100-6 3 3 0 000 6zM19 12l2-1-1-3-2 .2-1.3-1.3L17 5l-3-1-1 2h-2l-1-2-3 1 .2 2L6 8.3 4 8l-1 3 2 1v0l-2 1 1 3 2-.2 1.3 1.3L7 19l3 1 1-2h2l1 2 3-1-.2-2 1.3-1.3 2 .2 1-3z",
+    search: "M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-5-5", bell: "M6 9a6 6 0 0112 0c0 6 3 7 3 7H3s3-1 3-7M10 20a2 2 0 004 0", project: "M4 21V5l8-3 8 3v16M9 21v-5h6v5M8 8h2M14 8h2M8 12h2M14 12h2",
+    report: "M4 20V10M10 20V4M16 20v-7M22 20H2", find: "M10 17a7 7 0 100-14 7 7 0 000 14zM20 20l-5-5M7 10h6", superseded: "M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3",
+    sun: "M12 17a5 5 0 100-10 5 5 0 000 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4", moon: "M21 13A9 9 0 1111 3a7 7 0 0010 10z",
+    plus: "M12 5v14M5 12h14", chev: "M6 9l6 6 6-6", right: "M9 6l6 6-6 6", x: "M6 6l12 12M18 6L6 18", ok: "M5 12l5 5 9-10", warn: "M12 3l10 18H2zM12 10v4M12 17v.5", clock: "M12 21a9 9 0 100-18 9 9 0 000 18zM12 7v5l3 2",
+    calendar: "M4 6h16v15H4zM4 10h16M8 3v4M16 3v4", users: "M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-1a6 6 0 0112 0v1M17 11a3 3 0 100-6M18 15a5 5 0 013 5v1", zip: "M6 3h9l4 4v14H6zM11 3v2M11 7v2M11 11v2M10 15h2v3h-2z",
+    model: "M12 2l9 5v10l-9 5-9-5V7zM12 12l9-5M12 12v10M12 12L3 7", link: "M10 14a4 4 0 006 0l3-3a4 4 0 00-6-6l-1 1M14 10a4 4 0 00-6 0l-3 3a4 4 0 006 6l1-1", inbox: "M3 13h5l1 3h6l1-3h5M5 5h14l2 8v6H3v-6z",
+    tag: "M3 12V4h8l10 10-8 8zM7.5 8.5h.01", compare: "M4 7h13l-3-3M20 17H7l3 3", note: "M5 3h10l4 4v14H5zM9 10h6M9 14h6M9 18h3", play: "M7 5l12 7-12 7z", globe: "M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18",
+    edit: "M4 20h4L19 9l-4-4L4 16zM14 6l4 4", refresh: "M20 11a8 8 0 00-14-4L4 9M4 4v5h5M4 13a8 8 0 0014 4l2-2M20 20v-5h-5", mail: "M3 6h18v12H3zM3 7l9 6 9-6", clip: "M9 4h6v3H9zM7 5H5v16h14V5h-2M9 12h6M9 16h4",
+    upload: "M12 16V4M7 9l5-5 5 5M4 20h16", download: "M12 4v12M7 11l5 5 5-5M4 20h16", timer: "M12 21a8 8 0 100-16 8 8 0 000 16zM12 9v4M9 2h6",
+    pin: "M12 21s-7-6-7-12a7 7 0 0114 0c0 6-7 12-7 12zM12 11a2 2 0 100-4 2 2 0 000 4z", menu: "M4 6h16M4 12h16M4 18h16", star: "M12 3l2.8 5.8 6.2.9-4.5 4.3 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.7l6.2-.9z"
+  };
+  /* buttons written with an emoji at the front get the line icon instead (same look on every PC) */
+  var EMO = { "\ud83d\udcc2": "folders", "\ud83d\udcc1": "folders", "\ud83d\udcd1": "files", "\ud83d\udccb": "clip", "\ud83d\udce8": "transmittal", "\ud83d\udce4": "upload", "\ud83d\udce5": "inbox", "\u2b06": "upload", "\ud83d\udd14": "bell",
+    "\u2709": "mail", "\u2705": "check", "\ud83d\udd0e": "search", "\ud83d\udd0d": "search", "\ud83c\udff7": "tag", "\ud83d\udd04": "compare", "\ud83d\udcdd": "note", "\ud83d\udea6": "check", "\ud83d\udcd8": "register", "\ud83d\uddd1": "superseded",
+    "\ud83d\udd17": "link", "\u2699": "settings", "\u25b6": "play", "\ud83d\udcc5": "calendar", "\ud83d\udc65": "users", "\ud83d\udcca": "report", "\ud83d\udce6": "zip", "\ud83d\udccc": "pin", "\u2606": "star", "\ud83d\udd58": "clock",
+    "\ud83c\udf10": "globe", "\u270e": "edit", "\u21bb": "refresh", "\u23f1": "timer", "\ud83d\udcc4": "files", "\ud83d\udcd0": "register", "\ud83d\udce9": "mail", "\u2b07": "download", "\ud83d\udd8a": "edit", "\u25a6": "tasks", "\u2630": "tasks" };
+  L.iconize = function (root) {
+    if (!L.themeVars || !L.themeVars().studio) return;
+    var bs = (root || document).getElementsByTagName("button");
+    for (var i = 0; i < bs.length; i++) { var b = bs[i]; if (b.__ic || b.className.indexOf("btn") < 0) continue; b.__ic = 1;
+      var t = b.firstChild; if (!t || t.nodeType != 3) continue; var v = t.nodeValue, k = v.charCodeAt(0) >= 0xd800 && v.charCodeAt(0) < 0xdc00 ? v.substring(0, 2) : v.charAt(0), n = EMO[k];
+      if (!n) continue; var rest = v.substring(k.length).replace(/^\ufe0f/, "").replace(/^\s+/, ""); t.nodeValue = rest; var sp = document.createElement("span"); sp.innerHTML = L.icon(n, 16); b.insertBefore(sp.firstChild, t); }
+  };
+  (function () { var go = function () { try { L.iconize(); } catch (e) { } }, tm = null;
+    if (window.MutationObserver) { try { new MutationObserver(function () { if (tm) return; tm = window.setTimeout(function () { tm = null; go(); }, 60); }).observe(document.documentElement, { childList: true, subtree: true }); } catch (e) { } }
+    if (document.readyState == "complete") window.setTimeout(go, 0); else if (window.attachEvent) window.attachEvent("onload", go); else window.addEventListener("load", go, false); })();
+  L.icon = function (n, size, cls) { var d = L.ICONS[n]; if (!d) return ""; size = size || 18;
+    return '<svg class="ic' + (cls ? " " + cls : "") + '" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="' + d + '"/></svg>'; };
+
   /* ---------- looks (same themes as QuickLaunch) ---------- */
   L.THEMES = {
+    studio: { name: "Studio", bg: "#f3f5f8", panel: "#ffffff", hover: "#eef3fb", text: "#16202e", muted: "#667385", line: "#e2e7ee", accent: "#2563eb", accent2: "#2563eb", accText: "#ffffff", chip: "#eef1f6", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "0 1px 2px rgba(16,24,40,.06)", big: "0 18px 44px rgba(16,24,40,.18)", studio: 1, ok: "#15803d", warn: "#b45309", bad: "#dc2626", side: "#0f172a", sideText: "#cbd5e1", sideMuted: "#64748b", sideHover: "#1e293b" },
+    studiodark: { name: "Studio Dark", bg: "#0b0f17", panel: "#121826", hover: "#1a2233", text: "#e5e9f0", muted: "#8a96a8", line: "#222b3b", accent: "#60a5fa", accent2: "#60a5fa", accText: "#0b1220", chip: "#1a2232", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "none", big: "0 18px 44px rgba(0,0,0,.55)", studio: 1, ok: "#4ade80", warn: "#fbbf24", bad: "#f87171", side: "#070a10", sideText: "#cbd5e1", sideMuted: "#5b6678", sideHover: "#141b28" },
     light: { name: "Light", bg: "#f4f5f8", panel: "#ffffff", hover: "#eaf0fb", text: "#1d2330", muted: "#6b7385", line: "#dde2ea", accent: "#2f6fed", accText: "#ffffff", chip: "#e9ecf2", font: "'Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "0 1px 2px rgba(20,30,50,.07)", big: "0 16px 40px rgba(20,30,50,.25)", ok: "#1f8a4c", warn: "#a86500", bad: "#c0392b" },
     dark: { name: "Dark", bg: "#16181d", panel: "#1f2229", hover: "#2a2f3a", text: "#e8eaef", muted: "#9097a6", line: "#30343e", accent: "#5b9dff", accText: "#0b1220", chip: "#282c35", font: "'Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "none", big: "0 16px 40px rgba(0,0,0,.5)", ok: "#5fd38d", warn: "#ffcd75", bad: "#ff7b72" },
     blueprint: { name: "Blueprint", bg: "#0d2a4c", panel: "#12365f", hover: "#1a4679", text: "#e6f0ff", muted: "#9fb9dd", line: "#2b5a8f", accent: "#ffd166", accText: "#0d2a4c", chip: "#173f6d", font: "'Segoe UI',Tahoma,sans-serif", r: 4, bw: 1, shadow: "none", big: "0 16px 40px rgba(0,0,0,.45)", ok: "#5fd38d", warn: "#ffd166", bad: "#ff8a80" },
@@ -399,7 +437,7 @@ var LT = (function () {
     "a{color:{accent}}"
   ];
   L.themeVars = function () {
-    var s = L.settings(), t = L.THEMES[s.theme] || L.THEMES.light, z = L.SIZES[s.size] || L.SIZES.normal, v = {};
+    var s = L.settings(), t = L.THEMES[s.theme] || L.THEMES.studio, z = L.SIZES[s.size] || L.SIZES.normal, v = {};
     for (var a in t) v[a] = t[a]; for (var b in z) v[b] = z[b];
     v.rc = t.r ? 99 : 0; v.r2 = t.r ? t.r + 2 : 0; v.lineSoft = t.retro ? "rgba(0,0,0,.25)" : t.line;
     // soft see-through versions of the status colours, for highlighted cells (follow every look)
@@ -407,19 +445,39 @@ var LT = (function () {
     v.ok = v.ok || "#1f8a4c"; v.warn = v.warn || "#a86500"; v.bad = v.bad || "#c0392b"; v.accent2 = v.accent2 || v.accent;
     // fixed-width font for codes (drawing numbers, revisions, IDs, file names): Consolas is on every Windows PC
     v.mono = t.retro ? t.font : "Consolas,'Cascadia Mono','Lucida Console',monospace";
-    v.okSoft = soft(v.ok, .18); v.warnSoft = soft(v.warn, .2); v.badSoft = soft(v.bad, .2);
+    v.okSoft = soft(v.ok, .18); v.warnSoft = soft(v.warn, .2); v.badSoft = soft(v.bad, .2); v.accSoft = soft(v.accent, .12);
+    v.rowAlt = t.studio ? (t.bg == "#0b0f17" ? "#0f1420" : "#fafbfd") : "transparent";
+    v.side = v.side || v.panel; v.sideText = v.sideText || v.text; v.sideMuted = v.sideMuted || v.muted; v.sideHover = v.sideHover || v.hover; v.sideHi = t.side ? "#ffffff" : v.text; v.sideLine = t.side ? t.side : v.line;
     return v;
   };
   function setCss(el, css) { if (el.styleSheet && typeof el.styleSheet.cssText == "string") el.styleSheet.cssText = css; else el.textContent = css; }
   /* puts the theme's colours into the page; call again after a theme change */
   L.applyLook = function (extraRules) {
     if (extraRules) L._extra = extraRules;
-    var v = L.themeVars(), rules = L.BASE_CSS.concat(L._extra || []);
+    var v = L.themeVars(), rules = L.BASE_CSS.slice(0), extra = L._extra || [];
     if (v.retro) rules.push(".btn,.chip.on{box-shadow:{shadow}}.btn:active{box-shadow:none}");
     /* Slate: pill buttons, quieter table headings, softer cards (the "project dashboard" look) */
     if (v.slate) rules.push(".btn{border-radius:99px}.btn.on{background:{chip};border-color:{accent2};color:{text}}",
       "table.grid th{text-transform:none;letter-spacing:0;font-size:.85em}",
       ".card{border-radius:16px}#toast{border-radius:12px}");
+    /* Studio: the new look - quiet surfaces, clear buttons, soft cards, readable tables */
+    if (v.studio) rules.push(
+      "body{-webkit-font-smoothing:antialiased}svg.ic{vertical-align:-4px;flex:none}.btn svg.ic{margin:0 5px 0 -2px;vertical-align:-4px}",
+      ".btn{height:32px;padding:0 13px;border-radius:8px;font-weight:600;box-shadow:{shadow};transition:background .12s,border-color .12s}.btn:hover{border-color:#c9d3e0}",
+      ".btn.primary{box-shadow:0 1px 2px rgba(37,99,235,.35)}.btn.primary:hover{filter:brightness(1.07)}.btn.on{background:{accSoft};border-color:{accent};color:{accent}}",
+      ".btn.small{height:28px;padding:0 10px}",
+      ".bar{padding:10px 16px 4px;border-bottom:1px solid {line};background:{panel}}.bar2{padding:10px 16px 4px}",
+      "input,select{height:32px;border-radius:8px}input:focus,select:focus,textarea:focus{border-color:{accent};box-shadow:0 0 0 3px {accSoft}}",
+      ".chip{border-radius:99px;padding:4px 12px;font-weight:600}.chip.on{background:{accent};color:{accText}}",
+      "table.grid th{text-transform:none;letter-spacing:0;font-size:.82em;font-weight:600;padding:8px 10px;background:{bg}}",
+      "table.grid td{padding:7px 10px;border-bottom:1px solid {line}}table.grid tr:nth-child(even){background:{rowAlt}}table.grid td.fz{background-color:{panel}}",
+      ".card{border-radius:14px;padding:20px 22px}.card h3{font-size:1.2em;font-weight:600}",
+      ".fld label{text-transform:none;letter-spacing:0;font-size:.85em;font-weight:600}",
+      "#menu{border-radius:10px;padding:6px}#menu .mi{border-radius:6px}#menu .mi:hover{background:{accSoft};color:{text}}",
+      "#toast{border-radius:10px;background:{side};color:#fff}h2{font-weight:600;font-size:1.35em}",
+      /* a row of views (Folder Check, Transmittal...): a slim tab strip */
+      ".vtabs{padding:0 12px!important;white-space:nowrap;overflow-x:auto;overflow-y:hidden;background:{panel};border-bottom:1px solid {line}}.vtabs .btn{height:44px;margin:0;padding:0 9px;border:0;border-radius:0;background:transparent;box-shadow:none;color:{muted};border-bottom:2px solid transparent}.vtabs .btn:hover{color:{text};background:transparent}.vtabs .btn.on{color:{accent};border-bottom-color:{accent};background:transparent}");
+    rules = rules.concat(extra);   // the tab's own rules last: they win
     var el = document.getElementById("ltTheme");
     if (!el) { el = document.createElement("style"); el.id = "ltTheme"; document.getElementsByTagName("head")[0].appendChild(el); }
     setCss(el, rules.join("\n").replace(/\{(\w+)\}/g, function (m, k) { return v[k] !== undefined ? v[k] : m; }));
@@ -539,8 +597,13 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.13";
+  L.VERSION = "2026.11.14";
   L.WHATS_NEW = [
+    { v: "2026.11.14", items: [
+      "<b>A new look &ndash; Studio</b>: a dark side menu with line icons, a clean work area, clearer buttons and tables. <b>Studio Dark</b> with the &#9790; button at the top",
+      "<b>Top bar</b> on every tab: the <b>project</b> you're working on (switch in one click), <b>search</b> (Ctrl+K), the <b>&#128276; bell</b> with what needs you today",
+      "<b>Home is now a dashboard</b>: my day, my team, the project's drawings (% issued), what went out, team load &ndash; and the <b>Weekly report</b> inside it",
+      "<b>Fewer tabs</b>: Find drawings and Superseded are now views in <b>Folder Check</b>" ] },
     { v: "2026.11.13", items: [
       "<b>&#128678; Check all</b> (Folder Check): your checklist + the folder that goes out + where the drawings come from &ndash; quantity, missing, wrong revision, missing pdf / dwg, names, extra files, old revisions, newer in the source, copied wrong &ndash; as cards. <b>Collect</b> fills the gaps from the source folder",
       "<b>Log to Transmittal</b>: after an export it asks (you choose) &ndash; tick what goes out, then <b>log only</b>, <b>one zip</b> (each file once, nothing doubled) or a <b>folder</b>. Transmittal &gt; <b>&#128220; History</b> shows everything that went out &ndash; search a drawing number to see where it went",
@@ -627,6 +690,9 @@ var LT = (function () {
 
   /* the online link (ACC / SharePoint...) of a drawing, set in the Drawing Register; "" if none */
   L.drawingLink = function (no) { try { var R = L.register(), d = R && R.find(no); return d && d.link ? d.link : ""; } catch (e) { return ""; } };
+
+  /* the project you're working on (picked in the top bar = the Drawing Register's current project): { id, name } or null */
+  L.project = function () { try { var ix = L.registerIndex(); for (var i = 0; i < (ix.projects || []).length; i++) if (ix.projects[i].id == ix.current) return ix.projects[i]; } catch (e) { } return null; };
 
   /* ---------- inside the main window ---------- */
   L.main = function () { try { return window.top && window.top.LTMain ? window.top.LTMain : null; } catch (e) { return null; } };

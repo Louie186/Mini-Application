@@ -48,11 +48,11 @@ module.exports = async ({ page, out }) => {
   ok(await f.evaluate(() => getComputedStyle(document.querySelector('.btn')).borderRadius == '99px'), 'Slate: pill buttons in the tab');
   await page.screenshot({ path: out + '/h_slate_board.png' });
   await page.click('#railBtn'); await page.waitForTimeout(500);
-  ok(await page.evaluate(() => LT.$('nav').offsetWidth == 58 && LT.settings().rail === true), 'menu folds to icons and is remembered');
+  ok(await page.evaluate(() => LT.$('nav').offsetWidth == 64 && LT.settings().rail === true), 'menu folds to icons and is remembered');
   await f.click('[data-v="cal"]'); await page.waitForTimeout(200);
   await page.screenshot({ path: out + '/h_slate_cal_rail.png' });
   await page.keyboard.press('Control+BracketLeft'); await page.waitForTimeout(500);
-  ok(await page.evaluate(() => LT.$('nav').offsetWidth == 200 && LT.settings().rail === false), 'Ctrl+[ opens it again');
+  ok(await page.evaluate(() => LT.$('nav').offsetWidth == 220 && LT.settings().rail === false), 'Ctrl+[ opens it again');
   await page.evaluate(() => { var s = LT.settings(); s.theme = 'slatelight'; LT.saveSettings(s); LTMain.themeChanged(); });
   await page.waitForTimeout(200); await page.screenshot({ path: out + '/h_slate_light.png' });
 };

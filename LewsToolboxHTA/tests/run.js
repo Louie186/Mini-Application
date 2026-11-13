@@ -25,7 +25,11 @@ const APP = path.resolve(__dirname, '..');
   await page.evaluate(() => { const b = document.getElementById('wnOk'); if (b) b.click(); });
   await page.evaluate(() => { var s = LT.settings(); s.askLog = false; LT.saveSettings(s); });   // the "Log this to Transmittal?" question: only the tests about it switch it on   // the "What's new" note after an update
   const test = require(path.resolve(process.argv[2]));
-  await test({ page, errors, work, out: process.argv[3] || '/tmp/claude-0' });
+  // drag with the real mouse (Playwright's dragAndDrop can miss a target near the bottom of a tab)
+  const drag = async (fr, src, dst) => { const a = await (await fr.$(src)).boundingBox(), z = await (await fr.$(dst)).boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2); await page.mouse.down(); await page.mouse.move(a.x + a.width / 2 + 20, a.y + a.height / 2 + 15, { steps: 5 });
+    await page.mouse.move(z.x + z.width / 2, z.y + z.height / 2, { steps: 10 }); await page.mouse.up(); };
+  await test({ page, errors, work, drag, out: process.argv[3] || '/tmp/claude-0' });
   console.log(errors.length ? 'PAGE ERRORS:\n  ' + errors.join('\n  ') : 'no page errors');
   await b.close();
 })().catch(e => { console.error('RUN FAILED', e); process.exit(1); });

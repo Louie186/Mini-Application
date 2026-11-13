@@ -1,5 +1,5 @@
 // Delegate Board + Calendar (drag, Undo, history), Slate theme and the fold-away menu
-module.exports = async ({ page, out }) => {
+module.exports = async ({ page, out, drag }) => {
   const ok = (c, w) => console.log((c ? 'PASS ' : 'FAIL ') + w);
   await page.click('.nb[data-k="delegate"]'); await page.waitForTimeout(700);
   const f = page.frame({ url: /delegate\.html/ });
@@ -25,17 +25,17 @@ module.exports = async ({ page, out }) => {
   await f.click('[data-v="cal"]'); await page.waitForTimeout(200);
   ok(await f.evaluate(() => document.querySelectorAll('.ev.p').length == 2 && document.querySelectorAll('.ev:not(.p)').length == 1), 'calendar: 2 tasks due + 1 items chip');
   await f.evaluate(() => { calMonth = null; });
-  await f.dragAndDrop('.ev.p:has-text("Sheet set")', `td[data-day="${d3}"]`).catch(async () => { await f.click('[data-mon="1"]'); await f.dragAndDrop('.ev.p:has-text("Sheet set")', `td[data-day="${d3}"]`); });
+  await (async () => { if (!(await f.$(`td[data-day="${d3}"]`))) await f.click('[data-mon="1"]'); await drag(f, '.ev.p:has-text("Sheet set")', `td[data-day="${d3}"]`); })();
   await page.waitForTimeout(150);
   ok(await f.evaluate(d3 => findTask('T002').due == d3, d3), 'calendar: drag task → new due date');
   await page.screenshot({ path: out + '/h_cal.png' });
   await f.click('#toastUndo'); await page.waitForTimeout(100);
   ok(await f.evaluate(d0 => findTask('T002').due == d0 && /Undo/.test(findTask('T002').history.join()), d0), 'calendar: Undo, noted in history');
-  await f.dragAndDrop('.ev:not(.p):has-text("Level 16 walls")', `td[data-day="${d3}"]`); await page.waitForTimeout(150);
+  await drag(f, '.ev:not(.p):has-text("Level 16 walls")', `td[data-day="${d3}"]`); await page.waitForTimeout(150);
   ok(await f.evaluate(([d0, d3]) => { var t = findTask('T001'); return t.due == d0 && t.subs[0].due == d3 && t.subs[1].due == d3; }, [d0, d3]), 'calendar: drag ↳ items → only the items move');
   // person filter: only Ben's item moves
   await f.evaluate(d1 => { var t = findTask('T001'); t.subs[0].due = d1; t.subs[1].due = d1; save(); $('person').value = 'Ben'; render(); }, d1);
-  await f.dragAndDrop('.ev:not(.p):has-text("Level 16 walls")', `td[data-day="${d3}"]`); await page.waitForTimeout(150);
+  await drag(f, '.ev:not(.p):has-text("Level 16 walls")', `td[data-day="${d3}"]`); await page.waitForTimeout(150);
   ok(await f.evaluate(([d1, d3]) => { var t = findTask('T001'); return t.subs[0].due == d1 && t.subs[1].due == d3; }, [d1, d3]), 'calendar: with a person picked, only their items move');
   await f.evaluate(() => { $('person').value = ''; render(); });
   // saved to disk

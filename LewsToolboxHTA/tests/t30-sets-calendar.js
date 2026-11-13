@@ -1,5 +1,5 @@
 // Drawing Register > My sets (two columns, drag between), Tasks pulls a set; Tasks > Calendar (drag = move, Ctrl + drag = copy)
-module.exports = async ({ page, out }) => {
+module.exports = async ({ page, out, drag }) => {
   const ok = (c, w) => console.log((c ? 'PASS ' : 'FAIL ') + w);
   await page.evaluate(() => { LT.mkdirs(LT.dataPath('register')); LT.saveJson(LT.dataPath('register.json'), { projects: [{ id: 'p1', name: 'Tower 1' }], current: 'p1' });
     var D = {}, put = (n, title, cat, typo) => { D[n] = { num: n, title: title, cat: cat, tower: 'T1', typo: typo, ok: true }; };
@@ -50,6 +50,6 @@ module.exports = async ({ page, out }) => {
   // a task with no date: in the strip, drag onto a day
   await t.evaluate(() => { var x = blank(); x.title = 'Undated thing'; addTask(x); save(); render(); });
   ok(await t.evaluate(() => /Undated thing/.test($('main').querySelector('.nodate').innerText)), 'tasks with no due date wait in a strip above the calendar');
-  await t.dragAndDrop('.nodate .ev', 'td.tdy'); await page.waitForTimeout(150);
+  await drag(t, '.nodate .ev', 'td.tdy'); await page.waitForTimeout(150);
   ok(await t.evaluate(() => byCode('TL-003').due == LT.today()), 'drag it onto a day: it gets that date');
 };

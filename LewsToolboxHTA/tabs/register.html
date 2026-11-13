@@ -454,8 +454,9 @@ function lookView() {
 function modelRaw(model) { for (var i = 0; i < P.models.length; i++) if (P.models[i].link && up(P.models[i].model) == up(model)) return P.models[i].link; return (P.modelLinks || {})[up(model)] || ""; }
 function lookLongest(rows) { var n = 10; for (var i = 0; i < rows.length; i++) if (rows[i].num.length > n) n = rows[i].num.length; return n; }
 function lookBase() { LT.mkdirs(LT.exportsDir()); return LT.exportsDir() + "\\Drawing list_" + LT.safeName(P.name) + "_" + LT.stamp(); }
+function lookItems() { var o = [], rs = P.lookup.rows; for (var i = 0; i < rs.length; i++) o.push({ number: rs[i].num, title: rs[i].desc || rs[i].title || "", rev: "" }); return o; }
 function lookExcel() {
-  var rows = P.lookup.rows, base = lookBase(), xl = null, wb = null;
+  var rows = P.lookup.rows, base = lookBase(), xl = null, wb = null, out = "";
   try {
     xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
     wb = xl.Workbooks.Add(); while (wb.Worksheets.Count > 1) wb.Worksheets(wb.Worksheets.Count).Delete(); var ws = wb.Worksheets(1); ws.Name = "Drawing list";
@@ -473,11 +474,12 @@ function lookExcel() {
     ws.Cells(last + 2, 1).Value = "Blue = guessed from the description. Model = click to open. Fill in Checked (Yes / No / Query) and Comments.";
     try { ws.Rows(4).Select(); xl.ActiveWindow.FreezePanes = true; } catch (e) { }
     try { ws.PageSetup.Orientation = 2; ws.PageSetup.Zoom = false; ws.PageSetup.FitToPagesWide = 1; ws.PageSetup.FitToPagesTall = false; ws.PageSetup.PrintTitleRows = "$3:$3"; } catch (e) { }
-    wb.SaveAs(base + ".xlsx", 51); LT.open(base + ".xlsx");
+    wb.SaveAs(base + ".xlsx", 51); LT.open(base + ".xlsx"); out = base + ".xlsx";
   } catch (e) { var t = [["No.", "Drawing number", "Description", "Tower", "Typology", "Model", "Checked", "Comments"]];
     for (var j = 0; j < rows.length; j++) t.push([j + 1, rows[j].num, rows[j].desc || rows[j].title || "", rows[j].tower, rows[j].typo, rows[j].link ? '=HYPERLINK("' + linkHref(rows[j].link).replace(/"/g, '""') + '","' + rows[j].model.replace(/"/g, '""') + '")' : rows[j].model, "", ""]);
-    try { LT.writeCsv(base + ".csv", t); LT.open(base + ".csv"); LT.toast("Excel isn't available - saved as CSV (the model links still work in Excel)"); } catch (e2) { alert("Couldn't export:\n" + (e2.message || e2)); } }
+    try { LT.writeCsv(base + ".csv", t); LT.open(base + ".csv"); out = base + ".csv"; LT.toast("Excel isn't available - saved as CSV (the model links still work in Excel)"); } catch (e2) { alert("Couldn't export:\n" + (e2.message || e2)); } }
   finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+  if (out) LT.logOut({ source: "List lookup", file: out, items: lookItems(), project: P.name, notes: "Drawing list for checking" });
 }
 function lookHtml() {
   var rows = P.lookup.rows, e = esc, h = ['<!DOCTYPE html><html><head><meta charset="utf-8"><title>Drawing list - ' + e(P.name) + "</title><style>body{margin:0;font:10.5pt/1.5 'Segoe UI',Arial,sans-serif;color:#1d2330;background:#eef1f5}.page{max-width:1100px;margin:20px auto;background:#fff;box-shadow:0 2px 14px rgba(20,30,50,.12)}",
@@ -488,6 +490,7 @@ function lookHtml() {
     h.push("<tr><td>" + (i + 1) + '</td><td class="n">' + e(r.num) + "</td><td>" + e(r.desc || r.title || "") + "</td><td" + g + ">" + e(r.tower) + "</td><td" + g + ">" + e(r.typo) + "</td><td" + g + ">" + (r.link ? '<a href="' + e(linkHref(r.link)) + '">' + e(r.model) + "</a>" : e(r.model)) + '</td><td><input type="checkbox"></td></tr>'); }
   h.push('</table><div class="ft">Blue = guessed from the description. Click a model to open it. &middot; Lew\'s Toolbox</div></div></body></html>');
   var p = lookBase() + ".html"; LT.writeUtf8(p, h.join("\n"), true); LT.open(p);
+  LT.logOut({ source: "List lookup", file: p, items: lookItems(), project: P.name, notes: "Drawing list for checking" });
 }
 
 /* ---------- My sets: your own groups of drawings (e.g. "Serviced units" when the MIDP doesn't say), made once, used by Tasks > From the MIDP ----------
@@ -714,7 +717,7 @@ function exportRows(full) {
   return t;
 }
 function exportExcel(full) {
-  var rows = exportRows(full), base = LT.exportsDir() + "\\DrawingRegister_" + LT.safeName(P.name).replace(/ /g, "_") + "_" + LT.stamp(); LT.mkdirs(LT.exportsDir());
+  var out = "", rows = exportRows(full), base = LT.exportsDir() + "\\DrawingRegister_" + LT.safeName(P.name).replace(/ /g, "_") + "_" + LT.stamp(); LT.mkdirs(LT.exportsDir());
   var xl = null, wb = null;
   try {
     xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
@@ -724,9 +727,10 @@ function exportExcel(full) {
     var W = full ? [34, 6, 70, 34, 8, 18, 34, 10, 9] : [34, 70, 8, 18, 34]; for (var w = 0; w < W.length; w++) ws.Columns(w + 1).ColumnWidth = W[w];
     var hd = ws.Range(ws.Cells(1, 1), ws.Cells(1, nc)); hd.Font.Bold = true; hd.Interior.Color = 0x7E3E5B; hd.Font.Color = 0xFFFFFF;
     try { ws.Range(ws.Cells(1, 1), ws.Cells(rows.length, nc)).AutoFilter(); } catch (e) { }
-    wb.SaveAs(base + ".xlsx", 51); LT.open(base + ".xlsx");
-  } catch (e) { try { LT.writeCsv(base + ".csv", rows); LT.open(base + ".csv"); LT.toast("Excel isn't available - saved as CSV instead"); } catch (e2) { alert("Couldn't export:\n" + (e2.message || e2)); } }
+    wb.SaveAs(base + ".xlsx", 51); LT.open(base + ".xlsx"); out = base + ".xlsx";
+  } catch (e) { try { LT.writeCsv(base + ".csv", rows); LT.open(base + ".csv"); out = base + ".csv"; LT.toast("Excel isn't available - saved as CSV instead"); } catch (e2) { alert("Couldn't export:\n" + (e2.message || e2)); } }
   finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
+  if (out) { var its = []; for (var q = 0; q < shown.length; q++) { var d = P.drawings[shown[q]]; its.push({ number: d.num, title: d.title || "", rev: d.rev || "" }); } LT.logOut({ source: "Drawing Register list", file: out, items: its, project: P.name }); }
 }
 function changesText(h) {
   h = h || P.history[0]; if (!h) return "";

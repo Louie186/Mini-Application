@@ -84,6 +84,7 @@ function compare() {
   for (k in A) if (A.hasOwnProperty(k)) keys[k] = 1; for (k in B) if (B.hasOwnProperty(k)) keys[k] = 1;
   for (k in keys) { if (!keys.hasOwnProperty(k)) continue; var a = A[k], b = B[k], row = { base: k, before: a ? revOf(a) : "", now: b ? revOf(b) : "", note: "", title: "" };
     var t = (b || a).items; for (var q = 0; q < t.length; q++) if (t[q].title) { row.title = t[q].title; break; }
+    row.files = []; if (b) for (var fq = 0; fq < b.items.length; fq++) if (b.items[fq] && b.items[fq].full) row.files.push(b.items[fq].full);   // what goes out (Log to Transmittal)
     if (!a) row.st = "New"; else if (!b) row.st = "Removed";
     else if (row.before != row.now) row.st = "Revised";
     else { row.st = "Unchanged";
@@ -126,7 +127,9 @@ $("app").onclick = function (e) {
 $("bRun").onclick = compare;
 $("bCopy").onclick = function () { if (!result) { alert("Compare first."); return; } if (LT.copyText(summary())) LT.toast("Summary copied - paste it into an email or Teams"); };
 $("bCsv").onclick = function () { if (!result) { alert("Compare first."); return; } var t = [["Drawing", "Title", "Before", "Now", "Change", "Note"]]; for (var i = 0; i < result.length; i++) { var r = result[i]; t.push([r.base, r.title, r.before, r.now, r.st, r.note]); }
-  var f = LT.exportsDir() + "\\WhatChanged_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f); };
+  var f = LT.exportsDir() + "\\WhatChanged_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f);
+  var its = []; for (var k = 0; k < result.length; k++) if (result[k].st == "New" || result[k].st == "Revised" || result[k].st == "Same rev, file changed") its.push({ number: result[k].base, title: result[k].title || (LT.dwgInfo(result[k].base) || {}).title || "", rev: result[k].now || "", types: "", files: result[k].files || [] });
+  LT.logOut({ source: "Compare (what changed)", file: f, items: its, notes: "Changes since the last issue" }); };
 function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{background:{panel}}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); paths(); };
 /* from Folder Check: the folder picked in another view becomes "Now" (this submission) */

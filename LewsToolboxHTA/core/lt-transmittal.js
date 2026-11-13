@@ -47,8 +47,13 @@
   /* t = { project, to, attn, purpose, notes, items: [...], tasks? }; opts.copy = copy each item's files in;
      opts.extra = [[source, path inside the transmittal folder], ...] (e.g. a task pack and its References\ files).
      Returns { no, dir, file, copied, errors }. Excel makes the sheet; without Excel a CSV is made. */
+  /* opts.copy  = copy each item's files into the TR folder ("folder" package)
+     opts.zip   = one zip, TR-005.zip, made straight from the files where they are - the transmittal sheet + each file once
+                  (no copies in the folder, a name that appears twice goes in once) ("zip" package)
+     neither     = the sheet only; the files stay where they are and their paths are in the log ("log" package) */
   L.trMake = function (t, opts) {
     opts = opts || {}; var s = L.trLoad();
+    t.package = opts.zip ? "zip" : opts.copy ? "folder" : t.package || (opts.extra && opts.extra.length ? "folder" : "log");
     t.no = L.trNo(s); t.date = L.today(); t.by = t.by || L.settings().userName || "";
     var dir = L.trDir(s, t.no), base = dir + "\\" + t.no + "_" + L.safeName(t.to || "Transmittal").replace(/ /g, "_") + "_" + L.today(), made = null, copied = 0, errs = [];
     L.mkdirs(dir);
@@ -58,8 +63,21 @@
         if (fso.FolderExists(src)) fso.CopyFolder(src, to, false); else fso.CopyFile(src, to, false); copied++; } catch (e) { errs.push(fso.GetFileName(src) + ": " + (e.message || e)); } };
     if (opts.copy) for (var k = 0; k < t.items.length; k++) for (var f = 0; f < (t.items[k].files || []).length; f++) put(t.items[k].files[f], dir + "\\" + fso.GetFileName(t.items[k].files[f]));
     for (var x = 0; x < (opts.extra || []).length; x++) put(opts.extra[x][0], dir + "\\" + opts.extra[x][1]);
+    if (opts.zip) {
+      var src = [made], seen = {}, skipped = 0; seen[fso.GetFileName(made).toLowerCase()] = 1;
+      var addSrc = function (p) { if (!p) return; var n = fso.GetFileName(p).toLowerCase(); if (seen[n]) { skipped++; return; } if (!fso.FileExists(p) && !fso.FolderExists(p)) { errs.push(fso.GetFileName(p) + ": not found"); return; } seen[n] = 1; src.push(p); };
+      for (var k2 = 0; k2 < t.items.length; k2++) for (var f2 = 0; f2 < (t.items[k2].files || []).length; f2++) addSrc(t.items[k2].files[f2]);
+      for (var x2 = 0; x2 < (opts.zipExtra || []).length; x2++) addSrc(opts.zipExtra[x2]);
+      var zip = dir + "\\" + t.no + "_" + L.safeName(t.to || "Transmittal").replace(/ /g, "_") + "_" + L.today() + ".zip", lst = dir + "\\_zip-list.txt";
+      try { if (fso.FileExists(zip)) fso.DeleteFile(zip, true); } catch (e) { }
+      L.writeUtf8(lst, src.join("\r\n"), true);   // the list in a file: no limit on how many files
+      L.wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$l = Get-Content -LiteralPath \'' + lst.replace(/'/g, "''") + '\' -Encoding UTF8 | Where-Object { $_ }; Compress-Archive -LiteralPath $l -DestinationPath \'' + zip.replace(/'/g, "''") + '\' -Force"', 0, true);
+      try { fso.DeleteFile(lst, true); } catch (e) { }
+      if (fso.FileExists(zip)) { t.zip = zip; t.zipCount = src.length; copied = src.length - 1; if (skipped) errs.push(skipped + " file(s) with the same name as another went in once"); }
+      else errs.push("The zip couldn't be made (needs Windows PowerShell 5) - the sheet is in " + dir);
+    }
     t.file = made; t.dir = dir; s.log.push(t); s.next++; if (t.project) s.project = t.project; L.trSave(s);
-    return { no: t.no, dir: dir, file: made, copied: copied, errors: errs };
+    return { no: t.no, dir: dir, file: made, copied: copied, errors: errs, zip: t.zip || "" };
   };
 function trCsv(path, t) {
     var rows = [["TRANSMITTAL", t.no], ["Project", t.project], ["To", t.to], ["Attention", t.attn], ["From", t.by], ["Date", t.date], ["Purpose of issue", t.purpose], ["Notes", t.notes], [], ["No.", "Drawing / document number", "Title", "Rev", "Format"]];

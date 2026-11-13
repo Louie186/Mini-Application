@@ -589,6 +589,13 @@ var LT = (function () {
   L.modelHtml = function (model) { if (!model) return ""; L.dwgInfo("-"); var lk = ""; try { lk = DWG && DWG.R ? DWG.R.modelLink(model) : ""; } catch (e) { }
     return lk ? '<span class="mlk" data-ml="' + L.esc(lk) + '" title="' + L.esc(model) + ' - click to open">&#128279; ' + L.esc(model) + "</span>" : L.esc(model); };
   L.dwgText = function (name) { var f = L.dwgInfo(name); return f ? L.trim([f.tower, f.typo, f.model].join(" ")) : ""; };
+  /* ---------- after an export: offer to log it to Transmittal (you choose; Settings can switch the question off) ----------
+     L.logOut({ source: "Drawing Register list", file: "<the exported file>", items: [{ number, title, rev, types, files: [paths] }] }) */
+  L.logOut = function (o) {
+    try { var s = L.settings(); if (s.askLog === false || (s.askLogOff || {})[o.source]) return false;
+      var m = L.main(); if (m && m.logOut) { m.logOut(JSON.stringify(o)); return true; } } catch (e) { }
+    return false;
+  };
   /* any page: a click on a model link opens it */
   (function () { var h = function (e) { e = e || window.event; var t = e.target || e.srcElement; while (t && t.getAttribute) { var u = t.getAttribute("data-ml"); if (u) { try { L.open(u); } catch (x) { alert("Couldn't open:\n" + u); } if (e.stopPropagation) e.stopPropagation(); e.cancelBubble = true; return false; } t = t.parentNode; } };
     try { if (document.attachEvent) document.attachEvent("onclick", h); else document.addEventListener("click", h, true); } catch (x) { } })();

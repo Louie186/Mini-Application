@@ -322,9 +322,12 @@ function excelReport() {
     try { LT.writeCsv(base + ".csv", rows); LT.open(base + ".csv"); LT.toast("Excel isn't available - saved as CSV instead"); return base + ".csv"; } catch (e2) { alert("Couldn't make the report:\n" + (e.message || e)); return null; }
   } finally { try { if (wb) wb.Close(false); } catch (e) { } try { if (xl) xl.Quit(); } catch (e) { } }
 }
+/* the drawings found in the folder, with their files - what goes out with the submission */
+function foundItems() { var o = []; for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i]; if (r.status != "Found" && r.status != "Wrong folder") continue; var fs = [], ty = []; for (var k = 0; k < (r.exact || []).length; k++) { fs.push(r.exact[k].full); if (ty.indexOf(r.exact[k].ext) < 0) ty.push(r.exact[k].ext); }
+    o.push({ number: splitRev(r.entry).base || r.entry, title: r.title || "", rev: r.rev || splitRev(up(r.entry)).rev, types: ty.join(", "), files: fs }); } return o; }
 function reportMenu(x, y) {
   LT.menu(x, y, [
-    { label: "Excel report", fn: excelReport },
+    { label: "Excel report", fn: function () { var f = excelReport(); if (f && last) LT.logOut({ source: "Submission check", file: f, items: foundItems(), notes: "Submission " + LT.fmtDate(LT.today()) }); } },
     { label: "&#128232; Make a transmittal (the found files)", fn: function () { if (!last) { alert("Run a check first."); return; } var p = [];
       for (var i = 0; i < last.rows.length; i++) { var r = last.rows[i]; if (r.status != "Found" && r.status != "Wrong folder") continue; for (var k = 0; k < (r.exact || []).length; k++) p.push(r.exact[k].full); }
       if (!p.length) { alert("No found files to issue."); return; } if (LT.main()) LT.main().send("transmittal", "add-files", JSON.stringify(p)); } },

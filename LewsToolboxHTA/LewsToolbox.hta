@@ -34,6 +34,12 @@
 #dataWarn{display:none;flex:none;margin:6px 2px;padding:7px 8px;font-size:.85em;line-height:1.35;background:#fff4d6;color:#5a4200;border:1px solid #e5c36a;border-radius:8px}
 #dataWarn .wb{display:inline-block;margin:5px 4px 0 0;padding:2px 7px;font:inherit;font-weight:bold;cursor:pointer;border:1px solid #c9a646;background:#fff;color:#5a4200;border-radius:6px}
 #shell.rail #dataWarn{padding:4px;text-align:center}
+#lo{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:62;background:rgba(0,0,0,.35)}
+#loBox{width:760px;max-width:94%;max-height:90%;overflow-y:auto;margin:30px auto 0;padding:14px 18px;line-height:1.45}#loBox h3{margin:0 0 4px}
+#loBox .lf{display:inline-block;margin:0 10px 6px 0;vertical-align:top}#loBox .lf label{display:block;font-size:.8em;font-weight:bold;opacity:.75}#loBox input[type=text],#loBox select{height:26px;width:200px}
+#loList{max-height:260px;overflow-y:auto;margin:6px 0}#loList label{display:block;padding:3px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pk{display:block;padding:6px 8px;margin:0 0 4px;cursor:pointer}.pk input{margin-right:6px}.pk small{display:block;margin-left:22px;opacity:.75}
+#loBox .acts{margin-top:10px;text-align:right}#loBox .acts button{margin-left:6px;padding:5px 12px;font:inherit;font-weight:bold;cursor:pointer}
 #qs{display:none;position:fixed;left:0;top:0;right:0;bottom:0;z-index:60;background:rgba(0,0,0,.35)}
 #qsBox{width:640px;max-width:92%;margin:60px auto 0;padding:10px}
 #qsIn{width:100%;height:36px;font-size:1.1em;padding:0 10px}
@@ -51,6 +57,7 @@
 </style>
 <script src="core/lt-core.js"></script>
 <script src="core/lt-taskfolder.js"></script>
+<script src="core/lt-transmittal.js"></script>
 </head>
 <body>
 <div id="shell">
@@ -65,6 +72,7 @@
 </div>
 <div id="tip"></div>
 <div id="wn"><div id="wnBox"></div></div>
+<div id="lo"><div id="loBox"></div></div>
 <div id="qs"><div id="qsBox"><input type="text" id="qsIn" placeholder="Search tasks, drawings, transmittals, people, files, tabs..."><div id="qsRes"></div><div id="qsHint">&uarr; &darr; pick &middot; Enter = open &middot; Esc = close &middot; Ctrl+K from any tab</div></div></div>
 <script>
 /* ================================================================
@@ -145,6 +153,7 @@ var LTMain = {
   },
   makeShortcut: function () { return taskbarShortcut(); },
   search: function () { openSearch(); },
+  logOut: function (json) { try { logOut(JSON.parse(json)); } catch (e) { } },
   toggleRail: function () { setRail(LT.$("shell").className != "rail", true); },
   /* for Settings: every tab with its description */
   tabList: function () { var o = []; for (var i = 0; i < tabs.length; i++) o.push({ key: tabs[i].key, title: tabs[i].title, icon: tabs[i].icon, desc: tabs[i].desc }); return o; },
@@ -163,6 +172,7 @@ function look() {
     "#railBtn{background:transparent;color:{muted};border:{bw}px solid {line};border-radius:{r}px}#railBtn:hover{color:{text};border-color:{accent}}",
     ".ng{color:{muted};border-top:1px solid {line};padding-top:8px}",
     "#clock{color:{text};cursor:default}#clkD{color:{muted};font-size:.85em}",
+    "#loBox{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#loList{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}.pk{border:{bw}px solid {line};border-radius:{r}px}.pk.on{border-color:{accent};background:{hover}}#loBox .acts button{background:{bg};color:{text};border:{bw}px solid {line};border-radius:{r}px}#loBox .acts .pri{background:{accent};color:{accText};border-color:{accent}}#loBox .mut{color:{muted};font-size:.85em}",
     "#wnBox{background:{panel};color:{text};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#wnBox .v{color:{muted}}",
     "#qsBox{background:{panel};border:{bw}px solid {accent};border-radius:{r}px;box-shadow:{big}}#qsHint{color:{muted}}",
     ".qr{border-radius:{r}px;color:{text}}.qr.on{background:{hover};box-shadow:inset 3px 0 0 {accent}}.qr .k{color:{muted}}.qr .s{color:{muted}}",
@@ -247,6 +257,46 @@ function qsFind() {
 }
 function qsMark() { var rs = LT.$("qsRes").childNodes; for (var i = 0; i < rs.length; i++) rs[i].className = "qr" + (i == qsOn ? " on" : ""); try { rs[qsOn].scrollIntoView(false); } catch (e) { } }
 function qsGo(i) { var x = qsHits[i]; if (!x) return; closeSearch(); x.go(); }
+
+/* ---------- "Log this to Transmittal?" after an export: what goes out (all or some), to whom, and how it's packed ---------- */
+var LO = null;
+function logOut(o) {
+  LO = o; o.items = o.items || [];
+  if (o.file) { var fn = fso.GetFileName(o.file), dt = fn.lastIndexOf("."); o.items.push({ number: dt > 0 ? fn.substring(0, dt) : fn, title: o.fileTitle || o.source || "Exported list", rev: "", types: dt > 0 ? fn.substring(dt + 1).toLowerCase() : "", files: [o.file], isFile: true }); }
+  var s = LT.trLoad(), seen = {}, to = "", h = "";
+  for (var i = s.log.length - 1; i >= 0; i--) { var t = s.log[i].to; if (t && !seen[t]) { seen[t] = 1; to += '<option value="' + LT.esc(t) + '">'; } }
+  var nf = 0; for (var j = 0; j < o.items.length; j++) nf += (o.items[j].files || []).length;
+  h += "<h3>&#128232; Log this to Transmittal?</h3><div class=\"mut\">" + LT.esc(o.source || "Export") + " &middot; " + o.items.length + " item(s)" + (nf ? " &middot; " + nf + " file(s)" : "") + " &middot; next number <b>" + LT.esc(LT.trNo(s)) + "</b></div>";
+  h += '<div style="margin-top:8px"><b>What goes out</b> <span class="mut">(untick what stays)</span> <a href="#" id="loAll">all</a> &middot; <a href="#" id="loNone">none</a></div><div id="loList">';
+  for (var k = 0; k < o.items.length; k++) { var it = o.items[k]; h += '<label title="' + LT.esc((it.files || []).join("\n")) + '"><input type="checkbox" data-lo="' + k + '" checked style="height:auto"> <b>' + LT.esc(it.number) + "</b>" + (it.rev ? " " + LT.esc(it.rev) : "") + (it.title ? ' <span class="mut">' + LT.esc(it.title) + "</span>" : "") + (it.types ? ' <span class="mut">(' + LT.esc(it.types) + ")</span>" : "") + "</label>"; }
+  h += '</div><div class="lf"><label>To (company)</label><input type="text" id="loTo" list="loToL" value="' + LT.esc(o.to || "") + '"><datalist id="loToL">' + to + '</datalist></div><div class="lf"><label>Attention</label><input type="text" id="loAttn"></div>' +
+    '<div class="lf"><label>Purpose</label><select id="loPurp"><option>For information</option><option>For checking</option><option>For action</option><option>For comment</option><option>For review and approval</option><option>For coordination</option><option>For construction</option></select></div>' +
+    '<div class="lf" style="width:100%"><label>Notes</label><input type="text" id="loNotes" style="width:98%" value="' + LT.esc(o.notes || "") + '"></div>' +
+    '<div style="margin-top:4px"><b>How it goes out</b></div>' +
+    '<label class="pk on" data-pk="log"><input type="radio" name="loPk" value="log" checked style="height:auto"><b>&#128221; Log only</b><small>The transmittal sheet + the log. The files stay where they are (already on the shared drive / ACC) &ndash; nothing is copied.</small></label>' +
+    '<label class="pk" data-pk="zip"><input type="radio" name="loPk" value="zip" style="height:auto"><b>&#128230; One zip to send</b><small>TR-xxx.zip with the sheet and each file once, made straight from where they are &ndash; no copies left in the folder, nothing doubled.</small></label>' +
+    '<label class="pk" data-pk="folder"><input type="radio" name="loPk" value="folder" style="height:auto"><b>&#128193; Transmittal folder</b><small>The sheet + a copy of each file in the TR folder (to upload the folder as it is).</small></label>' +
+    '<div class="acts"><span class="mut" style="float:left;margin-top:8px"><a href="#" id="loOff">Don\'t ask for &quot;' + LT.esc(o.source || "this") + '&quot;</a></span><button id="loNo">Not this time</button><button class="pri" id="loYes">Log it</button></div>';
+  LT.$("loBox").innerHTML = h; LT.$("lo").style.display = "block";
+  var lst = LT.$("loList").getElementsByTagName("input"), tick = function (v) { for (var q = 0; q < lst.length; q++) lst[q].checked = v; return false; };
+  LT.$("loAll").onclick = function () { return tick(true); }; LT.$("loNone").onclick = function () { return tick(false); };
+  var pks = LT.$("loBox").getElementsByTagName("label");
+  LT.$("loBox").onclick = function (e) { var p = LT.up(e ? e.target : window.event.srcElement, "data-pk"); if (!p) return; for (var z = 0; z < pks.length; z++) if (pks[z].getAttribute("data-pk")) pks[z].className = "pk" + (pks[z] === p ? " on" : ""); p.getElementsByTagName("input")[0].checked = true; };
+  LT.$("loNo").onclick = function () { LT.$("lo").style.display = "none"; LO = null; };
+  LT.$("loOff").onclick = function () { var s2 = LT.settings(); s2.askLogOff = s2.askLogOff || {}; s2.askLogOff[o.source] = true; LT.saveSettings(s2); LT.$("lo").style.display = "none"; LT.toast("Won't ask again for " + o.source + " (Settings can turn it back on)"); return false; };
+  LT.$("loYes").onclick = function () {
+    var items = [], pk = "log", rs = document.getElementsByName("loPk"); for (var r = 0; r < rs.length; r++) if (rs[r].checked) pk = rs[r].value;
+    for (var q = 0; q < lst.length; q++) if (lst[q].checked) { var x = o.items[+lst[q].getAttribute("data-lo")]; items.push({ number: x.number, title: x.title || "", rev: x.rev || "", types: x.types || "", files: x.files || [] }); }
+    if (!items.length) { alert("Tick at least one item."); return; }
+    var t = { project: o.project || "", to: LT.trim(LT.$("loTo").value), attn: LT.trim(LT.$("loAttn").value), purpose: LT.$("loPurp").value, notes: LT.trim(LT.$("loNotes").value), items: items, source: o.source || "" };
+    var res; try { res = LT.trMake(t, { copy: pk == "folder", zip: pk == "zip" }); } catch (e) { alert("Couldn't make the transmittal:\n" + (e.message || e)); return; }
+    LT.$("lo").style.display = "none"; LO = null;
+    LT.toast(res.no + " logged" + (pk == "zip" ? " - zip ready" : pk == "folder" ? " - " + res.copied + " file(s) copied" : ""));
+    if (res.errors.length) alert(res.no + ":\n" + res.errors.slice(0, 10).join("\n"));
+    try { LT.showInFolder(res.zip || res.dir); } catch (e) { }
+    LTMain.post("transmittal", "reload", "");
+  };
+}
 
 /* ---------- "What's new": once after an update (Settings can show it again) ---------- */
 function whatsNew(force) {

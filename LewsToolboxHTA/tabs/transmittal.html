@@ -31,6 +31,13 @@
 </head>
 <body>
 <div id="app">
+  <div class="step" id="tvBar" style="padding-bottom:0"><button class="btn on" data-tv="new">&#9993; New transmittal</button><button class="btn" data-tv="hist">&#128220; History <span id="hN"></span></button></div>
+  <div id="hist" style="display:none;flex:1 1 auto;min-height:0;flex-direction:column">
+    <div class="step bar"><input type="text" id="hQ" placeholder="Search: a drawing number, TR-005, a company, a word in the notes..." style="width:420px;margin:0 8px 6px 0">
+      <select id="hPk" style="width:150px;height:26px;margin:0 8px 6px 0"><option value="">Every package</option><option value="log">&#128221; Log only</option><option value="zip">&#128230; Zip</option><option value="folder">&#128193; Folder</option></select>
+      <span class="lbl muted" id="hInfo"></span><span class="right"><button class="btn small" id="hCsv">Export (CSV)</button></span></div>
+    <div id="hRes" style="flex:1 1 auto;overflow:auto;min-height:0"></div>
+  </div>
   <div class="step bar" id="head">
     <span class="num">1</span><span class="lbl big" id="noLbl"></span><span class="lbl muted" id="dateLbl"></span><span class="right"><button class="btn small" id="bLog">Sent log &#9662;</button><button class="btn small" id="bNew">New transmittal</button></span><br>
     <div class="fld"><label>Project</label><input type="text" id="hProj"></div>
@@ -48,6 +55,7 @@
   <div class="step bar" style="border-top-width:1px;border-top-style:solid">
     <span class="num">3</span><button class="btn primary" id="bMake">&#128232; Make the transmittal</button>
     <label class="lbl"><input type="checkbox" id="copyFiles" style="height:auto"> also copy the files into a transmittal folder</label>
+    <label class="lbl" title="One zip with the transmittal sheet and each file once, made straight from where the files are - nothing copied, nothing doubled"><input type="checkbox" id="zipFiles" style="height:auto"> or one zip to send</label>
     <span class="lbl muted" id="outLbl"></span>
   </div>
 </div>
@@ -121,7 +129,7 @@ function make() {
   if (bad.length && !confirm("Revision check - " + bad.length + " problem(s):\n\n" + bad.slice(0, 12).join("\n") + (bad.length > 12 ? "\n..." : "") + "\n\nMake the transmittal anyway?")) return;
   var t = { project: LT.trim($("hProj").value), to: LT.trim($("hTo").value), attn: LT.trim($("hAttn").value), purpose: $("hPurp").value, notes: LT.trim($("hNotes").value), items: [] };
   for (var i = 0; i < docs.length; i++) t.items.push({ number: docs[i].number, title: docs[i].title, rev: docs[i].rev, types: docs[i].types.join(", "), files: docs[i].files });
-  var r; try { r = LT.trMake(t, { copy: $("copyFiles").checked }); } catch (e) { alert("Couldn't make the transmittal:\n" + (e.message || e)); return; }
+  var r; try { r = LT.trMake(t, { copy: $("copyFiles").checked && !$("zipFiles").checked, zip: $("zipFiles").checked }); } catch (e) { alert("Couldn't make the transmittal:\n" + (e.message || e)); return; }
   if (t.csv) LT.toast("Excel isn't available - saved as CSV");
   load();
   try { LT.open(r.dir); } catch (e) { }
@@ -143,16 +151,48 @@ function logEntry(t) {
       $("hTo").value = t.to; $("hAttn").value = t.attn; $("hProj").value = t.project; $("hPurp").value = t.purpose; render(); } }]);
 }
 $("bFolder").onclick = fromFolder; $("bPaste").onclick = pasteList; $("bTitles").onclick = function () { fillTitles(false); };
-$("bMake").onclick = make; $("copyFiles").onclick = header;
+$("bMake").onclick = make; $("copyFiles").onclick = function () { if (this.checked) $("zipFiles").checked = false; header(); }; $("zipFiles").onclick = function () { if (this.checked) $("copyFiles").checked = false; header(); };
+/* ---------- History: everything that went out ---------- */
+var hOpen = {};
+function pkIcon(t) { var p = t.package || (t.dir && t.copied ? "folder" : "log"); return p == "zip" ? "&#128230; Zip" : p == "folder" ? "&#128193; Folder" : "&#128221; Log only"; }
+function histView() {
+  load(); var q = LT.trim($("hQ").value).toLowerCase(), pk = $("hPk").value, h = ['<table class="grid"><tr><th>TR</th><th>Date</th><th>To</th><th>Purpose</th><th>Items</th><th>Package</th><th>From</th><th></th></tr>'], n = 0, hitItems = 0;
+  for (var i = store.log.length - 1; i >= 0; i--) { var t = store.log[i], items = t.items || [], match = [];
+    if (pk && (t.package || "log") != pk) continue;
+    if (q) { var head = (t.no + " " + t.to + " " + (t.attn || "") + " " + (t.purpose || "") + " " + (t.notes || "") + " " + (t.source || "") + " " + (t.project || "")).toLowerCase();
+      for (var k = 0; k < items.length; k++) if ((items[k].number + " " + (items[k].title || "")).toLowerCase().indexOf(q) >= 0) match.push(k);
+      if (head.indexOf(q) < 0 && !match.length) continue; hitItems += match.length; }
+    n++; var open = hOpen[t.no] || match.length;
+    h.push('<tr class="hr" data-tr="' + esc(t.no) + '"><td><b>' + esc(t.no) + "</b></td><td>" + esc(LT.fmtDate(t.date)) + " " + esc((t.date || "").substring(0, 4)) + "</td><td>" + esc(t.to || "") + (t.attn ? ' <span class="muted">' + esc(t.attn) + "</span>" : "") + "</td><td>" + esc(t.purpose || "") + "</td><td>" + items.length + (match.length ? ' <span class="ok">(' + match.length + " match)</span>" : "") +
+      "</td><td>" + pkIcon(t) + '</td><td class="muted">' + esc(t.source || (t.tasks ? "Delegate" : "Transmittal tab")) + '</td><td style="white-space:nowrap">' + (t.zip ? '<span class="hl" data-op="' + esc(t.zip) + '" title="Show the zip">&#128230;</span> ' : "") + (t.dir ? '<span class="hl" data-op="' + esc(t.dir) + '" title="Open the folder">&#128194;</span> ' : "") + (t.file ? '<span class="hl" data-of="' + esc(t.file) + '" title="Open the sheet">&#128196;</span>' : "") + "</td></tr>");
+    if (open) { var sub = '<tr class="hi"><td></td><td colspan="7">'; for (var m = 0; m < items.length; m++) sub += '<div' + (match.indexOf(m) >= 0 ? ' class="hit"' : "") + "><b>" + esc(items[m].number) + "</b> " + esc(items[m].rev || "") + ' <span class="muted">' + esc(items[m].title || "") + (items[m].types ? " &middot; " + esc(items[m].types) : "") + "</span></div>";
+      h.push(sub + (t.notes ? '<div class="muted">Notes: ' + esc(t.notes) + "</div>" : "") + "</td></tr>"); } }
+  h.push("</table>");
+  $("hRes").innerHTML = n ? h.join("") : '<div class="muted" style="padding:24px">' + (store.log.length ? "Nothing matches." : "Nothing sent yet. Make a transmittal, or say yes when an export asks <b>Log this to Transmittal?</b>") + "</div>";
+  $("hInfo").innerHTML = n + " of " + store.log.length + " transmittal(s)" + (q && hitItems ? " &middot; <b>" + hitItems + "</b> matching item(s)" : "");
+  $("hN").innerHTML = store.log.length ? "&nbsp;" + store.log.length : "";
+}
+function setTv(v) { var bs = $("tvBar").getElementsByTagName("button"); for (var i = 0; i < bs.length; i++) bs[i].className = "btn" + (bs[i].getAttribute("data-tv") == v ? " on" : "");
+  var kids = $("app").children; for (var k = 0; k < kids.length; k++) if (kids[k].id != "tvBar" && kids[k].id != "hist") kids[k].style.display = v == "hist" ? "none" : "";
+  $("hist").style.display = v == "hist" ? "flex" : "none"; if (v == "hist") histView(); }
+$("tvBar").onclick = function (e) { var b = LT.up(e ? e.target : window.event.srcElement, "data-tv"); if (b) setTv(b.getAttribute("data-tv")); };
+$("hQ").onkeyup = histView; $("hPk").onchange = histView;
+$("hRes").onclick = function (e) { var t = e ? e.target : window.event.srcElement, op = LT.up(t, "data-op"), of = LT.up(t, "data-of"), r = LT.up(t, "data-tr");
+  if (op) { try { LT.showInFolder(op.getAttribute("data-op")); } catch (x) { alert("It has moved."); } return; }
+  if (of) { try { LT.open(of.getAttribute("data-of")); } catch (x) { alert("The file has moved."); } return; }
+  if (r) { var no2 = r.getAttribute("data-tr"); hOpen[no2] = !hOpen[no2]; histView(); } };
+$("hCsv").onclick = function () { load(); var t = [["No.", "Date", "To", "Attention", "Purpose", "Package", "From", "Drawing / document", "Rev", "Title", "Types", "Notes"]];
+  for (var i = 0; i < store.log.length; i++) { var x = store.log[i]; for (var k = 0; k < (x.items || []).length; k++) { var it = x.items[k]; t.push([x.no, x.date, x.to, x.attn || "", x.purpose || "", x.package || "log", x.source || "", it.number, it.rev || "", it.title || "", it.types || "", x.notes || ""]); } }
+  LT.mkdirs(LT.exportsDir()); var f = LT.exportsDir() + "\\Transmittal_history_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f); };
 $("bNew").onclick = function () { if (docs.length && !confirm("Clear the documents and start a new transmittal?")) return; docs = []; $("hTo").value = ""; $("hAttn").value = ""; $("hNotes").value = ""; render(); };
 $("bLog").onclick = function (e) { var r = this.getBoundingClientRect(); logMenu(r.left - 200, r.bottom + 2); (e || window.event).cancelBubble = true; };
 $("docs").onchange = function (e) { var t = e.target || e.srcElement, i = t.getAttribute && t.getAttribute("data-i"); if (i == null) return; var k = t.getAttribute("data-k"); docs[+i][k] = k == "types" ? LT.trim(t.value).split(/\s*,\s*/) : k == "rev" ? LT.trim(t.value).toUpperCase() : LT.trim(t.value); if (k == "rev" || k == "number") render(); };
 $("docs").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-rm"); if (b) { docs.splice(+b.getAttribute("data-rm"), 1); render(); } };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#docs{background:{panel}}", "td.rc{font-size:.88em}td.rc.bad{color:{bad};font-weight:bold}td.rc.warn{color:{warn}}td.rc.ok{color:{ok}}td.rc.new{color:{muted}}"]); }
-window.ltTheme = look; window.ltReload = function () { load(); header(); };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#docs{background:{panel}}", "#hRes{background:{panel}}tr.hr{cursor:pointer}tr.hi td{background:{bg};font-size:.92em}tr.hi .hit{background:{okSoft}}.hl{cursor:pointer;font-size:1.1em}.hl:hover{opacity:.7}", "td.rc{font-size:.88em}td.rc.bad{color:{bad};font-weight:bold}td.rc.warn{color:{warn}}td.rc.ok{color:{ok}}td.rc.new{color:{muted}}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); header(); if ($("hist").style.display != "none") histView(); };
 /* from Folder Check (Submission check view): "add-files" with a JSON list of file paths */
-window.ltReceive = function (what, value) { if (what == "add-files") { try { var n = addFiles(JSON.parse(value)); LT.toast(n + " document(s) added from Folder Check"); fillTitles(true); } catch (e) { } } };
-look(); load(); header(); render(); LT.tabKeys();
+window.ltReceive = function (what, value) { if (what == "reload") { load(); header(); histView(); return; } if (what == "add-files") { try { var n = addFiles(JSON.parse(value)); LT.toast(n + " document(s) added from Folder Check"); fillTitles(true); } catch (e) { } } };
+look(); load(); header(); render(); histView(); LT.tabKeys();
 </script>
 </body>
 </html>

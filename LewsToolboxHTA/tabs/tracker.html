@@ -538,6 +538,7 @@ function closeOut(t) {
   var r; try { r = LT.tfCloseOut(t.folder, t); } catch (e) { alert(e.message || e); return; }
   LT.taskEvent(t, "Close-out pack made: " + LT.fso.GetFileName(r.zip)); save(); LT.tfSave(t.folder, t, { pdf: false });
   LT.toast("Close-out pack made"); try { LT.showInFolder(r.zip); } catch (e) { }
+  LT.logOut({ source: "Close-out pack", file: r.zip, items: [], project: t.project || "", notes: (t.code ? t.code + " " : "") + t.title + " - close-out" });
   return r;
 }
 /* ---------- templates: a task with its checklist, to start new tasks from ---------- */

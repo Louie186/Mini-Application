@@ -15,7 +15,7 @@ module.exports = async ({ page, out, drag }) => {
   await r.click('.dr[data-key="T1-ZZ-DR-A-3001"]'); await r.click('.dr[data-key="T1-ZZ-DR-A-3003"]', { modifiers: ['Shift'] });
   ok(await r.evaluate(() => Object.keys(selL).length == 3), 'click + Shift+click selects 3');
   await r.dragAndDrop('.dr[data-key="T1-ZZ-DR-A-3002"]', '.pl[data-pane="R"]'); await page.waitForTimeout(150);
-  ok(await r.evaluate(() => P.sets[0].keys.join() == 'T1-ZZ-DR-A-3001,T1-ZZ-DR-A-3002,T1-ZZ-DR-A-3003' && setsView.left.length == 2), 'drag to the right: the 3 go into the set, out of the left list');
+  ok(await r.evaluate(() => P.sets[0].keys.join() == 'T1-ZZ-DR-A-3001,T1-ZZ-DR-A-3002,T1-ZZ-DR-A-3003' && setsView.left.length == 5 && document.querySelectorAll('.pl[data-pane="L"] .dr.ins').length == 3), 'drag to the right: the 3 go into the set (they stay in the left list, dimmed ✓ in the set)');
   await r.dblclick('.dr[data-key="T1-ZZ-DR-A-3004"]'); await page.waitForTimeout(100);
   ok(await r.evaluate(() => P.sets[0].keys.length == 4), 'double-click adds one');
   await r.dragAndDrop('.pl[data-pane="R"] .dr[data-key="T1-ZZ-DR-A-3004"]', '.pl[data-pane="L"]'); await page.waitForTimeout(150);

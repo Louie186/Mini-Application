@@ -29,6 +29,8 @@ module.exports = async ({ page, out }) => {
   await t.evaluate(() => $('dlg').style.display = 'none');
   await t.evaluate(() => { var x = byCode('TL-002'); setStatus(x, 'Doing'); });
   ok(await t.evaluate(() => { var x = byCode('TL-002'); return x.status == 'Doing' && x.title == 'Call Ben about doors' && x.priority == 'Normal' && x.project == '' && x.due == ''; }), 'moving between columns changes only the status');
+  ok(await t.evaluate(() => $('nd').style.display == 'block' && $('nd').className == 'fold' && $('ndL').style.display == 'none'), 'the tray starts folded: a small "Needs details 2" pill (doesn\'t cover the calendar)');
+  await t.click('#ndH'); await page.waitForTimeout(100);
   ok(await t.evaluate(() => $('nd').style.display == 'block' && /Needs details\s*2/.test($('ndH').innerText) && $('ndL').querySelectorAll('.ndi').length == 2), 'a floating "Needs details" tray: the 2 open tasks without a date or project');
   await page.screenshot({ path: out + '/r4_tray.png' });
   await t.evaluate(() => { var r = document.querySelector('[data-nd="b"]'); r.querySelector('[data-ndd="b"]').value = '20/11'; r.querySelector('[data-ndp="b"]').value = 'Tower 1'; });

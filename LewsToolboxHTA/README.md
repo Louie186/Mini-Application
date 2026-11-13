@@ -66,12 +66,15 @@ The side menu follows the way the work flows: **WORK** (log it → hand it out �
 
 ## The window (new look)
 
-- **Studio** – the new look: a dark side menu with line icons, a white work area, clear buttons, soft cards, striped tables. **Studio Dark** for evenings. Everyone moves to Studio once after the update; **Settings → Looks** still has the others (Slate, Light, Blueprint…)
+- **Ember** – the new look: the menu and the work area float as rounded panels, the open tab sits on a **pill that slides** when you switch (with a soft bounce), amber gradient buttons, pill-shaped buttons and fields. **Ember** (dark) and **Ember Light** – switch with the **☀ / ☾** toggle at the top. Everyone moves to Ember once after the update; **Settings → Looks** still has the others (Studio, Slate, Light…)
+- Tabs fade and slide in when you open them
+- **Tasks** and **Delegate** in the menu show small counts (yours due / late; the team's late)
+- **+ New** (top bar): new task, task from a template, new transmittal, check a folder, new project
 - **Top bar**, the same on every tab:
   - **Project ▾** – the project you're working on (the Drawing Register's projects): switch, **New project…**, **Project setup (MIDP, models, ACC)…**. Home, the Register, the model links and the drawing columns everywhere follow it
   - **Search** – click it or press **Ctrl+K**: tasks, drawings, transmittals, people, files
   - **🔔 Bell** – how many things need you (your tasks due / late + the team's late work). Once a day on opening it glows; click it for the list (My tasks · Chase up). Nothing pops up over your work
-  - **☾ / ☀** – light / dark in one click · **your initials** – Settings
+  - **☀ / ☾** – light / dark in one click · **the clock** – today's date and time · **your name** – Settings
 - **Fold the menu:** click **‹** next to *Lew's Toolbox* (or press **Ctrl+[**) – icons only; remembered
 - Buttons that had an emoji now show the matching line icon (same on every PC)
 
@@ -389,7 +392,10 @@ For drawings someone sends you **to check**: the folder's own contents become yo
 ## Home
 
 Your dashboard – it only reads what the other tabs saved, and every card opens the right place.
-- **Top cards:** **My day** (due today + late) · **My team** (open delegated work, late, replies waiting on team boards) · **the project's drawings** (% issued, with a ring: issued · checked · in progress · not started) · **Sent this month** (transmittals, the last one)
+- **Where the work stands** – three pill bars: **My tasks**, **Delegated**, **Drawings** – each split into done (dark), moving (amber) and waiting (grey). Click a bar to open that tab
+- **The project card** (amber) – % of the drawings issued, with issued · checked · in progress, and a chip when you have late tasks. Click it for the Register's status view
+- When you open Home the cards rise in one after the other, the bars grow and the numbers count up (not on every save – only when you open it)
+- **Top cards:** **My day** (due today + late) · **My team** (open delegated work, late, replies waiting on team boards) · **Task status** (open, with a ring: done · doing · to do) · **Sent this month** (transmittals, the last one)
 - **Today** · **Waiting on others** · **Next 2 weeks** (every date from every tab, by day; 3+ things on a day in red) · **Done in the last 7 days** (a small bar chart, yours + the team's) · **Team this week** (load bars: green has room, amber 80–100%, red overloaded) · **Last transmittals** · **Recent files**
 - **Add a task** at the top (the same quick words as Tasks)
 - **📊 Weekly report** – opens inside Home (was its own tab); **‹ Back to Home** to return

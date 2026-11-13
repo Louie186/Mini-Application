@@ -20,11 +20,23 @@
 #railBtn{margin-left:auto;width:26px;height:26px;padding:0;cursor:pointer;font:inherit;font-size:12px;line-height:24px;text-align:center;outline:none;border-radius:6px}
 #shell.rail #nav{width:64px}#shell.rail .tx{display:none}#shell.rail #brand{flex-direction:column;padding-bottom:12px}#shell.rail #brand .logo{margin:0 0 8px}#shell.rail #railBtn{margin:0}
 #shell.rail .nb{justify-content:center;padding:0}#shell.rail .nb svg.ic,#shell.rail .nb span.ic{margin:0}
-#tabs{flex:1 1 auto;overflow-y:auto;overflow-x:hidden}
+#tabsWrap{flex:1 1 auto;position:relative;min-height:0;display:flex;flex-direction:column}
+#tabs{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;position:relative;z-index:1}
+#pill{position:absolute;left:0;right:0;top:0;bottom:100%;border-radius:12px;z-index:0;display:none}
+.nbadge{margin-left:auto;min-width:20px;height:20px;line-height:20px;padding:0 6px;border-radius:99px;font-size:.75em;font-weight:700;text-align:center}#shell.rail .nbadge{display:none}
+#body iframe.enter{animation:ltIn .38s cubic-bezier(.2,.8,.2,1)}
+@keyframes ltIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+#newB{display:flex;align-items:center;height:38px;padding:0 14px 0 10px;margin-left:8px;border-radius:99px;cursor:pointer;font:inherit;font-weight:600;outline:none}
+#newB svg{margin-right:6px}
+#tsw{display:flex;align-items:center;height:38px;padding:3px;margin-left:8px;border-radius:99px}
+#tsw span{width:32px;height:32px;line-height:32px;text-align:center;border-radius:50%;cursor:pointer}#tsw span svg{vertical-align:-4px}
+#meBox{display:flex;align-items:center;height:42px;padding:0 12px 0 4px;margin-left:8px;border-radius:99px;cursor:pointer;white-space:nowrap}
+#meBox .mn{margin-left:9px;line-height:1.15;font-size:.9em}#meBox .mn b{font-weight:600;display:block}#meBox .mn small{font-size:.8em}
+#shell.float{padding:12px}#shell.float #nav{border-radius:22px;margin-right:12px}#shell.float #top{padding:0 4px 10px 2px;height:58px}#shell.float #body{border-radius:20px;overflow:hidden}
 .nb{display:flex;align-items:center;width:100%;height:38px;margin:0 0 2px;padding:0 12px;cursor:pointer;font:inherit;font-weight:500;white-space:nowrap;overflow:hidden;outline:none;border:0;border-radius:9px;text-align:left}
 .nb svg.ic,.nb span.ic{flex:none;margin-right:12px}.nb span.ic{width:20px;text-align:center}
 .ng{margin:14px 12px 6px;font-size:.7em;font-weight:700;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;min-height:1px}#shell.rail .ng{margin:10px 8px;height:1px}
-#clock{flex:none;margin-left:12px;white-space:nowrap;font-size:.9em}
+#clock{flex:none;display:flex;align-items:center;height:38px;padding:0 14px;margin-left:12px;border-radius:99px;white-space:nowrap;font-size:.9em}#clock .cdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
 #main{flex:1 1 auto;display:flex;flex-direction:column;min-width:0}
 #top{flex:none;height:56px;display:flex;align-items:center;padding:0 18px 0 14px}
 #proj{display:flex;align-items:center;height:38px;padding:0 12px;cursor:pointer;border-radius:9px;max-width:320px;white-space:nowrap;overflow:hidden}
@@ -72,7 +84,7 @@
 <div id="shell">
   <div id="nav">
     <div id="brand"><span class="logo">LT</span><span class="tx">Lew's Toolbox</span><button id="railBtn" title="Fold the menu to icons / open it again (Ctrl+[)">&#8249;</button></div>
-    <div id="tabs"></div>
+    <div id="tabsWrap"><div id="pill"></div><div id="tabs"></div></div>
     <div id="dataWarn"></div>
   </div>
   <div id="main">
@@ -80,10 +92,12 @@
       <div id="proj" title="The project you're working on - every tab follows it"></div>
       <div id="sbox" title="Search everything (Ctrl+K)"></div>
       <div id="topSp"></div>
-      <span id="clock"><span id="clkD"></span> &middot; <b id="clkT">--:--</b></span>
+      <span id="clock"><i class="cdot"></i><span id="clkD"></span> &middot; <b id="clkT">--:--</b></span>
+      <button id="newB" title="New task, transmittal or project"></button>
+      <div id="tsw" title="Light / dark"><span id="tsL"></span><span id="tsD"></span></div>
       <button class="tb" id="bellB" title="Today: what's due, what's late (yours and the team's)"><span id="bellN"></span></button>
-      <button class="tb" id="themeB" title="Light / dark"></button>
-      <div id="me" title="Settings"></div>
+      <button class="tb" id="themeB" title="Light / dark" style="display:none"></button>
+      <div id="meBox" title="Settings"><div id="me"></div><div class="mn"><b id="meN"></b><small id="meR"></small></div></div>
     </div>
     <div id="body"><div id="warn"></div></div>
   </div>
@@ -145,9 +159,9 @@ function show(key) {
     LT.$("body").insertAdjacentHTML("beforeend", '<iframe application="yes" id="f_' + t.key + '" src="tabs/' + encodeURI(t.file.substring(t.file.lastIndexOf("\\") + 1)) + '"></iframe>');
     frames[t.key] = LT.$("f_" + t.key);
   }
-  for (var k in frames) if (frames.hasOwnProperty(k)) frames[k].style.display = (k == t.key ? "block" : "none");
+  for (var k in frames) if (frames.hasOwnProperty(k)) { frames[k].style.display = (k == t.key ? "block" : "none"); if (k == t.key && current != t.key) { frames[k].className = ""; void frames[k].offsetWidth; frames[k].className = "enter"; } }
   current = t.key;
-  renderNav();
+  renderNav(); movePill(true);
   var s = LT.settings(); s.lastTab = current; LT.saveSettings(s);
   try { var w = frames[t.key].contentWindow; if (w && w.ltShown) w.ltShown(); } catch (x) { }
   try { frames[t.key].focus(); } catch (x) { }
@@ -182,7 +196,7 @@ var LTMain = {
   search: function () { openSearch(); },
   project: function () { return curProject(); },
   logOut: function (json) { try { logOut(JSON.parse(json)); } catch (e) { } },
-  toggleRail: function () { setRail(LT.$("shell").className != "rail", true); },
+  toggleRail: function () { setRail(!isRail(), true); },
   /* for Settings: every tab with its description */
   tabList: function () { var o = []; for (var i = 0; i < tabs.length; i++) o.push({ key: tabs[i].key, title: tabs[i].title, icon: tabs[i].icon, desc: tabs[i].desc }); return o; },
   remindNow: function () { return reminders(true); },
@@ -208,8 +222,18 @@ function look() {
     "#remind{background:{panel};color:{text};border:1px solid {line};border-radius:14px;box-shadow:{big}}#remind .rb{background:{bg};color:{text};border:1px solid {line};border-radius:{r}px}#remind .rb:hover{border-color:{accent}}#remind .late{color:{bad};font-weight:600}#remind .rx{color:{muted}}",
     "#tip{background:{panel};color:{text};border:1px solid {line};border-radius:12px;box-shadow:{big}}#tip .k{margin-top:6px;font-size:.85em;color:{muted}}"
   ];
+  rules.push("#pill{display:block;background:{pill};box-shadow:0 6px 18px rgba(0,0,0,.18)}.nb.on,.nb.on:hover{background:transparent!important;color:{pillText}!important;box-shadow:none!important}",
+    ".nbadge{background:{chip};color:{muted}}.nb.on .nbadge{background:{accent};color:#16120a}.nbadge.hot{background:{accent};color:#16120a}",
+    "#clock{background:{panel};border:1px solid {line};color:{muted}}#clock .cdot{background:{accent};box-shadow:0 0 0 3px {accSoft}}",
+    "#newB{background:{panel};border:1px solid {line};color:{text}}#newB:hover{border-color:{accent}}#newB svg{color:{accent}}",
+    "#tsw{background:{panel};border:1px solid {line}}#tsw span{color:{muted}}#tsw span.on{background:{pill};color:{pillText}}",
+    "#meBox{background:{panel};border:1px solid {line}}#meBox:hover{border-color:{accent}}#meBox small{color:{muted}}");
+  var v = LT.themeVars();
+  if (v.ember) rules.push("body{background:{outer}}#nav{border:1px solid {line}}#top{background:transparent;border-bottom:0}#me{background:{grad};color:#16120a}#brand .logo{background:{grad};color:#16120a}",
+    "#sbox{background:{panel};border-radius:99px}#proj{border-radius:99px}#proj:hover{background:{panel}}.tb{border-radius:99px}.tb:hover{background:{panel}}");
   LT.applyLook(rules);
-  topBar();
+  LT.$("shell").className = (isRail() ? "rail" : "") + (v.ember ? " float" : "");
+  topBar(); window.setTimeout(function () { movePill(false); }, 50);
 }
 /* while the data folder is inside the program folder, replacing the program could delete it: say so (once per start) */
 function dataHereWarning() {
@@ -222,7 +246,7 @@ function dataHereWarning() {
 }
 /* fold the side menu down to icons (remembered in settings) */
 function setRail(on, keep) {
-  LT.$("shell").className = on ? "rail" : "";
+  LT.$("shell").className = (on ? "rail" : "") + (LT.themeVars().ember ? " float" : ""); window.setTimeout(function () { movePill(false); }, 280);
   LT.$("railBtn").innerHTML = on ? "&#8250;" : "&#8249;";
   LT.$("railBtn").title = on ? "Open the menu (Ctrl+[)" : "Fold the menu to icons (Ctrl+[)";
   if (keep) { var s = LT.settings(); s.rail = !!on; LT.saveSettings(s); }
@@ -364,12 +388,38 @@ function reminders(force) {
 /* ---------- the top bar: project, search, bell, light / dark, you ---------- */
 /* the project = a project of the Drawing Register (register.json); every tab reads it with LT.project() */
 function projects() { var ix = LT.registerIndex(); return { list: ix.projects || [], cur: ix.current || "" }; }
+function isRail() { return /(^| )rail( |$)/.test(LT.$("shell").className); }
+/* the pill behind the menu item you're on slides to the next one: the front edge goes first, the back edge follows */
+var pillAt = null;
+function movePill(anim) {
+  var p = LT.$("pill"), tb = LT.$("tabs"), b = null, bs = tb.getElementsByTagName("button"); for (var i = 0; i < bs.length; i++) if (/(^| )on( |$)/.test(bs[i].className)) b = bs[i];
+  if (!b) { p.style.display = "none"; return; } p.style.display = "block";
+  var wrap = LT.$("tabsWrap"), top = b.offsetTop - tb.scrollTop + tb.offsetTop, bot = wrap.offsetHeight - top - b.offsetHeight;
+  if (anim && pillAt) { var down = top > pillAt.top, fast = "cubic-bezier(.3,1.4,.5,1)", slow = "cubic-bezier(.65,0,.35,1)";
+    p.style.transition = down ? "bottom .34s " + fast + ",top .55s " + slow : "top .34s " + fast + ",bottom .55s " + slow; }
+  else p.style.transition = "none";
+  p.style.top = top + "px"; p.style.bottom = bot + "px"; pillAt = { top: top };
+}
+/* small counts next to Tasks and Delegate (yours due / late; the team's late) */
+function navBadges() {
+  try { if (!REM) REM = remindData(); var n = { tracker: REM.mineToday.length + REM.mineLate.length, delegate: REM.nLate };
+    var bs = LT.$("tabs").getElementsByTagName("button"); for (var i = 0; i < bs.length; i++) { var k = bs[i].getAttribute("data-k"), old = bs[i].getElementsByTagName("i"); for (var o = old.length - 1; o >= 0; o--) if (/nbadge/.test(old[o].className)) old[o].parentNode.removeChild(old[o]);
+      if (n[k]) { var e = document.createElement("i"); e.className = "nbadge" + (k == "delegate" ? " hot" : ""); e.innerHTML = n[k]; bs[i].appendChild(e); } } } catch (e2) { }
+}
+function newMenu() {
+  var r = LT.$("newB").getBoundingClientRect(), h = '<div class="ph">New</div><div class="pi" data-nw="task">' + LT.icon("taskcheck", 16) + "Task...</div>" + '<div class="pi" data-nw="tpl">' + LT.icon("files", 16) + "Task from a template...</div>" +
+    '<div class="pi" data-nw="tr">' + LT.icon("transmittal", 16) + "Transmittal</div>" + '<div class="pi" data-nw="check">' + LT.icon("check", 16) + "Check a submission (Check all)</div>" + '<div class="sep"></div><div class="pi" data-pa="new">' + LT.icon("project", 16) + "Project...</div>";
+  var pm = LT.$("pm"); pm.innerHTML = h; pm.style.left = Math.round(Math.max(8, r.right - 330)) + "px"; pm.style.top = Math.round(r.bottom + 6) + "px"; pm.style.display = "block";
+}
 function curProject() { var p = projects(); for (var i = 0; i < p.list.length; i++) if (p.list[i].id == p.cur) return p.list[i]; return null; }
 function topBar() {
   var p = curProject(), s = LT.settings(), n = LT.trim(s.userName || ""), ini = "";
   LT.$("proj").innerHTML = LT.icon("project", 20) + '<span class="pl"><small>Project</small><b>' + LT.esc(p ? p.name : "No project yet") + "</b></span>" + LT.icon("chev", 14);
   LT.$("sbox").innerHTML = LT.icon("search", 17) + "<span>Search tasks, drawings, transmittals, people...</span><kbd>Ctrl K</kbd>";
   LT.$("themeB").innerHTML = LT.icon(/dark|slate$|blueprint|retro/.test(s.theme || "") ? "sun" : "moon", 19);
+  var dark = /dark|^ember$|slate$|blueprint|retro|console/.test(s.theme || "ember") && s.theme != "emberlight";
+  LT.$("newB").innerHTML = LT.icon("plus", 16) + "New"; LT.$("tsL").innerHTML = LT.icon("sun", 16); LT.$("tsD").innerHTML = LT.icon("moon", 16); LT.$("tsL").className = dark ? "" : "on"; LT.$("tsD").className = dark ? "on" : "";
+  LT.$("meN").innerHTML = LT.esc(n || "You"); LT.$("meR").innerHTML = LT.esc(s.role || "Settings");
   var ps = n.split(/[\s._]+/); for (var i = 0; i < ps.length && ini.length < 2; i++) if (ps[i]) ini += ps[i].charAt(0).toUpperCase(); LT.$("me").innerHTML = LT.esc(ini || "ME"); LT.$("me").title = (n || "You") + " - Settings";
   bell();
 }
@@ -399,7 +449,7 @@ function remindData() {
     else if (d.status != "Completed" && d.due && d.due < today) lateFor(d.who, d.code); }
   return o;
 }
-function bell() { try { REM = remindData(); var n = REM.mineToday.length + REM.mineLate.length + REM.nLate, b = LT.$("bellN"); LT.$("bellB").innerHTML = LT.icon("bell", 19) + '<span id="bellN"></span>'; b = LT.$("bellN"); b.innerHTML = n > 99 ? "99+" : "" + n; b.style.display = n ? "block" : "none"; } catch (e) { } }
+function bell() { try { window.setTimeout(navBadges, 0); REM = remindData(); var n = REM.mineToday.length + REM.mineLate.length + REM.nLate, b = LT.$("bellN"); LT.$("bellB").innerHTML = LT.icon("bell", 19) + '<span id="bellN"></span>'; b = LT.$("bellN"); b.innerHTML = n > 99 ? "99+" : "" + n; b.style.display = n ? "block" : "none"; } catch (e) { } }
 
 /* ---------- window size + icon (same tricks as QuickLaunch) ---------- */
 function sizeWindow() {
@@ -442,7 +492,7 @@ function taskbarShortcut() {
 
 (function start() {
   /* the new look (Studio) once for everyone; Settings can still pick another */
-  (function () { var s = LT.settings(); if (!s.look2) { s.look2 = 1; s.theme = /dark|slate$|blueprint|retro|gameboy|console/.test(s.theme || "") ? "studiodark" : "studio"; LT.saveSettings(s); } })();
+  (function () { var s = LT.settings(); if (!s.look3) { s.look3 = 1; s.look2 = 1; s.theme = /light|^studio$|gameboy/.test(s.theme || "") && s.theme != "slatelight" ? "emberlight" : "ember"; LT.saveSettings(s); } })();
   look(); sizeWindow(); clock();
   window.setInterval(clock, 15000);
   if (/\\Temp\\|\.zip\\/i.test(APP)) { var w = LT.$("warn"); w.innerHTML = "You're running Lew's Toolbox from inside a zip or temporary folder. Extract the whole folder first, or your work won't be saved."; w.style.display = "block"; }
@@ -456,18 +506,24 @@ function taskbarShortcut() {
   document.onkeydown = function (e) { e = e || window.event;
     if (LT.$("qs").style.display == "block") { if (e.keyCode == 27) { closeSearch(); return false; } if (e.keyCode == 40 || e.keyCode == 38) { qsOn = Math.max(0, Math.min(qsHits.length - 1, qsOn + (e.keyCode == 40 ? 1 : -1))); qsMark(); return false; } if (e.keyCode == 13) { qsGo(qsOn); return false; } }
     if (e.ctrlKey && e.keyCode == 75) { openSearch(); return false; }
-    if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57) { LTMain.showIndex(e.keyCode - 49); return false; } if (e.ctrlKey && e.keyCode == 219) { setRail(LT.$("shell").className != "rail", true); return false; } };
-  LT.$("railBtn").onclick = function (e) { setRail(LT.$("shell").className != "rail", true); (e || window.event).cancelBubble = true; };
+    if (e.ctrlKey && e.keyCode >= 49 && e.keyCode <= 57) { LTMain.showIndex(e.keyCode - 49); return false; } if (e.ctrlKey && e.keyCode == 219) { setRail(!isRail(), true); return false; } };
+  LT.$("railBtn").onclick = function (e) { setRail(!isRail(), true); (e || window.event).cancelBubble = true; };
   if (LT.settings().rail) setRail(true, false);
   LT.$("proj").onclick = function (e) { if (LT.$("pm").style.display == "block") { LT.$("pm").style.display = "none"; return; } projMenu(); (e || window.event).cancelBubble = true; };
   LT.$("pm").onclick = function (e) { var t = e ? e.target : window.event.srcElement, pj = LT.up(t, "data-pj"), pa = LT.up(t, "data-pa"); LT.$("pm").style.display = "none";
+    var nw = LT.up(t, "data-nw"); if (nw) { var w = nw.getAttribute("data-nw"); if (w == "task") LTMain.send("tracker", "new-task", ""); else if (w == "tpl") LTMain.send("tracker", "templates", ""); else if (w == "tr") show("transmittal"); else if (w == "check") LTMain.send("check", "view", "checkall"); return; }
     if (pj) pickProject(pj.getAttribute("data-pj")); else if (pa) LTMain.send("register", pa.getAttribute("data-pa") == "new" ? "new-project" : "setup", ""); };
   document.onmousedown = function (e) { var t = e ? e.target : window.event.srcElement;
-    if (!(function (x) { while (x) { if (x.id == "remind" || x.id == "bellB") return true; x = x.parentNode; } return false; })(t)) LT.$("remind").style.display = "none"; if (!LT.up(t, "data-pm") && t.id != "pm" && !(function (x) { while (x) { if (x.id == "pm" || x.id == "proj") return true; x = x.parentNode; } return false; })(t)) LT.$("pm").style.display = "none"; };
+    if (!(function (x) { while (x) { if (x.id == "remind" || x.id == "bellB") return true; x = x.parentNode; } return false; })(t)) LT.$("remind").style.display = "none"; if (!LT.up(t, "data-pm") && t.id != "pm" && !(function (x) { while (x) { if (x.id == "pm" || x.id == "proj" || x.id == "newB") return true; x = x.parentNode; } return false; })(t)) LT.$("pm").style.display = "none"; };
   LT.$("sbox").onclick = function () { openSearch(); };
+  LT.$("tabs").onscroll = function () { movePill(false); };
+  LT.$("newB").onclick = function (e) { if (LT.$("pm").style.display == "block") { LT.$("pm").style.display = "none"; return; } newMenu(); (e || window.event).cancelBubble = true; };
+  var themeTo = function (dark) { var s = LT.settings(), cur = s.theme || "ember", fam = /^studio/.test(cur) ? "studio" : "ember"; s.theme = fam == "studio" ? (dark ? "studiodark" : "studio") : (dark ? "ember" : "emberlight"); LT.saveSettings(s); LTMain.themeChanged(); };
+  LT.$("tsL").onclick = function () { themeTo(false); }; LT.$("tsD").onclick = function () { themeTo(true); };
+  LT.$("meBox").onclick = function () { show("settings"); };
   LT.$("bellB").onclick = function () { this.className = "tb"; if (LT.$("remind").style.display == "block") { LT.$("remind").style.display = "none"; return; } if (!reminders(true)) LT.toast("All clear - nothing due today, nothing late"); };
   LT.$("themeB").onclick = function () { var s = LT.settings(); s.theme = s.theme == "studiodark" ? "studio" : s.theme == "studio" || !s.theme ? "studiodark" : /dark|slate$|blueprint|retro|console/.test(s.theme) ? "studio" : "studiodark"; LT.saveSettings(s); LTMain.themeChanged(); };
-  LT.$("me").onclick = function () { show("settings"); };
+
   LT.$("qsIn").onkeyup = function (e) { e = e || window.event; if (e.keyCode != 38 && e.keyCode != 40 && e.keyCode != 13 && e.keyCode != 27) qsFind(); };
   LT.$("qsRes").onclick = function (e) { var r = LT.up(e ? e.target : window.event.srcElement, "data-q"); if (r) qsGo(+r.getAttribute("data-q")); };
   LT.$("qs").onclick = function (e) { if ((e ? e.target : window.event.srcElement) === LT.$("qs")) closeSearch(); };

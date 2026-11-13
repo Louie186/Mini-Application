@@ -860,6 +860,9 @@ window.ltShown = function () { loadFeed(); render(); try { $("quick").focus(); }
 window.ltReceive = function (what, value) {
   if (what == "add-task" && value) { var v = data.view; data.view = "today"; $("quick").value = value; quickAdd(); data.view = v; save(); render(); }
   else if (what == "view") { data.view = value; save(); render(); }
+  /* from the top bar's + New */
+  else if (what == "new-task") edit(null);
+  else if (what == "templates") { var r = $("bTpl").getBoundingClientRect(); tplMenu(r.left, r.bottom + 2); }
   /* from search (Ctrl+K): open that task */
   else if (what == "show-task") { var st = byCode(value); if (st) { data.view = st.status == "Done" ? "done" : "open"; save(); render(); picked = st; edit(st); } }
   /* from Delegate: the task is handed out  { log: "TL-001", code: "T004", to: "Sam", tr: "TR-005" } */

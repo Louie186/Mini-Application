@@ -39,6 +39,23 @@
 .bars .tr{flex:1 1 auto;height:9px;border-radius:5px;overflow:hidden;margin:0 10px}.bars .tr i{display:block;height:100%;border-radius:5px}.bars .pc{width:90px;flex:none;text-align:right;font-size:.85em}
 .leg{font-size:.82em;margin-top:8px}.leg span{display:inline-block;margin:0 12px 4px 0;white-space:nowrap}.leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:0}
 .tile{display:inline-block;width:48%;margin:0 2% 6px 0;padding:6px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:top}
+/* hero row: where the work stands + the project card */
+.hero{display:flex;flex-wrap:wrap;margin:0 -8px 0}
+#stand{flex:2 1 420px;min-width:340px;margin:0 8px 16px;padding:18px 20px}
+#heroP{flex:1 1 280px;min-width:260px;margin:0 8px 16px;padding:18px 20px;border-radius:18px;cursor:pointer;position:relative;overflow:hidden}
+#stand h3{display:flex;align-items:center;font-size:1.05em;font-weight:600;margin-bottom:4px}#stand h3 svg{margin-right:8px}
+.srow{margin:14px 0 0}.srow .sh{display:flex;align-items:baseline;font-size:.9em;margin-bottom:6px}.srow .sh b{font-weight:600}.srow .sh .muted{margin-left:auto;font-size:.92em}
+.seg{display:flex;height:30px}.seg i{display:block;height:100%;border-radius:99px;margin-right:4px;width:0;min-width:0;transition:width .9s cubic-bezier(.2,.8,.2,1)}.seg i:last-child{margin-right:0}
+.seg i span{display:block;font-style:normal;font-size:.78em;font-weight:700;line-height:30px;padding:0 10px;white-space:nowrap;overflow:hidden}
+.sleg{font-size:.8em;margin-top:14px}.sleg span{display:inline-block;margin-right:14px;white-space:nowrap}.sleg i{display:inline-block;width:10px;height:10px;border-radius:99px;margin-right:6px;vertical-align:-1px}
+#heroP .hp{font-size:.85em;font-weight:600;opacity:.8;display:flex;align-items:center}#heroP .hp svg{margin-right:7px}
+#heroP .big{font-size:3.1em;font-weight:700;line-height:1;margin:12px 0 2px;letter-spacing:-1px}#heroP .bs{font-size:.88em;opacity:.8}
+#heroP .subs{display:flex;margin:16px -4px 0}#heroP .sc{flex:1 1 0;margin:0 4px;padding:9px 10px;border-radius:12px}#heroP .sc b{display:block;font-size:1.35em;font-weight:700}#heroP .sc span{font-size:.75em;opacity:.8}
+#heroP .chipL{position:absolute;right:16px;top:16px;font-size:.75em;font-weight:700;padding:4px 10px;border-radius:99px}
+#heroP .ring{position:absolute;right:-40px;bottom:-60px;width:190px;height:190px;border-radius:50%;opacity:.13}
+/* entrance: cards rise in one after the other */
+@keyframes ltRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.anim .rise{animation:ltRise .55s cubic-bezier(.2,.8,.2,1) both}
 #repWrap{display:none;position:absolute;left:0;top:0;right:0;bottom:0}#repBar{height:46px;display:flex;align-items:center;padding:0 16px}#repBar b{margin-left:10px}
 #repFrame{position:absolute;left:0;top:46px;right:0;bottom:0;width:100%;height:calc(100% - 46px);border:0}
 </style>
@@ -51,6 +68,7 @@
     <div><div id="hello"></div><div id="date" class="muted"></div></div>
     <div id="headR"><input type="text" id="quick" placeholder="Add a task...  e.g.  Check RFI drawings fri #Tower1 !"><button class="btn primary" id="bAdd">+ Add</button><button class="btn" id="bRep" title="Your weekly update in one click - ready to paste into an email">&#128202; Weekly report</button></div>
   </div>
+  <div class="hero"><div class="box rise" id="stand"></div><div class="rise" id="heroP" data-go="register" data-view="status"></div></div>
   <div class="kpis" id="kpis"></div>
   <div class="grid2">
     <div class="col">
@@ -158,11 +176,29 @@ function render() {
   /* team replies waiting on team boards */
   var reps = 0; for (var g = 0; g < (dl.groups || []).length; g++) { var gf = dl.groups[g].folder; if (!gf) continue; try { var rd = gf + "\\_Replies"; if (fso.FolderExists(rd)) { var en = new Enumerator(fso.GetFolder(rd).Files); for (; !en.atEnd(); en.moveNext()) if (/\.txt$/i.test("" + en.item().Name)) reps++; } } catch (x2) { } }
 
-  var kp = function (go, view, icon, title, val, unit, sub, viz, col) { return '<div class="kpi' + (viz ? " hv" : "") + '" data-go="' + go + '"' + (view ? ' data-view="' + view + '"' : "") + '><div class="t muted">' + LT.icon(icon, 16) + esc(title) + '</div><div class="v"' + (col ? ' style="color:' + col + '"' : "") + ">" + val + (unit ? "<small class=\"muted\">" + unit + "</small>" : "") + '</div><div class="s muted">' + sub + '</div><div class="viz">' + (viz || "") + "</div></div>"; };
+  /* where the work stands: done / moving / waiting, as pill bars */
+  var tSt = [0, 0, 0], dSt = [0, 0, 0];
+  for (var a1 = 0; a1 < (tr.tasks || []).length; a1++) { var s1 = tr.tasks[a1].status; tSt[s1 == "Done" ? 0 : s1 == "Doing" ? 1 : 2]++; }
+  for (var a2 = 0; a2 < (dl.tasks || []).length; a2++) { var its2 = dl.tasks[a2].subs && dl.tasks[a2].subs.length ? dl.tasks[a2].subs : [dl.tasks[a2]]; for (var a3 = 0; a3 < its2.length; a3++) { var s2 = its2[a3].status; dSt[s2 == "Completed" ? 0 : s2 == "In progress" ? 1 : 2]++; } }
+  var segRow = function (name, go, n3, words) { var tot = n3[0] + n3[1] + n3[2], h = '<div class="srow" data-go="' + go + '" style="cursor:pointer"><div class="sh"><b>' + name + '</b><span class="muted">' + (tot ? Math.round(n3[0] * 100 / tot) + "% " + words + " &middot; " + tot + " in all" : "nothing yet") + '</span></div><div class="seg">';
+    var cols = [[v.pill, v.pillText], ["", v.accText], [v.chip, v.muted]];
+    if (!tot) return h + '<i data-w="100" style="background:' + v.chip + '"></i></div></div>';
+    for (var q3 = 0; q3 < 3; q3++) if (n3[q3]) h += '<i data-w="' + (n3[q3] * 100 / tot).toFixed(2) + '" style="' + (q3 == 1 ? "background:" + v.accent + ";background-image:" + v.grad : "background:" + cols[q3][0]) + ";color:" + cols[q3][1] + '" title="' + n3[q3] + '"><span>' + n3[q3] + "</span></i>";
+    return h + "</div></div>"; };
+  $("stand").innerHTML = '<h3>' + LT.icon("report", 18) + 'Where the work stands</h3><div class="muted" style="font-size:.85em">Done, moving and waiting &ndash; click a bar to open it.</div>' +
+    segRow("My tasks", "tracker", tSt, "done") + segRow("Delegated", "delegate", dSt, "completed") + (all ? segRow("Drawings" + (pj ? " &middot; " + esc(pj.name) : ""), "register", [st[3], st[1] + st[2], st[0]], "issued") : "") +
+    '<div class="sleg muted"><span><i style="background:' + v.pill + '"></i>done</span><span><i style="background:' + v.accent + '"></i>moving</span><span><i style="background:' + v.chip + ';border:1px solid ' + v.line + '"></i>waiting</span></div>';
+  $("heroP").innerHTML = '<div class="ring" style="border:26px solid ' + v.accText + '"></div><div class="hp">' + LT.icon("register", 16) + esc(pj ? pj.name : "Drawing Register") + '</div>' +
+    (late ? '<span class="chipL" style="background:' + v.accText + ";color:" + v.accent + '">' + late + " late task" + (late == 1 ? "" : "s") + "</span>" : "") +
+    '<div class="big"><span data-count="' + (all ? pct : 0) + '">' + (all ? pct : 0) + "</span>%</div><div class=\"bs\">" + (all ? "of the drawings issued" : "Load the MIDP in the Drawing Register") + "</div>" +
+    '<div class="subs"><div class="sc" style="background:rgba(255,255,255,.22)"><b data-count="' + st[3] + '">' + st[3] + '</b><span>issued</span></div><div class="sc" style="background:rgba(255,255,255,.22)"><b data-count="' + st[2] + '">' + st[2] + '</b><span>checked</span></div><div class="sc" style="background:rgba(0,0,0,.12)"><b data-count="' + st[1] + '">' + st[1] + "</b><span>in progress</span></div></div>";
+  $("heroP").style.background = v.accent; $("heroP").style.backgroundImage = v.grad; $("heroP").style.color = v.accText;
+
+  var kp = function (go, view, icon, title, val, unit, sub, viz, col) { return '<div class="kpi rise' + (viz ? " hv" : "") + '" data-go="' + go + '"' + (view ? ' data-view="' + view + '"' : "") + '><div class="t muted">' + LT.icon(icon, 16) + esc(title) + '</div><div class="v"' + (col ? ' style="color:' + col + '"' : "") + ">" + (/^\d+$/.test("" + val) ? '<span data-count="' + val + '">' + val + "</span>" : val) + (unit ? "<small class=\"muted\">" + unit + "</small>" : "") + '</div><div class="s muted">' + sub + '</div><div class="viz">' + (viz || "") + "</div></div>"; };
   $("kpis").innerHTML =
     kp("tracker", late ? "overdue" : "today", "taskcheck", "My day", dueToday + late, dueToday + late == 1 ? "task" : "tasks", (dueToday ? dueToday + " due today" : "nothing due today") + (late ? ' &middot; <span class="bad">' + late + " late</span>" : ""), "", late ? v.bad : "") +
     kp("delegate", "", "users", "My team", wait.length, "open", (wLate ? '<span class="bad">' + wLate + " late</span>" : "nothing late") + (reps ? " &middot; " + reps + " repl" + (reps == 1 ? "y" : "ies") + " waiting" : ""), "", wLate ? v.bad : "") +
-    kp("register", "status", "register", pj ? pj.name : "Drawings", all ? pct + "%" : "&ndash;", all ? "issued" : "", all ? st[3] + " of " + all + " issued &middot; " + st[1] + " in progress" : "Load the MIDP in the Drawing Register", all ? donut([[st[3], v.ok], [st[2], v.accent], [st[1], v.warn], [st[0], v.line]], 58, "") : "") +
+    kp("tracker", "", "tasks", "Task status", tSt[1] + tSt[2], "open", tSt[0] + " done &middot; " + tSt[1] + " doing &middot; " + tSt[2] + " to do", donut([[tSt[0], v.pill], [tSt[1], v.accent], [tSt[2], v.chip]], 58, ""), "") +
     kp("transmittal", "", "transmittal", "Sent this month", nMon, nMon == 1 ? "transmittal" : "transmittals", lastTr ? "last " + esc(lastTr.no) + " &middot; " + esc(LT.fmtDate(lastTr.date)) + (lastTr.to ? " &middot; " + esc(lastTr.to) : "") : "nothing sent yet", "");
 
   /* last transmittals */
@@ -182,6 +218,24 @@ function render() {
       th += '<div class="br"' + link("delegate", "view", "workload") + '><span class="nm">' + esc(pr.name) + '</span><span class="tr" style="background:' + v.chip + '"><i style="width:' + Math.min(100, pc) + "%;background:" + colr + '"></i></span><span class="pc"><b style="color:' + colr + '">' + pc + '%</b> <span class="muted">' + Math.round(load * 10) / 10 + "/" + pr.hours + "h</span></span></div>"; }
     $("team").innerHTML = th + '<div class="leg muted"><span><i style="background:' + v.ok + '"></i>has room</span><span><i style="background:' + v.warn + '"></i>80&ndash;100%</span><span><i style="background:' + v.bad + '"></i>overloaded</span></div>'; $("teamBox").style.display = "";
   } else $("teamBox").style.display = "none";
+  var bx = $("wrap").getElementsByTagName("div"); for (var b2 = 0; b2 < bx.length; b2++) if (bx[b2].className == "box") bx[b2].className = "box rise";
+  intro();
+}
+/* the entrance: cards rise one after the other, bars grow, numbers count up (only when Home is opened, not on every save) */
+var animNext = true, cntT = null;
+function intro() {
+  var w = $("wrap"), r = [], all = w.getElementsByTagName("div"), segs = w.getElementsByTagName("i"), i;
+  for (i = 0; i < all.length; i++) if (/\brise\b/.test(all[i].className)) r.push(all[i]);
+  var grow = function () { for (var j = 0; j < segs.length; j++) if (segs[j].getAttribute("data-w")) segs[j].style.width = segs[j].getAttribute("data-w") + "%"; };
+  if (!animNext) { w.className = ""; var tr0 = []; for (i = 0; i < segs.length; i++) { tr0.push(segs[i].style.transition); segs[i].style.transition = "none"; } grow(); return; }
+  animNext = false; w.className = "anim";
+  for (i = 0; i < r.length; i++) r[i].style.animationDelay = (i * 0.06).toFixed(2) + "s";
+  setTimeout(grow, 250);
+  var nums = [], sp = w.getElementsByTagName("*"); for (i = 0; i < sp.length; i++) if (sp[i].getAttribute && sp[i].getAttribute("data-count") != null) { nums.push(sp[i]); sp[i].innerHTML = "0"; }
+  var t0 = new Date().getTime(); if (cntT) clearInterval(cntT);
+  cntT = setInterval(function () { var k = Math.min(1, (new Date().getTime() - t0) / 900), e = 1 - Math.pow(1 - k, 3);
+    for (var n = 0; n < nums.length; n++) nums[n].innerHTML = Math.round(+nums[n].getAttribute("data-count") * e);
+    if (k >= 1) { clearInterval(cntT); cntT = null; } }, 30);
 }
 /* hours planned this week for a person (same rule as Workload: open delegated items with hours) */
 function loadOf(name, wl, dl) {
@@ -206,9 +260,9 @@ $("wrap").onclick = function (e) {
   if (l && LT.main()) { var k = links[+l.getAttribute("data-l")]; if (k.what && k.value !== "") LT.main().send(k.tab, k.what, k.value); else if (k.what == "view") LT.main().send(k.tab, "view", k.value); else LT.main().show(k.tab); return; }
   if (g && LT.main()) { if (g.getAttribute("data-view")) LT.main().send(g.getAttribute("data-go"), "view", g.getAttribute("data-view")); else LT.main().show(g.getAttribute("data-go")); }
 };
-function look() { LT.applyLook([".box,.kpi{background:{panel};border:1px solid {line};border-radius:14px;box-shadow:{shadow}}", ".kpi:hover{border-color:{accent}}", ".it{border-bottom:1px solid {line}}.it:last-child{border-bottom:0}", ".it:hover b,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".box h3 .n{background:{chip};color:{muted}}", ".box h3 svg,.kpi .t svg{color:{accent}}", ".tile{background:{bg};border-radius:8px}", "#repBar{background:{panel};border-bottom:1px solid {line}}"]); }
+function look() { LT.applyLook([".box,.kpi{background:{panel};border:1px solid {line};border-radius:14px;box-shadow:{shadow}}", ".kpi:hover{border-color:{accent}}", "#heroP{box-shadow:0 14px 34px rgba(234,122,18,.28)}", "#heroP:hover{transform:translateY(-2px)}", "#heroP{transition:transform .2s}", ".srow:hover .sh b{color:{accent}}", ".it{border-bottom:1px solid {line}}.it:last-child{border-bottom:0}", ".it:hover b,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".box h3 .n{background:{chip};color:{muted}}", ".box h3 svg,.kpi .t svg{color:{accent}}", ".tile{background:{bg};border-radius:8px}", "#repBar{background:{panel};border-bottom:1px solid {line}}"]); }
 window.ltTheme = function () { look(); render(); try { $("repFrame").contentWindow.ltTheme(); } catch (e) { } };
-window.ltShown = function () { if ($("repWrap").style.display != "block") render(); }; window.ltReload = render;
+window.ltShown = function () { if ($("repWrap").style.display != "block") { animNext = true; render(); } }; window.ltReload = render;
 window.ltReceive = function (what) { if (what == "report") report(true); };
 look(); render(); LT.tabKeys();
 </script>

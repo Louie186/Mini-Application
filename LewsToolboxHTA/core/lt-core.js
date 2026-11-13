@@ -366,6 +366,9 @@ var LT = (function () {
 
   /* ---------- looks (same themes as QuickLaunch) ---------- */
   L.THEMES = {
+    /* Ember: near-black, floating rounded panels, amber accent, pill buttons; the item you're on is a white pill that slides */
+    ember: { name: "Ember", bg: "#0c0c0d", panel: "#18181b", hover: "#222226", text: "#f4f4f5", muted: "#8d8d95", line: "#27272b", accent: "#f59e0b", accent2: "#f97316", accText: "#111111", chip: "#232327", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 12, bw: 1, shadow: "none", big: "0 24px 60px rgba(0,0,0,.6)", studio: 1, ember: 1, ok: "#4ade80", warn: "#fbbf24", bad: "#f87171", side: "#161618", sideText: "#a1a1aa", sideMuted: "#5f5f66", sideHover: "#222226", pill: "#f4f4f5", pillText: "#111111", grad: "linear-gradient(135deg,#fbbf24 0%,#f59e0b 45%,#ea7a12 100%)", outer: "#0c0c0d" },
+    emberlight: { name: "Ember Light", bg: "#f1f0ed", panel: "#ffffff", hover: "#f4f3f0", text: "#18181b", muted: "#71717a", line: "#e7e5e1", accent: "#ea8a0c", accent2: "#f97316", accText: "#ffffff", chip: "#f1f0ed", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 12, bw: 1, shadow: "0 1px 2px rgba(24,24,27,.05)", big: "0 24px 60px rgba(24,24,27,.18)", studio: 1, ember: 1, ok: "#15803d", warn: "#b45309", bad: "#dc2626", side: "#ffffff", sideText: "#52525b", sideMuted: "#a1a1aa", sideHover: "#f4f3f0", pill: "#18181b", pillText: "#ffffff", grad: "linear-gradient(135deg,#fbbf24 0%,#f59e0b 45%,#ea7a12 100%)", outer: "#e9e7e3" },
     studio: { name: "Studio", bg: "#f3f5f8", panel: "#ffffff", hover: "#eef3fb", text: "#16202e", muted: "#667385", line: "#e2e7ee", accent: "#2563eb", accent2: "#2563eb", accText: "#ffffff", chip: "#eef1f6", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "0 1px 2px rgba(16,24,40,.06)", big: "0 18px 44px rgba(16,24,40,.18)", studio: 1, ok: "#15803d", warn: "#b45309", bad: "#dc2626", side: "#0f172a", sideText: "#cbd5e1", sideMuted: "#64748b", sideHover: "#1e293b" },
     studiodark: { name: "Studio Dark", bg: "#0b0f17", panel: "#121826", hover: "#1a2233", text: "#e5e9f0", muted: "#8a96a8", line: "#222b3b", accent: "#60a5fa", accent2: "#60a5fa", accText: "#0b1220", chip: "#1a2232", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "none", big: "0 18px 44px rgba(0,0,0,.55)", studio: 1, ok: "#4ade80", warn: "#fbbf24", bad: "#f87171", side: "#070a10", sideText: "#cbd5e1", sideMuted: "#5b6678", sideHover: "#141b28" },
     light: { name: "Light", bg: "#f4f5f8", panel: "#ffffff", hover: "#eaf0fb", text: "#1d2330", muted: "#6b7385", line: "#dde2ea", accent: "#2f6fed", accText: "#ffffff", chip: "#e9ecf2", font: "'Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "0 1px 2px rgba(20,30,50,.07)", big: "0 16px 40px rgba(20,30,50,.25)", ok: "#1f8a4c", warn: "#a86500", bad: "#c0392b" },
@@ -437,7 +440,7 @@ var LT = (function () {
     "a{color:{accent}}"
   ];
   L.themeVars = function () {
-    var s = L.settings(), t = L.THEMES[s.theme] || L.THEMES.studio, z = L.SIZES[s.size] || L.SIZES.normal, v = {};
+    var s = L.settings(), t = L.THEMES[s.theme] || L.THEMES.ember, z = L.SIZES[s.size] || L.SIZES.normal, v = {};
     for (var a in t) v[a] = t[a]; for (var b in z) v[b] = z[b];
     v.rc = t.r ? 99 : 0; v.r2 = t.r ? t.r + 2 : 0; v.lineSoft = t.retro ? "rgba(0,0,0,.25)" : t.line;
     // soft see-through versions of the status colours, for highlighted cells (follow every look)
@@ -446,8 +449,8 @@ var LT = (function () {
     // fixed-width font for codes (drawing numbers, revisions, IDs, file names): Consolas is on every Windows PC
     v.mono = t.retro ? t.font : "Consolas,'Cascadia Mono','Lucida Console',monospace";
     v.okSoft = soft(v.ok, .18); v.warnSoft = soft(v.warn, .2); v.badSoft = soft(v.bad, .2); v.accSoft = soft(v.accent, .12);
-    v.rowAlt = t.studio ? (t.bg == "#0b0f17" ? "#0f1420" : "#fafbfd") : "transparent";
-    v.side = v.side || v.panel; v.sideText = v.sideText || v.text; v.sideMuted = v.sideMuted || v.muted; v.sideHover = v.sideHover || v.hover; v.sideHi = t.side ? "#ffffff" : v.text; v.sideLine = t.side ? t.side : v.line;
+    v.rowAlt = t.ember ? (t.bg == "#0c0c0d" ? "#1b1b1e" : "#fbfaf8") : t.studio ? (t.bg == "#0b0f17" ? "#0f1420" : "#fafbfd") : "transparent";
+    v.side = v.side || v.panel; v.sideText = v.sideText || v.text; v.sideMuted = v.sideMuted || v.muted; v.sideHover = v.sideHover || v.hover; v.sideHi = t.ember ? v.text : t.side ? "#ffffff" : v.text; v.pill = t.pill || v.accent; v.pillText = t.pillText || v.accText; v.grad = t.grad || v.accent; v.outer = t.outer || v.side; v.sideLine = t.side ? t.side : v.line;
     return v;
   };
   function setCss(el, css) { if (el.styleSheet && typeof el.styleSheet.cssText == "string") el.styleSheet.cssText = css; else el.textContent = css; }
@@ -477,6 +480,17 @@ var LT = (function () {
       "#toast{border-radius:10px;background:{side};color:#fff}h2{font-weight:600;font-size:1.35em}",
       /* a row of views (Folder Check, Transmittal...): a slim tab strip */
       ".vtabs{padding:0 12px!important;white-space:nowrap;overflow-x:auto;overflow-y:hidden;background:{panel};border-bottom:1px solid {line}}.vtabs .btn{height:44px;margin:0;padding:0 9px;border:0;border-radius:0;background:transparent;box-shadow:none;color:{muted};border-bottom:2px solid transparent}.vtabs .btn:hover{color:{text};background:transparent}.vtabs .btn.on{color:{accent};border-bottom-color:{accent};background:transparent}");
+    /* Ember: pill buttons, the amber gradient for the main button, rounder cards and fields */
+    if (v.ember) rules.push(
+      ".btn{border-radius:99px;padding:0 15px;font-weight:600}.btn.small{padding:0 11px}.btn:hover{border-color:{accent}}",
+      ".btn.primary{background:{grad};border:0;color:#16120a;box-shadow:0 4px 14px rgba(245,158,11,.28)}.btn.primary:hover{filter:brightness(1.06)}",
+      ".btn.on{background:{pill};color:{pillText};border-color:{pill}}",
+      "input,select{border-radius:99px;padding:0 12px}textarea{border-radius:12px}.card{border-radius:20px}",
+      ".chip{background:{chip};color:{muted}}.chip.on{background:{pill};color:{pillText}}",
+      ".bar{background:{bg};border-bottom:1px solid {line}}",
+      ".vtabs{background:{bg}}.vtabs .btn{border-radius:0}.vtabs .btn.on{color:{text};border-bottom-color:{accent}}",
+      "table.grid th{background:{panel};color:{muted}}#toast{background:{pill};color:{pillText};border-radius:99px;padding:9px 18px}",
+      "#menu{border-radius:14px}");
     rules = rules.concat(extra);   // the tab's own rules last: they win
     var el = document.getElementById("ltTheme");
     if (!el) { el = document.createElement("style"); el.id = "ltTheme"; document.getElementsByTagName("head")[0].appendChild(el); }
@@ -597,8 +611,13 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.14";
+  L.VERSION = "2026.11.15";
   L.WHATS_NEW = [
+    { v: "2026.11.15", items: [
+      "<b>A new look &ndash; Ember</b>: floating rounded panels, a <b>pill that slides</b> to the tab you open, amber buttons. <b>Ember Light</b> and dark with the &#9728; / &#9790; toggle at the top",
+      "<b>Home</b>: <b>Where the work stands</b> (pill bars for tasks, delegated work and drawings) and an amber <b>project card</b> &ndash; with cards rising in and numbers counting up",
+      "<b>+ New</b> at the top: a task, a task from a template, a transmittal, a folder check or a project in one click",
+      "Small counts next to <b>Tasks</b> and <b>Delegate</b> in the menu" ] },
     { v: "2026.11.14", items: [
       "<b>A new look &ndash; Studio</b>: a dark side menu with line icons, a clean work area, clearer buttons and tables. <b>Studio Dark</b> with the &#9790; button at the top",
       "<b>Top bar</b> on every tab: the <b>project</b> you're working on (switch in one click), <b>search</b> (Ctrl+K), the <b>&#128276; bell</b> with what needs you today",

@@ -67,6 +67,7 @@ The side menu follows the way the work flows: **WORK** (log it → hand it out �
 ## The window (new look)
 
 - **Ember** – the new look: the menu and the work area float as rounded panels, the open tab sits on a **pill that slides** when you switch (with a soft bounce), amber gradient buttons, pill-shaped buttons and fields. **Ember** (dark) and **Ember Light** – switch with the **☀ / ☾** toggle at the top. Everyone moves to Ember once after the update; **Settings → Looks** still has the others (Studio, Slate, Light…)
+- **Glass** and **Glass Light** (Settings → Look) – frosted-glass panels: translucent cards with a lit top edge over a soft orange glow, an orange-red accent, cards that lift when you point at them. The **☀ / ☾** switch moves between Glass Light and Glass. (The HTA's engine can't blur what's behind a panel, so the "frost" is painted with translucent layers and highlights – it looks the same on every PC)
 - Tabs fade and slide in when you open them
 - **Tasks** and **Delegate** in the menu show small counts (yours due / late; the team's late)
 - **+ New** (top bar): new task, task from a template, new transmittal, check a folder, new project

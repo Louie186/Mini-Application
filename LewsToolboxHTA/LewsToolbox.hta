@@ -234,6 +234,11 @@ function look() {
   var v = LT.themeVars();
   if (v.ember) rules.push("body{background:{outer}}#nav{border:1px solid {line}}#top{background:transparent;border-bottom:0}#me{background:{grad};color:#16120a}#brand .logo{background:{grad};color:#16120a}",
     "#sbox{background:{panel};border-radius:99px}#proj{border-radius:99px}#proj:hover{background:{panel}}.tb{border-radius:99px}.tb:hover{background:{panel}}");
+  if (v.glass) rules.push("body{background-color:{outer};background-image:{glassBg};background-attachment:fixed}",
+    "#nav{background:{cardImg};border:1px solid {line};box-shadow:{shadow},{rim}}#body{border:1px solid {line};box-shadow:inset 0 1px 0 {hi},0 18px 44px rgba(0,0,0,.28)}",
+    "#sbox,#proj:hover,#clock,#newB,#tsw,#meBox,#bellB{box-shadow:inset 0 1px 0 {hi}}#sbox,#clock,#newB,#tsw,#meBox{background-image:{cardImg}}",
+    "#pill{box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 6px 20px rgba(255,90,31,.2);border:1px solid {line}}.nbadge.hot,.nb.on .nbadge{color:#fff}#me,#brand .logo{color:#fff}",
+    "#remind,#pm,#qsBox,#wnBox,#loBox,#tip{background:{solid};border:1px solid {line}}#remind .rb,#pm .pi:hover{background:{hover}}");
   LT.applyLook(rules);
   LT.$("shell").className = (isRail() ? "rail" : "") + (v.ember ? " float" : "");
   topBar(); window.setTimeout(function () { movePill(false); }, 50);
@@ -424,7 +429,7 @@ function topBar() {
   LT.$("proj").innerHTML = LT.icon("project", 20) + '<span class="pl"><small>Project</small><b>' + LT.esc(p ? p.name : "No project yet") + "</b></span>" + LT.icon("chev", 14);
   LT.$("sbox").innerHTML = LT.icon("search", 17) + "<span>Search tasks, drawings, transmittals, people...</span><kbd>Ctrl K</kbd>";
   LT.$("themeB").innerHTML = LT.icon(/dark|slate$|blueprint|retro/.test(s.theme || "") ? "sun" : "moon", 19);
-  var dark = /dark|^ember$|slate$|blueprint|retro|console/.test(s.theme || "ember") && s.theme != "emberlight";
+  var dark = /dark|^ember$|^glass$|slate$|blueprint|retro|console/.test(s.theme || "ember") && s.theme != "emberlight";
   LT.$("newB").innerHTML = LT.icon("plus", 16) + "New"; LT.$("tsL").innerHTML = LT.icon("sun", 16); LT.$("tsD").innerHTML = LT.icon("moon", 16); LT.$("tsL").className = dark ? "" : "on"; LT.$("tsD").className = dark ? "on" : "";
   LT.$("meN").innerHTML = LT.esc(n || "You"); LT.$("meR").innerHTML = LT.esc(s.role || "Settings");
   var ps = n.split(/[\s._]+/); for (var i = 0; i < ps.length && ini.length < 2; i++) if (ps[i]) ini += ps[i].charAt(0).toUpperCase(); LT.$("me").innerHTML = LT.esc(ini || "ME"); LT.$("me").title = (n || "You") + " - Settings";
@@ -546,7 +551,7 @@ function taskbarShortcut() {
   LT.$("sbox").onclick = function () { openSearch(); };
   LT.$("tabs").onscroll = function () { movePill(false); };
   LT.$("newB").onclick = function (e) { if (LT.$("pm").style.display == "block") { LT.$("pm").style.display = "none"; return; } newMenu(); (e || window.event).cancelBubble = true; };
-  var themeTo = function (dark) { var s = LT.settings(), cur = s.theme || "ember", fam = /^studio/.test(cur) ? "studio" : "ember"; s.theme = fam == "studio" ? (dark ? "studiodark" : "studio") : (dark ? "ember" : "emberlight"); LT.saveSettings(s); LTMain.themeChanged(); };
+  var themeTo = function (dark) { var s = LT.settings(), cur = s.theme || "ember", fam = /^studio/.test(cur) ? "studio" : /^glass/.test(cur) ? "glass" : "ember"; s.theme = fam == "studio" ? (dark ? "studiodark" : "studio") : fam == "glass" ? (dark ? "glass" : "glasslight") : (dark ? "ember" : "emberlight"); LT.saveSettings(s); LTMain.themeChanged(); };
   LT.$("tsL").onclick = function () { themeTo(false); }; LT.$("tsD").onclick = function () { themeTo(true); };
   LT.$("meBox").onclick = function () { show("settings"); };
   LT.$("bellB").onclick = function () { this.className = "tb"; if (LT.$("remind").style.display == "block") { LT.$("remind").style.display = "none"; return; } if (!reminders(true)) LT.toast("All clear - nothing due today, nothing late"); };

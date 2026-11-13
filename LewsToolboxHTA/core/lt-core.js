@@ -412,6 +412,8 @@ var LT = (function () {
     /* Ember: near-black, floating rounded panels, amber accent, pill buttons; the item you're on is a white pill that slides */
     ember: { name: "Ember", bg: "#0c0c0d", panel: "#18181b", hover: "#222226", text: "#f4f4f5", muted: "#8d8d95", line: "#27272b", accent: "#f59e0b", accent2: "#f97316", accText: "#111111", chip: "#232327", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 12, bw: 1, shadow: "none", big: "0 24px 60px rgba(0,0,0,.6)", studio: 1, ember: 1, ok: "#4ade80", warn: "#fbbf24", bad: "#f87171", side: "#161618", sideText: "#a1a1aa", sideMuted: "#5f5f66", sideHover: "#222226", pill: "#f4f4f5", pillText: "#111111", grad: "linear-gradient(135deg,#fbbf24 0%,#f59e0b 45%,#ea7a12 100%)", outer: "#0c0c0d" },
     emberlight: { name: "Ember Light", bg: "#f1f0ed", panel: "#ffffff", hover: "#f4f3f0", text: "#18181b", muted: "#71717a", line: "#e7e5e1", accent: "#ea8a0c", accent2: "#f97316", accText: "#ffffff", chip: "#f1f0ed", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 12, bw: 1, shadow: "0 1px 2px rgba(24,24,27,.05)", big: "0 24px 60px rgba(24,24,27,.18)", studio: 1, ember: 1, ok: "#15803d", warn: "#b45309", bad: "#dc2626", side: "#ffffff", sideText: "#52525b", sideMuted: "#a1a1aa", sideHover: "#f4f3f0", pill: "#18181b", pillText: "#ffffff", grad: "linear-gradient(135deg,#fbbf24 0%,#f59e0b 45%,#ea7a12 100%)", outer: "#e9e7e3" },
+    glass: { name: "Glass", bg: "#0d0a09", panel: "rgba(255,255,255,.06)", hover: "rgba(255,255,255,.10)", text: "#f6f1ee", muted: "rgba(246,241,238,.6)", line: "rgba(255,255,255,.13)", accent: "#ff6a2b", accent2: "#ff4d2e", accText: "#ffffff", chip: "rgba(255,255,255,.09)", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 12, bw: 1, shadow: "inset 0 1px 0 rgba(255,255,255,.16),0 10px 28px rgba(0,0,0,.38)", big: "0 24px 60px rgba(0,0,0,.65)", studio: 1, ember: 1, glass: 1, ok: "#4ade80", warn: "#fbbf24", bad: "#ff6b6b", side: "rgba(255,255,255,.06)", sideText: "rgba(246,241,238,.74)", sideMuted: "rgba(246,241,238,.42)", sideHover: "rgba(255,255,255,.09)", pill: "rgba(255,255,255,.2)", pillText: "#ffffff", grad: "linear-gradient(135deg,#ff8a3d 0%,#ff5a1f 55%,#f0431c 100%)", outer: "#0d0a09", solid: "#1b1411", hi: "rgba(255,255,255,.16)", barBg: "rgba(255,255,255,.04)", inputBg: "rgba(0,0,0,.28)", rim: "0 0 34px rgba(255,106,43,.13)", cardImg: "linear-gradient(145deg,rgba(255,255,255,.10),rgba(255,255,255,.03))", glassBg: "radial-gradient(ellipse 70% 55% at 12% -5%,rgba(255,106,43,.30),transparent 60%),radial-gradient(ellipse 60% 50% at 100% 105%,rgba(255,150,60,.16),transparent 60%),linear-gradient(165deg,#1c1310 0%,#0d0a09 55%,#0a0807 100%)" },
+    glasslight: { name: "Glass Light", bg: "#f1ebe6", panel: "rgba(255,255,255,.58)", hover: "rgba(255,255,255,.82)", text: "#2a1d16", muted: "rgba(42,29,22,.62)", line: "rgba(120,80,50,.17)", accent: "#f2561d", accent2: "#ff7a30", accText: "#ffffff", chip: "rgba(120,80,50,.09)", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 12, bw: 1, shadow: "inset 0 1px 0 rgba(255,255,255,.95),0 8px 26px rgba(150,90,40,.14)", big: "0 24px 60px rgba(120,70,30,.22)", studio: 1, ember: 1, glass: 1, ok: "#15803d", warn: "#b45309", bad: "#dc2626", side: "rgba(255,255,255,.55)", sideText: "#5a4538", sideMuted: "#9b8678", sideHover: "rgba(255,255,255,.75)", pill: "#2a1d16", pillText: "#ffffff", grad: "linear-gradient(135deg,#ff8a3d 0%,#ff5a1f 55%,#f0431c 100%)", outer: "#f1ebe6", solid: "#fffaf6", hi: "rgba(255,255,255,.9)", barBg: "rgba(255,255,255,.45)", inputBg: "rgba(255,255,255,.6)", rim: "0 0 30px rgba(255,138,61,.16)", cardImg: "linear-gradient(145deg,rgba(255,255,255,.88),rgba(255,255,255,.46))", glassBg: "radial-gradient(ellipse 70% 55% at 10% -5%,rgba(255,138,61,.38),transparent 60%),radial-gradient(ellipse 60% 50% at 100% 105%,rgba(255,190,120,.38),transparent 60%),linear-gradient(165deg,#fbf3ec,#efe5dd)" },
     studio: { name: "Studio", bg: "#f3f5f8", panel: "#ffffff", hover: "#eef3fb", text: "#16202e", muted: "#667385", line: "#e2e7ee", accent: "#2563eb", accent2: "#2563eb", accText: "#ffffff", chip: "#eef1f6", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "0 1px 2px rgba(16,24,40,.06)", big: "0 18px 44px rgba(16,24,40,.18)", studio: 1, ok: "#15803d", warn: "#b45309", bad: "#dc2626", side: "#0f172a", sideText: "#cbd5e1", sideMuted: "#64748b", sideHover: "#1e293b" },
     studiodark: { name: "Studio Dark", bg: "#0b0f17", panel: "#121826", hover: "#1a2233", text: "#e5e9f0", muted: "#8a96a8", line: "#222b3b", accent: "#60a5fa", accent2: "#60a5fa", accText: "#0b1220", chip: "#1a2232", font: "'Segoe UI Variable Text','Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "none", big: "0 18px 44px rgba(0,0,0,.55)", studio: 1, ok: "#4ade80", warn: "#fbbf24", bad: "#f87171", side: "#070a10", sideText: "#cbd5e1", sideMuted: "#5b6678", sideHover: "#141b28" },
     light: { name: "Light", bg: "#f4f5f8", panel: "#ffffff", hover: "#eaf0fb", text: "#1d2330", muted: "#6b7385", line: "#dde2ea", accent: "#2f6fed", accText: "#ffffff", chip: "#e9ecf2", font: "'Segoe UI',Tahoma,sans-serif", r: 8, bw: 1, shadow: "0 1px 2px rgba(20,30,50,.07)", big: "0 16px 40px rgba(20,30,50,.25)", ok: "#1f8a4c", warn: "#a86500", bad: "#c0392b" },
@@ -492,7 +494,7 @@ var LT = (function () {
     // fixed-width font for codes (drawing numbers, revisions, IDs, file names): Consolas is on every Windows PC
     v.mono = t.retro ? t.font : "Consolas,'Cascadia Mono','Lucida Console',monospace";
     v.okSoft = soft(v.ok, .18); v.warnSoft = soft(v.warn, .2); v.badSoft = soft(v.bad, .2); v.accSoft = soft(v.accent, .12);
-    v.rowAlt = t.ember ? (t.bg == "#0c0c0d" ? "#1b1b1e" : "#fbfaf8") : t.studio ? (t.bg == "#0b0f17" ? "#0f1420" : "#fafbfd") : "transparent";
+    v.rowAlt = t.glass ? (t.bg == "#0d0a09" ? "rgba(255,255,255,.035)" : "rgba(255,255,255,.35)") : t.ember ? (t.bg == "#0c0c0d" ? "#1b1b1e" : "#fbfaf8") : t.studio ? (t.bg == "#0b0f17" ? "#0f1420" : "#fafbfd") : "transparent";
     v.side = v.side || v.panel; v.sideText = v.sideText || v.text; v.sideMuted = v.sideMuted || v.muted; v.sideHover = v.sideHover || v.hover; v.sideHi = t.ember ? v.text : t.side ? "#ffffff" : v.text; v.pill = t.pill || v.accent; v.pillText = t.pillText || v.accText; v.grad = t.grad || v.accent; v.outer = t.outer || v.side; v.sideLine = t.side ? t.side : v.line;
     return v;
   };
@@ -534,6 +536,18 @@ var LT = (function () {
       ".vtabs{background:{bg}}.vtabs .btn{border-radius:0}.vtabs .btn.on{color:{text};border-bottom-color:{accent}}",
       "table.grid th{background:{panel};color:{muted}}#toast{background:{pill};color:{pillText};border-radius:99px;padding:9px 18px}",
       "#menu{border-radius:14px}");
+    /* Glass: translucent panels with a lit edge over a soft glow (the old IE engine can't blur what is behind, so the "frost" is painted) */
+    if (v.glass) rules.push(
+      "html,body{background-color:{outer}}body{background-image:{glassBg};background-attachment:fixed}",
+      "input,select,textarea{background:{inputBg}}select option{background:{solid};color:{text}}",
+      ".btn{background:linear-gradient(180deg,{hi},rgba(255,255,255,.03));box-shadow:inset 0 1px 0 {hi}}.btn.primary{background:{grad};color:#fff;box-shadow:0 6px 18px rgba(255,90,31,.35),inset 0 1px 0 rgba(255,255,255,.35)}.btn.on{background:{pill}}",
+      ".card,.box,.kpi,.cd,.wc,.mc,.pk,.og,.dc{background-image:{cardImg}!important;border:1px solid {line};box-shadow:{shadow}}",
+      ".board .col{background-image:{cardImg}!important;border:1px solid {line}}",
+      ".kpi,.cd,.mc,.pk,.dc,.wc{transition:transform .2s,border-color .2s}.kpi:hover,.cd:hover,.mc:hover,.pk:hover,.dc:hover{transform:translateY(-3px)}",
+      ".bar,.vtabs{background:{barBg}}",
+      "table.grid th,table.grid td.fz,.fhc th{background:{solid}}",
+      "#menu,.ov .card,#nd{background-color:{solid}!important;border:1px solid {line}}#toast{background:{solid};color:{text};border:1px solid {line}}",
+      ".chip.on{background:{pill}}");
     rules = rules.concat(extra);   // the tab's own rules last: they win
     var el = document.getElementById("ltTheme");
     if (!el) { el = document.createElement("style"); el.id = "ltTheme"; document.getElementsByTagName("head")[0].appendChild(el); }
@@ -654,8 +668,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.19";
+  L.VERSION = "2026.11.20";
   L.WHATS_NEW = [
+    { v: "2026.11.20", items: [
+      "<b>New look: Glass</b> (Settings &rsaquo; Look): frosted-glass panels over a soft orange glow &ndash; <b>Glass</b> (dark) and <b>Glass Light</b>. The &#9728; / &#9790; switch moves between them" ] },
     { v: "2026.11.19", items: [
       "<b>Output links from the team</b>: in the HTML task pack (&#128279; on each line) and the Excel sheet (<b>Output link</b> column) they paste the ACC / WeTransfer link or the file path &ndash; it comes back with their reply into Delegate &rsaquo; Output, ready to click" ] },
     { v: "2026.11.18", items: [

@@ -589,8 +589,8 @@ function addOut(paths, how) {
 /* per folder: the folder once, its files under it; links on their own */
 function drawOut() {
   var x = oFor.x, a = x.outputs || [], links = [], dirs = {}, order = [], r = LT.nameRule(), h = "", bad = 0;
-  for (var i = 0; i < a.length; i++) { var o = a[i]; if (o.kind == "link") { links.push(i); continue; } var d = o.kind == "folder" ? o.path : fso.GetParentFolderName(o.path); if (!dirs[d]) { dirs[d] = []; order.push(d); } dirs[d].push(i); }
-  if (links.length) { h += '<div class="og"><div class="ogh">&#127760; Links</div>'; for (var l = 0; l < links.length; l++) { var L = a[links[l]]; h += '<div class="oi"><span class="mlk" data-ml="' + esc(L.path) + '">' + esc(L.path.length > 90 ? L.path.substring(0, 87) + "..." : L.path) + '</span><span class="ox" data-ox="' + links[l] + '">&#10005;</span></div>'; } h += "</div>"; }
+  for (var i = 0; i < a.length; i++) { var o = a[i]; if (o.kind == "link" || o.kind == "name") { links.push(i); continue; } var d = o.kind == "folder" ? o.path : fso.GetParentFolderName(o.path); if (!dirs[d]) { dirs[d] = []; order.push(d); } dirs[d].push(i); }
+  if (links.length) { h += '<div class="og"><div class="ogh">&#127760; Links' + (function () { for (var q = 0; q < links.length; q++) if (a[links[q]].kind == "name") return " and file names"; return ""; })() + "</div>"; for (var l = 0; l < links.length; l++) { var L = a[links[l]]; h += '<div class="oi">' + (L.kind == "name" ? "<b>" + esc(L.path) + '</b> <span class="muted small">(a file name only - in their email / WeTransfer; save it next to the reply and load the reply again)</span>' : '<span class="mlk" data-ml="' + esc(L.path) + '">' + esc(L.path.length > 90 ? L.path.substring(0, 87) + "..." : L.path) + "</span>") + '<span class="ox" data-ox="' + links[l] + '">&#10005;</span></div>'; } h += "</div>"; }
   for (var g = 0; g < order.length; g++) { var d2 = order[g], it = dirs[d2], here = fso.FolderExists(d2);
     h += '<div class="og"><div class="ogh"><span class="mlk" data-ml="' + esc(d2) + '" title="Open the folder">&#128193; ' + esc(d2) + "</span>" + (here ? "" : ' <span class="bad">not found</span>') + ' <span class="muted">' + it.length + " item" + (it.length > 1 ? "s" : "") + "</span></div>";
     for (var f = 0; f < it.length; f++) { var o2 = a[it[f]]; if (o2.kind == "folder") { h += '<div class="oi muted">(the whole folder)<span class="ox" data-ox="' + it[f] + '">&#10005;</span></div>'; continue; }
@@ -609,6 +609,18 @@ function replyOut(t, s, text, from) { var ps = outsIn(text); if (!ps.length) ret
   x.outputs = x.outputs || []; for (var i = 0; i < ps.length; i++) { var dup = false; for (var k = 0; k < x.outputs.length; k++) if (x.outputs[k].path.toLowerCase() == ps[i].toLowerCase()) dup = true;
     if (!dup) x.outputs.push({ kind: /^https?:/i.test(ps[i]) ? "link" : fso.FolderExists(ps[i]) ? "folder" : "file", path: ps[i], at: LT.today(), from: from }); }
   if (outCount(x) > n0) { x.outAt = LT.today(); t.history.push(stampNow() + "  " + x.code + ": output from " + from + "'s reply (" + (outCount(x) - n0) + ")"); } oFor = keep; }
+/* output links in a pack / sheet / reply: one per line (or ; ) - a web link, a full path, or just a file name sent with the reply */
+function outLines(x) { var o = [], a = x.outputs || []; for (var i = 0; i < a.length; i++) o.push(a[i].path); return o; }
+function outList(v) { if (!v) return []; if (typeof v == "string") v = v.split(/\r?\n|;\s*(?=https?:|[a-z]:\\|\\\\)/i); var o = []; for (var i = 0; i < v.length; i++) { var t = LT.trim("" + v[i]).replace(/^"|"$/g, ""); if (t) o.push(t); } return o; }
+/* what's new in a reply's output list for x: a bare file name is looked for next to the reply file (saved from the email with it) */
+function newOuts(x, list, dir) {
+  var have = {}, o = [], a = x.outputs || []; for (var i = 0; i < a.length; i++) have[a[i].path.toLowerCase()] = 1;
+  for (var j = 0; j < (list || []).length; j++) { var p = list[j], kind;
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(p)) kind = "link"; else if (/^[a-z]:\\|^\\\\/i.test(p)) kind = fso.FolderExists(p) ? "folder" : "file";
+    else if (dir && fso.FileExists(dir + "\\" + p)) { p = dir + "\\" + p; kind = "file"; } else kind = "name";
+    if (have[p.toLowerCase()]) continue; have[p.toLowerCase()] = 1; o.push({ kind: kind, path: p, at: LT.today() }); }
+  return o;
+}
 /* D: not right yet - back to In progress with your comment (Team Board and the next pack show it) */
 function sendBack(t, s) {
   var x = s || t, c = prompt("Send " + x.code + " back for changes - what needs changing?", ""); if (c == null) return false; c = LT.trim(c) || "changes needed";
@@ -795,18 +807,18 @@ function buildPlan(path, tasks, project, by, label, exportId, team) {
     sheets(wb, 3);
     var ws = wb.Worksheets(1), g = wb.Worksheets(2), meta = wb.Worksheets(3), H = 5;
     ws.Name = "Tasks"; g.Name = "Guide"; meta.Name = "_lt";
-    var W = [8, 46, 18, 18, 13, 14, 10, 44, 44], head = ["ID", "Task / Checklist item", "Group", "Assignee", "Target date", "Status", "Progress", "Notes", "References"];
+    var W = [8, 46, 18, 18, 13, 14, 10, 44, 44, 40], head = ["ID", "Task / Checklist item", "Group", "Assignee", "Target date", "Status", "Progress", "Notes", "References", "Output link"];
     for (var i = 0; i < W.length; i++) ws.Columns(i + 1).ColumnWidth = W[i];
-    ws.Range("A1:I1").Merge(); var t1 = ws.Range("A1");
-    t1.Value = "TASK PLAN   |   " + project; t1.Font.Bold = true; t1.Font.Size = 14; t1.Font.Color = C.white; ws.Range("A1:I1").Interior.Color = C.title; ws.Rows(1).RowHeight = 26; t1.VerticalAlignment = -4108;
+    ws.Range("A1:J1").Merge(); var t1 = ws.Range("A1");
+    t1.Value = "TASK PLAN   |   " + project; t1.Font.Bold = true; t1.Font.Size = 14; t1.Font.Color = C.white; ws.Range("A1:J1").Interior.Color = C.title; ws.Rows(1).RowHeight = 26; t1.VerticalAlignment = -4108;
     var d = new Date();
     ws.Range("A2").Value = "Issued by: " + (by || "—") + "     Issued: " + LT.DAYS[d.getDay()] + " " + LT.pad(d.getDate()) + " " + LT.MON[d.getMonth()] + " " + d.getFullYear() + "     For: " + label; ws.Range("A2").Font.Color = C.muted;
-    ws.Range("A3").Value = (team.length ? "You lead this: pick WHO does each item (Assignee).  " : "") + "Update the YELLOW boxes (Status, Notes).  To ADD: insert a row in a group (ID empty) = new item;  use a NEW block at the bottom = new task.  Then send the file back.";
+    ws.Range("A3").Value = (team.length ? "You lead this: pick WHO does each item (Assignee).  " : "") + "Update the YELLOW boxes (Status, Notes, Output link - paste the ACC / WeTransfer link or the file path of what you made).  To ADD: insert a row in a group (ID empty) = new item;  use a NEW block at the bottom = new task.  Then send the file back.";
     ws.Range("A3").Font.Italic = true; ws.Range("A3").Font.Color = C.sub;
     for (var h = 0; h < head.length; h++) { var hc = ws.Cells(H, h + 1); hc.Value = head[h]; hc.Font.Bold = true; hc.Font.Color = C.white; hc.Interior.Color = C.sub; }
-    box(ws.Range("A" + H + ":I" + H)); ws.Rows(H).RowHeight = 22;
+    box(ws.Range("A" + H + ":J" + H)); ws.Rows(H).RowHeight = 22;
     var r = H + 1, status = [], groups = [], whoCells = [];
-    var style = function (row, isTask) { var rg = ws.Range("A" + row + ":I" + row); rg.Interior.Color = isTask ? C.head : C.row; rg.Font.Color = C.ink; rg.VerticalAlignment = -4160; if (isTask) ws.Range("A" + row + ":B" + row).Font.Bold = true; box(rg); ws.Cells(row, 2).WrapText = true; ws.Cells(row, 8).WrapText = true; ws.Cells(row, 9).WrapText = true; ws.Cells(row, 9).Font.Size = 9; ws.Cells(row, 7).NumberFormat = "0%"; if (!isTask) ws.Cells(row, 2).IndentLevel = 2; };
+    var style = function (row, isTask) { var rg = ws.Range("A" + row + ":J" + row); rg.Interior.Color = isTask ? C.head : C.row; rg.Font.Color = C.ink; rg.VerticalAlignment = -4160; if (isTask) ws.Range("A" + row + ":B" + row).Font.Bold = true; box(rg); ws.Cells(row, 2).WrapText = true; ws.Cells(row, 8).WrapText = true; ws.Cells(row, 9).WrapText = true; ws.Cells(row, 9).Font.Size = 9; ws.Cells(row, 7).NumberFormat = "0%"; if (!isTask) ws.Cells(row, 2).IndentLevel = 2; };
     var yellow = function (row, col) { ws.Cells(row, col).Interior.Color = C.fill; };
     var pct = function (row) { return '=IF(F' + row + '="Completed",1,IF(F' + row + '="In progress",0.5,0))'; };
     for (var k = 0; k < tasks.length; k++) {
@@ -818,22 +830,22 @@ function buildPlan(path, tasks, project, by, label, exportId, team) {
         ws.Cells(tr, 7).Formula = '=IFERROR((COUNTIF(' + rng + ',"Completed")+COUNTIF(' + rng + ',"In progress")/2)/' + n + ',0)';
         ws.Cells(tr, 6).Formula = '=IF(COUNTIF(' + rng + ',"Completed")=' + n + ',"Completed",IF(COUNTIF(' + rng + ',"Not started")=' + n + ',"Not started","In progress"))';
         ws.Cells(tr, 6).Font.Italic = true; ws.Cells(tr, 6).Font.Color = C.muted; yellow(tr, 8);
-      } else { ws.Cells(tr, 6).Value = ST.indexOf(t.status) >= 0 ? t.status : "Not started"; ws.Cells(tr, 7).Formula = pct(tr); yellow(tr, 6); yellow(tr, 8); status.push("F" + tr); }
+      } else { ws.Cells(tr, 6).Value = ST.indexOf(t.status) >= 0 ? t.status : "Not started"; ws.Cells(tr, 7).Formula = pct(tr); yellow(tr, 6); yellow(tr, 8); yellow(tr, 10); ws.Cells(tr, 10).Value = outLines(t).join("\n"); status.push("F" + tr); }
       r++;
       var g0 = r;
       for (var s = 0; s < t.subs.length; s++) {
         var sb = t.subs[s]; style(r, false);
         ws.Cells(r, 1).Value = sb.code; ws.Cells(r, 2).Value = sb.title; ws.Cells(r, 4).Value = sb.who || ""; putDate(ws.Cells(r, 5), sb.due || t.due);
         ws.Cells(r, 6).Value = ST.indexOf(sb.status) >= 0 ? sb.status : "Not started"; ws.Cells(r, 7).Formula = pct(r); ws.Cells(r, 8).Value = sb.notes || ""; ws.Cells(r, 9).Value = LT.refLines(sb.refs).join("\n");
-        yellow(r, 6); yellow(r, 8); if (team.length) { yellow(r, 4); whoCells.push("D" + r); } status.push("F" + r); r++;
+        ws.Cells(r, 10).Value = outLines(sb).join("\n"); yellow(r, 6); yellow(r, 8); yellow(r, 10); if (team.length) { yellow(r, 4); whoCells.push("D" + r); } status.push("F" + r); r++;
       }
       if (r > g0) groups.push(g0 + ":" + (r - 1));
     }
     ws.Cells(r, 1).Value = "ADD NEW TASKS BELOW — type a task name next to NEW, its items in the rows under it. Empty blocks are ignored on import.";
     ws.Cells(r, 1).Font.Italic = true; ws.Cells(r, 1).Font.Size = 9; ws.Cells(r, 1).Font.Color = C.sub; r++;
     for (var b = 0; b < 3; b++) {
-      style(r, true); ws.Cells(r, 1).Value = "NEW"; var cs = [2, 3, 4, 5, 6, 8]; for (var c = 0; c < cs.length; c++) yellow(r, cs[c]); status.push("F" + r); r++;
-      var b0 = r; for (var j = 0; j < 5; j++) { style(r, false); var cs2 = [2, 4, 5, 6, 8]; for (var c3 = 0; c3 < cs2.length; c3++) yellow(r, cs2[c3]); ws.Cells(r, 5).NumberFormat = "dd mmm yyyy"; status.push("F" + r); r++; }
+      style(r, true); ws.Cells(r, 1).Value = "NEW"; var cs = [2, 3, 4, 5, 6, 8, 10]; for (var c = 0; c < cs.length; c++) yellow(r, cs[c]); status.push("F" + r); r++;
+      var b0 = r; for (var j = 0; j < 5; j++) { style(r, false); var cs2 = [2, 4, 5, 6, 8, 10]; for (var c3 = 0; c3 < cs2.length; c3++) yellow(r, cs2[c3]); ws.Cells(r, 5).NumberFormat = "dd mmm yyyy"; status.push("F" + r); r++; }
       groups.push(b0 + ":" + (r - 1));
     }
     var LAST = Math.max(r - 1, H + 1);
@@ -843,9 +855,9 @@ function buildPlan(path, tasks, project, by, label, exportId, team) {
       try { var dv = ws.Range(status.slice(si, si + 30).join(",")).Validation; dv.Delete(); dv.Add(3, 1, 1, ST.join(",")); dv.ErrorTitle = "Status"; dv.ErrorMessage = "Pick Not started, In progress or Completed"; } catch (e) { }
     }
     for (var wi = 0; wi < whoCells.length; wi += 30) { try { var wv = ws.Range(whoCells.slice(wi, wi + 30).join(",")).Validation; wv.Delete(); wv.Add(3, 1, 1, team.join(",")); wv.IgnoreBlank = true; } catch (e) { } }
-    try { ws.Range("A" + H + ":I" + LAST).AutoFilter(); } catch (e) { }
+    try { ws.Range("A" + H + ":J" + LAST).AutoFilter(); } catch (e) { }
     try {
-      var body = ws.Range("A" + (H + 1) + ":I" + LAST), f1 = body.FormatConditions.Add(2, 0, '=AND($E' + (H + 1) + '<>"",$E' + (H + 1) + '<TODAY(),$F' + (H + 1) + '<>"Completed")');
+      var body = ws.Range("A" + (H + 1) + ":J" + LAST), f1 = body.FormatConditions.Add(2, 0, '=AND($E' + (H + 1) + '<>"",$E' + (H + 1) + '<TODAY(),$F' + (H + 1) + '<>"Completed")');
       f1.Font.Color = C.red; f1.Font.Bold = true;
       var f2 = body.FormatConditions.Add(2, 1, '=$F' + (H + 1) + '="Completed"'); f2.Font.Color = C.ok;
     } catch (e) { }
@@ -902,8 +914,8 @@ function ascii(s) { return ("" + s).replace(/[^\x20-\x7e]/g, function (c) { retu
 function buildPack(path, tasks, project, by, label, person, exportId, team, copied, extra) {
   var list = [];
   for (var i = 0; i < tasks.length; i++) { var t = tasks[i], subs = [];
-    for (var j = 0; j < t.subs.length; j++) subs.push({ code: t.subs[j].code, title: t.subs[j].title, who: t.subs[j].who || "", due: t.subs[j].due || t.due || "", status: t.subs[j].status, notes: t.subs[j].notes || "", refs: packRefs(t.subs[j].refs, copied), isNew: !!t.subs[j].isNew });
-    list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", subs: subs, refs: packRefs(t.refs, copied).concat(t.boardRefs || []), isNew: !!t.isNew }); }
+    for (var j = 0; j < t.subs.length; j++) subs.push({ code: t.subs[j].code, title: t.subs[j].title, who: t.subs[j].who || "", due: t.subs[j].due || t.due || "", status: t.subs[j].status, notes: t.subs[j].notes || "", refs: packRefs(t.subs[j].refs, copied), isNew: !!t.subs[j].isNew, outs: outLines(t.subs[j]) });
+    list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", subs: subs, refs: packRefs(t.refs, copied).concat(t.boardRefs || []), isNew: !!t.isNew, outs: outLines(t) }); }
   var pack = { id: exportId, projectId: "toolbox", project: project, by: by, at: LT.today(), label: label, person: person, MARK: MARK, tasks: list, team: team || [] };
   if (extra) for (var xk in extra) if (extra.hasOwnProperty(xk)) pack[xk] = extra[xk];
   var src = runtime(); src = src.substring(src.indexOf("{") + 1, src.lastIndexOf("}"));
@@ -973,11 +985,11 @@ function parseReply(text) {
   if (!j || j.kind != "lt-taskpack-reply" || !j.rows) throw new Error("This is not a Task Pack reply.");
   var rep = { exportId: j.pack || "", project: j.project || "", message: j.message || "", from: j.name || j.person || j.label || "", rows: [] };
   for (var r = 0; r < j.rows.length && r < 5000; r++) { var x = j.rows[r];
-    rep.rows.push({ id: "" + (x.id || ""), title: "" + (x.title || ""), who: x.who == null ? "" : "" + x.who, group: "", due: /^\d{4}-\d{2}-\d{2}$/.test(x.due || "") ? x.due : "", status: norm(x.status || ""), notes: x.notes == null ? null : "" + x.notes, derived: !!x.derived }); }
+    rep.rows.push({ id: "" + (x.id || ""), title: "" + (x.title || ""), who: x.who == null ? "" : "" + x.who, group: "", due: /^\d{4}-\d{2}-\d{2}$/.test(x.due || "") ? x.due : "", status: norm(x.status || ""), notes: x.notes == null ? null : "" + x.notes, derived: !!x.derived, out: outList(x.out) }); }
   return rep;
 }
 function readExcelReply(p) {
-  var rep = { file: fso.GetFileName(p), exportId: "", project: "", message: "", from: "", rows: [] };
+  var rep = { file: fso.GetFileName(p), dir: fso.GetParentFolderName(p), exportId: "", project: "", message: "", from: "", rows: [] };
   var meta = LT.readExcel(p, "_lt"); if (meta) { rep.exportId = meta[2] && meta[2][0] ? meta[2][0] : ""; rep.project = meta[4] && meta[4][0] ? meta[4][0] : ""; }
   var rows = LT.readExcel(p, "Tasks") || LT.readExcel(p, "Checklist generator") || LT.readExcel(p);
   var head = -1, col = {};
@@ -985,7 +997,7 @@ function readExcelReply(p) {
     var f = {};
     for (var c = 0; c < rows[r].length; c++) { var t = LT.trim(rows[r][c]).toLowerCase(); if (!t) continue;
       if (t == "website id") { if (f.wid == null) f.wid = c; } else if (t == "id" || t == "task id") { if (f.id == null) f.id = c; } else if (/^status/.test(t)) { if (f.st == null) f.st = c; }
-      else if (/^notes?$/.test(t)) { if (f.no == null) f.no = c; } else if (/^(subtask|item)/.test(t)) { if (f.sub == null) f.sub = c; } else if (/^task/.test(t)) { if (f.ti == null) f.ti = c; }
+      else if (/^notes?$/.test(t)) { if (f.no == null) f.no = c; } else if (/^output/.test(t)) { if (f.out == null) f.out = c; } else if (/^(subtask|item)/.test(t)) { if (f.sub == null) f.sub = c; } else if (/^task/.test(t)) { if (f.ti == null) f.ti = c; }
       else if (/^group/.test(t)) { if (f.gr == null) f.gr = c; } else if (/^(assignee|assigned)/.test(t)) { if (f.who == null) f.who = c; } else if (/^(target date|due)/.test(t)) { if (f.due == null) f.due = c; } }
     if (f.id != null && f.st != null) { head = r; col = f; }
   }
@@ -997,13 +1009,13 @@ function readExcelReply(p) {
     var title = (g(R, col.sub) || g(R, col.ti)).replace(/^↳\s*/, "");
     if (!id && !title) continue; if (/^ADD NEW TASKS/i.test(id)) continue;
     var due = g(R, col.due);
-    rep.rows.push({ id: id, title: title, group: g(R, col.gr), who: g(R, col.who), due: /^\d{4}-\d{2}-\d{2}/.test(due) ? due.substring(0, 10) : (parseDate(due) || ""), status: norm(g(R, col.st)), notes: col.no == null ? null : g(R, col.no), derived: false });
+    rep.rows.push({ id: id, title: title, group: g(R, col.gr), who: g(R, col.who), due: /^\d{4}-\d{2}-\d{2}/.test(due) ? due.substring(0, 10) : (parseDate(due) || ""), status: norm(g(R, col.st)), notes: col.no == null ? null : g(R, col.no), derived: false, out: col.out == null ? [] : outList(g(R, col.out)) });
   }
   return rep;
 }
 function readFile(p) {
   if (/\.(xlsx|xlsm|xls)$/i.test(p)) return readExcelReply(p);
-  var r = parseReply(LT.readText(p)); r.file = fso.GetFileName(p); return r;
+  var r = parseReply(LT.readText(p)); r.file = fso.GetFileName(p); r.dir = fso.GetParentFolderName(p); return r;
 }
 function loadReplies() {
   LT.pickFile(function (p) {
@@ -1036,6 +1048,7 @@ function applyReplies(reps) {
           ch.push({ text: s.code + " " + s.title + ":  " + (ow ? ow + " → " : "assigned to ") + wv + "   (" + from + ")", run: function () { s.who = wv; s.updated = st; t.updated = st; t.history.push(st + "  " + from + " assigned " + s.code + " to " + wv); } }); }
         if (row.notes != null && LT.trim(row.notes) != LT.trim(oldNo || "")) { var nv = LT.trim(row.notes);
           ch.push({ text: label + ':  notes → "' + (nv.length > 60 ? nv.substring(0, 60) + "…" : nv) + '"   (' + from + ")", run: function () { if (s) { s.notes = nv; s.updated = st; } else t.notes = nv; t.updated = st; replyOut(t, s, nv, from); } }); }
+        var newO = newOuts(s || t, row.out, rep.dir); if (newO.length) ch.push({ text: label + ":  \ud83d\udd17 output \u2192 " + newO.map(function (o) { return o.path.length > 50 ? "..." + o.path.slice(-47) : o.path; }).join(", ") + "   (" + from + ")", run: function () { var x = s || t; x.outputs = (x.outputs || []).concat(newO); x.outAt = LT.today(); x.updated = st; t.updated = st; t.history.push(st + "  " + x.code + ": output from " + from + " (" + newO.length + ")"); } });
         return;
       }
       if (!row.title) return;
@@ -1046,7 +1059,7 @@ function applyReplies(reps) {
         ch.push({ text: "NEW TASK: " + nt.title + "   (" + from + ")", run: function () { nt.code = nextCode(); nt.history.push(st + "  Added from a reply"); for (var z = 0; z < nt.subs.length; z++) nt.subs[z].code = nt.code + "." + (z + 1); data.tasks.push(nt); } });
         return;
       }
-      var spec = { id: LT.uid("s"), code: "", title: row.title, who: row.who, due: row.due, status: ST.indexOf(row.status) >= 0 ? row.status : "Not started", notes: LT.trim(row.notes || ""), updated: st };
+      var spec = { id: LT.uid("s"), code: "", title: row.title, who: row.who, due: row.due, status: ST.indexOf(row.status) >= 0 ? row.status : "Not started", notes: LT.trim(row.notes || ""), updated: st, outputs: newOuts({}, row.out, rep.dir) };
       if (newT) { newT.subs.push(spec); return; }
       if (!cur) { nf.push(from + ': "' + row.title + '" (no task above it)'); return; }
       for (var y = 0; y < cur.subs.length; y++) if (cur.subs[y].title.toLowerCase() == row.title.toLowerCase()) return;     // already added before

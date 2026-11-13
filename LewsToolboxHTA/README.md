@@ -227,6 +227,9 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **Copy into the task folder › Output** – only if you want a copy (the task came from Tasks and has a folder)
 - A **reply note** with a link or a path (`https://…`, `C:\…`, `\\server\…`) puts it in the Output by itself
 - A **new file in a watched folder** (Home › Incoming) with the drawing number of an open item goes into its Output by itself – Home says *output of T001.2*
+- **The team adds it themselves** – in the **HTML task pack** each line has a **🔗** button: they paste the link to their output (ACC, WeTransfer, OneDrive…) or a file path, one per line. In the **Excel task sheet** it's the yellow **Output link** column. It comes back with their **reply** and lands in that item's **🔗 Output** (shown when you load the reply)
+  - Sending the file itself? They type its **name** and attach it to the email: save the file next to the reply, load the reply – the Toolbox finds it there. Not saved yet = kept as a name (*in their email / WeTransfer*)
+  - The pack also shows them what you **already received** for each item
 - **↩ Send back for changes…** – not right yet: back to *In progress*, your comment goes in its notes (and the Team Board), *↩ sent back* shows on it
 
 ## Drawing Register

@@ -85,6 +85,7 @@
       '@media print{.foot,.help,.bar2,.add,.tools,.panelbtn,.panelcard{display:none!important}.it textarea{display:none}.wrap{padding-bottom:0}.card{break-inside:avoid}.sts button:not(.on){display:none}}'
     ].join('\n');
     css.textContent += '.refs{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px;font-size:13px}.refs a{color:#2f6fed;text-decoration:none}.refs a:hover{text-decoration:underline}.refs span{opacity:.85}' +
+      '.outs{margin-top:4px;font-size:13px;word-break:break-all}.outs a{color:var(--acc);margin-right:2px}.outs .had{color:var(--muted)}textarea.outin{border-color:var(--acc)}',
       'select.who{margin-top:3px;font-size:13px;padding:2px 6px;border-radius:6px;max-width:200px}small.who{opacity:.8}';
     document.head.appendChild(css);
     document.addEventListener('change', function (e) { var w = e.target.getAttribute && e.target.getAttribute('data-who'); if (w) { setItem(w, 'who', e.target.value); save(); } });
@@ -111,11 +112,20 @@
         '<div class="nm"><span>' + esc(title) + '</span>' + (l.n || (!l.n && l.base !== l.t && l.base.isNew) ? '<span class="tag">NEW</span>' : '') + (!l.n && l.base && l.base.info ? '<small class="inf">' + esc(l.base.info) + '</small>' : '') +
         '<small class="' + (lt ? 'late' : '') + '">' + (l.due ? (lt ? 'overdue ' : '') + esc(fmt(l.due)) : '') + '</small>' + whoHtml(l) +
         (!l.n && l.base !== l.t ? refsHtml(l.base.refs) : '') +
-        (notes && !OPEN[key] ? '<em>\u270e ' + esc(notes) + '</em>' : '') + '</div>' +
+        (notes && !OPEN[key] ? '<em>\u270e ' + esc(notes) + '</em>' : '') + outHtml(l, key) + '</div>' +
         '<div class="tools"><button class="ib' + (notes ? ' has' : '') + '" data-noteopen="' + key + '" title="' + (notes ? 'Edit note' : 'Add a note') + '">\u270e</button>' +
+        '<button class="ib' + (outOf(l).length ? ' has' : '') + '" data-outopen="' + key + '" title="Your output: paste the ACC / WeTransfer / OneDrive link or the file path">\ud83d\udd17</button>' +
         (l.n ? '<button class="ib x" data-del="' + key + '" title="Remove">\u00d7</button>' : '') + '</div>' +
-        (OPEN[key] ? '<textarea data-note="' + key + '" placeholder="Your note\u2026">' + esc(notes) + '</textarea>' : '') + '</div>';
+        (OPEN[key] ? '<textarea data-note="' + key + '" placeholder="Your note\u2026">' + esc(notes) + '</textarea>' : '') +
+        (OPEN['o' + key] ? '<textarea class="outin" data-out="' + key + '" placeholder="Paste the link to your output \u2013 ACC, WeTransfer, OneDrive\u2026 or the file path (one per line). Sending the file itself? Put its name here and attach it.">' + esc(outOf(l).join('\n')) + '</textarea>' : '') + '</div>';
     }
+    /* your output for a line (links / paths / file names, one per line) + what was already received */
+    function outOf(l) { var v = l.n ? l.n.out : ((S.items[l.code] || {}).out); return String(v || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); }
+    function outA(x) { var h = /^[a-z][a-z0-9+.-]*:\/\//i.test(x) ? x : /^[a-z]:\\|^\\\\/i.test(x) ? 'file:///' + x.replace(/\\/g, '/') : '';
+      var t = x.length > 60 ? x.slice(0, 57) + '\u2026' : x; return h ? '<a href="' + esc(h) + '" target="_blank" rel="noopener" title="' + esc(x) + '">' + esc(t) + '</a>' : '<span title="Attach this file to your email">' + esc(t) + '</span>'; }
+    function outHtml(l, key) { var mine = outOf(l), had = !l.n && l.base && l.base.outs ? l.base.outs : [];
+      if (!mine.length && !had.length) return '';
+      return '<div class="outs">' + (mine.length ? '<b>\ud83d\udd17 Your output:</b> ' + mine.map(outA).join(' \u00b7 ') : '') + (had.length ? '<span class="had">' + (mine.length ? ' \u00b7 ' : '') + 'already received: ' + had.map(outA).join(' \u00b7 ') + '</span>' : '') + '</div>'; }
     function match(l) {
       var q = (S.q || '').toLowerCase(), st = stOf(l);
       if (S.filter === 'open' && st === 'Completed') return false;
@@ -129,7 +139,7 @@
       var h = '<div class="top"><div class="row1"><h1>TASKS FOR ' + esc((P.label || '').toUpperCase()) + '</h1><span class="sub">' + esc(P.project) + ' \u00b7 from ' + esc(P.by || '\u2014') + ' \u00b7 ' + esc(fmt(P.at)) + '</span></div>' +
         '<div class="prog"><span>' + done + ' of ' + all.length + ' done' + (lateN ? ' \u00b7 <b>' + lateN + ' overdue</b>' : '') + '</span><div class="bar"><i style="width:' + pct + '%"></i></div><span>' + pct + '%</span></div></div><div class="wrap">';
       if (P.board) h += '<div class="help" style="background:#eef4ff;border-color:#b9cdf5"><span>\ud83d\udccc <b>Team Board</b> \u00b7 updated ' + esc(P.board.at || '') + ' \u00b7 refresh this page to see new tasks \u00b7 each task\u2019s files are in its own folder next to this page \u00b7 <b>Save reply</b> into the <b>' + esc(P.board.replies || '_Replies') + '</b> folder</span></div>';
-      if (S.help) h += '<div class="help"><span>\ud83d\udc4b Click <b>To do / Doing / Done</b> on each line \u00b7 <b>\u270e</b> adds a note \u00b7 then <b>\ud83d\udce4 Save reply</b> and ' + (P.board ? 'save it in the <b>' + esc(P.board.replies || '_Replies') + '</b> folder' : 'send the file to ' + esc(P.by || 'me')) + '.</span><button data-help="0">Got it</button></div>';
+      if (S.help) h += '<div class="help"><span>\ud83d\udc4b Click <b>To do / Doing / Done</b> on each line \u00b7 <b>\u270e</b> adds a note \u00b7 <b>\ud83d\udd17</b> adds the link to your output (ACC, WeTransfer, a file path) \u00b7 then <b>\ud83d\udce4 Save reply</b> and ' + (P.board ? 'save it in the <b>' + esc(P.board.replies || '_Replies') + '</b> folder' : 'send the file to ' + esc(P.by || 'me')) + '.</span><button data-help="0">Got it</button></div>';
       h += '<div class="bar2"><input id="q" placeholder="Search\u2026" value="' + esc(S.q) + '">' + [['all', 'All'], ['open', 'To do'], ['done', 'Done']].map(function (f) { return '<button class="chip' + (S.filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' + f[1] + '</button>'; }).join('') +
         '<button class="chip panelbtn' + (S.panel === 'task' ? ' on' : '') + '" data-panel="task">+ New task</button><button class="chip panelbtn' + (S.panel === 'msg' ? ' on' : '') + '" data-panel="msg">\ud83d\udcac Message' + (S.msg ? ' \u2713' : '') + '</button></div>';
       if (S.panel === 'task') h += '<div class="card panelcard"><div class="panel"><input id="ntT" placeholder="Task name \u2014 something extra you are working on"><textarea id="ntI" placeholder="Items \u2014 one per line (optional)"></textarea>' +
@@ -168,13 +178,14 @@
       var items = [], rows = [];
       P.tasks.forEach(function (t) {
         var tp = pend(t.code, t);
-        rows.push({ id: t.code, title: t.title, status: t.subs.length ? '' : (tp.status || ''), notes: tp.notes, derived: !!t.subs.length });
-        t.subs.forEach(function (s) { var sp = pend(s.code, s), row = { id: s.code, title: s.title, status: sp.status || '', notes: sp.notes }; if (sp.who != null) row.who = sp.who; rows.push(row); });
-        (S.newItems[t.code] || []).forEach(function (n) { rows.push({ id: '', title: n.title, status: n.status, notes: n.notes, due: n.due || '' }); });
+        var oc = function (c) { return String((S.items[c] || {}).out || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); }, on = function (n) { return String(n.out || '').split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean); };
+        rows.push({ id: t.code, title: t.title, status: t.subs.length ? '' : (tp.status || ''), notes: tp.notes, derived: !!t.subs.length, out: oc(t.code) });
+        t.subs.forEach(function (s) { var sp = pend(s.code, s), row = { id: s.code, title: s.title, status: sp.status || '', notes: sp.notes, out: oc(s.code) }; if (sp.who != null) row.who = sp.who; rows.push(row); });
+        (S.newItems[t.code] || []).forEach(function (n) { rows.push({ id: '', title: n.title, status: n.status, notes: n.notes, due: n.due || '', out: on(n) }); });
       });
       S.newTasks.forEach(function (nt) {
         rows.push({ id: 'NEW', title: nt.title, status: nt.items.length ? '' : nt.status, notes: nt.notes || '', due: nt.due || '' });
-        nt.items.forEach(function (n) { rows.push({ id: '', title: n.title, status: n.status, notes: n.notes, due: n.due || nt.due || '' }); });
+        nt.items.forEach(function (n) { rows.push({ id: '', title: n.title, status: n.status, notes: n.notes, due: n.due || nt.due || '', out: String(n.out || '').split(/\r?\n/).filter(function (x) { return x.trim(); }) }); });
       });
       var body = JSON.stringify({ kind: 'lt-taskpack-reply', v: 1, pack: P.id, projectId: P.projectId, project: P.project, person: P.person || '', label: P.label, name: S.name, message: S.msg, at: new Date().toISOString(), rows: rows });
       var b64 = btoa(unescape(encodeURIComponent(body))).replace(/(.{76})/g, '$1\n');
@@ -186,11 +197,11 @@
     }
     function fileName(s) { return String(s || 'Tasks').replace(/[^A-Za-z0-9_-]+/g, '_').replace(/_+/g, '_'); }
     function csv() {
-      var rows = [['ID', 'Task', 'Item', 'Due date', 'Status', 'Notes']];
+      var rows = [['ID', 'Task', 'Item', 'Due date', 'Status', 'Notes', 'Output link']];
       lines().forEach(function (l) {
         var st = stOf(l), notes = l.n ? l.n.notes : cur(l.code, l.base).notes, task = (l.t || l.nt).title;
         var item = l.n ? (l.nt && l.n === l.nt ? '' : l.n.title) : (l.base === l.t ? '' : l.base.title);
-        rows.push([l.code || 'NEW', task, item, l.due || '', st, notes || '']);
+        rows.push([l.code || 'NEW', task, item, l.due || '', st, notes || '', outOf(l).join(' ; ')]);
       });
       return '\ufeff' + rows.map(function (r) { return r.map(function (c) { return '"' + String(c).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
     }
@@ -204,6 +215,7 @@
       var el = e.target.closest('button'); if (!el) return;
       var a = function (k) { return el.getAttribute(k); };
       if (a('data-st')) { var k = a('data-st'); if (k.indexOf('c:') === 0) setItem(k.slice(2), 'status', a('data-v')); else { var o = find(k); if (o) o.status = a('data-v'); } save(); render(); }
+      else if (a('data-outopen')) { var k1 = 'o' + a('data-outopen'); OPEN[k1] = !OPEN[k1]; render(); var to = document.querySelector('[data-out="' + a('data-outopen') + '"]'); if (to) { to.focus(); to.setSelectionRange(to.value.length, to.value.length); } }
       else if (a('data-noteopen')) { var k0 = a('data-noteopen'); OPEN[k0] = !OPEN[k0]; render(); var ta = document.querySelector('[data-note="' + k0 + '"]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
       else if (a('data-panel')) { S.panel = S.panel === a('data-panel') ? '' : a('data-panel'); save(); render(); var fi = document.getElementById(S.panel === 'task' ? 'ntT' : 'msg'); if (fi) fi.focus(); }
       else if (a('data-f')) { S.filter = a('data-f'); save(); render(); }
@@ -244,7 +256,8 @@
     });
     document.addEventListener('input', function (e) {
       var t = e.target;
-      if (t.getAttribute('data-note')) { var nk = t.getAttribute('data-note'); if (nk.indexOf('c:') === 0) setItem(nk.slice(2), 'notes', t.value); else { var o = find(nk); if (o) o.notes = t.value; } save(); }
+      if (t.getAttribute('data-out')) { var ok2 = t.getAttribute('data-out'); if (ok2.indexOf('c:') === 0) { var it2 = S.items[ok2.slice(2)] = S.items[ok2.slice(2)] || {}; it2.out = t.value; } else { var o2 = find(ok2); if (o2) o2.out = t.value; } save(); }
+      else if (t.getAttribute('data-note')) { var nk = t.getAttribute('data-note'); if (nk.indexOf('c:') === 0) setItem(nk.slice(2), 'notes', t.value); else { var o = find(nk); if (o) o.notes = t.value; } save(); }
       else if (t.id === 'msg') { S.msg = t.value; save(); }
       else if (t.id === 'nm') { S.name = t.value; save(); }
       else if (t.id === 'q') { S.q = t.value; save(); clearTimeout(window.__qt); window.__qt = setTimeout(function () { render(); var q = document.getElementById('q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }, 250); }

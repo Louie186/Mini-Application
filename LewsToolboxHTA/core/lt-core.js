@@ -654,8 +654,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.18";
+  L.VERSION = "2026.11.19";
   L.WHATS_NEW = [
+    { v: "2026.11.19", items: [
+      "<b>Output links from the team</b>: in the HTML task pack (&#128279; on each line) and the Excel sheet (<b>Output link</b> column) they paste the ACC / WeTransfer link or the file path &ndash; it comes back with their reply into Delegate &rsaquo; Output, ready to click" ] },
     { v: "2026.11.18", items: [
       "<b>Tasks</b>: Priority and Status always show (dragging to Done changes only the status) &middot; a floating <b>Needs details</b> tray for tasks without a date or project",
       "<b>Delegate &rsaquo; Output</b>: the link or files the team sent back (files stay where they are, listed per folder), names checked, <b>Send back for changes</b> &ndash; and outputs found by themselves in watched folders and reply notes",

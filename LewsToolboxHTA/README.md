@@ -296,6 +296,13 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **Show the N drawings** – each with its status · **📁 Make a set** – the model's drawings become a My set (to print, check or issue)
 - **No model yet** – drawings without a tower / typology match · the search box finds a model, tower or typology
 
+**📈 S-curve** (a view next to Models) – drawings issued over time against the plan
+- **Start**, **Finish** (dd/mm/yyyy) and **Drawings** (empty = all the MIDP's drawings); **Plan shape**: *Standard S* (slow start, fast middle, slow end) or *Straight line*. Saved with the project
+- **Actual** (orange line) comes from your **Transmittal log**: each MIDP drawing counts once, on the day of the first transmittal it was in. **Plan** is the dashed line. A *today* marker shows where you are
+- Under the chart: **Issued so far** (e.g. 6 of 20, 30%) · **Planned by today** · **Ahead of / Behind plan** in drawings and percentage points · **Pace** over the last 4 weeks, and the date you'd finish at that pace
+- No finish date yet? It still draws your actual progress and asks for the date
+- **Export (CSV)** – week by week, planned and issued, to make your own chart in Excel
+
 ## Folder Check
 
 Pick the folder once – every view uses it (and remembers which view you used last):

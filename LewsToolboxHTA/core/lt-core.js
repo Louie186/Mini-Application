@@ -675,8 +675,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.21";
+  L.VERSION = "2026.11.22";
   L.WHATS_NEW = [
+    { v: "2026.11.22", items: [
+      "<b>Incoming is compact</b>: the Home card shows only the counts per folder (added &middot; changed &middot; removed &middot; existing). <b>Click it</b> for the full file list in a bigger view (Added / Changed / Removed / All files, with search)" ] },
     { v: "2026.11.21", items: [
       "<b>Smoother on every look</b>: <b>Smooth mode</b> (Settings &rsaquo; Speed, on by default) &ndash; no animations or heavy effects; the menu and Home do less work; the folder check waits while you're clicking. Optional <b>graphics acceleration</b> for the window" ] },
     { v: "2026.11.20", items: [

@@ -86,6 +86,13 @@
     </div>
   </div>
 </div>
+<div class="ov" id="inDlg"><div class="card" id="inCard">
+  <div style="display:flex;align-items:center;margin-bottom:4px"><h3 style="margin:0 10px 0 0">Incoming</h3><select id="inSel" style="width:220px;margin:0"></select><span style="flex:1 1 auto"></span><button class="btn small" id="inRef2" style="margin:0 6px 0 0" title="Check the folders now">&#8635; Refresh</button><button class="btn small" id="inClose" style="margin:0">Close</button></div>
+  <div class="muted" id="inPath" style="margin-bottom:8px"></div>
+  <div style="display:flex;align-items:center;flex-wrap:wrap"><span id="inTabs"></span><input type="text" id="inQ" placeholder="Search the list..." style="width:210px;margin:0 0 6px auto"></div>
+  <div id="inList"></div>
+  <div class="acts"><button class="btn small" id="inCheck" title="Check the new files in Folder Check">Check them in Folder Check</button><button class="btn small" id="inSeen">Mark as seen</button><button class="btn small" id="inOpenF">Open the folder</button><span class="sp"></span><button class="btn small" id="inStop" title="Stop watching this folder">Stop watching</button></div>
+</div></div>
 <div id="repWrap"><div id="repBar"><button class="btn small" id="repBack" style="margin:0">&lsaquo; Back to Home</button><b>Weekly report</b></div><iframe application="yes" id="repFrame"></iframe></div>
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso, links = [];
@@ -112,6 +119,34 @@ function spark(vals, w, hgt, col) {   // little column chart
   var bw = w / vals.length, h = '<svg width="' + w + '" height="' + hgt + '">';
   for (var j = 0; j < vals.length; j++) { var bh = Math.max(2, Math.round(vals[j] / mx * (hgt - 4))); h += '<rect x="' + (j * bw + 2).toFixed(1) + '" y="' + (hgt - bh) + '" width="' + (bw - 4).toFixed(1) + '" height="' + bh + '" rx="2" fill="' + (vals[j] ? col : V().chip) + '"/>'; }
   return h + "</svg>";
+}
+
+/* ---------- Incoming: the card shows counts only; a click opens the list ---------- */
+function num(n) { return ("" + n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+function inCounts(F) { var c = { add: 0, chg: 0, rem: 0, ex: F.seen ? 0 : -1 }, pd = F.pending || [], k; for (k = 0; k < pd.length; k++) { if (pd[k].kind == "new") c.add++; else if (pd[k].kind == "deleted") c.rem++; else c.chg++; }
+  if (F.seen) for (k in F.seen) if (F.seen.hasOwnProperty(k)) c.ex++; return c; }
+var inF = 0, inTab = "new", inQ = "";
+function openIn(i) { var W = LT.watchLoad(); if (!W.folders.length) return; inF = Math.min(i || 0, W.folders.length - 1); inQ = ""; $("inQ").value = "";
+  var c = inCounts(W.folders[inF]); inTab = c.add ? "new" : c.chg ? "changed" : c.rem ? "deleted" : "all"; drawIn(); $("inDlg").style.display = "block"; }
+function drawIn() {
+  var W = LT.watchLoad(); if (!W.folders.length) { $("inDlg").style.display = "none"; return; } if (inF >= W.folders.length) inF = 0;
+  var F = W.folders[inF], c = inCounts(F), v = V(), q = LT.trim(inQ).toLowerCase(), h = "", n = 0, i, o = "";
+  for (i = 0; i < W.folders.length; i++) o += '<option value="' + i + '"' + (i == inF ? " selected" : "") + ">" + esc(W.folders[i].name) + "</option>"; $("inSel").innerHTML = o;
+  $("inPath").innerHTML = '<span class="mlk" data-open="' + esc(F.path) + '" title="Open the folder">' + esc(F.path) + "</span>" + (F.at ? " &middot; checked " + esc(ago(F.at)) : "");
+  var T = [["new", "Added", c.add], ["changed", "Changed", c.chg], ["deleted", "Removed", c.rem], ["all", "All files", c.ex]], t = "";
+  for (i = 0; i < T.length; i++) t += '<span class="chip' + (inTab == T[i][0] ? " on" : "") + '" data-intab="' + T[i][0] + '">' + T[i][1] + " " + (T[i][2] < 0 ? "&ndash;" : num(T[i][2])) + "</span>"; $("inTabs").innerHTML = t;
+  var dayOf = function (tm) { var d = new Date(tm), t0 = todayD(); d = new Date(d.getFullYear(), d.getMonth(), d.getDate()); var k = Math.round((t0 - d) / 864e5); return k <= 0 ? "Today" : k == 1 ? "Yesterday" : "Earlier"; };
+  if (inTab == "all") { var rows = []; if (F.seen) for (var k in F.seen) if (F.seen.hasOwnProperty(k) && (!q || k.toLowerCase().indexOf(q) >= 0)) rows.push(k); rows.sort();
+    for (i = 0; i < rows.length && i < 800; i++) { var fn = rows[i].substring(rows[i].lastIndexOf("\\") + 1), sub = rows[i].lastIndexOf("\\") > 0 ? rows[i].substring(0, rows[i].lastIndexOf("\\")) : "";
+      h += '<div class="it" data-open="' + esc(F.path + "\\" + rows[i]) + '"><div class="m">' + esc(fn) + (sub ? '<div class="s muted">in ' + esc(sub) + "</div>" : "") + '</div><span class="r muted">' + esc(LT.fmtDate(LT.iso(new Date(F.seen[rows[i]])))) + "</span></div>"; n++; }
+    if (rows.length > 800) h += '<div class="muted" style="padding:8px 0">&hellip; showing the first 800 of ' + num(rows.length) + " &ndash; type in the search box to narrow it</div>"; if (!rows.length) h = '<div class="muted" style="padding:16px 0">No file matches.</div>'; }
+  else { var pd = F.pending || [], last = ""; for (i = 0; i < pd.length; i++) { var P0 = pd[i], kind = P0.kind == "new" ? "new" : P0.kind == "deleted" ? "deleted" : "changed"; if (kind != inTab || (q && P0.rel.toLowerCase().indexOf(q) < 0)) continue;
+      var dy = dayOf(P0.time); if (dy != last) { last = dy; h += '<div class="wday">' + dy + "</div>"; } n++;
+      var sb = P0.rel.lastIndexOf("\\") > 0 ? P0.rel.substring(0, P0.rel.lastIndexOf("\\")) : "", f2 = P0.rel.substring(P0.rel.lastIndexOf("\\") + 1);
+      h += '<div class="it"' + (kind == "deleted" ? "" : ' data-open="' + esc(P0.path) + '"') + '><span class="dot" style="background:' + (kind == "new" ? v.ok : kind == "deleted" ? v.bad : v.warn) + '"></span><div class="m"' + (kind == "deleted" ? ' style="text-decoration:line-through;opacity:.7"' : "") + ">" + esc(f2) +
+        '<div class="s muted">' + (sb ? "in " + esc(sb) : "") + (P0.code ? ' &middot; <span class="ok">&#128279; output of ' + esc(P0.code) + "</span>" : "") + '</div></div><span class="r muted">' + esc(ago(P0.time)) + "</span></div>"; }
+    if (!n) h = '<div class="muted" style="padding:16px 0">' + (q ? "No file matches." : inTab == "new" ? "Nothing new." : inTab == "changed" ? "Nothing changed." : "Nothing removed.") + "</div>"; }
+  $("inList").innerHTML = h; $("inSeen").style.display = (F.pending || []).length ? "" : "none"; $("inCheck").style.display = (F.pending || []).length ? "" : "none";
 }
 
 /* Home only reads files that changed: a stamp of the data files (+ the day, + 5-minute steps for the "x min ago" texts) decides if it must draw again */
@@ -234,19 +269,13 @@ function render(force) {
   } else $("teamBox").style.display = "none";
   /* incoming: new / changed files in the folders you watch */
   var W = LT.watchLoad(), ih = "", nIn = 0;
-  var dayOf = function (t) { var d = new Date(t), t0 = todayD(); d = new Date(d.getFullYear(), d.getMonth(), d.getDate()); var n = Math.round((t0 - d) / 864e5); return n <= 0 ? "Today" : n == 1 ? "Yesterday" : "Earlier"; };
-  for (var wi = 0; wi < W.folders.length; wi++) { var WF = W.folders[wi], pd = WF.pending || []; nIn += pd.length;
-    var cnt = { "new": 0, changed: 0, deleted: 0 }; for (var c0 = 0; c0 < pd.length; c0++) cnt[pd[c0].kind] = (cnt[pd[c0].kind] || 0) + 1;
-    ih += '<div class="wfh"><b title="' + esc(WF.path) + '">' + LT.icon("folders", 15) + " " + esc(WF.name) + "</b>" + (WF.missing ? ' <span class="bad">not found</span>' : pd.length ? ' <span class="nb2">' + pd.length + "</span>" : ' <span class="muted">nothing new</span>') +
-      '<span class="wa">' + (pd.length ? '<span data-wck="' + wi + '" title="Check them in Folder Check">Check</span><span data-wseen="' + wi + '">Seen</span>' : "") + '<span data-wrm="' + wi + '" title="Stop watching">&#10005;</span></span></div>';
-    ih += '<div class="wsum muted">' + [cnt["new"] ? cnt["new"] + " new" : "", cnt.changed ? cnt.changed + " changed" : "", cnt.deleted ? cnt.deleted + " deleted / moved" : ""].filter(Boolean).join(" &middot; ") + (WF.at ? (pd.length ? " &middot; " : "") + "checked " + esc(ago(WF.at)) : "") + "</div>";
-    var lastDay = "", shownN = 0;
-    for (var wj = 0; wj < pd.length && shownN < 8; wj++) { var P0 = pd[wj], dy = dayOf(P0.time); if (dy != lastDay) { lastDay = dy; ih += '<div class="wday">' + dy + "</div>"; } shownN++;
-      var sub = P0.rel.lastIndexOf("\\") > 0 ? P0.rel.substring(0, P0.rel.lastIndexOf("\\")) : "", fn = P0.rel.substring(P0.rel.lastIndexOf("\\") + 1);
-      ih += '<div class="it"' + (P0.kind == "deleted" ? "" : ' data-open="' + esc(P0.path) + '"') + '><span class="dot" style="background:' + (P0.kind == "new" ? v.ok : P0.kind == "deleted" ? v.bad : v.warn) + '"></span><div class="m"' + (P0.kind == "deleted" ? ' style="text-decoration:line-through;opacity:.7"' : "") + ">" + esc(fn) +
-        '<div class="s muted">' + (P0.kind == "new" ? "new" : P0.kind == "deleted" ? "deleted / moved" : "changed") + (sub ? " &middot; in " + esc(sub) : "") + (P0.code ? ' &middot; <span class="ok">&#128279; output of ' + esc(P0.code) + "</span>" : "") + '</div></div><span class="r muted">' + esc(ago(P0.time)) + "</span></div>"; }
-    if (pd.length > shownN) ih += '<div class="muted s" style="margin:0 0 6px 20px">&hellip; and ' + (pd.length - shownN) + " more</div>"; }
+  for (var wi = 0; wi < W.folders.length; wi++) { var WF = W.folders[wi], pd = WF.pending || [], c = inCounts(WF); nIn += pd.length;
+    var chip = function (cls, n, txt) { return '<span class="wc ' + cls + (n ? "" : " z") + '">' + (n == null || n < 0 ? "&ndash;" : num(n)) + " " + txt + "</span>"; };
+    ih += '<div class="wrow" data-inf="' + wi + '" title="Click to see the files"><div class="wl1"><span class="wn" title="' + esc(WF.path) + '">' + LT.icon("folders", 15) + " " + esc(WF.name) + "</span>" +
+      '<span class="wt muted">' + (WF.at ? esc(ago(WF.at)) : "") + "</span>" + (pd.length ? '<span class="wsn" data-wseen="' + wi + '" title="Mark them as seen">Seen</span>' : "") + "</div>" +
+      '<div class="wl2">' + (WF.missing ? '<span class="bad">not found</span>' : chip("add", c.add, "added") + chip("chg", c.chg, "changed") + chip("rem", c.rem, "removed") + chip("ex", c.ex, "existing")) + "</div></div>"; }
   $("incoming").innerHTML = ih || '<div class="empty muted">Watch the folders where drawings arrive (an Incoming or ACC sync folder): new and changed files show up here and on the bell, checked every 10 minutes.</div>';
+  $("inBox").setAttribute("data-incard", W.folders.length ? "1" : ""); $("inBox").style.cursor = W.folders.length ? "pointer" : "";
   $("nIn").innerHTML = nIn || "";
   /* the weekly report made by itself */
   var rr = s.reportReady && fso.FileExists(s.reportReady) ? s.reportReady : "";
@@ -295,6 +324,7 @@ $("wrap").onclick = function (e) {
   var t0 = e.target || e.srcElement, wa = function (k) { return LT.up(t0, k); }, x;
   if (t0.id == "inRef") { try { if (LT.main()) LT.main().background(); else LT.watchScan(); } catch (er) { } render(true); LT.toast("Checked just now"); return; }
   if (t0.id == "inAdd") { var f = LT.pickFolder("A folder to watch (where new drawings arrive)"); if (f) { LT.watchAdd(f); render(true); LT.toast("Watching " + fso.GetFileName(f) + " - new files show up here and on the bell"); } return; }
+  if ((x = wa("data-incard")) && !wa("data-wseen")) { var rw = wa("data-inf"); openIn(rw ? +rw.getAttribute("data-inf") : 0); return; }
   if ((x = wa("data-wseen"))) { LT.watchSeen(+x.getAttribute("data-wseen")); render(true); try { LT.main().bell(); } catch (er) { } return; }
   if ((x = wa("data-wrm"))) { var W0 = LT.watchLoad(), i0 = +x.getAttribute("data-wrm"); if (confirm('Stop watching "' + W0.folders[i0].name + '"?')) { W0.folders.splice(i0, 1); LT.watchSave(W0); render(true); try { LT.main().bell(); } catch (er) { } } return; }
   if ((x = wa("data-wck"))) { var W1 = LT.watchLoad(), F1 = W1.folders[+x.getAttribute("data-wck")]; if (LT.main()) LT.main().send("check", "check-folder", F1.path); return; }
@@ -306,10 +336,21 @@ $("wrap").onclick = function (e) {
   if (l && LT.main()) { var k = links[+l.getAttribute("data-l")]; if (k.what && k.value !== "") LT.main().send(k.tab, k.what, k.value); else if (k.what == "view") LT.main().send(k.tab, "view", k.value); else LT.main().show(k.tab); return; }
   if (g && LT.main()) { if (g.getAttribute("data-view")) LT.main().send(g.getAttribute("data-go"), "view", g.getAttribute("data-view")); else LT.main().show(g.getAttribute("data-go")); }
 };
-function look() { LT.applyLook([".box,.kpi{background:{panel};border:1px solid {line};border-radius:14px;box-shadow:{shadow}}", ".kpi:hover{border-color:{accent}}", "#heroP{box-shadow:0 14px 34px rgba(234,122,18,.28)}", "#heroP:hover{transform:translateY(-2px)}", "#heroP{transition:transform .2s}", ".srow:hover .sh b{color:{accent}}", ".it{border-bottom:1px solid {line}}.it:last-child{border-bottom:0}", ".it:hover b,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".box h3 .n{background:{chip};color:{muted}}", ".box h3 svg,.kpi .t svg{color:{accent}}", ".tile{background:{bg};border-radius:8px}", ".wfh{display:flex;align-items:center;margin:8px 0 4px}.wfh b{font-weight:600}.wfh svg{color:{accent};vertical-align:-3px}.wfh .wa{margin-left:auto}.wfh>.muted,.wfh>.bad{margin-left:8px}.box h3 .n:empty{display:none}.wfh .wa span{cursor:pointer;margin-left:10px;font-size:.85em;font-weight:600;color:{accent}}.wfh .wa span:last-child{color:{muted}}.wsum{font-size:.8em;margin:0 0 4px 21px}.wday{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:{muted};margin:6px 0 0 21px}.nb2{background:{accent};color:{accText};border-radius:99px;padding:0 8px;font-size:.78em;font-weight:700;margin-left:6px}",
+$("inClose").onclick = function () { $("inDlg").style.display = "none"; };
+$("inDlg").onclick = function (e) { var t = e.target || e.srcElement; if (t === $("inDlg")) { $("inDlg").style.display = "none"; return; }
+  var tb = LT.up(t, "data-intab"), o = LT.up(t, "data-open"); if (tb) { inTab = tb.getAttribute("data-intab"); drawIn(); return; }
+  if (o) { try { LT.open(o.getAttribute("data-open")); } catch (x) { alert("Couldn't open it - it may have moved."); } } };
+$("inSel").onchange = function () { inF = +this.value; var c = inCounts(LT.watchLoad().folders[inF]); inTab = c.add ? "new" : c.chg ? "changed" : c.rem ? "deleted" : "all"; drawIn(); };
+$("inQ").onkeyup = function () { inQ = this.value; drawIn(); };
+$("inSeen").onclick = function () { LT.watchSeen(inF); render(true); drawIn(); try { LT.main().bell(); } catch (er) { } };
+$("inCheck").onclick = function () { var F = LT.watchLoad().folders[inF]; if (F && LT.main()) { $("inDlg").style.display = "none"; LT.main().send("check", "check-folder", F.path); } };
+$("inOpenF").onclick = function () { var F = LT.watchLoad().folders[inF]; if (F) try { LT.open(F.path); } catch (er) { } };
+$("inStop").onclick = function () { var W = LT.watchLoad(), F = W.folders[inF]; if (F && confirm('Stop watching "' + F.name + '"?')) { W.folders.splice(inF, 1); LT.watchSave(W); inF = 0; render(true); drawIn(); try { LT.main().bell(); } catch (er) { } } };
+$("inRef2").onclick = function () { try { if (LT.main()) LT.main().background(); else LT.watchScan(); } catch (er) { } window.setTimeout(function () { render(true); drawIn(); }, 700); };
+function look() { LT.applyLook([".box,.kpi{background:{panel};border:1px solid {line};border-radius:14px;box-shadow:{shadow}}", ".kpi:hover{border-color:{accent}}", "#heroP{box-shadow:0 14px 34px rgba(234,122,18,.28)}", "#heroP:hover{transform:translateY(-2px)}", "#heroP{transition:transform .2s}", ".srow:hover .sh b{color:{accent}}", ".it{border-bottom:1px solid {line}}.it:last-child{border-bottom:0}", ".it:hover b,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".box h3 .n{background:{chip};color:{muted}}", ".box h3 svg,.kpi .t svg{color:{accent}}", ".tile{background:{bg};border-radius:8px}", ".wfh{display:flex;align-items:center;margin:8px 0 4px}.wfh b{font-weight:600}.wfh svg{color:{accent};vertical-align:-3px}.wfh .wa{margin-left:auto}.wfh>.muted,.wfh>.bad{margin-left:8px}.box h3 .n:empty{display:none}.wfh .wa span{cursor:pointer;margin-left:10px;font-size:.85em;font-weight:600;color:{accent}}.wfh .wa span:last-child{color:{muted}}.wrow{padding:7px 0;border-top:1px solid {line}}.wrow:first-child{border-top:0}.wl1{display:flex;align-items:center}.wl1 .wn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}.wrow .wn{font-weight:600;margin-right:10px;white-space:nowrap}.wrow .wn svg{color:{accent};vertical-align:-3px}.wc{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.78em;font-weight:600;background:{chip};margin:2px 6px 2px 0;white-space:nowrap}.wc.add{color:{ok}}.wc.chg{color:{warn}}.wc.rem{color:{bad}}.wc.ex{color:{muted}}.wc.z{opacity:.5}.wrow .wt{font-size:.8em;white-space:nowrap}.wsn{margin-left:10px;cursor:pointer;font-size:.82em;font-weight:600;color:{accent}}#inBox[data-incard=\"1\"]:hover{border-color:{accent}}#inCard{width:900px;max-width:94%;height:84%;display:flex;flex-direction:column}#inList{flex:1 1 auto;min-height:0;overflow:auto;border-top:1px solid {line}}#inCard .acts{margin-top:8px}.wsum{font-size:.8em;margin:0 0 4px 21px}.wday{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:{muted};margin:6px 0 0 21px}.nb2{background:{accent};color:{accText};border-radius:99px;padding:0 8px;font-size:.78em;font-weight:700;margin-left:6px}",
     "#repReady{display:flex;align-items:center;margin-bottom:16px;padding:12px 16px;border-color:{accent}!important}#repReady .rrI{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-right:12px;background:{grad};color:#16120a}#repReady .m{flex:1 1 auto}#repReady .btn{margin:0 0 0 8px}.rrX{cursor:pointer;margin-left:12px;color:{muted}}", "#repBar{background:{panel};border-bottom:1px solid {line}}"]); }
 window.ltTheme = function () { look(); render(true); try { $("repFrame").contentWindow.ltTheme(); } catch (e) { } };
-window.ltShown = function () { if ($("repWrap").style.display != "block") { animNext = true; render(); } }; window.ltReload = function () { render(true); };
+window.ltShown = function () { if ($("repWrap").style.display != "block") { animNext = true; render(); } }; window.ltReload = function () { render(true); if ($("inDlg").style.display == "block") drawIn(); };
 window.ltReceive = function (what) { if (what == "report") report(true); };
 look(); render(); LT.tabKeys();
 </script>

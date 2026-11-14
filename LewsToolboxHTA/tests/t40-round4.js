@@ -94,7 +94,15 @@ module.exports = async ({ page, out }) => {
   const h = page.frame({ url: /home\.html/ }); await quiet(h);
   await h.click('#inRef'); await page.waitForTimeout(300);
   const inc = await h.evaluate(() => $('incoming').innerText);
-  ok(/1 new · 1 deleted \/ moved · checked just now/.test(inc) && /TODAY/i.test(inc) && /old\.pdf[\s\S]*deleted \/ moved/.test(inc), '↻ Refresh checks now: "1 new · 1 deleted / moved · checked just now", grouped by day');
-  ok(await page.evaluate(() => { var s = LT.readJson(LT.dataPath('delegate.json'), null).tasks[0].subs[1]; return s.outputs.some(o => o.auto && /T1-A-305-P01\.pdf$/.test(o.path)); }) && /output of T001\.2/.test(inc), 'A: a new file with a delegated drawing number (A-305) goes into that item\'s Output by itself, and Home says so');
+  ok(/1 added/.test(inc) && /1 removed/.test(inc) && /just now|min ago/.test(inc), '↻ Refresh checks now: the card shows "1 added · 0 changed · 1 removed · N existing" and when it was checked');
+  await h.click('#inBox .wrow'); await page.waitForTimeout(150);
+  const big = await h.evaluate(() => $('inList').innerText);
+  ok(/TODAY/i.test(big) && /T1-A-305-P01\.pdf/.test(big) && /output of T001\.2/.test(big), 'click the card: the bigger view - added files grouped by day, a delegated output marked "output of T001.2"');
+  await h.evaluate(() => { inTab = 'deleted'; drawIn(); });
+  ok(/old\.pdf/.test(await h.evaluate(() => $('inList').innerText)), 'the Removed tab lists old.pdf');
+  await h.evaluate(() => { inTab = 'all'; drawIn(); });
+  ok(await h.evaluate(() => $('inList').querySelectorAll('.it').length >= 1 && /All files 1/.test($('inTabs').innerText)), 'All files: the existing files, with a search box');
+  ok(await page.evaluate(() => { var s = LT.readJson(LT.dataPath('delegate.json'), null).tasks[0].subs[1]; return s.outputs.some(o => o.auto && /T1-A-305-P01\.pdf$/.test(o.path)); }), 'A: a new file with a delegated drawing number (A-305) goes into that item\'s Output by itself');
+  await h.evaluate(() => { inTab = 'new'; drawIn(); });
   await page.screenshot({ path: out + '/r4_incoming.png' });
 };

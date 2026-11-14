@@ -137,6 +137,12 @@ function findTabs() {
 }
 
 function findTab(k) { for (var i = 0; i < tabs.length; i++) if (tabs[i].key == k) return tabs[i]; return null; }
+/* the item you're on: only the classes change (the menu isn't rebuilt on every click) */
+function navMark() {
+  var bs = LT.$("tabs").getElementsByTagName("button"), n = 0, i; for (i = 0; i < bs.length; i++) if (bs[i].getAttribute("data-k")) n++;
+  if (n != tabs.length) { renderNav(); return; }
+  for (i = 0; i < bs.length; i++) { var k = bs[i].getAttribute("data-k"); if (!k) continue; bs[i].className = "nb" + (k == current ? " on" : ""); }
+}
 function renderNav() {
   var h = "", g = "";
   for (var i = 0; i < tabs.length; i++) {
@@ -159,9 +165,9 @@ function show(key) {
     LT.$("body").insertAdjacentHTML("beforeend", '<iframe application="yes" id="f_' + t.key + '" src="tabs/' + encodeURI(t.file.substring(t.file.lastIndexOf("\\") + 1)) + '"></iframe>');
     frames[t.key] = LT.$("f_" + t.key);
   }
-  for (var k in frames) if (frames.hasOwnProperty(k)) { frames[k].style.display = (k == t.key ? "block" : "none"); if (k == t.key && current != t.key) { frames[k].className = ""; void frames[k].offsetWidth; frames[k].className = "enter"; } }
+  for (var k in frames) if (frames.hasOwnProperty(k)) { frames[k].style.display = (k == t.key ? "block" : "none"); if (k == t.key && current != t.key) { if (LT.smooth()) frames[k].className = ""; else { frames[k].className = ""; void frames[k].offsetWidth; frames[k].className = "enter"; } } }
   current = t.key;
-  renderNav(); movePill(true);
+  navMark(); movePill(true);
   var s = LT.settings(); s.lastTab = current; LT.saveSettings(s);
   try { var w = frames[t.key].contentWindow; if (w && w.ltShown) w.ltShown(); } catch (x) { }
   try { frames[t.key].focus(); } catch (x) { }
@@ -172,7 +178,7 @@ var LTMain = {
   show: show,
   showIndex: function (n) { if (tabs[n]) show(tabs[n].key); },
   /* opens a tab and hands it a message, e.g. Launcher -> Bulk Files "open-folder" */
-  background: function () { background(); },
+  background: function () { background(10); },
   bell: function () { bell(); },
   autoReport: function () { autoReport(true); },
   send: function (key, what, value) {
@@ -234,7 +240,7 @@ function look() {
   var v = LT.themeVars();
   if (v.ember) rules.push("body{background:{outer}}#nav{border:1px solid {line}}#top{background:transparent;border-bottom:0}#me{background:{grad};color:#16120a}#brand .logo{background:{grad};color:#16120a}",
     "#sbox{background:{panel};border-radius:99px}#proj{border-radius:99px}#proj:hover{background:{panel}}.tb{border-radius:99px}.tb:hover{background:{panel}}");
-  if (v.glass) rules.push("body{background-color:{outer};background-image:{glassBg};background-attachment:fixed}",
+  if (v.glass) rules.push("body{background-color:{outer};background-image:{glassBg}}",
     "#nav{background:{cardImg};border:1px solid {line};box-shadow:{shadow},{rim}}#body{border:1px solid {line};box-shadow:inset 0 1px 0 {hi},0 18px 44px rgba(0,0,0,.28)}",
     "#sbox,#proj:hover,#clock,#newB,#tsw,#meBox,#bellB{box-shadow:inset 0 1px 0 {hi}}#sbox,#clock,#newB,#tsw,#meBox{background-image:{cardImg}}",
     "#pill{box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 6px 20px rgba(255,90,31,.2);border:1px solid {line}}.nbadge.hot,.nb.on .nbadge{color:#fff}#me,#brand .logo{color:#fff}",
@@ -407,7 +413,8 @@ function movePill(anim) {
   var p = LT.$("pill"), tb = LT.$("tabs"), b = null, bs = tb.getElementsByTagName("button"); for (var i = 0; i < bs.length; i++) if (/(^| )on( |$)/.test(bs[i].className)) b = bs[i];
   if (!b) { p.style.display = "none"; return; } p.style.display = "block";
   var wrap = LT.$("tabsWrap"), top = b.offsetTop - tb.scrollTop + tb.offsetTop, bot = wrap.offsetHeight - top - b.offsetHeight;
-  if (anim && pillAt) { var down = top > pillAt.top, fast = "cubic-bezier(.3,1.4,.5,1)", slow = "cubic-bezier(.65,0,.35,1)";
+  if (anim && pillAt && LT.smooth()) p.style.transition = "top .16s ease-out,bottom .16s ease-out";
+  else if (anim && pillAt) { var down = top > pillAt.top, fast = "cubic-bezier(.3,1.4,.5,1)", slow = "cubic-bezier(.65,0,.35,1)";
     p.style.transition = down ? "bottom .34s " + fast + ",top .55s " + slow : "top .34s " + fast + ",bottom .55s " + slow; }
   else p.style.transition = "none";
   p.style.top = top + "px"; p.style.bottom = bot + "px"; pillAt = { top: top };
@@ -463,13 +470,20 @@ function remindData() {
   return o;
 }
 /* ---------- in the background (every 10 minutes): watched folders, the automatic weekly report ---------- */
-function background() {
-  try { var before = LT.watchPending(), n = LT.watchScan(), mt = LT.watchMatch();
-    if (n > before) { LT.$("bellB").className = "tb glow"; LT.toast((n - before) + " new / changed file" + (n - before > 1 ? "s" : "") + " in the folders you watch"); }
-    if (mt.length) { LT.toast("Output received: " + mt.slice(0, 3).map(function (x) { return x.code; }).join(", ") + (mt.length > 3 ? "..." : "") + " (Delegate)"); try { frames.delegate.contentWindow.ltReload(); } catch (e) { } }
-    if (n != before || mt.length) try { frames.home.contentWindow.ltReload(); } catch (e) { } } catch (e2) { }
-  try { autoReport(); } catch (e3) { }
-  bell();
+function background(tries) {
+  /* if you're clicking / scrolling / typing, wait a few seconds (up to ~40 s): a folder check can take a moment and would make the window stutter */
+  tries = tries || 0; var idle = new Date().getTime() - (window.__act || 0);
+  if (idle < 3000 && tries < 10) { window.setTimeout(function () { background(tries + 1); }, 4000); return; }
+  var before = 0, W = null; try { before = LT.watchPending(); W = LT.watchLoad(); } catch (e0) { W = { folders: [] }; }
+  var k = 0, step = function () {
+    if (k < W.folders.length) { try { LT.watchScan(k); } catch (e1) { } k++; window.setTimeout(step, 80); return; }   // a folder at a time, a breath between
+    try { var n = LT.watchPending(), mt = LT.watchMatch();
+      if (n > before) { LT.$("bellB").className = "tb glow"; LT.toast((n - before) + " new / changed file" + (n - before > 1 ? "s" : "") + " in the folders you watch"); }
+      if (mt.length) { LT.toast("Output received: " + mt.slice(0, 3).map(function (x) { return x.code; }).join(", ") + (mt.length > 3 ? "..." : "") + " (Delegate)"); try { frames.delegate.contentWindow.ltReload(); } catch (e) { } }
+      if (n != before || mt.length) try { frames.home.contentWindow.ltReload(); } catch (e) { } } catch (e2) { }
+    try { autoReport(); } catch (e3) { }
+    bell(); };
+  step();
 }
 /* the weekly report makes itself (Settings): on the chosen day or later in the week, once a week, into exports\Weekly reports */
 function autoReport(force) {

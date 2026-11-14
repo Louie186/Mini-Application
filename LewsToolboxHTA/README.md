@@ -488,6 +488,8 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 
 ## Settings
 
+- **⚡ Speed** – **Smooth mode** (on by default, every look): no animations, lighter shadows, nothing that repaints the whole window – clicking and scrolling stay quick. Switch it off to get the sliding / fading / counting animations back (nicer on a fast PC). Behind it: the menu isn't rebuilt on every click, Home only reads files that changed, and the folder check (Incoming) **waits while you're clicking or typing** and then checks one folder at a time
+  - **Turn on graphics acceleration…** (optional) – Windows draws the Toolbox window without your graphics card unless told to. This sets one **user** setting (`HKCU` … `FEATURE_GPU_RENDERING` for `mshta.exe`; no admin needed), then restart the Toolbox. **Turn it off again** removes it. If your IT has locked it, nothing changes
 - **Hover tips** (on by default): point at a tab in the side menu to see what it does. Settings also lists **what each tab does**
 - Looks (Light, Dark, Blueprint, Retro 8-bit, Retro Grey, Retro Console, Slate, Slate Light) and text size – every tab follows
 - Your name, data folder, Launcher list, Lew's Tracker link, taskbar shortcut

@@ -18,6 +18,12 @@
   <div id="themes"></div>
   <div><span class="muted">Text size: </span><span id="sizes"></span></div>
 
+  <div class="h">Speed</div>
+  <label><input type="checkbox" id="smooth" style="height:auto"> <b>Smooth mode</b> (recommended) &ndash; no animations, lighter shadows: clicking and scrolling stay quick on every look</label>
+  <div class="muted">Switch it off to get the sliding, fading and counting animations back (nicer on a fast PC, slower on others).</div>
+  <div style="margin-top:6px"><button class="btn small" id="bGpu">&#9889; Turn on graphics acceleration...</button><button class="btn small" id="bGpuOff">Turn it off again</button> <span class="muted" id="gpuInfo"></span></div>
+  <div class="muted">Windows draws the Toolbox window without your graphics card unless told to. This sets one <b>user</b> setting (no admin needed, only for this program, <b>mshta.exe</b>) &ndash; restart the Toolbox after. If anything looks wrong, <b>Turn it off again</b>.</div>
+
   <div class="h">Hover tips</div>
   <label><input type="checkbox" id="tips" style="height:auto"> Show what each tab does when the mouse is over it in the side menu</label>
 
@@ -104,7 +110,7 @@ function refresh() {
   LT.$("autoRep").checked = !!S.autoReport; LT.$("autoDay").value = "" + (S.autoReportDay || 5);
   LT.$("lhPath").innerHTML = S.launcherHome ? LT.esc(S.launcherHome + "\\QuickLaunch-data") + ' <span class="muted">(shared with QuickLaunch.hta)</span>' : LT.esc(LT.dataDir() + "\\QuickLaunch-data") + ' <span class="muted">(the Toolbox\'s own list)</span>';
   LT.$("trPath").innerHTML = S.trackerFolder ? LT.esc(S.trackerFolder) : '<span class="muted">Not linked</span>';
-  LT.$("tips").checked = S.tips !== false;
+  LT.$("tips").checked = S.tips !== false; LT.$("smooth").checked = S.smooth !== false; gpuShow();
   LT.$("remind").checked = S.remind !== false;
   LT.$("askLog").checked = S.askLog !== false; var off = []; for (var ak in (S.askLogOff || {})) if (S.askLogOff.hasOwnProperty(ak)) off.push(ak); LT.$("askOffN").innerHTML = off.length ? "Not asking for: " + LT.esc(off.join(", ")) : "";
   var tl = LT.main() ? LT.main().tabList() : [], th = "";
@@ -173,6 +179,15 @@ LT.$("bTr").onclick = function () {
 };
 LT.$("bTrOff").onclick = function () { save(function (s) { s.trackerFolder = ""; }); };
 LT.$("bPin").onclick = function () { if (LT.main()) { var l = LT.main().makeShortcut(); if (l) alert("A Lew's Toolbox shortcut is on your Desktop (it's selected).\n\nRight-click it > Pin to taskbar\n(Windows 11: right-click > Show more options > Pin to taskbar)."); } };
+
+/* ---------- speed ---------- */
+LT.$("smooth").onclick = function () { var on = this.checked; save(function (s) { s.smooth = on; }); look(); if (LT.main()) LT.main().themeChanged(window); LT.toast(on ? "Smooth mode on" : "Smooth mode off - animations are back"); };
+var GPU = "HKCU\\Software\\Microsoft\\Internet Explorer\\Main\\FeatureControl\\FEATURE_GPU_RENDERING\\mshta.exe";
+function gpuState() { try { return LT.wsh.RegRead(GPU) == 1; } catch (e) { return false; } }
+function gpuShow() { var on = gpuState(); LT.$("gpuInfo").innerHTML = on ? '<span class="ok">&#10004; on (takes effect after a restart)</span>' : "off"; LT.$("bGpuOff").style.display = on ? "" : "none"; LT.$("bGpu").style.display = on ? "none" : ""; }
+LT.$("bGpu").onclick = function () { if (!confirm("Turn on graphics acceleration for the Toolbox window?\n\nIt changes one setting for your Windows user (HKCU, only for mshta.exe) - no admin needed.\nRestart the Toolbox afterwards. If the window looks wrong, come back here and turn it off.")) return;
+  try { LT.wsh.RegWrite(GPU, 1, "REG_DWORD"); gpuShow(); alert("Done. Close the Toolbox and open it again."); } catch (e) { alert("Windows didn't allow the change (your IT may have locked it). Nothing was changed.\n\nSmooth mode still helps."); } };
+LT.$("bGpuOff").onclick = function () { try { LT.wsh.RegDelete(GPU); } catch (e) { } gpuShow(); alert("Turned off. Close the Toolbox and open it again."); };
 
 /* ---------- weekly report by itself ---------- */
 LT.$("autoRep").onclick = function () { var on = this.checked; save(function (s) { s.autoReport = on; }); if (on) LT.toast("Your weekly report will be made every " + LT.$("autoDay").options[LT.$("autoDay").selectedIndex].text); };

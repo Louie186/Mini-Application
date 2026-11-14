@@ -137,12 +137,12 @@ var LT = (function () {
   L.watchSave = function (w) { try { L.saveJson(L.dataPath("watch.json"), w); } catch (e) { } };
   L.watchAdd = function (path, name) { var w = L.watchLoad(); for (var i = 0; i < w.folders.length; i++) if (w.folders[i].path.toLowerCase() == path.toLowerCase()) return false;
     w.folders.push({ path: path, name: name || fso.GetFileName(path), seen: null, pending: [] }); L.watchSave(w); L.watchScan(); return true; };
-  L.watchScan = function () {
+  L.watchScan = function (only) {   // only = one folder's index (the main window goes folder by folder so the window stays responsive)
     var w = L.watchLoad(), total = 0;
-    for (var i = 0; i < w.folders.length; i++) { var F = w.folders[i], now = {}, n = 0; F.pending = F.pending || [];
+    for (var i = 0; i < w.folders.length; i++) { if (only != null && i != only) { total += (w.folders[i].pending || []).length; continue; } var F = w.folders[i], now = {}, n = 0; F.pending = F.pending || [];
       if (!fso.FolderExists(F.path)) { F.missing = true; continue; } F.missing = false;
       var walk = function (dir, rel, depth) { var fo; try { fo = fso.GetFolder(dir); } catch (e) { return; }
-        var e = new Enumerator(fo.Files); for (; !e.atEnd() && n < 3000; e.moveNext()) { var f = e.item(), nm = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$|\.tmp$/i.test(nm)) continue; var t = 0; try { t = +new Date(f.DateLastModified); } catch (x) { } now[rel + nm] = t; n++; }
+        var e = new Enumerator(fo.Files); for (; !e.atEnd() && n < 2000; e.moveNext()) { var f = e.item(), nm = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$|\.tmp$/i.test(nm)) continue; var t = 0; try { t = +new Date(f.DateLastModified); } catch (x) { } now[rel + nm] = t; n++; }
         if (depth < 3) { var sf = new Enumerator(fo.SubFolders); for (; !sf.atEnd(); sf.moveNext()) if (!(sf.item().Attributes & 6)) walk("" + sf.item().Path, rel + sf.item().Name + "\\", depth + 1); } };
       walk(F.path, "", 0);
       if (F.seen) { var pend = {}; for (var p = 0; p < F.pending.length; p++) pend[F.pending[p].rel] = F.pending[p];
@@ -484,6 +484,8 @@ var LT = (function () {
     ".dpF{display:flex;justify-content:space-between;margin-top:6px;border-top:1px solid {line};padding-top:5px;font-size:.9em}",
     "a{color:{accent}}"
   ];
+  /* Smooth mode (Settings, on by default): no animations, lighter shadows, nothing that repaints the whole window - the old HTA engine draws in software */
+  L.smooth = function () { return L.settings().smooth !== false; };
   L.themeVars = function () {
     var s = L.settings(), t = L.THEMES[s.theme] || L.THEMES.ember, z = L.SIZES[s.size] || L.SIZES.normal, v = {};
     for (var a in t) v[a] = t[a]; for (var b in z) v[b] = z[b];
@@ -496,6 +498,7 @@ var LT = (function () {
     v.okSoft = soft(v.ok, .18); v.warnSoft = soft(v.warn, .2); v.badSoft = soft(v.bad, .2); v.accSoft = soft(v.accent, .12);
     v.rowAlt = t.glass ? (t.bg == "#0d0a09" ? "rgba(255,255,255,.035)" : "rgba(255,255,255,.35)") : t.ember ? (t.bg == "#0c0c0d" ? "#1b1b1e" : "#fbfaf8") : t.studio ? (t.bg == "#0b0f17" ? "#0f1420" : "#fafbfd") : "transparent";
     v.side = v.side || v.panel; v.sideText = v.sideText || v.text; v.sideMuted = v.sideMuted || v.muted; v.sideHover = v.sideHover || v.hover; v.sideHi = t.ember ? v.text : t.side ? "#ffffff" : v.text; v.pill = t.pill || v.accent; v.pillText = t.pillText || v.accText; v.grad = t.grad || v.accent; v.outer = t.outer || v.side; v.sideLine = t.side ? t.side : v.line;
+    if (L.smooth()) { v.smooth = 1; if (t.glass) { v.shadow = "inset 0 1px 0 " + v.hi; v.rim = "0 0 0 0 transparent"; } }
     return v;
   };
   function setCss(el, css) { if (el.styleSheet && typeof el.styleSheet.cssText == "string") el.styleSheet.cssText = css; else el.textContent = css; }
@@ -538,7 +541,7 @@ var LT = (function () {
       "#menu{border-radius:14px}");
     /* Glass: translucent panels with a lit edge over a soft glow (the old IE engine can't blur what is behind, so the "frost" is painted) */
     if (v.glass) rules.push(
-      "html,body{background-color:{outer}}body{background-image:{glassBg};background-attachment:fixed}",
+      "html,body{background-color:{outer}}body{background-image:{glassBg}}",
       "input,select,textarea{background:{inputBg}}select option{background:{solid};color:{text}}",
       ".btn{background:linear-gradient(180deg,{hi},rgba(255,255,255,.03));box-shadow:inset 0 1px 0 {hi}}.btn.primary{background:{grad};color:#fff;box-shadow:0 6px 18px rgba(255,90,31,.35),inset 0 1px 0 rgba(255,255,255,.35)}.btn.on{background:{pill}}",
       ".card,.box,.kpi,.cd,.wc,.mc,.pk,.og,.dc{background-image:{cardImg}!important;border:1px solid {line};box-shadow:{shadow}}",
@@ -548,6 +551,10 @@ var LT = (function () {
       "table.grid th,table.grid td.fz,.fhc th{background:{solid}}",
       "#menu,.ov .card,#nd{background-color:{solid}!important;border:1px solid {line}}#toast{background:{solid};color:{text};border:1px solid {line}}",
       ".chip.on{background:{pill}}");
+    /* Smooth: instant (no transitions / animations / hover lift); glass lists sit on a solid layer so scrolling doesn't re-blend a gradient */
+    if (v.smooth) rules.push("*:not(#pill){-ms-transition:none!important;transition:none!important;animation:none!important}",
+      ".kpi:hover,.cd:hover,.mc:hover,.pk:hover,.dc:hover,.wc:hover,#heroP:hover{transform:none!important}");
+    if (v.smooth && v.glass) rules.push("#res,#main,#docs,#hRes,.pl,.ml,#tfDrop{background-color:{solid}!important}");
     rules = rules.concat(extra);   // the tab's own rules last: they win
     var el = document.getElementById("ltTheme");
     if (!el) { el = document.createElement("style"); el.id = "ltTheme"; document.getElementsByTagName("head")[0].appendChild(el); }
@@ -668,8 +675,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.20";
+  L.VERSION = "2026.11.21";
   L.WHATS_NEW = [
+    { v: "2026.11.21", items: [
+      "<b>Smoother on every look</b>: <b>Smooth mode</b> (Settings &rsaquo; Speed, on by default) &ndash; no animations or heavy effects; the menu and Home do less work; the folder check waits while you're clicking. Optional <b>graphics acceleration</b> for the window" ] },
     { v: "2026.11.20", items: [
       "<b>New look: Glass</b> (Settings &rsaquo; Look): frosted-glass panels over a soft orange glow &ndash; <b>Glass</b> (dark) and <b>Glass Light</b>. The &#9728; / &#9790; switch moves between them" ] },
     { v: "2026.11.19", items: [
@@ -990,6 +999,10 @@ var LT = (function () {
     var rs = function () { fzRules(); }; if (window.addEventListener) window.addEventListener("resize", rs, false); else window.attachEvent("onresize", rs);
   })();
 
+  /* the user is working: stamp it on the main window, so folder checks etc. wait for a quiet moment */
+  (function () { var last = 0, mark = function () { var n = new Date().getTime(); if (n - last < 400) return; last = n; try { top.__act = n; } catch (e) { } };
+    var on = function (ev) { if (document.addEventListener) document.addEventListener(ev, mark, true); else if (document.attachEvent) document.attachEvent("on" + ev, mark); };
+    on("mousemove"); on("keydown"); on("mousedown"); on("mousewheel"); on("wheel"); })();
   L.tabKeys = function () {
     var h = function (e) {
       e = e || window.event;

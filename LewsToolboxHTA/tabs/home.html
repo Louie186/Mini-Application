@@ -114,7 +114,19 @@ function spark(vals, w, hgt, col) {   // little column chart
   return h + "</svg>";
 }
 
-function render() {
+/* Home only reads files that changed: a stamp of the data files (+ the day, + 5-minute steps for the "x min ago" texts) decides if it must draw again */
+var lastSig = "", lastLook = "";
+function dataSig() {
+  var fs = LT.fso, names = ["tracker.json", "delegate.json", "workload.json", "transmittals.json", "watch.json", "register.json"], o = [], i, p;
+  try { var ix = LT.registerIndex(); if (ix.current) names.push("register\\" + ix.current + ".json"); } catch (e) { }
+  for (i = 0; i < names.length; i++) { p = LT.dataPath(names[i]); try { if (fs.FileExists(p)) { var f = fs.GetFile(p); o.push(+new Date(f.DateLastModified) + ":" + f.Size); } else o.push("-"); } catch (e) { o.push("?"); } }
+  try { var sf = LT.settingsFile(); if (fs.FileExists(sf)) { var g = fs.GetFile(sf); o.push(+new Date(g.DateLastModified) + ":" + g.Size); } } catch (e) { }
+  return o.join("|") + "|" + LT.today() + "|" + Math.floor(new Date().getTime() / 300000);
+}
+function render(force) {
+  var sig = dataSig() + "|" + (LT.settings().theme || "") + "|" + (LT.smooth() ? 1 : 0);
+  if (force !== true && sig == lastSig && $("kpis").innerHTML) { intro(); return; }   // nothing changed: just show what is there
+  lastSig = sig;
   links = []; var v = V();
   var s = LT.settings(), hr = new Date().getHours(), name = (s.userName || "").split(/[ .]/)[0];
   $("hello").innerHTML = (hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening") + (name ? ", " + esc(name.charAt(0).toUpperCase() + name.substring(1)) : "");
@@ -249,6 +261,7 @@ function intro() {
   var w = $("wrap"), r = [], all = w.getElementsByTagName("div"), segs = w.getElementsByTagName("i"), i;
   for (i = 0; i < all.length; i++) if (/\brise\b/.test(all[i].className)) r.push(all[i]);
   var grow = function () { for (var j = 0; j < segs.length; j++) if (segs[j].getAttribute("data-w")) segs[j].style.width = segs[j].getAttribute("data-w") + "%"; };
+  if (LT.smooth()) { w.className = ""; var tw = w.getElementsByTagName("i"); for (i = 0; i < segs.length; i++) segs[i].style.transition = "none"; grow(); animNext = false; return; }
   if (!animNext) { w.className = ""; var tr0 = []; for (i = 0; i < segs.length; i++) { tr0.push(segs[i].style.transition); segs[i].style.transition = "none"; } grow(); return; }
   animNext = false; w.className = "anim";
   for (i = 0; i < r.length; i++) r[i].style.animationDelay = (i * 0.06).toFixed(2) + "s";
@@ -272,18 +285,18 @@ function loadOf(name, wl, dl) {
   return h;
 }
 function ago(t) { if (!t) return ""; var m = Math.round((new Date() - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : LT.fmtDate(LT.iso(new Date(t))); }
-function repDone() { var s = LT.settings(); s.reportReady = ""; LT.saveSettings(s); render(); try { LT.main().bell(); } catch (e) { } }
+function repDone() { var s = LT.settings(); s.reportReady = ""; LT.saveSettings(s); render(true); try { LT.main().bell(); } catch (e) { } }
 /* the weekly report opens inside Home */
 function report(on) { $("repWrap").style.display = on ? "block" : "none"; $("wrap").style.display = on ? "none" : ""; if (on) { var f = $("repFrame"); if (!f.src) f.src = "parts/report.html"; else try { f.contentWindow.ltShown && f.contentWindow.ltShown(); } catch (e) { } } }
-$("bRep").onclick = function () { report(true); }; $("repBack").onclick = function () { report(false); render(); };
+$("bRep").onclick = function () { report(true); }; $("repBack").onclick = function () { report(false); render(true); };
 $("bAdd").onclick = function () { var v = LT.trim($("quick").value); if (!v) { $("quick").focus(); return; } if (LT.main()) { LT.main().send("tracker", "add-task", v); $("quick").value = ""; } };
 $("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { $("bAdd").onclick(); return false; } };
 $("wrap").onclick = function (e) {
   var t0 = e.target || e.srcElement, wa = function (k) { return LT.up(t0, k); }, x;
-  if (t0.id == "inRef") { try { if (LT.main()) LT.main().background(); else LT.watchScan(); } catch (er) { } render(); LT.toast("Checked just now"); return; }
-  if (t0.id == "inAdd") { var f = LT.pickFolder("A folder to watch (where new drawings arrive)"); if (f) { LT.watchAdd(f); render(); LT.toast("Watching " + fso.GetFileName(f) + " - new files show up here and on the bell"); } return; }
-  if ((x = wa("data-wseen"))) { LT.watchSeen(+x.getAttribute("data-wseen")); render(); try { LT.main().bell(); } catch (er) { } return; }
-  if ((x = wa("data-wrm"))) { var W0 = LT.watchLoad(), i0 = +x.getAttribute("data-wrm"); if (confirm('Stop watching "' + W0.folders[i0].name + '"?')) { W0.folders.splice(i0, 1); LT.watchSave(W0); render(); try { LT.main().bell(); } catch (er) { } } return; }
+  if (t0.id == "inRef") { try { if (LT.main()) LT.main().background(); else LT.watchScan(); } catch (er) { } render(true); LT.toast("Checked just now"); return; }
+  if (t0.id == "inAdd") { var f = LT.pickFolder("A folder to watch (where new drawings arrive)"); if (f) { LT.watchAdd(f); render(true); LT.toast("Watching " + fso.GetFileName(f) + " - new files show up here and on the bell"); } return; }
+  if ((x = wa("data-wseen"))) { LT.watchSeen(+x.getAttribute("data-wseen")); render(true); try { LT.main().bell(); } catch (er) { } return; }
+  if ((x = wa("data-wrm"))) { var W0 = LT.watchLoad(), i0 = +x.getAttribute("data-wrm"); if (confirm('Stop watching "' + W0.folders[i0].name + '"?')) { W0.folders.splice(i0, 1); LT.watchSave(W0); render(true); try { LT.main().bell(); } catch (er) { } } return; }
   if ((x = wa("data-wck"))) { var W1 = LT.watchLoad(), F1 = W1.folders[+x.getAttribute("data-wck")]; if (LT.main()) LT.main().send("check", "check-folder", F1.path); return; }
   if (t0.id == "rrOpen") { try { LT.open(LT.settings().reportReady); } catch (er) { } repDone(); return; }
   if (t0.id == "rrCopy") { var tx = LT.settings().reportReady.replace(/\.html$/i, ".txt"); try { if (LT.copyText(LT.readText(tx))) LT.toast("Copied - paste it into an email or Teams"); } catch (er) { } repDone(); return; }
@@ -295,8 +308,8 @@ $("wrap").onclick = function (e) {
 };
 function look() { LT.applyLook([".box,.kpi{background:{panel};border:1px solid {line};border-radius:14px;box-shadow:{shadow}}", ".kpi:hover{border-color:{accent}}", "#heroP{box-shadow:0 14px 34px rgba(234,122,18,.28)}", "#heroP:hover{transform:translateY(-2px)}", "#heroP{transition:transform .2s}", ".srow:hover .sh b{color:{accent}}", ".it{border-bottom:1px solid {line}}.it:last-child{border-bottom:0}", ".it:hover b,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".box h3 .n{background:{chip};color:{muted}}", ".box h3 svg,.kpi .t svg{color:{accent}}", ".tile{background:{bg};border-radius:8px}", ".wfh{display:flex;align-items:center;margin:8px 0 4px}.wfh b{font-weight:600}.wfh svg{color:{accent};vertical-align:-3px}.wfh .wa{margin-left:auto}.wfh>.muted,.wfh>.bad{margin-left:8px}.box h3 .n:empty{display:none}.wfh .wa span{cursor:pointer;margin-left:10px;font-size:.85em;font-weight:600;color:{accent}}.wfh .wa span:last-child{color:{muted}}.wsum{font-size:.8em;margin:0 0 4px 21px}.wday{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:{muted};margin:6px 0 0 21px}.nb2{background:{accent};color:{accText};border-radius:99px;padding:0 8px;font-size:.78em;font-weight:700;margin-left:6px}",
     "#repReady{display:flex;align-items:center;margin-bottom:16px;padding:12px 16px;border-color:{accent}!important}#repReady .rrI{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-right:12px;background:{grad};color:#16120a}#repReady .m{flex:1 1 auto}#repReady .btn{margin:0 0 0 8px}.rrX{cursor:pointer;margin-left:12px;color:{muted}}", "#repBar{background:{panel};border-bottom:1px solid {line}}"]); }
-window.ltTheme = function () { look(); render(); try { $("repFrame").contentWindow.ltTheme(); } catch (e) { } };
-window.ltShown = function () { if ($("repWrap").style.display != "block") { animNext = true; render(); } }; window.ltReload = render;
+window.ltTheme = function () { look(); render(true); try { $("repFrame").contentWindow.ltTheme(); } catch (e) { } };
+window.ltShown = function () { if ($("repWrap").style.display != "block") { animNext = true; render(); } }; window.ltReload = function () { render(true); };
 window.ltReceive = function (what) { if (what == "report") report(true); };
 look(); render(); LT.tabKeys();
 </script>

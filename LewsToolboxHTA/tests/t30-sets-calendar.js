@@ -37,7 +37,7 @@ module.exports = async ({ page, out, drag }) => {
   await t.evaluate(() => { var x = byCode('TL-001'); x.due = LT.today(); save(); data.view = 'cal'; calMonth = null; render(); });
   ok(await t.evaluate(() => /Print serviced units/.test($('main').querySelector('td.tdy').innerText)), 'Calendar view: the task on its due day (today)');
   const tgt = await t.evaluate(() => { var d = new Date(); d.setDate(d.getDate() + (d.getDate() > 20 ? -2 : 2)); return LT.iso(d); });
-  await t.dragAndDrop('td.tdy .ev', 'td[data-day="' + tgt + '"]'); await page.waitForTimeout(150);
+  await drag(t, 'td.tdy .ev', 'td[data-day="' + tgt + '"]'); await page.waitForTimeout(150);
   ok(await t.evaluate(tgt => byCode('TL-001').due == tgt && /moved to/.test($('toast').innerText) && /Due moved/.test(JSON.stringify(byCode('TL-001').events)), tgt), 'drag to another day: due date moved (with Undo, on the timeline)');
   await t.click('#toastUndo'); await page.waitForTimeout(100);
   ok(await t.evaluate(() => byCode('TL-001').due == LT.today()), 'Undo puts it back');
@@ -50,6 +50,7 @@ module.exports = async ({ page, out, drag }) => {
   // a task with no date: in the strip, drag onto a day
   await t.evaluate(() => { var x = blank(); x.title = 'Undated thing'; addTask(x); save(); render(); });
   ok(await t.evaluate(() => /Undated thing/.test($('main').querySelector('.nodate').innerText)), 'tasks with no due date wait in a strip above the calendar');
+  await page.evaluate(() => { var x = document.getElementById('toast'); if (x) x.style.display = 'none'; }); await t.evaluate(() => { var x = document.getElementById('toast'); if (x) x.style.display = 'none'; });   // the "Copied" toast of the step before sits over today's cell for 6 s
   await drag(t, '.nodate .ev', 'td.tdy'); await page.waitForTimeout(150);
   ok(await t.evaluate(() => byCode('TL-003').due == LT.today()), 'drag it onto a day: it gets that date');
 };

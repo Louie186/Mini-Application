@@ -675,8 +675,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.23";
+  L.VERSION = "2026.11.24";
   L.WHATS_NEW = [
+    { v: "2026.11.24", items: [
+      "<b>&#127936; Fun</b> (new tab): a little break &ndash; pull the file back and shoot it into the hoop. Your own files can wait in the queue; optionally the files you score are copied into a folder" ] },
     { v: "2026.11.23", items: [
       "<b>&#128200; S-curve</b> (Drawing Register): drawings issued over time against a planned S &ndash; ahead / behind plan, your pace and the finish date at that pace. Type the start and finish once; the actual line comes from your Transmittal log" ] },
     { v: "2026.11.22", items: [

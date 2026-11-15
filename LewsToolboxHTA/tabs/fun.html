@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Fun</title>
+<meta name="lt-order" content="11">
+<meta name="lt-group" content="Fun">
+<meta name="lt-icon" content="&#127936;">
+<meta name="lt-desc" content="A little break: pull the file back and shoot it into the hoop. Optional: the files you score can be copied into a folder you choose (a fun drop box).">
+<!--
+  Lew's Toolbox - Fun. A slingshot game: pull the file back, let go, shoot it into the hoop.
+  Your own files can be in the queue (Browse a file / Paste files = what you copied in Explorer). Optional: a scored file is COPIED
+  (never moved, never overwritten) into a folder you pick. Score and best streak are kept in fun.json.
+  Written for the HTA (Internet Explorer engine): no CSS variables, SVG styled by attributes, movement drawn by script.
+-->
+<style>
+#app{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden}
+#stage{position:absolute;left:0;top:0;right:0;bottom:0;overflow:hidden;-ms-user-select:none;user-select:none}
+#world{position:absolute;left:0;top:0;z-index:5;-ms-transform-origin:0 0;transform-origin:0 0}
+#head{position:absolute;left:0;right:0;top:0;z-index:20;padding:16px 18px 8px;pointer-events:none}
+#head .row{display:flex;justify-content:space-between;align-items:flex-start}
+#head h1{margin:0;font-size:26px;line-height:1.15;font-weight:600}
+#head .sub{margin:4px 0 0;font-size:14px}
+#head .actions{margin-top:10px;pointer-events:auto}
+#head .actions .btn{margin:0 8px 6px 0}
+#badge{white-space:nowrap;padding:6px 14px;border-radius:99px;font-size:13px;font-weight:500}
+#badge b{font-size:15px;font-weight:600}
+#opt{margin-top:2px;pointer-events:auto;font-size:13px}
+#opt input{height:auto;margin-right:6px;vertical-align:-2px}
+#hoopg{position:absolute;width:400px;height:260px}
+#zone{position:absolute;left:84px;top:10px;width:232px;height:150px;z-index:1;border-radius:18px;text-align:center;padding-top:14px}
+#zone svg{width:22px;height:22px}
+#zone .zt{margin-top:6px;font-size:18px;font-weight:500}
+#zone .zs{font-size:12px;margin-top:2px}
+svg.hoop{position:absolute;left:0;top:0;width:400px;height:260px;z-index:3;pointer-events:none;overflow:visible}
+#pop{position:absolute;left:256px;top:92px;z-index:6;font-size:28px;font-weight:700;opacity:0;pointer-events:none}
+.dot{position:absolute;left:-3px;top:-3px;width:6px;height:6px;border-radius:50%;z-index:4;pointer-events:none;display:none}
+svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-events:none;overflow:visible;display:none}
+#file{position:absolute;left:-28px;top:-34px;width:56px;height:68px;z-index:5;cursor:pointer;-ms-touch-action:none;touch-action:none;border-radius:10px}
+#file:before{content:"";position:absolute;left:-20px;top:-20px;right:-20px;bottom:-20px}
+#fileInner{width:100%;height:100%}
+#file svg{display:block;width:56px;height:68px}
+#cap{position:absolute;margin-left:-85px;width:170px;text-align:center;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1;pointer-events:none}
+#dock{position:absolute;left:0;right:0;bottom:0;z-index:4;pointer-events:none;padding:0 18px 14px;text-align:center}
+#status{margin:0 0 8px;font-size:13px;min-height:20px}
+#list{list-style:none;margin:0 auto;padding:0;width:100%;max-width:520px;text-align:left}
+.item{border-radius:14px;padding:10px 14px;margin-top:8px;display:flex;align-items:center}
+.item .ficon{flex:none;margin-right:12px}.item .ficon svg{display:block;width:30px;height:36px}
+.item .meta{flex:1 1 auto;min-width:0}.item .meta b{display:block;font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.item .meta span{font-size:12px}
+.item .prog{flex:0 0 32%;min-width:90px;margin:0 12px}.item .state{font-size:12px;font-weight:500;white-space:nowrap}
+.item .pbar{height:4px;border-radius:3px;overflow:hidden;margin-top:5px}.item .pbar i{display:block;height:100%;width:0}
+.item .check{flex:none;width:26px;height:26px;border-radius:50%;text-align:center;line-height:26px;color:#fff;font-weight:700;visibility:hidden}
+.item.done .check{visibility:visible}
+</style>
+<script src="../core/lt-core.js"></script>
+<script src="../core/lt-taskfolder.js"></script>
+</head>
+<body>
+<div id="app"><div id="stage">
+  <div id="world">
+    <div id="hoopg">
+      <div id="zone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M5 12.5V18a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5.5"/></svg>
+        <div class="zt">Drop files here</div>
+        <div class="zs">or take the shot</div>
+      </div>
+      <svg class="hoop" viewBox="0 0 400 260">
+        <rect id="board" x="150" y="96" width="100" height="56" rx="2"/>
+        <g id="net"><path id="mesh"/></g>
+        <rect id="bracket" x="191" y="157" width="18" height="9" rx="1.5"/>
+        <ellipse id="rim" cx="200" cy="166" rx="52" ry="6"/>
+      </svg>
+      <div id="pop">+1</div>
+    </div>
+    <div id="dots"></div>
+    <svg class="aim" id="aim">
+      <line id="band" x1="0" y1="0" x2="0" y2="0"/>
+      <line id="aimLine" x1="0" y1="0" x2="0" y2="0"/>
+      <path id="aimHead" d=""/>
+    </svg>
+    <div id="file" tabindex="0" title="Pull back and let go"><div id="fileInner"></div></div>
+    <div id="cap"></div>
+  </div>
+  <div id="head">
+    <div class="row">
+      <div>
+        <h1>Fun corner</h1>
+        <p class="sub muted">Pull the file back and let go. Swish!</p>
+        <div class="actions"><button class="btn" id="browse">Browse a file...</button><button class="btn" id="paste" title="Copy files in Explorer first (Ctrl+C)">&#128203; Paste files (Ctrl+V)</button><button class="btn" id="auto">Take the shot for me</button></div>
+        <div id="opt"><label><input type="checkbox" id="cpOn"> Copy the files I score into</label> <button class="btn small" id="cpPick" style="margin:0 6px 0 4px">Folder...</button><span class="muted" id="cpLbl"></span></div>
+      </div>
+      <div id="badge">Scored <b id="count">0</b><div class="muted" id="stats" style="font-size:12px;margin-top:2px"></div></div>
+    </div>
+  </div>
+  <div id="dock"><p id="status" class="muted">Pull the file back and let go to shoot.</p><ul id="list"></ul></div>
+</div></div>
+<script>
+(function () {
+  var $ = LT.$, fso = LT.fso, v = LT.themeVars();
+  var stage = $("stage"), world = $("world"), hoopg = $("hoopg"), head = $("head"), fileEl = $("file"), fileInner = $("fileInner"), zone = $("zone"), net = $("net"), pop = $("pop"),
+      cap = $("cap"), dotsEl = $("dots"), statusEl = $("status"), list = $("list"), countEl = $("count"), aim = $("aim"), aimLine = $("aimLine"), aimHead = $("aimHead"), band = $("band");
+  /* the colours come from the look in use (Ember, Glass, ...) */
+  var C = {};
+  function colours() { v = LT.themeVars(); C = { card: v.solid || v.panel, ink: v.text, muted: v.muted, line: v.line, chip: v.chip, orange: v.accent, deep: v.accent2 || v.accent, tint: v.accSoft, net: v.muted, ok: v.ok,
+    paper: "#ffffff", fold: "#e4e7ec", fileline: "#d3d7de", pdf: "#d94a5f" }; }
+  function hyp(a, b) { return Math.sqrt(a * a + b * b); }
+  function clamp(x, a, b) { return Math.max(a, Math.min(b, x)); }
+  function setCls(el, c, on) { var r = new RegExp("(^| )" + c + "( |$)", "g"), s = (el.className || "").replace(r, " ").replace(/^\s+|\s+$/g, ""); el.className = on ? (s ? s + " " : "") + c : s; }
+
+  /* world units (the world is the stage divided by the scale hs) */
+  var G = 1000, K = 8, MAXPULL = 150, R = 11, DT = 1 / 60, hs = 1, WW = 400, HH = 700, ox = 0, oy = 0, FLOOR = 680, HOME = { x: 90, y: 480 }, RIM_Y = 176, RIM_L = 150, RIM_R = 250, CX = 200, REST_Y = 262;
+
+  /* ---- saved score ---- */
+  var FILE = LT.dataPath("fun.json"), st = LT.readJson(FILE, null) || {}; st.total = st.total || 0; st.best = st.best || 0; st.copy = !!st.copy; st.copyTo = st.copyTo || "";
+  function saveSt() { try { LT.saveJson(FILE, st); } catch (e) { } }
+  var session = 0, streak = 0;
+  function showStats() { $("stats").innerHTML = "all time " + st.total + " &middot; best streak " + st.best + (streak > 1 ? " &middot; streak " + streak : ""); }
+
+  /* ---- paint (attributes for SVG, the look's colours) ---- */
+  function paint() {
+    colours();
+    var rules = [
+      "#stage{color:" + C.ink + "}#head .sub,#status,#cap,#zone .zs,.item .meta span,#opt .muted{color:" + C.muted + "}#badge{background:" + C.chip + ";color:" + C.muted + "}#badge b{color:" + C.ink + "}",
+      "#zone{background:" + C.card + ";border:1.5px dashed " + C.line + ";color:" + C.muted + "}#zone .zt{color:" + C.ink + "}#zone.hot{background:" + C.tint + ";border-color:" + C.orange + "}#pop{color:" + C.orange + "}",
+      ".dot{background:" + C.orange + "}.item{background:" + C.card + ";border:1px solid " + C.line + "}.item .pbar{background:" + C.chip + "}.item .pbar i,.item .check{background:" + C.ok + "}.item.done .state{color:" + C.ok + "}.item .state{color:" + C.muted + "}",
+      "#file:focus{outline:2px solid " + C.orange + "}"];
+    LT.applyLook(rules);
+    function at(id, o) { var e = $(id); for (var k in o) if (o.hasOwnProperty(k)) e.setAttribute(k, o[k]); }
+    at("board", { fill: "none", stroke: C.orange, "stroke-width": 2.6 }); at("rim", { fill: "none", stroke: C.orange, "stroke-width": 5 }); at("bracket", { fill: C.deep });
+    at("mesh", { fill: "none", stroke: C.net, "stroke-width": 1.4, "stroke-linecap": "round" });
+    at("band", { stroke: C.muted, "stroke-width": 2, "stroke-dasharray": "2 7", "stroke-linecap": "round", opacity: .75 });
+    paintAim(false); setLabel();
+  }
+  function paintAim(on) { var col = on ? C.ok : C.orange; aimLine.setAttribute("stroke", col); aimLine.setAttribute("stroke-width", 5); aimLine.setAttribute("stroke-linecap", "round"); aimHead.setAttribute("fill", col); }
+
+  (function buildNet() {
+    var d = "", top = [], bot = [], i;
+    for (i = 0; i < 7; i++) { top.push(152 + i * 16); bot.push(174 + i * (52 / 6)); }
+    for (i = 0; i < 7; i++) d += "M" + top[i] + " 168 L" + bot[i].toFixed(1) + " 236 ";
+    for (i = 0; i < 6; i++) { d += "M" + top[i] + " 168 L" + bot[i + 1].toFixed(1) + " 236 "; d += "M" + top[i + 1] + " 168 L" + bot[i].toFixed(1) + " 236 "; }
+    $("mesh").setAttribute("d", d);
+  })();
+
+  function fileSvg(ext) {
+    return '<svg viewBox="0 0 56 68"><path d="M8 2H36L54 20V60Q54 66 48 66H8Q2 66 2 60V8Q2 2 8 2Z" fill="' + C.paper + '" stroke="' + C.line + '" stroke-width="1"/><path d="M36 2V14Q36 20 42 20H54Z" fill="' + C.fold + '"/>' +
+      '<rect x="10" y="28" width="30" height="3" rx="1.5" fill="' + C.fileline + '"/><rect x="10" y="35" width="24" height="3" rx="1.5" fill="' + C.fileline + '"/><rect x="10" y="42" width="28" height="3" rx="1.5" fill="' + C.fileline + '"/>' +
+      '<rect x="8" y="50" width="28" height="12" rx="3" fill="' + C.pdf + '"/><text x="22" y="59" font-size="8" font-weight="700" text-anchor="middle" fill="#fff" font-family="Segoe UI, Arial, sans-serif">' + LT.esc(ext) + "</text></svg>";
+  }
+  function extOf(name) { var i = name.lastIndexOf("."); if (i < 0) return "FILE"; return (name.substring(i + 1).replace(/[^a-z0-9]/gi, "").substring(0, 4).toUpperCase()) || "FILE"; }
+  function fmt(n) { if (n < 1024) return n + " B"; if (n < 1048576) return Math.round(n / 1024) + " KB"; return (n / 1048576).toFixed(1) + " MB"; }
+
+  /* ---- the queue of files to shoot: yours (Browse / Paste) or the demo file ---- */
+  var DEMO = { name: "A-101-P01.pdf", size: Math.round(2.4 * 1048576), path: "" }, queue = [];
+  function peek() { return queue.length ? queue[0] : DEMO; }
+  function take() { return queue.length ? queue.shift() : { name: DEMO.name, size: DEMO.size, path: "" }; }
+  function setLabel() { var p = peek(); cap.innerHTML = LT.esc(p.name); fileInner.innerHTML = fileSvg(extOf(p.name)); }
+  function say(m) { statusEl.innerHTML = LT.esc(m); }
+  function addPaths(paths) {
+    var n = 0; for (var i = 0; i < paths.length; i++) { var p = paths[i]; try { if (fso.FileExists(p)) { queue.push({ name: fso.GetFileName(p), size: +fso.GetFile(p).Size, path: p }); n++; } } catch (e) { } }
+    if (n) { if (s.mode == "idle") setLabel(); say(n == 1 ? queue[queue.length - 1].name + " is ready. Shoot it through the hoop." : n + " files are ready. Shoot them one at a time."); } else say("No file found - copy files in Explorer first, then Paste.");
+  }
+  /* optional: a scored file is COPIED (never moved or overwritten) into the folder you picked */
+  function copyOut(f) {
+    var dir = st.copyTo; if (!st.copy || !dir || !f.path) return "";
+    try { if (!fso.FolderExists(dir) || !fso.FileExists(f.path)) return ""; var nm = fso.GetFileName(f.path), i = nm.lastIndexOf("."), base = i > 0 ? nm.substring(0, i) : nm, ext = i > 0 ? nm.substring(i) : "", to = dir + "\\" + nm, n = 1;
+      while (fso.FileExists(to)) to = dir + "\\" + base + " (" + (++n) + ")" + ext; fso.CopyFile(f.path, to, false); return to; } catch (e) { return ""; }
+  }
+
+  /* ---- score list ---- */
+  var flash = 0;
+  function addScore(f, copied) {
+    session++; st.total++; streak++; if (streak > st.best) st.best = streak; saveSt(); countEl.innerHTML = session; showStats(); flash = 0.4; countEl.style.color = C.orange;
+    var li = document.createElement("li"); li.className = "item";
+    li.innerHTML = '<div class="ficon">' + fileSvg(extOf(f.name)) + '</div><div class="meta"><b></b><span></span></div><div class="prog"><span class="state">Scoring... 0%</span><div class="pbar"><i></i></div></div><div class="check">&#10003;</div>';
+    li.getElementsByTagName("b")[0].innerHTML = LT.esc(f.name); li.getElementsByTagName("span")[0].innerHTML = LT.esc(fmt(f.size));
+    list.insertBefore(li, list.firstChild); while (list.children.length > 2) list.removeChild(list.lastChild);
+    var bar = li.getElementsByTagName("i")[0], stt = li.getElementsByTagName("span")[1], dur = 900 + Math.random() * 700, t0 = new Date().getTime(), end = copied ? "Copied to " + fso.GetFileName(st.copyTo) : "Scored";
+    (function tick() { var p = Math.min(1, (new Date().getTime() - t0) / dur), e = 1 - Math.pow(1 - p, 2); bar.style.width = Math.round(e * 100) + "%"; stt.innerHTML = p < 1 ? "Scoring... " + Math.round(e * 100) + "%" : LT.esc(end);
+      if (p < 1) window.setTimeout(tick, 40); else setCls(li, "done", true); })();
+    return li;
+  }
+
+  /* ---- effects (drawn by the loop: CSS animations don't work in Smooth mode) ---- */
+  var popT = 0, swishT = 0, enterT = 0, clock = 0;
+  function popPlus() { popT = 0.95; } function swish() { swishT = 0.55; }
+  function netT(sx, sy) { net.setAttribute("transform", "translate(200,166) scale(" + sx.toFixed(3) + "," + sy.toFixed(3) + ") translate(-200,-166)"); }
+
+  /* ---- state ---- */
+  var s = { mode: "idle", x: HOME.x, y: HOME.y, vx: 0, vy: 0, rot: 0, w: 0, t: 0, scored: false, onFloor: false, fading: false, rt: 0, fx: 0, fy: 0, fr: 0, guided: false };
+  function render() { fileEl.style.transform = "translate(" + s.x.toFixed(1) + "px," + s.y.toFixed(1) + "px) rotate(" + s.rot.toFixed(1) + "deg)"; }
+
+  var lw = 0, lh = 0, lhh = 0;
+  function layout() {
+    var W = stage.clientWidth || 400, H = stage.clientHeight || 700; lw = W; lh = H; lhh = head.offsetHeight;
+    hs = clamp(Math.min(W / 430, H / 680), 0.75, 1.3); WW = W / hs; HH = H / hs;
+    world.style.width = WW + "px"; world.style.height = HH + "px"; world.style.transform = "scale(" + hs + ")";
+    var topPx = head.offsetHeight + 8; ox = WW / 2 - 200; oy = topPx / hs - 10;
+    hoopg.style.left = ox + "px"; hoopg.style.top = oy + "px";
+    RIM_Y = 166 + oy; RIM_L = 150 + ox; RIM_R = 250 + ox; CX = 200 + ox; REST_Y = 252 + oy; FLOOR = HH - 18;
+    MAXPULL = clamp(HH * 0.26, 120, 210); HOME.x = clamp(WW * 0.24, 76, 300); HOME.y = Math.max(RIM_Y + 170, HH - MAXPULL - 30);
+    var apex = RIM_Y - 90, vyN = Math.sqrt(2 * G * (HOME.y - apex)), T = vyN / G + Math.sqrt(2 * (RIM_Y - apex) / G), vxN = (CX - HOME.x) / T;
+    K = hyp(vxN, vyN) * 1.35 / MAXPULL;
+    cap.style.left = HOME.x + "px"; cap.style.top = (HOME.y + 44) + "px";
+    if (s.mode == "idle") { s.x = HOME.x; s.y = HOME.y; render(); }
+  }
+
+  function accel(x, y, vy) { if (vy > 0 && y > RIM_Y - 54 && y < RIM_Y + 6) { var dx = CX - x; if (Math.abs(dx) < 60) return dx * 5; } return 0; }
+  function push(nx, ny, pen) { s.x += nx * pen; s.y += ny * pen; var vn = s.vx * nx + s.vy * ny; if (vn < 0) { s.vx -= 1.55 * vn * nx; s.vy -= 1.55 * vn * ny; s.w *= -0.6; } }
+  function hit(px, py, r) { var dx = s.x - px, dy = s.y - py, d = hyp(dx, dy), m = R + r; if (d < m && d > 0.001) push(dx / d, dy / d, m - d); }
+  function collide() { hit(RIM_L, RIM_Y, 4); hit(RIM_R, RIM_Y, 4); }
+
+  /* ---- aim preview ---- */
+  var dots = [], di, dEl;
+  for (di = 0; di < 24; di++) { dEl = document.createElement("i"); dEl.className = "dot"; dotsEl.appendChild(dEl); dots.push(dEl); }
+  function hideAim() { aim.style.display = "none"; }
+  function hideDots(from) { for (var i = from || 0; i < dots.length; i++) dots[i].style.display = "none"; if (!from) hideAim(); }
+  function showAim(vx, vy, on) {
+    var L = hyp(vx, vy), ux = vx / L, uy = vy / L, pull = L / K, x0 = s.x + ux * 44, y0 = s.y + uy * 44, len = 46 + pull * 0.9, x1 = x0 + ux * len, y1 = y0 + uy * len, bx = x1 - ux * 20, by = y1 - uy * 20, qx = -uy * 11, qy = ux * 11;
+    band.setAttribute("x1", HOME.x); band.setAttribute("y1", HOME.y); band.setAttribute("x2", s.x.toFixed(1)); band.setAttribute("y2", s.y.toFixed(1));
+    aimLine.setAttribute("x1", x0.toFixed(1)); aimLine.setAttribute("y1", y0.toFixed(1)); aimLine.setAttribute("x2", bx.toFixed(1)); aimLine.setAttribute("y2", by.toFixed(1));
+    aimHead.setAttribute("d", "M" + x1.toFixed(1) + " " + y1.toFixed(1) + " L" + (bx + qx).toFixed(1) + " " + (by + qy).toFixed(1) + " L" + (bx - qx).toFixed(1) + " " + (by - qy).toFixed(1) + " Z");
+    paintAim(!!on); aim.style.display = "block";
+  }
+  function drawPreview(vx, vy) {
+    if (hyp(vx, vy) / K < 12) { hideDots(); return; }
+    var x = s.x, y = s.y, u = vx, w = vy, k = 0, onTarget = false;
+    for (var n = 0; n < 300; n++) {
+      u += accel(x, y, w) * DT; w += G * DT; var py = y; x += u * DT; y += w * DT;
+      if (py < RIM_Y && y >= RIM_Y && Math.abs(x - CX) <= 35) onTarget = true;
+      if (n % 5 == 4 && k < dots.length) { var d = dots[k]; d.style.display = "block"; d.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px)"; d.style.opacity = (0.95 - k * 0.03).toFixed(2); k++; }
+      if (w > 0 && y > RIM_Y + 50) break; if (x < 0 || x > WW) break;
+    }
+    hideDots(k); showAim(vx, vy, onTarget);
+  }
+
+  /* ---- launch / score / miss ---- */
+  function launch(vx, vy, guided) { s.mode = "flying"; s.guided = !!guided; s.vx = vx; s.vy = vy; s.t = 0; s.scored = false; s.onFloor = false; s.fading = false; s.w = (vx >= 0 ? 1 : -1) * (120 + Math.abs(vx) * 0.2); cap.style.opacity = 0; hideDots(); say(""); }
+  function autoShot() { if (s.mode != "idle") return; var apex = RIM_Y - 62, vy = -Math.sqrt(2 * G * (s.y - apex)), T = -vy / G + Math.sqrt(2 * (RIM_Y - apex) / G); launch((CX - s.x) / T, vy, false); }
+  /* a guaranteed shot: a clean arc into the middle of the hoop (used by the tests) */
+  function dunk() { if (s.mode != "idle") return; var apex = RIM_Y - 90, vy = -Math.sqrt(2 * G * (s.y - apex)), T = -vy / G + Math.sqrt(2 * (RIM_Y - apex) / G); launch((CX - s.x) / T, vy, true); }
+  function score() {
+    s.scored = true; s.vx *= 0.2; s.vy = Math.max(s.vy * 0.55, 120); fileEl.style.zIndex = "2"; setCls(zone, "hot", true); swish(); popPlus();
+    var f = take(), to = copyOut(f); addScore(f, !!to);
+    say("Swish. " + f.name + (to ? " is copied to " + to : " scores!") + (st.copy && !f.path ? "  (no file location, so nothing was copied)" : ""));
+  }
+  function resetHome(withEnter) { s.mode = "idle"; s.x = HOME.x; s.y = HOME.y; s.vx = s.vy = 0; s.rot = 0; s.w = 0; s.scored = false; fileEl.style.zIndex = ""; fileEl.style.opacity = 1; if (withEnter) enterT = 0.35; setLabel(); cap.style.opacity = 1; render(); }
+  function finishScore() { fileEl.style.opacity = 0; window.setTimeout(function () { setCls(zone, "hot", false); resetHome(true); }, 340); }
+  function miss() { setCls(zone, "hot", false); streak = 0; showStats(); s.mode = "returning"; s.rt = 0; s.fx = s.x; s.fy = s.y; s.rot = ((s.rot + 180) % 360 + 360) % 360 - 180; s.fr = s.rot; say("Off the rim. Pull back and shoot again."); }
+
+  function update(dt) {
+    clock += dt;
+    if (s.mode == "flying") {
+      s.t += dt;
+      if (!s.scored) {
+        if (!s.guided) s.vx += accel(s.x, s.y, s.vy) * dt;
+        s.vy += G * dt; var py = s.y; s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.w * dt; if (!s.guided) collide();
+        if (py < RIM_Y && s.y >= RIM_Y && s.vy > 0 && Math.abs(s.x - CX) <= 46) score();
+        if (!s.scored) {
+          if (s.x < R + 6) { s.x = R + 6; s.vx = Math.abs(s.vx) * 0.5; } if (s.x > WW - R - 6) { s.x = WW - R - 6; s.vx = -Math.abs(s.vx) * 0.5; }
+          if (s.y > FLOOR) { s.y = FLOOR; s.vy = -s.vy * 0.45; s.vx *= 0.78; s.w *= 0.7; if (Math.abs(s.vy) < 90) { s.vy = 0; s.onFloor = true; } }
+          if (s.onFloor) s.vx *= 0.97;
+          setCls(zone, "hot", s.x > 84 + ox && s.x < 316 + ox && s.y > 10 + oy && s.y < 170 + oy);
+          if ((s.onFloor && s.t > 0.4) || s.t > 3.5) miss();
+        }
+      } else {
+        s.vy = Math.min(s.vy + 700 * dt, 260); s.vx = 0; s.x += (CX - s.x) * Math.min(1, 5 * dt); s.y += s.vy * dt; s.rot += (0 - s.rot) * Math.min(1, 4 * dt);
+        if (s.y >= REST_Y) { s.y = REST_Y; s.vy = 0; if (!s.fading) { s.fading = true; window.setTimeout(finishScore, 650); } }
+      }
+      render();
+    } else if (s.mode == "returning") {
+      s.rt += dt / 0.5; var p = Math.min(1, s.rt), e = 1 - Math.pow(1 - p, 3);
+      s.x = s.fx + (HOME.x - s.fx) * e; s.y = s.fy + (HOME.y - s.fy) * e; s.rot = s.fr * (1 - e); render(); if (p >= 1) resetHome(false);
+    }
+    /* effects */
+    var by = 0, sc = 1; if (s.mode == "idle") by = -2 - 2 * Math.sin(clock * 2 * Math.PI / 2.6);
+    if (enterT > 0) { enterT -= dt; var q = 1 - Math.max(0, enterT) / 0.35; sc = 0.55 + 0.45 * q; fileInner.style.opacity = q; } else fileInner.style.opacity = 1;
+    fileInner.style.transform = "translateY(" + by.toFixed(1) + "px) scale(" + sc.toFixed(2) + ")";
+    if (swishT > 0) { swishT -= dt; var u = 1 - Math.max(0, swishT) / 0.55; netT(u < .3 ? 1 - .1 * (u / .3) : u < .6 ? .9 + .14 * ((u - .3) / .3) : 1.04 - .04 * ((u - .6) / .4), u < .3 ? 1 + .14 * (u / .3) : u < .6 ? 1.14 - .18 * ((u - .3) / .3) : .96 + .04 * ((u - .6) / .4)); } else netT(1, 1);
+    if (popT > 0) { popT -= dt; var pp = 1 - Math.max(0, popT) / 0.95; pop.style.opacity = pp < .25 ? pp / .25 : pp < .7 ? 1 : (1 - pp) / .3; pop.style.transform = "translateY(" + (10 - 28 * pp).toFixed(1) + "px) scale(" + (0.6 + 0.5 * Math.min(1, pp / .25)).toFixed(2) + ")"; } else pop.style.opacity = 0;
+    if (flash > 0) { flash -= dt; if (flash <= 0) countEl.style.color = ""; }
+  }
+  var last = 0, raf = window.requestAnimationFrame || window.msRequestAnimationFrame || function (f) { return window.setTimeout(function () { f(new Date().getTime()); }, 16); };
+  function frame(ts) {
+    var vis = stage.clientWidth > 0;   // the tab is hidden: nothing to draw
+    if (vis) { var dt = Math.min(0.033, (ts - last) / 1000 || 0.016); last = ts; if (stage.clientWidth != lw || stage.clientHeight != lh || head.offsetHeight != lhh) layout(); update(dt); } else last = ts;
+    raf(frame);
+  }
+
+  /* ---- pointer: pull back, release to shoot (pointer events; mouse events on older engines) ---- */
+  var drag = null;
+  function toWorld(e) { var r = world.getBoundingClientRect(); return { x: (e.clientX - r.left) / hs, y: (e.clientY - r.top) / hs }; }
+  function down(e) { if (s.mode != "idle") return; if (e.preventDefault) e.preventDefault(); try { if (fileEl.setPointerCapture && e.pointerId != null) fileEl.setPointerCapture(e.pointerId); } catch (err) { } drag = { id: e.pointerId }; s.mode = "drag"; cap.style.opacity = 0; }
+  function move(e) {
+    if (!drag || (e.pointerId != null && drag.id != null && e.pointerId != drag.id)) return;
+    var p = toWorld(e), dx = p.x - HOME.x, dy = p.y - HOME.y, d = hyp(dx, dy); if (d > MAXPULL) { dx *= MAXPULL / d; dy *= MAXPULL / d; } dy = Math.min(dy, HH - 24 - HOME.y);
+    s.x = HOME.x + dx; s.y = HOME.y + dy; s.rot = clamp(dx * 0.15, -20, 20); render(); drawPreview(-dx * K, -dy * K);
+  }
+  function up(e) { if (!drag || (e.pointerId != null && drag.id != null && e.pointerId != drag.id)) return; drag = null; var dx = s.x - HOME.x, dy = s.y - HOME.y; hideDots(); if (hyp(dx, dy) < 16) { resetHome(false); return; } launch(-dx * K, -dy * K); }
+  if (window.PointerEvent) { fileEl.addEventListener("pointerdown", down, false); fileEl.addEventListener("pointermove", move, false); fileEl.addEventListener("pointerup", up, false); fileEl.addEventListener("pointercancel", up, false); }
+  else { fileEl.onmousedown = down; document.onmousemove = move; document.onmouseup = up; }
+  fileEl.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13 || e.keyCode == 32) { autoShot(); return false; } };
+  $("auto").onclick = autoShot;
+
+  /* ---- your files: Browse, Paste, or drop (a drop has no location, so it only celebrates) ---- */
+  $("browse").onclick = function () { LT.pickFile(function (p) { addPaths([p]); }); };
+  $("paste").onclick = function () { var ps = []; try { ps = LT.clipPaths(); } catch (e) { } addPaths(ps); };
+  document.onkeydown = function (e) { e = e || window.event; if (e.ctrlKey && e.keyCode == 86) { $("paste").onclick(); return false; } };
+  stage.ondragover = stage.ondragenter = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); setCls(zone, "hot", true); return false; };
+  stage.ondragleave = function () { if (s.mode != "flying") setCls(zone, "hot", false); };
+  stage.ondrop = function (e) {
+    e = e || window.event; if (e.preventDefault) e.preventDefault(); var fs = e.dataTransfer && e.dataTransfer.files ? e.dataTransfer.files : [], n = 0, paths = [];
+    for (var i = 0; i < fs.length; i++) { var p = fs[i].path || ""; if (p) paths.push(p); else { addScore({ name: fs[i].name, size: fs[i].size || 0, path: "" }, false); n++; } }
+    swish(); popPlus(); window.setTimeout(function () { setCls(zone, "hot", false); }, 500);
+    if (paths.length) addPaths(paths); if (n) say(n + " dropped in." + (st.copy ? " (Windows doesn't tell where a dropped file is, so it wasn't copied - use Browse or Paste files.)" : ""));
+    return false;
+  };
+
+  /* ---- the optional drop box: copy scored files into a folder ---- */
+  function optShow() { $("cpOn").checked = st.copy; $("cpLbl").innerHTML = st.copyTo ? LT.esc(st.copyTo) : "no folder picked"; }
+  $("cpOn").onclick = function () { if (this.checked && !st.copyTo) { var f = LT.pickFolder("Copy the files you score into this folder"); if (f) st.copyTo = f; else { this.checked = false; return; } } st.copy = this.checked; saveSt(); optShow(); };
+  $("cpPick").onclick = function () { var f = LT.pickFolder("Copy the files you score into this folder"); if (f) { st.copyTo = f; saveSt(); optShow(); } };
+
+  window.ltFun = { dunk: dunk, autoShot: autoShot, addPaths: addPaths, state: s, queue: queue, st: st, optShow: optShow };
+  window.ltTheme = function () { paint(); };
+  window.ltShown = function () { layout(); };
+  window.onresize = layout;
+  paint(); showStats(); optShow(); layout(); render(); netT(1, 1); raf(frame); LT.tabKeys();
+})();
+</script>
+</body>
+</html>

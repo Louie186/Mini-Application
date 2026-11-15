@@ -494,6 +494,15 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 - **Copy for email / Teams**, **Open as an email**, or **Save** (text + CSV)
 - **By itself every week** (Settings → Weekly report): pick the day; it's saved in `exports\Weekly reports` (a page + text), the bell glows and Home shows *Your weekly report is ready*. Not open that day? It's made the next time the Toolbox opens that week
 
+## 🏀 Fun
+
+A little break, under its own **FUN** heading in the menu: a slingshot game – **pull the file back, let go, shoot it into the hoop**.
+- **Aim:** drag the file back (a dotted path and an arrow show where it will go; the arrow turns green when it's on target). Let go to shoot. A miss comes back to its place; a hit goes through the net with a *+1*
+- **Take the shot for me** makes a clean shot · `Enter` on the file does the same
+- **Scored** (this visit) and **all time · best streak** are kept in `fun.json`. The look follows your theme (Ember, Glass…)
+- **Your own files** can be in the queue: **Browse a file…**, or **📋 Paste files (Ctrl+V)** after Ctrl+C in Explorer – the file's name shows under it. With none, it shoots a demo file
+- **Copy the files I score into [folder]** (optional, off by default) – a scored file is **copied** into that folder (never moved; a name already there gets *(2)*). Files dropped from Explorer have no location the Toolbox can see, so they only celebrate
+
 ## Settings
 
 - **⚡ Speed** – **Smooth mode** (on by default, every look): no animations, lighter shadows, nothing that repaints the whole window – clicking and scrolling stay quick. Switch it off to get the sliding / fading / counting animations back (nicer on a fast PC). Behind it: the menu isn't rebuilt on every click, Home only reads files that changed, and the folder check (Incoming) **waits while you're clicking or typing** and then checks one folder at a time

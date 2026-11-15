@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Smart Inbox</title>
+<meta name="lt-order" content="8">
+<meta name="lt-group" content="Files">
+<meta name="lt-icon" content="&#128229;">
+<meta name="lt-desc" content="Drop a pile of files here: the Toolbox reads each name and shows where it should go (next to its older revision, or by your rules), fixes wrong names and moves old revisions to Superseded. Preview first, one button to file, and Undo.">
+<!--
+  Lew's Toolbox - Smart Inbox: sorts loose files into the project's filing folder.
+  Where a file goes: 1) the folder that already holds an older revision of the same drawing, 2) your rules (inbox.json), 3) nowhere (you pick).
+  Never overwrites. The last run can be undone. Every run is noted in the Project Diary.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.path{display:inline-block;max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#res{flex:1 1 auto;overflow:auto;min-height:0;padding:0 14px 8px}
+#res td.ck{width:28px}
+#res .to{cursor:pointer;text-decoration:underline}
+#res .sm{font-size:.88em}
+.right{float:right}
+#rules{width:100%;height:210px;font-family:Consolas,'Lucida Console',monospace;font-size:.95em;resize:none}
+</style>
+<script src="../core/lt-core.js"></script>
+<script src="../core/lt-transmittal.js"></script>
+<script src="../core/lt-taskfolder.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><span class="lbl big">Files to sort</span>
+    <button class="btn" id="bFolder">&#128194; From a folder...</button><button class="btn" id="bPaste" title="Copy files in Explorer (Ctrl+C), then press this (or Ctrl+V here)">&#128203; Paste copied files</button><button class="btn" id="bWatch">&#128229; From Incoming</button>
+    <button class="btn small" id="bClear">Clear</button>
+    <span class="lbl muted" id="count"></span>
+  </div>
+  <div class="step">
+    <span class="num">2</span><span class="lbl big">Filing folder</span>
+    <button class="btn" id="bRoot">&#128194; Choose...</button><span class="path" id="rootLbl"></span>
+    <button class="btn small" id="bRules">Rules...</button><button class="btn small" id="bOpt">Options &#9662;</button>
+  </div>
+  <div id="res"></div>
+  <div class="step bar" style="border-top-width:1px;border-top-style:solid">
+    <span class="num">3</span><button class="btn primary" id="bGo">File them</button><button class="btn" id="bUndo">&#8630; Undo the last run</button>
+    <span class="lbl muted" id="sum"></span>
+  </div>
+</div>
+<div class="ov" id="rdlg"><div class="card">
+  <h3>Rules: where files go</h3>
+  <div class="muted" style="margin-bottom:8px">One rule per line, the first that fits wins. A file whose older revision is already filed always goes next to it.<br>
+  <b>pdf, dwf -&gt; Drawings\PDF</b> &nbsp;(by file type) &middot; <b>contains: clash -&gt; Coordination\Clash reports</b> &middot; <b>starts: T1- -&gt; Tower 1\{EXT}</b><br>
+  You can use {EXT}, {REV}, {TOWER} and {TYPO} in the folder (Tower / Typology come from the Drawing Register).</div>
+  <textarea id="rules" spellcheck="false"></textarea>
+  <div class="acts"><span class="sp"></span><button class="btn" id="rCancel">Cancel</button><button class="btn primary" id="rOk">Save the rules</button></div>
+</div></div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, store, items = [], index = null, indexFor = "";
+var DEFAULT_RULES = "pdf -> Drawings\\PDF\r\ndwg, dxf -> Drawings\\DWG\r\nrvt, rfa, ifc, nwc, nwd, nwf -> Models\r\nxlsx, xls, csv -> Schedules\r\ndocx, doc -> Documents";
+function FILE() { return LT.dataPath("inbox.json"); }
+function load() { store = LT.readJson(FILE(), null) || {}; store.root = store.root || ""; store.mode = store.mode == "move" ? "move" : "copy"; if (store.sup == null) store.sup = true; if (store.fix == null) store.fix = true; if (store.rules == null) store.rules = DEFAULT_RULES; }
+function save() { try { LT.saveJson(FILE(), store); } catch (e) { alert("Couldn't save the Smart Inbox settings."); } }
+function split(name) { var k = name.lastIndexOf("."), stem = k > 0 ? name.substring(0, k) : name, ext = k > 0 ? name.substring(k + 1).toLowerCase() : "", sp = LT.trSplit(stem); return { stem: stem, ext: ext, base: sp.base, rev: sp.rev }; }
+function isSup(dir) { return /\\(superseded|ss|archive|old)(\\|$)/i.test(dir + "\\"); }
+
+/* ---------- the files to sort ---------- */
+function addPath(p, depth) {
+  if (!p) return 0; var n = 0;
+  if (fso.FolderExists(p)) { if ((depth || 0) > 2) return 0; var fo = fso.GetFolder(p), e = new Enumerator(fo.Files); for (; !e.atEnd(); e.moveNext()) n += addPath("" + e.item().Path, (depth || 0) + 1);
+    var sf = new Enumerator(fo.SubFolders); for (; !sf.atEnd(); sf.moveNext()) if (!(sf.item().Attributes & 6)) n += addPath("" + sf.item().Path, (depth || 0) + 1); return n; }
+  if (!fso.FileExists(p)) return 0;
+  var name = fso.GetFileName(p); if (/^~\$|^thumbs\.db$|^desktop\.ini$|\.tmp$/i.test(name)) return 0;
+  for (var i = 0; i < items.length; i++) if (items[i].path.toLowerCase() == p.toLowerCase()) return 0;
+  if (items.length >= 1500) return 0;
+  var s = split(name); items.push({ path: p, name: name, stem: s.stem, ext: s.ext, base: s.base, rev: s.rev, on: true, pick: "" }); return 1;
+}
+function added(n, from) { analyse(); render(); LT.toast(n ? n + " file" + (n == 1 ? "" : "s") + " added" + (from ? " from " + from : "") : "No new files there"); }
+
+/* ---------- what's already filed: base|ext -> [{ dir, rev, name }] (the filing folder, 5 levels deep) ---------- */
+function buildIndex() {
+  index = {}; indexFor = store.root; if (!store.root || !fso.FolderExists(store.root)) return; var n = 0;
+  var walk = function (dir, depth) { var fo; try { fo = fso.GetFolder(dir); } catch (e) { return; }
+    var e = new Enumerator(fo.Files); for (; !e.atEnd() && n < 8000; e.moveNext()) { var nm = "" + e.item().Name, s = split(nm), k = s.base.toUpperCase() + "|" + s.ext; (index[k] = index[k] || []).push({ dir: dir, rev: s.rev, name: nm }); n++; }
+    if (depth < 5) { var sf = new Enumerator(fo.SubFolders); for (; !sf.atEnd(); sf.moveNext()) if (!(sf.item().Attributes & 6)) walk("" + sf.item().Path, depth + 1); } };
+  walk(store.root, 0);
+}
+function rules() {
+  var out = [], ls = ("" + store.rules).split(/\r?\n/);
+  for (var i = 0; i < ls.length; i++) { var m = /^\s*(.+?)\s*-+>\s*(.+?)\s*$/.exec(ls[i]); if (!m) continue; var left = m[1], t = /^(contains|starts)\s*:\s*(.+)$/i.exec(left);
+    if (t) out.push({ type: t[1].toLowerCase(), val: LT.trim(t[2]).toLowerCase(), folder: m[2] });
+    else out.push({ type: "ext", val: "," + left.toLowerCase().replace(/[\s.]+/g, "").replace(/;/g, ",") + ",", folder: m[2] }); }
+  return out;
+}
+function analyse() {
+  if (!index || indexFor != store.root) buildIndex();
+  var R = null, rule = LT.nameRule(), rl = rules(), used = {}; try { R = LT.register(); } catch (e) { }
+  for (var i = 0; i < items.length; i++) { var it = items[i], d = null; try { d = R ? R.find(it.name) : null; } catch (e) { }
+    it.title = d ? d.title || "" : ""; it.known = !!d; it.newName = it.name; it.note = ""; it.old = []; it.dest = ""; it.why = ""; it.block = "";
+    // the name: follows the rule? (only fixed when the fix is safe)
+    if (rule) { var pr = []; try { pr = LT.nameCheck(it.stem, rule); } catch (e) { } if (pr.length) { var fx = null; try { fx = LT.nameFix(it.stem, rule); } catch (e) { }
+      if (fx && store.fix) { it.newName = fx + (it.ext ? "." + it.ext : ""); it.note = "name fixed"; var s2 = split(it.newName); it.nb = s2.base; it.nr = s2.rev; } else it.note = "name: " + pr[0]; } }
+    var base = (it.note == "name fixed" ? it.nb : it.base).toUpperCase(), rev = it.note == "name fixed" ? it.nr : it.rev;
+    // 1) next to the same drawing already filed
+    var have = store.root && index ? index[base + "|" + it.ext] || [] : [], best = null;
+    for (var h = 0; h < have.length; h++) if (!isSup(have[h].dir) && (!best || LT.revCmp(have[h].rev, best.rev) > 0)) best = have[h];
+    if (it.pick) { it.dest = it.pick; it.why = "you chose"; }
+    else if (best) { it.dest = best.dir; it.why = "next to " + (best.rev || "the one filed"); }
+    else if (store.root) for (var r = 0; r < rl.length && !it.dest; r++) { var q = rl[r], low = it.name.toLowerCase();
+      if ((q.type == "ext" && q.val.indexOf("," + it.ext + ",") >= 0) || (q.type == "contains" && low.indexOf(q.val) >= 0) || (q.type == "starts" && low.indexOf(q.val) == 0)) {
+        var f = q.folder.replace(/\{EXT\}/gi, it.ext.toUpperCase()).replace(/\{REV\}/gi, rev || "No rev").replace(/\{TOWER\}/gi, d && d.tower ? d.tower : "No tower").replace(/\{TYPO\}/gi, d && d.typo ? d.typo : "No typology");
+        it.dest = /^([a-z]:|\\\\)/i.test(f) ? f : store.root + "\\" + f.replace(/^\\+|\\+$/g, ""); it.why = "rule: " + (q.type == "ext" ? it.ext : q.type + " " + q.val); } }
+    if (!it.dest) { it.block = store.root ? "no rule fits - click to choose" : "choose the filing folder"; continue; }
+    // already there / older than what's filed / old revisions to retire
+    var key = (it.dest + "\\" + it.newName).toLowerCase();
+    if (fso.FileExists(it.dest + "\\" + it.newName) || used[key]) { it.block = "already there"; continue; } used[key] = 1;
+    for (var o = 0; o < have.length; o++) { var x = have[o]; if (x.dir.toLowerCase() != it.dest.toLowerCase() || !x.rev || !rev) continue;
+      var c = LT.revCmp(x.rev, rev); if (c > 0) it.block = "older than " + x.rev + " already filed"; else if (c < 0) it.old.push(x); }
+  }
+}
+function render() {
+  $("rootLbl").innerHTML = store.root ? esc(store.root) : '<span class="muted">not chosen</span>';
+  var w = LT.watchLoad(), wn = 0; for (var a = 0; a < w.folders.length; a++) { var pd = w.folders[a].pending || []; for (var b = 0; b < pd.length; b++) if (pd[b].kind != "deleted") wn++; }
+  $("bWatch").innerHTML = "&#128229; From Incoming" + (wn ? " (" + wn + ")" : ""); $("bWatch").disabled = !wn; LT.iconize($("bWatch"));
+  $("count").innerHTML = items.length ? items.length + " file" + (items.length == 1 ? "" : "s") : "";
+  var h = ['<table class="grid"><tr><th class="ck"><input type="checkbox" id="ckAll" checked></th><th>File</th><th>Drawing</th><th>Rev</th><th>Goes to</th><th>Also</th></tr>'], go = 0, sup = 0, blocked = 0;
+  for (var i = 0; i < items.length; i++) { var it = items[i], can = !it.block; if (can && it.on) { go++; if (store.sup) sup += it.old.length; } if (!can) blocked++;
+    var rel = it.dest && store.root && it.dest.toLowerCase().indexOf(store.root.toLowerCase()) == 0 ? it.dest.substring(store.root.length).replace(/^\\/, "") || "(the filing folder)" : it.dest;
+    var also = []; if (it.note) also.push(it.note == "name fixed" ? '<span class="ok">renamed to ' + esc(it.newName) + "</span>" : '<span class="warn">' + esc(it.note) + "</span>");
+    if (it.old.length && store.sup) also.push(it.old.length + " old rev" + (it.old.length == 1 ? "" : "s") + " (" + esc(it.old.map(function (x) { return x.rev; }).join(", ")) + ") to Superseded");
+    h.push('<tr><td class="ck"><input type="checkbox" data-i="' + i + '"' + (it.on && can ? " checked" : "") + (can ? "" : " disabled") + '></td><td class="code">' + esc(it.name) + '</td><td class="sm">' + (it.known ? esc(it.title || "on the register") : '<span class="muted">not on the register</span>') + "</td><td>" + esc(it.rev) +
+      '</td><td><span class="to' + (it.block ? " bad" : "") + '" data-to="' + i + '" title="Click to choose another folder">' + (it.block && !it.dest ? esc(it.block) : esc(rel)) + '</span><div class="sm muted">' + (it.block && it.dest ? '<span class="bad">' + esc(it.block) + "</span>" : esc(it.why)) + '</div></td><td class="sm">' + also.join(" &middot; ") + "</td></tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = items.length ? h.join("") : '<div class="muted" style="padding:30px 0;line-height:1.7"><b>How it works</b><br>1. Add the loose files (a folder, files you copied in Explorer, or what arrived in your watched Incoming folders).<br>2. Choose the project\'s filing folder once.<br>3. Check the list &ndash; each file shows where it will go and why &ndash; then press <b>File them</b>. Nothing is overwritten, and Undo puts it all back.</div>';
+  $("bGo").innerHTML = (store.mode == "move" ? "Move " : "Copy ") + go + " file" + (go == 1 ? "" : "s") + " into place"; $("bGo").disabled = !go;
+  $("sum").innerHTML = items.length ? (blocked ? blocked + " can't be filed yet (red). " : "") + (sup ? sup + " old revision" + (sup == 1 ? "" : "s") + " will move to Superseded. " : "") + "Nothing is overwritten." : "";
+  $("bUndo").style.display = store.last && store.last.ops && store.last.ops.length ? "" : "none";
+  if (store.last && store.last.ops) $("bUndo").title = "Puts back the " + store.last.n + " file(s) filed on " + store.last.at;
+  LT.fitGrids && LT.fitGrids($("res"));
+}
+
+/* ---------- file them: old revisions to Superseded, then copy / move; every step is noted for Undo ---------- */
+function go() {
+  var ops = [], done = [], errs = [], dirs = {};
+  for (var i = 0; i < items.length; i++) { var it = items[i]; if (it.block || !it.on) continue;
+    try { LT.mkdirs(it.dest); var to = it.dest + "\\" + it.newName; if (fso.FileExists(to)) throw new Error("already there");
+      if (store.sup) for (var o = 0; o < it.old.length; o++) { var x = it.old[o], from = x.dir + "\\" + x.name, sd = x.dir + "\\Superseded"; if (!fso.FileExists(from) || fso.FileExists(sd + "\\" + x.name)) continue; LT.mkdirs(sd); fso.MoveFile(from, sd + "\\" + x.name); ops.push({ op: "move", from: from, to: sd + "\\" + x.name }); }
+      if (store.mode == "move") fso.MoveFile(it.path, to); else fso.CopyFile(it.path, to, false);
+      ops.push({ op: store.mode, from: it.path, to: to }); done.push(it); dirs[it.dest.toLowerCase()] = it.dest; }
+    catch (e) { errs.push(it.name + ": " + (e.message || e)); } }
+  if (done.length) { var nd = 0, first = ""; for (var k in dirs) if (dirs.hasOwnProperty(k)) { nd++; first = first || dirs[k]; }
+    store.last = { at: LT.fmtDate(LT.today()), n: done.length, ops: ops }; save();
+    LT.diaryAdd("file", "Smart Inbox: " + done.length + " file" + (done.length == 1 ? "" : "s") + " filed into " + (nd == 1 ? first : nd + " folders in " + store.root) + " – " + done.slice(0, 6).map(function (x) { return x.newName; }).join(", ") + (done.length > 6 ? " +" + (done.length - 6) + " more" : ""), { files: done.slice(0, 80).map(function (x) { return x.newName; }), to: store.root });
+    var keep = []; for (var j = 0; j < items.length; j++) if (done.indexOf(items[j]) < 0) keep.push(items[j]); items = keep; index = null; }
+  analyse(); render();
+  if (errs.length) alert("Couldn't file " + errs.length + " file(s):\n\n" + errs.slice(0, 12).join("\n"));
+  else if (done.length) LT.toast(done.length + " file" + (done.length == 1 ? "" : "s") + " filed", undo);
+}
+function undo() {
+  var L = store.last; if (!L || !L.ops || !L.ops.length) return; var bad = 0;
+  for (var i = L.ops.length - 1; i >= 0; i--) { var o = L.ops[i];
+    try { if (o.op == "copy") { if (fso.FileExists(o.to)) fso.DeleteFile(o.to, true); } else if (fso.FileExists(o.to) && !fso.FileExists(o.from)) { LT.mkdirs(fso.GetParentFolderName(o.from)); fso.MoveFile(o.to, o.from); } else bad++; } catch (e) { bad++; } }
+  LT.diaryAdd("file", "Smart Inbox: undid the last run (" + L.n + " file" + (L.n == 1 ? "" : "s") + " put back)");
+  store.last = null; save(); index = null; analyse(); render(); LT.toast(bad ? "Undone, except " + bad + " file(s) that had changed" : "Undone - everything is back where it was");
+}
+function optMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Copy the files (the originals stay)", on: store.mode == "copy", fn: function () { store.mode = "copy"; save(); render(); } },
+    { label: "Move the files", on: store.mode == "move", fn: function () { store.mode = "move"; save(); render(); } },
+    "-",
+    { label: "Move old revisions to a Superseded folder", on: store.sup, fn: function () { store.sup = !store.sup; save(); render(); } },
+    { label: "Fix names that break the naming rule (when it's safe)", on: store.fix, fn: function () { store.fix = !store.fix; save(); analyse(); render(); } },
+    "-",
+    { label: "Look at the filing folder again", fn: function () { index = null; analyse(); render(); LT.toast("Filing folder read again"); } }]);
+}
+function paste() { var p = []; try { p = LT.clipPaths(); } catch (e) { } if (!p.length) { LT.toast("Copy files or folders in Explorer first (Ctrl+C)"); return; } var n = 0; for (var i = 0; i < p.length; i++) n += addPath(p[i]); added(n, "the clipboard"); }
+
+$("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder with the loose files"); if (f) added(addPath(f), fso.GetFileName(f)); };
+$("bPaste").onclick = paste;
+$("bWatch").onclick = function () { var w = LT.watchLoad(), n = 0; for (var a = 0; a < w.folders.length; a++) { var pd = w.folders[a].pending || []; for (var b = 0; b < pd.length; b++) if (pd[b].kind != "deleted") n += addPath(pd[b].path); } added(n, "Incoming"); };
+$("bClear").onclick = function () { items = []; render(); };
+$("bRoot").onclick = function () { var f = LT.pickFolder("Pick the project's filing folder (files are sorted into its sub-folders)"); if (f) { store.root = f; save(); index = null; for (var i = 0; i < items.length; i++) items[i].pick = ""; analyse(); render(); } };
+$("bRules").onclick = function () { $("rules").value = store.rules; $("rdlg").style.display = "block"; };
+$("rCancel").onclick = function () { $("rdlg").style.display = "none"; };
+$("rOk").onclick = function () { store.rules = $("rules").value; save(); $("rdlg").style.display = "none"; analyse(); render(); LT.toast(rules().length + " rule(s) saved"); };
+$("bOpt").onclick = function (e) { var r = this.getBoundingClientRect(); optMenu(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; };
+$("bGo").onclick = go; $("bUndo").onclick = function () { if (confirm("Undo the last run? The " + store.last.n + " file(s) go back where they were.")) undo(); };
+$("res").onclick = function (e) { e = e || window.event; var el = e.target || e.srcElement;
+  if (el.id == "ckAll") { for (var i = 0; i < items.length; i++) items[i].on = el.checked; render(); $("ckAll").checked = el.checked; return; }
+  if (el.tagName == "INPUT" && el.getAttribute("data-i") != null) { items[+el.getAttribute("data-i")].on = el.checked; render(); return; }
+  var to = el.getAttribute && el.getAttribute("data-to"); if (to != null) { var f = LT.pickFolder("Where should " + items[+to].name + " go?"); if (f) { items[+to].pick = f; analyse(); render(); } } };
+document.onkeydown = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (e.ctrlKey && e.keyCode == 86 && !(t && (t.tagName == "INPUT" || t.tagName == "TEXTAREA"))) { paste(); return false; } };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); index = null; analyse(); render(); }; window.ltShown = function () { render(); };
+window.ltReceive = function (what, v) { if (what == "add" && v) { var a = ("" + v).split("|"), n = 0; for (var i = 0; i < a.length; i++) n += addPath(a[i]); added(n); } if (what == "incoming") $("bWatch").onclick(); };
+look(); load(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

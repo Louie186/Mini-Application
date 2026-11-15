@@ -133,6 +133,14 @@ var LT = (function () {
   /* ---------- incoming watch: folders you want to know about (watch.json) ----------
      { folders: [{ path, name, seen: { "rel\\name": time }, pending: [{ rel, path, time, kind: "new" | "changed" }], at }] }
      The first look at a folder only remembers what's there; after that, new and changed files wait in "pending" until you've seen them. */
+  /* ---------- Project diary: one running record of what happened (diary.json = { events: [{ at: "2026-11-15 09:30", kind, text, ... }] }) ----------
+     kind: "file" (arrived / filed), "plan" (week plan), "note" (typed by you). Tasks, people and transmittals are read from their own files by the Diary tab. */
+  L.diaryFile = function () { return L.dataPath("diary.json"); };
+  L.diaryAdd = function (kind, text, more) {
+    try { var d = L.readJson(L.diaryFile(), null) || {}; d.events = d.events || []; var n = new Date(), e = { at: L.iso(n) + " " + L.pad(n.getHours()) + ":" + L.pad(n.getMinutes()), kind: kind, text: text };
+      if (more) for (var k in more) if (more.hasOwnProperty(k)) e[k] = more[k];
+      d.events.push(e); if (d.events.length > 4000) d.events = d.events.slice(-4000); L.saveJson(L.diaryFile(), d); return e; } catch (x) { return null; }
+  };
   L.watchLoad = function () { var w = L.readJson(L.dataPath("watch.json"), null) || {}; w.folders = w.folders || []; return w; };
   L.watchSave = function (w) { try { L.saveJson(L.dataPath("watch.json"), w); } catch (e) { } };
   L.watchAdd = function (path, name) { var w = L.watchLoad(); for (var i = 0; i < w.folders.length; i++) if (w.folders[i].path.toLowerCase() == path.toLowerCase()) return false;
@@ -145,11 +153,14 @@ var LT = (function () {
         var e = new Enumerator(fo.Files); for (; !e.atEnd() && n < 2000; e.moveNext()) { var f = e.item(), nm = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$|\.tmp$/i.test(nm)) continue; var t = 0; try { t = +new Date(f.DateLastModified); } catch (x) { } now[rel + nm] = t; n++; }
         if (depth < 3) { var sf = new Enumerator(fo.SubFolders); for (; !sf.atEnd(); sf.moveNext()) if (!(sf.item().Attributes & 6)) walk("" + sf.item().Path, rel + sf.item().Name + "\\", depth + 1); } };
       walk(F.path, "", 0);
-      if (F.seen) { var pend = {}; for (var p = 0; p < F.pending.length; p++) pend[F.pending[p].rel] = F.pending[p];
+      if (F.seen) { var pend = {}, was = {}; for (var p = 0; p < F.pending.length; p++) { pend[F.pending[p].rel] = F.pending[p]; was[F.pending[p].rel] = F.pending[p].kind + F.pending[p].time; }
         for (var k in now) if (now.hasOwnProperty(k)) { var old = F.seen[k]; if (old === undefined || old != now[k]) { var it = pend[k] || (pend[k] = { rel: k, path: F.path + "\\" + k, kind: old === undefined ? "new" : "changed" }); it.time = now[k]; } }
         for (var g in F.seen) if (F.seen.hasOwnProperty(g) && now[g] === undefined && !(pend[g] && pend[g].kind == "new")) { var dd = pend[g] || (pend[g] = { rel: g, path: F.path + "\\" + g }); dd.kind = "deleted"; dd.time = +new Date(); }
         F.pending = []; for (var q in pend) if (pend.hasOwnProperty(q) && (now[q] !== undefined || pend[q].kind == "deleted")) { if (now[q] !== undefined && pend[q].kind == "deleted") pend[q].kind = "changed"; F.pending.push(pend[q]); }
-        F.pending.sort(function (a, b) { return b.time - a.time; }); }
+        F.pending.sort(function (a, b) { return b.time - a.time; });
+        var fresh = [], cnt = { "new": 0, changed: 0, deleted: 0 }; for (var fi = 0; fi < F.pending.length; fi++) { var fp = F.pending[fi]; if (was[fp.rel] != fp.kind + fp.time) { fresh.push(fp.rel.split("\\").pop()); cnt[fp.kind]++; } }   // the diary notes what turned up in this check
+        if (fresh.length) { var bits = []; if (cnt["new"]) bits.push(cnt["new"] + " new"); if (cnt.changed) bits.push(cnt.changed + " changed"); if (cnt.deleted) bits.push(cnt.deleted + " deleted");
+          L.diaryAdd("file", (F.name || fso.GetFileName(F.path)) + ": " + bits.join(", ") + " \u2013 " + fresh.slice(0, 6).join(", ") + (fresh.length > 6 ? " +" + (fresh.length - 6) + " more" : ""), { files: fresh.slice(0, 60), folder: F.path }); } }
       F.seen = now; F.at = +new Date(); total += F.pending.length; }
     w.at = +new Date(); L.watchSave(w); return total;
   };
@@ -675,8 +686,12 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.26";
+  L.VERSION = "2026.11.27";
   L.WHATS_NEW = [
+    { v: "2026.11.27", items: [
+      "<b>&#128198; Week plan</b> (Delegate): one row per person, one column per day. Drag a task to a day or to another person, mark leave, see who has too much and who is free &middot; <b>Spread fairly</b> lays each person's week out for you",
+      "<b>&#128229; Smart Inbox</b> (new tab): drop a pile of files &ndash; each one shows where it goes (next to its older revision, or by your rules), wrong names are fixed, old revisions move to Superseded. Preview first, then one button &middot; Undo",
+      "<b>&#128214; Project Diary</b> (new tab): one record of everything &ndash; files, tasks, hand-outs, transmittals, replies. Search in plain words (rev C, last week, a name) &middot; add your own notes &middot; export any period as a PDF" ] },
     { v: "2026.11.26", items: [
       "<b>Fun</b>: a real basketball, tidy lettering, no name by default &middot; <b>one ball per file</b>: aim once and all the balls follow the same path, one after another" ] },
     { v: "2026.11.25", items: [

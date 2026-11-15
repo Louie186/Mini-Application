@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Project Diary</title>
+<meta name="lt-order" content="4.5">
+<meta name="lt-group" content="Work">
+<meta name="lt-icon" content="&#128214;">
+<meta name="lt-desc" content="One running record of everything: files that arrived or were filed, tasks given and closed, transmittals sent and replies. Search it in plain words (rev C, last week, a name) to answer who sent what, to whom, and when. Export any period as a PDF.">
+<!--
+  Lew's Toolbox - Project diary: reads what the other tabs already keep (task events, Delegate history, the Transmittal log and replies)
+  and adds its own diary.json (files arrived / filed, week plan changes, your notes). Nothing here changes the other tabs' data.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+#q{width:250px;margin:0 8px 6px 0}
+.dt{width:96px;margin:0 8px 6px 0}
+#list{flex:1 1 auto;overflow:auto;min-height:0;padding:0 14px 14px}
+.day{font-weight:bold;margin:14px 0 4px;padding-bottom:4px}
+.ev{display:flex;padding:5px 6px;line-height:1.4}
+.ev .tm{flex:none;width:48px}
+.ev .kd{flex:none;width:96px}
+.ev .tx{flex:1 1 0px;min-width:0;word-wrap:break-word}
+.ev .go{flex:none;margin-left:8px;cursor:pointer;text-decoration:underline}
+.tag{display:inline-block;padding:1px 8px;font-size:.82em;font-weight:bold}
+.right{float:right}
+#sum{padding:0 14px 6px}
+</style>
+<script src="../core/lt-core.js"></script>
+<script src="../core/lt-transmittal.js"></script>
+<script src="../core/lt-taskfolder.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <input type="text" id="q" placeholder="Search: rev C, last week, a name, TR-005...">
+    <span id="kinds"></span>
+    <span class="lbl muted">From</span><input type="text" class="dt" id="dFrom" placeholder="dd/mm/yyyy">
+    <span class="lbl muted">To</span><input type="text" class="dt" id="dTo" placeholder="dd/mm/yyyy">
+    <span class="right"><button class="btn small" id="bNote">+ Note</button><button class="btn small" id="bPdf">&#128196; Export PDF</button><button class="btn small" id="bCsv">Export CSV</button></span>
+  </div>
+  <div id="sum" class="step muted"></div>
+  <div id="list"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso;
+var KINDS = [["", "All"], ["task", "Tasks"], ["people", "People"], ["tr", "Transmittals"], ["file", "Files"], ["note", "Notes"]];
+var KNAME = { task: "Task", people: "People", tr: "Transmittal", file: "Files", note: "Note", plan: "Week plan" };
+var all = [], shown = [], kind = "", limit = 300;
+
+/* ---------- everything that happened, from every tab's own file ---------- */
+function J(n) { return LT.readJson(LT.dataPath(n), null) || {}; }
+function gather() {
+  all = []; var i, j, now = new Date();
+  var add = function (at, k, text, more, go) { if (!at) return; all.push({ at: at, kind: k, text: text, more: more || "", go: go || "", hay: (text + " " + (more || "") + " " + (KNAME[k] || "")).toLowerCase() }); };
+  // tasks (Tasks tab)
+  var tr = J("tracker.json").tasks || [];
+  for (i = 0; i < tr.length; i++) { var t = tr[i], ev = t.events || [];
+    for (j = 0; j < ev.length; j++) add(ev[j].at, "task", (t.code ? t.code + " " : "") + t.title + ": " + ev[j].text, [t.who, t.project].join(" "), "tracker|" + (t.code || "")); }
+  // people (Delegate): its history lines have no year - the nearest one in the past is used
+  var dg = J("delegate.json").tasks || [];
+  for (i = 0; i < dg.length; i++) { var d = dg[i], hs = d.history || [];
+    for (j = 0; j < hs.length; j++) { var m = /^(?:[A-Z][a-z]{2} )?(\d{1,2}) ([A-Z][a-z]{2})(?: (\d\d:\d\d))?(?: \u00b7 \S+)?\s+(.*)$/.exec(hs[j]); if (!m) continue;
+      var mo = LT.MON.indexOf(m[2]), y = now.getFullYear(); if (mo < 0) continue; if (new Date(y, mo, +m[1]) > now) y--;
+      var body = m[4]; if (body.indexOf(d.code + ".") == 0) body = body.replace(/^(\S+?):?\s/, "$1 (" + d.title + "): "); else if (body.indexOf(d.code) == 0) body = body.replace(d.code, d.code + " " + d.title); else body = d.code + " " + d.title + ": " + body;
+      add(LT.iso(new Date(y, mo, +m[1])) + (m[3] ? " " + m[3] : ""), "people", body, [d.who, d.project, d.group].join(" "), "delegate|" + d.code); } }
+  // transmittals and their replies
+  var lg = LT.trLoad().log;
+  for (i = 0; i < lg.length; i++) { var T = lg[i], its = T.items || [], bits = [];
+    for (j = 0; j < its.length; j++) bits.push((its[j].number || "") + (its[j].rev ? " rev " + its[j].rev : "") + " " + (its[j].title || ""));
+    add(T.date, "tr", T.no + " sent to " + (T.to || "?") + (T.attn ? " (" + T.attn + ")" : "") + " \u2013 " + its.length + " item" + (its.length == 1 ? "" : "s") + (T.purpose ? ", " + T.purpose : ""), bits.join(" \u00b7 ") + " " + (T.project || "") + " " + (T.by || "") + " " + (T.notes || ""), "transmittal|" + T.no);
+    for (j = 0; j < (T.replies || []).length; j++) { var R = T.replies[j]; add(R.date, "tr", T.no + " reply from " + (T.to || "?") + (R.code ? ": " + R.code : "") + (R.note ? " \u2013 " + R.note : ""), R.link || "", "transmittal|" + T.no); } }
+  // the diary's own notes: files arrived / filed, week plan, typed notes
+  var dy = J("diary.json").events || [];
+  for (i = 0; i < dy.length; i++) { var e = dy[i]; add(e.at, e.kind == "plan" ? "people" : e.kind, e.text, (e.files || []).join(" ") + " " + (e.to || ""), e.kind == "note" ? "note|" + i : e.go || ""); }
+  all.sort(function (a, b) { return a.at < b.at ? 1 : a.at > b.at ? -1 : 0; });
+}
+
+/* ---------- plain-words search: date words become a period, the rest must all be in the entry ---------- */
+function dmy(s) { var m = /^\s*(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\s*$/.exec(s || ""); if (!m) return ""; var y = +m[3]; if (y < 100) y += 2000; return LT.iso(new Date(y, +m[2] - 1, +m[1])); }
+function day0() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function plus(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function parseQ(q) {
+  q = " " + q.toLowerCase().replace(/\s+/g, " ") + " "; var t = day0(), mon = plus(t, -((t.getDay() + 6) % 7)), from = "", to = "", label = "";
+  var P = [["today", t, t], ["yesterday", plus(t, -1), plus(t, -1)], ["this week", mon, plus(mon, 6)], ["last week", plus(mon, -7), plus(mon, -1)],
+    ["this month", new Date(t.getFullYear(), t.getMonth(), 1), new Date(t.getFullYear(), t.getMonth() + 1, 0)], ["last month", new Date(t.getFullYear(), t.getMonth() - 1, 1), new Date(t.getFullYear(), t.getMonth(), 0)]];
+  for (var i = 0; i < P.length; i++) if (q.indexOf(" " + P[i][0] + " ") >= 0) { q = q.replace(" " + P[i][0] + " ", " "); from = LT.iso(P[i][1]); to = LT.iso(P[i][2]); label = P[i][0]; }
+  var words = [], m, re = /"([^"]+)"|(rev(?:ision)? \S+)|(\S+)/g;   // "rev c" stays together: it finds "rev C02" too
+  while ((m = re.exec(q))) { var w = m[1] || m[2] || m[3]; if (m[2]) w = w.replace(/^revision /, "rev "); if (w) words.push(w); }
+  return { words: words, from: from, to: to, label: label };
+}
+function filter() {
+  var Q = parseQ($("q").value), f = dmy($("dFrom").value) || Q.from, t = dmy($("dTo").value) || Q.to; shown = [];
+  for (var i = 0; i < all.length; i++) { var e = all[i], d = e.at.substring(0, 10);
+    if (kind && e.kind != kind) continue; if (f && d < f) continue; if (t && d > t) continue;
+    var hit = true; for (var w = 0; w < Q.words.length && hit; w++) if (e.hay.indexOf(Q.words[w]) < 0) hit = false;
+    if (hit) shown.push(e); }
+  return { from: f, to: t, label: Q.label };
+}
+function render() {
+  var F = filter(), h = [], day = "", n = Math.min(shown.length, limit), c = {};
+  for (var k = 0; k < shown.length; k++) c[shown[k].kind] = (c[shown[k].kind] || 0) + 1;
+  var kh = ""; for (var i = 0; i < KINDS.length; i++) kh += '<span class="chip' + (kind == KINDS[i][0] ? " on" : "") + '" data-k="' + KINDS[i][0] + '">' + KINDS[i][1] + "</span>";
+  $("kinds").innerHTML = kh;
+  var parts = []; for (var z = 1; z < KINDS.length; z++) if (c[KINDS[z][0]]) parts.push(c[KINDS[z][0]] + " " + KINDS[z][1].toLowerCase());
+  $("sum").innerHTML = "<b>" + shown.length + "</b> entr" + (shown.length == 1 ? "y" : "ies") + (parts.length ? " &middot; " + parts.join(" &middot; ") : "") + (F.from || F.to ? " &middot; " + esc(F.from ? LT.fmtDate(F.from) : "start") + " to " + esc(F.to ? LT.fmtDate(F.to) : "today") : "");
+  for (var j = 0; j < n; j++) { var e = shown[j], d = e.at.substring(0, 10);
+    if (d != day) { day = d; h.push('<div class="day">' + esc(LT.fmtDate(d)) + " " + d.substring(0, 4) + "</div>"); }
+    var g = e.go.split("|");
+    h.push('<div class="ev"><span class="tm muted">' + esc(e.at.substring(11)) + '</span><span class="kd"><span class="tag k_' + e.kind + '">' + (KNAME[e.kind] || e.kind) + '</span></span><span class="tx">' + esc(e.text) + "</span>" +
+      (g[0] == "note" ? '<span class="go muted" data-del="' + g[1] + '">remove</span>' : g[0] ? '<span class="go muted" data-go="' + esc(e.go) + '">open</span>' : "") + "</div>"); }
+  if (shown.length > n) h.push('<div class="step"><button class="btn" id="bMore">Show ' + Math.min(300, shown.length - n) + " more</button></div>");
+  $("list").innerHTML = h.join("") || '<div class="muted" style="padding:30px 0">' + (all.length ? "Nothing matches. Try fewer words, or clear the dates." : "Nothing in the diary yet. It fills by itself as you work: tasks, hand-outs, transmittals, files arriving in watched folders, files you sort in the Smart Inbox.") + "</div>";
+}
+
+/* ---------- export: the entries you see, as a PDF (a page + PDF in exports\Diary) or a CSV ---------- */
+function title() { var p = LT.project(); return "Project diary" + (p ? " \u2013 " + p.name : ""); }
+function period() { var F = filter(), a = shown.length ? shown[shown.length - 1].at.substring(0, 10) : "", b = shown.length ? shown[0].at.substring(0, 10) : ""; return LT.fmtDate(F.from || a) + " to " + LT.fmtDate(F.to || b); }
+function pageHtml() {
+  var h = ['<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(title()) + "</title><style>body{font-family:Segoe UI,Arial,sans-serif;font-size:10.5pt;color:#1c1713;margin:28px 34px}h1{font-size:18pt;margin:0 0 2px}.s{color:#777;margin-bottom:14px}h2{font-size:11pt;margin:16px 0 4px;padding-bottom:3px;border-bottom:1px solid #d9772f}table{border-collapse:collapse;width:100%}td{padding:3px 6px;vertical-align:top;border-bottom:1px solid #eee}td.t{width:44px;color:#777}td.k{width:92px;font-weight:bold;color:#a94a14}.f{margin-top:18px;color:#999;font-size:8.5pt}</style></head><body>"];
+  h.push("<h1>" + esc(title()) + '</h1><div class="s">' + esc(period()) + " &middot; " + shown.length + " entries" + (LT.trim($("q").value) ? ' &middot; search: "' + esc(LT.trim($("q").value)) + '"' : "") + (kind ? " &middot; " + esc(KNAME[kind]) + " only" : "") + "</div>");
+  var day = "";
+  for (var i = shown.length - 1; i >= 0; i--) { var e = shown[i], d = e.at.substring(0, 10);   // oldest first: reads like a diary
+    if (d != day) { if (day) h.push("</table>"); day = d; h.push("<h2>" + esc(LT.fmtDate(d)) + " " + d.substring(0, 4) + "</h2><table>"); }
+    h.push('<tr><td class="t">' + esc(e.at.substring(11)) + '</td><td class="k">' + esc(KNAME[e.kind] || e.kind) + "</td><td>" + esc(e.text) + "</td></tr>"); }
+  if (day) h.push("</table>");
+  h.push('<div class="f">Made by Lew\'s Toolbox on ' + esc(LT.fmtDate(LT.today())) + (LT.settings().userName ? " &middot; " + esc(LT.settings().userName) : "") + "</div></body></html>");
+  return h.join("");
+}
+function exportPdf() {
+  if (!shown.length) { alert("Nothing to export - the list is empty."); return; }
+  var dir = LT.exportsDir() + "\\Diary", f = dir + "\\Diary_" + LT.stamp() + ".html"; LT.mkdirs(dir); LT.writeText(f, pageHtml());
+  var pdf = ""; try { pdf = LT.tfPdf(f, f.replace(/\.html$/, ".pdf")); } catch (e) { }
+  window.__lastExport = pdf || f;
+  LT.toast(pdf ? "Diary PDF made (" + shown.length + " entries)" : "Diary page made (no PDF maker found - print it to PDF from the browser)");
+  try { LT.open(pdf || f); } catch (e) { }
+}
+function exportCsv() {
+  if (!shown.length) { alert("Nothing to export - the list is empty."); return; }
+  var rows = [["Date", "Time", "Kind", "What happened"]]; for (var i = shown.length - 1; i >= 0; i--) rows.push([shown[i].at.substring(0, 10), shown[i].at.substring(11), KNAME[shown[i].kind] || shown[i].kind, shown[i].text]);
+  var f = LT.exportsDir() + "\\Diary\\Diary_" + LT.stamp() + ".csv"; LT.mkdirs(LT.exportsDir() + "\\Diary"); LT.writeCsv(f, rows); window.__lastExport = f; LT.toast("Diary CSV made"); try { LT.showInFolder(f); } catch (e) { }
+}
+function addNote() { var t = prompt("Diary note (a phone call, a decision, something agreed on site):", ""); if (!LT.trim(t)) return; LT.diaryAdd("note", LT.trim(t)); gather(); render(); }
+
+$("q").onkeyup = function () { limit = 300; render(); };
+$("dFrom").onchange = $("dTo").onchange = function () { limit = 300; render(); };
+$("kinds").onclick = function (e) { var c = LT.up((e || window.event).target || (e || window.event).srcElement, "data-k"); if (c) { kind = c.getAttribute("data-k"); limit = 300; render(); } };
+$("list").onclick = function (e) { e = e || window.event; var el = e.target || e.srcElement;
+  if (el.id == "bMore") { limit += 300; render(); return; }
+  var del = el.getAttribute && el.getAttribute("data-del");
+  if (del != null) { if (!confirm("Remove this note from the diary?")) return; var d = J("diary.json"); d.events.splice(+del, 1); LT.saveJson(LT.diaryFile(), d); gather(); render(); return; }
+  var go = el.getAttribute && el.getAttribute("data-go"); if (!go) return; var g = go.split("|"), m = LT.main(); if (!m) return;
+  if (g[0] == "tracker" || g[0] == "delegate") m.send(g[0], "show-task", g[1]); else m.show(g[0]); };
+$("bNote").onclick = addNote; $("bPdf").onclick = exportPdf; $("bCsv").onclick = exportCsv;
+LT.datePicker(function (t) { return t.className == "dt"; });
+function look() { LT.applyLook([".day{border-bottom:{bw}px solid {line}}", ".ev:hover{background:{hover}}", ".tag{border-radius:{rc}px;background:{chip};color:{muted}}",
+  ".tag.k_task{background:{accSoft};color:{accent}}", ".tag.k_people{background:{warnSoft};color:{warn}}", ".tag.k_tr{background:{okSoft};color:{ok}}", ".tag.k_note{background:{badSoft};color:{bad}}", ".go:hover{color:{accent}}"]); }
+window.ltTheme = look; window.ltShown = window.ltReload = function () { gather(); render(); };
+window.ltReceive = function (what, v) { if (what == "search") { $("q").value = v || ""; gather(); render(); } };
+look(); gather(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

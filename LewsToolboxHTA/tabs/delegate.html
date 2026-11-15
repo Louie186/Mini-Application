@@ -309,15 +309,16 @@ function render() {
   $("person").innerHTML = h; $("pplList").innerHTML = dl;
   var open = 0, nLate = 0;
   for (var j = 0; j < data.tasks.length; j++) { var t = data.tasks[j]; if (statusOf(t) != "Completed") open++; if (!t.subs.length) { if (late(t.due, t.status)) nLate++; } else for (var k = 0; k < t.subs.length; k++) if (late(t.subs[k].due || t.due, t.subs[k].status)) nLate++; }
-  h = '<button class="btn' + (view == "list" ? " on" : "") + '" data-v="list">&#9776; Tasks &nbsp;' + open + '</button><button class="btn' + (view == "board" ? " on" : "") + '" data-v="board">&#9638; Board</button><button class="btn' + (view == "cal" ? " on" : "") + '" data-v="cal">&#128197; Calendar</button><button class="btn' + (view == "team" ? " on" : "") + '" data-v="team">&#128101; Team &amp; groups</button><button class="btn' + (view == "workload" ? " on" : "") + '" data-v="workload">&#128202; Workload</button>';
+  h = '<button class="btn' + (view == "list" ? " on" : "") + '" data-v="list">&#9776; Tasks &nbsp;' + open + '</button><button class="btn' + (view == "board" ? " on" : "") + '" data-v="board">&#9638; Board</button><button class="btn' + (view == "cal" ? " on" : "") + '" data-v="cal">&#128197; Calendar</button><button class="btn' + (view == "team" ? " on" : "") + '" data-v="team">&#128101; Team &amp; groups</button><button class="btn' + (view == "planner" ? " on" : "") + '" data-v="planner">&#128198; Week plan</button><button class="btn' + (view == "workload" ? " on" : "") + '" data-v="workload">&#128202; Workload</button>';
   if (LT.settings().trackerFolder) h += '<button class="btn' + (view == "web" ? " on" : "") + '" data-v="web">&#127760; Lew\'s Tracker &nbsp;' + web.length + "</button>";
   if (nLate) h += '<span class="lbl bad" style="font-weight:bold">' + nLate + " late</span>";
   var bst = boardState(); if (bst.replies) h += '<button class="btn primary" id="bBrep" title="Replies the team saved in the _Replies folder of their Team Board">&#128229; ' + bst.replies + " repl" + (bst.replies == 1 ? "y" : "ies") + " on team boards</button>";
   if (bst.stale.length) h += '<button class="btn" id="bBpub" title="Tasks changed since the Team Board was last updated: ' + esc(bst.stale.join(", ")) + '">&#128204; Update team board' + (bst.stale.length > 1 ? "s" : "") + " (" + esc(bst.stale.join(", ")) + ")</button>";
   if (data.imports.length) { var li = data.imports[data.imports.length - 1]; h += '<span class="lbl muted">Last reply: ' + esc(li.from) + ", " + esc(li.when) + "</span>"; }
   $("views").innerHTML = h;
-  $("filters").style.display = view == "workload" ? "none" : "";
+  $("filters").style.display = view == "workload" || view == "planner" ? "none" : "";
   if (view == "workload") { workload(); return; }
+  if (view == "planner") { planner(); return; }
   if (view == "team") team(); else if (view == "board") board(); else if (view == "cal") cal(); else list(view == "web" ? web : data.tasks);
 }
 
@@ -465,6 +466,14 @@ function workload() {
   if (!f) { $("main").innerHTML = '<iframe application="yes" id="wlFrame" src="parts/workload.html" style="display:block;width:100%;height:100%;border:0"></iframe>'; return; }
   try { f.contentWindow.ltShown(); } catch (e) { }
 }
+/* Week plan (parts/planner.html): one row per person, one column per day. It changes who does an item in delegate.json itself, then calls plannerChanged */
+function planner() {
+  rowMap = []; $("hint").innerHTML = "";
+  var f = $("plFrame");
+  if (!f) { $("main").innerHTML = '<iframe application="yes" id="plFrame" src="parts/planner.html" style="display:block;width:100%;height:100%;border:0"></iframe>'; return; }
+  try { f.contentWindow.ltShown(); } catch (e) { }
+}
+window.plannerChanged = function () { load(); save(); };   // read what the planner wrote, and pass it on to the Tasks tab (the feed)
 function team() {
   rowMap = [];
   var ws = todayD(); ws = new Date(ws.getFullYear(), ws.getMonth(), ws.getDate() - ((ws.getDay() + 6) % 7));
@@ -1253,7 +1262,7 @@ $("pOk").onclick = function () { var t = $("pText").value; if (!LT.trim(t)) retu
 document.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 27) { $("dlg").style.display = "none"; $("chase").style.display = "none"; $("send").style.display = "none"; $("paste").style.display = "none"; } };
 
 /* called by the main window */
-window.ltTheme = function () { look(); try { var w = $("wlFrame"); if (w) w.contentWindow.ltTheme(); } catch (e) { } if (view != "workload") render(); };
+window.ltTheme = function () { look(); try { var w = $("wlFrame") || $("plFrame"); if (w) w.contentWindow.ltTheme(); } catch (e) { } if (view != "workload" && view != "planner") render(); };
 window.ltReload = function () { load(); render(); };
 window.ltReceive = function (what, value) {
   if (what == "from-log") fromLog(JSON.parse(value));

@@ -117,7 +117,7 @@
 var fso = LT.fso, APP = LT.appDir(), SELF = LT.pathFromUrl(location.href);
 var tabs = [], frames = {}, current = null, tipsOn = true;
 /* each tab's icon (line icons, core\lt-core.js L.ICONS); a tab not listed here keeps its own (emoji) icon */
-var ICON_OF = { fun: "star", home: "home", launcher: "launch", tracker: "taskcheck", delegate: "delegate", transmittal: "transmittal", register: "register", check: "check", find: "find", superseded: "superseded", files: "files", folders: "folders", report: "report", settings: "settings" };
+var ICON_OF = { inbox: "inbox", diary: "note", fun: "star", home: "home", launcher: "launch", tracker: "taskcheck", delegate: "delegate", transmittal: "transmittal", register: "register", check: "check", find: "find", superseded: "superseded", files: "files", folders: "folders", report: "report", settings: "settings" };
 
 /* reads the name / order / icon of each tabs\*.html without opening it */
 function findTabs() {

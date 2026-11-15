@@ -34,12 +34,14 @@ The side menu follows the way the work flows: **WORK** (log it → hand it out �
 | Launcher | Your full QuickLaunch, inside the Toolbox |
 | **WORK** | |
 | Tasks | Every task starts here: your own to-dos and work to hand out – description, checklist, who (a person or a group), references · List, Board, Calendar |
-| Delegate | Hand tasks out from Tasks: task packs with the references, groups with a lead, replies back · Board, Calendar, Team & groups, Workload, Team Board, Chase up |
+| Delegate | Hand tasks out from Tasks: task packs with the references, groups with a lead, replies back · Board, Calendar, Team & groups, **Week plan**, Workload, Team Board, Chase up |
 | Transmittal | Numbered issue sheets (TR-001…), log only / zip / folder, and the **History** of everything that went out |
+| Project Diary | One record of everything – files, tasks, hand-outs, transmittals, replies. Search in plain words, add notes, export a PDF |
 | **DRAWINGS** | |
 | Drawing Register | Load each new MIDP: new / removed / retitled drawings, every drawing's Tower / Typology / Model, Status, My sets, List lookup, filters |
 | Folder Check | **Check all** · Submission check · Contents & checklist · Review · Names · Compare · **Find drawings** · **Superseded** |
 | **FILES** | |
+| Smart Inbox | Drop a pile of files: each one shows where it goes, wrong names are fixed, old revisions move to Superseded · preview, one button, Undo |
 | Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
 | Project Folders | Your standard folder tree for a new project in one click |
 | Settings | Looks, data folder, Launcher list, links, taskbar shortcut, backups |
@@ -218,6 +220,12 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **▦ Board** – drag a card to another column to change its status (a task with items follows its items)
 - **📅 Calendar** – drag to another day to change the due date (**bold** = the task, **↳** = only its items that day; with a person picked, only theirs). Every move is in the task's **History**
 - Every drag shows a message with **Undo** for 6 seconds
+- **📆 Week plan** – one row per person (you too), one column per day (Mon–Fri; ◀ ▶ change the week). Every open task sits on its **due day**
+  - **Drag a task to another day** = the day it's planned (the due date stays; *(due Fri)* shows on it) · **drag it to another person** = they do it now (asks first; Delegate's history notes it). Your own tasks stay yours
+  - **leave** (in each box) marks a day off – work on that day turns red · **double-click a task** to type its hours (the same hours as Workload)
+  - A box turns **red** when it's too much: more hours than the day has, or – with no hours typed – more than 3 tasks (Options). The line on top says who has too much and **who is free that day**; **free** next to a name = half a week or more is open
+  - **⚖ Spread fairly** lays each person's week over their free days, never after a due date, late work first (Undo in the toast) · **To plan** (top row) holds late work and work with no date; drop a task there to take it off the plan
+  - Saved in `planner.json` (only the planned days and leave – the tasks stay in Delegate / Tasks)
 - **📊 Workload** – people and hours per week (click a name to change hours, e.g. part-time); type the **hours each open task needs**; the heat-map shows green has room · amber 80–100% · red overloaded. Click a box to see its tasks. **Options ▾**: include your own tasks, hours for tasks with no estimate, weeks to show, export
 - Right-click a row: status, send this task, history, duplicate, delete. **More ▾**: new task here, new group, CSV export, sent / received log, project name, copy Lew's Tracker tasks in
 
@@ -494,6 +502,27 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 - **Copy for email / Teams**, **Open as an email**, or **Save** (text + CSV)
 - **By itself every week** (Settings → Weekly report): pick the day; it's saved in `exports\Weekly reports` (a page + text), the bell glows and Home shows *Your weekly report is ready*. Not open that day? It's made the next time the Toolbox opens that week
 
+## 📥 Smart Inbox
+
+Sorts loose files into the project's filing folder – **you see everything first, nothing is overwritten, and Undo puts it back**.
+1. **Files to sort:** *From a folder…*, *Paste copied files* (Ctrl+C in Explorer, then the button or Ctrl+V), or *From Incoming* (the new files of your watched folders)
+2. **Filing folder:** choose the project's folder once (kept)
+3. The list shows, per file: the drawing (title from the Drawing Register), its revision, **where it goes and why**, and what else happens
+   - **Next to its older revision** – a drawing already filed (same number, same file type) pulls the new revision into the same folder; the **old revision moves to `Superseded`** there (Options)
+   - else **your rules** (Rules…): one per line, the first that fits – `pdf, dwf -> Drawings\PDF` · `contains: clash -> Coordination\Clash reports` · `starts: T1- -> Tower 1\{EXT}` ({EXT} {REV} {TOWER} {TYPO})
+   - else it's **red** ("no rule fits") – click it to choose a folder · also red: *already there*, *older than P03 already filed*
+   - **Names** that break your naming rule (Folder Check → Names) are fixed when that's safe (`t1_zz_dr_a_101_p1` → `T1-ZZ-DR-A-0101-P01`), else flagged
+- **Copy … into place** (or Move – Options) files the ticked ones · **↶ Undo the last run** removes the copies / moves everything back, old revisions too
+- Every run is noted in the **Project Diary**. Settings and the last run: `inbox.json`
+
+## 📖 Project Diary
+
+One running record, newest first, grouped by day – **who sent what, to whom, and when**.
+- It reads what the Toolbox already keeps: **Tasks** (created, done, progress), **People** (Delegate: sent, chased, replies, status, who → who), **Transmittals** (sent, with every drawing and revision, and replies) – and adds **Files** (arrived in a watched folder, filed by the Smart Inbox), week-plan changes and **your own notes** (+ Note: a phone call, a decision)
+- **Search in plain words:** `rev C02`, `TR-005`, a drawing number, a name – and `today`, `yesterday`, `this week`, `last week`, `this month`, `last month` (e.g. *last week anna*). Chips: Tasks / People / Transmittals / Files / Notes · From / To dates
+- **open** jumps to the task or the tab · **Export PDF** makes a page (+ PDF, by Edge) of exactly what you see, oldest first, in `exports\Diary` – for a meeting, a claim, a handover · Export CSV
+- Its own entries are in `diary.json` (the newest 4,000)
+
 ## 🏀 Fun
 
 A little break, under its own **FUN** heading in the menu: a slingshot game – **pull the ball back, let go, shoot it into the hoop**.
@@ -526,7 +555,7 @@ A little break, under its own **FUN** heading in the menu: a slingshot game – 
 
 - **One tab = one file** in `tabs\`. The main window lists every `tabs\*.html` by itself, using the page's
   `<title>`, `<meta name="lt-order">`, `<meta name="lt-group">` (WORK / DRAWINGS / FILES heading, `-` = a line), `<meta name="lt-icon">` and `<meta name="lt-desc">` (the hover tip). Adding or changing a tab needs no other edits
-- `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload (in Delegate); Contents, Review, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
+- `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload and Week plan (in Delegate); Contents, Review, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
 - `core\lt-refs.js` – references (editor, labels, plain-text lines) used by Tasks and Delegate
 - `core\lt-transmittal.js` – making a transmittal (`LT.trMake`), used by the Transmittal tab and by Delegate
 - `core\lt-taskfolder.js` – task folders (`LT.tfMake`, `tfAdd`, `tfPaste` (Ctrl+V: a snip or files copied in Explorer), `tfSave` = _task.json + Notes.txt + summary HTML/PDF, `tfRead`)

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Week Plan</title>
+<meta name="lt-icon" content="&#128197;">
+<meta name="lt-desc" content="One row per person, one column per day: drag tasks onto a person and a day, mark leave, see who has too much and who is free.">
+<!--
+  Lew's Toolbox - (shown inside the Delegate tab, view Week plan) Week planner.
+  Open work comes from Delegate (and your own Tasks); hours come from Workload (workload.json). This page only adds planner.json:
+  { plan: { "<item>": "2026-11-17" }  the day the work is planned (else: its due date),  off: { "ana|2026-11-17": 1 }  leave / busy }.
+  Dragging an item to another person changes who does it in Delegate (asks first).
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.right{float:right}
+#hints{flex:none;padding:0 14px 6px;line-height:1.5}
+#grid{flex:1 1 auto;overflow:auto;min-height:0;padding:0 14px 14px}
+#grid table{border-collapse:collapse;width:100%;table-layout:fixed}
+#grid th{text-align:left;padding:6px 8px;font-size:.82em;text-transform:uppercase;letter-spacing:.4px}
+#grid th.today{font-weight:bold}
+#grid td{vertical-align:top;padding:5px 6px;height:64px}
+#grid td.who{width:150px}
+#grid td.who small{display:block;margin-top:2px}
+.ld{font-size:.8em;font-weight:bold;margin-bottom:3px;display:flex}
+.ld .offb{margin-left:auto;cursor:pointer;font-weight:normal;text-decoration:underline}
+.it{display:block;padding:3px 7px;margin:0 0 4px;cursor:move;font-size:.9em;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.it b{font-weight:bold}
+#tray{min-height:40px}
+#tray .it{display:inline-block;max-width:230px;margin-right:6px;vertical-align:top}
+.free{display:inline-block;padding:0 7px;font-size:.78em;font-weight:bold;margin-left:4px}
+</style>
+<script src="../../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <button class="btn small" id="bPrev">&#9664;</button><span class="lbl big" id="wkLbl"></span><button class="btn small" id="bNext">&#9654;</button><button class="btn small" id="bNow">This week</button>
+    <button class="btn" id="bSpread" title="Spreads each person's work for this week over their free days, before each due date">&#9878; Spread fairly</button>
+    <span class="lbl muted">Drag a task to a day or to another person &middot; double-click = hours &middot; "leave" marks a day off</span>
+    <span class="right"><button class="btn small" id="bOpt">Options &#9662;</button></span>
+  </div>
+  <div id="hints"></div>
+  <div id="grid"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, store, wl, items = [], people = [], monday, dragKey = null, dragFrom = "";
+function FILE() { return LT.dataPath("planner.json"); }
+function load() { store = LT.readJson(FILE(), null) || {}; store.plan = store.plan || {}; store.off = store.off || {}; if (store.mine == null) store.mine = true; store.max = store.max || 3;
+  wl = LT.readJson(LT.dataPath("workload.json"), null) || {}; wl.people = wl.people || []; wl.estimates = wl.estimates || {}; wl.defaultHours = wl.defaultHours || 0; }
+function save() { try { LT.saveJson(FILE(), store); } catch (e) { alert("Couldn't save the week plan."); } }
+function day0() { var d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function plus(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function mondayOf(d) { return plus(d, -((d.getDay() + 6) % 7)); }
+function names(s) { var a = ("" + (s || "")).split(/\s*(?:,|;|&|\/|\band\b)\s*/i), o = []; for (var i = 0; i < a.length; i++) if (LT.trim(a[i])) o.push(LT.trim(a[i])); return o; }
+function me() { return LT.settings().userName || "Me"; }
+function same(a, b) { return ("" + a).toLowerCase() == ("" + b).toLowerCase(); }
+function has(it, n) { for (var i = 0; i < it.who.length; i++) if (same(it.who[i], n)) return true; return false; }
+function est(it) { var v = wl.estimates[it.key]; return v == null || v === "" ? wl.defaultHours : +v; }
+function cap(n) { for (var i = 0; i < wl.people.length; i++) if (same(wl.people[i].name, n)) return (+wl.people[i].hours || 37.5) / 5; return 7.5; }
+function isOff(n, iso) { return !!store.off[n.toLowerCase() + "|" + iso]; }
+function byKey(k) { for (var i = 0; i < items.length; i++) if (items[i].key == k) return items[i]; return null; }
+/* the day an item sits on: where you planned it, else its due date (a weekend counts as the Friday) */
+function dayOf(it) { var s = store.plan[it.key] || it.due; if (!s) return ""; var d = LT.parseIso(s); if (!d) return ""; if (d.getDay() == 6) d = plus(d, -1); else if (d.getDay() == 0) d = plus(d, -2); return LT.iso(d); }
+
+/* ---------- the open work: delegated items, and your own tasks ---------- */
+function gather() {
+  items = []; people = []; var seen = {}, addP = function (n) { if (n && !seen[n.toLowerCase()]) { seen[n.toLowerCase()] = 1; people.push(n); } };
+  var dl = LT.readJson(LT.dataPath("delegate.json"), null) || {}, groups = dl.groups || [], lead = function (n) { for (var g = 0; g < groups.length; g++) if (same(groups[g].name, n)) return groups[g].lead || n; return n; };
+  for (var i = 0; i < (dl.tasks || []).length; i++) { var t = dl.tasks[i], list = t.subs && t.subs.length ? t.subs : [t];
+    for (var j = 0; j < list.length; j++) { var x = list[j]; if (x.status == "Completed") continue; var who = names(x.who || t.who); for (var w = 0; w < who.length; w++) who[w] = lead(who[w]);   // a group's work sits with its lead
+      if (!who.length) who = ["Nobody yet"];
+      items.push({ key: x.code, code: x.code, title: (list === t.subs ? t.title + " – " : "") + x.title, who: who, due: x.due || t.due || "", from: "d", tcode: t.code, short: x.title }); } }
+  if (store.mine) { var tr = LT.readJson(LT.dataPath("tracker.json"), null) || {};
+    for (var k = 0; k < (tr.tasks || []).length; k++) { var y = tr.tasks[k]; if (y.status == "Done" || y.delegated) continue; items.push({ key: "t:" + y.id, code: y.code || "", title: y.title, who: [me()], due: y.due || "", from: "t" }); } }
+  if (store.mine) addP(me());
+  for (var g2 = 0; g2 < groups.length; g2++) { addP(groups[g2].lead); for (var m = 0; m < (groups[g2].members || []).length; m++) addP(groups[g2].members[m]); }
+  for (var p = 0; p < wl.people.length; p++) addP(wl.people[p].name);
+  for (var q = 0; q < items.length; q++) for (var r = 0; r < items[q].who.length; r++) addP(items[q].who[r]);
+  for (var z in store.plan) if (store.plan.hasOwnProperty(z) && !byKey(z)) delete store.plan[z];   // finished work leaves the plan
+}
+function days() { var o = []; for (var i = 0; i < 5; i++) o.push(LT.iso(plus(monday, i))); return o; }
+/* what a person has on a day: { list, h (hours), over } */
+function cell(n, iso) { var list = [], h = 0; for (var i = 0; i < items.length; i++) if (has(items[i], n) && dayOf(items[i]) == iso) { list.push(items[i]); h += est(items[i]) / items[i].who.length; }
+  h = Math.round(h * 10) / 10; var c = cap(n), off = isOff(n, iso); return { list: list, h: h, cap: c, off: off, over: list.length > 0 && (off || (h > 0 ? h > c : list.length > store.max)) }; }
+function chip(it, row) { var late = it.due && it.due < LT.today(), moved = store.plan[it.key] && store.plan[it.key] != it.due, e = est(it);
+  return '<span class="it' + (late ? " late" : "") + (it.from == "t" ? " mine" : "") + '" draggable="true" data-k="' + esc(it.key) + '" data-row="' + esc(row || "") + '" title="' + esc((it.code ? it.code + "  " : "") + it.title + "\n" + it.who.join(", ") + (it.due ? "\nDue " + LT.fmtDate(it.due) : "\nNo due date") + (e ? "\n" + e + " h" : "\nNo hours yet (double-click)")) + '"><b>' + esc(it.code || "Mine") + "</b> " + esc(it.short || it.title) +
+    (e ? ' <span class="muted">' + e + "h</span>" : "") + (moved && it.due ? ' <span class="muted">(due ' + esc(LT.fmtDate(it.due).substring(0, 3)) + ")</span>" : "") + "</span>"; }
+
+function render() {
+  gather(); var ds = days(), td = LT.today(), h = [], hints = [], i, p;
+  $("wkLbl").innerHTML = "Week of " + monday.getDate() + " " + LT.MON[monday.getMonth()] + (LT.iso(monday) == LT.iso(mondayOf(day0())) ? " (this week)" : "");
+  // not on a day yet: late work and work with no date
+  var tray = ""; for (i = 0; i < items.length; i++) { var d = dayOf(items[i]); if (!d || (d < ds[0] && items[i].due < td)) tray += chip(items[i], ""); }
+  h.push('<table><tr><th style="width:150px">To plan</th><td colspan="5" id="tray" data-tray="1">' + (tray || '<span class="muted">Nothing waiting &ndash; late work and work with no date shows here. Drop a task here to take it off the plan.</span>') + "</td></tr><tr><th>Person</th>");
+  for (i = 0; i < 5; i++) { var dd = plus(monday, i); h.push('<th class="' + (ds[i] == td ? "today" : "") + '">' + LT.DAYS[dd.getDay()] + " " + dd.getDate() + " " + LT.MON[dd.getMonth()] + (ds[i] == td ? " &middot; today" : "") + "</th>"); }
+  h.push("</tr>");
+  for (p = 0; p < people.length; p++) { var n = people[p], wk = 0, cnt = 0, row = "", cs = [];
+    for (i = 0; i < 5; i++) { var c = cell(n, ds[i]); cs.push(c); wk += c.h; cnt += c.list.length; var chips = ""; for (var k = 0; k < c.list.length; k++) chips += chip(c.list[k], n);
+      var cls = c.off ? "off" : c.over ? "hot" : !c.list.length ? "z" : c.h >= c.cap * 0.8 ? "warm" : "cool";
+      row += '<td class="c ' + cls + '" data-c="' + esc(n) + "|" + ds[i] + '"><div class="ld"><span>' + (c.off ? "On leave" : c.h ? c.h + " / " + c.cap + "h" : c.list.length ? c.list.length + " task" + (c.list.length == 1 ? "" : "s") : "") + '</span><span class="offb muted" data-off="' + esc(n) + "|" + ds[i] + '">' + (c.off ? "back" : "leave") + "</span></div>" + chips + "</td>";
+      if (c.over) { var fr = []; for (var q = 0; q < people.length; q++) if (q != p) { var o = cell(people[q], ds[i]); if (!o.off && (o.h ? o.h <= o.cap * 0.5 : o.list.length == 0) && people[q] != "Nobody yet") fr.push(people[q]); }
+        hints.push("<b>" + esc(n) + "</b> " + (c.off ? "is on leave" : "has too much") + " on " + LT.DAYS[plus(monday, i).getDay()] + " (" + (c.off ? c.list.length + " task" + (c.list.length == 1 ? "" : "s") : c.h ? c.h + " / " + c.cap + "h" : c.list.length + " tasks") + ")" + (fr.length ? " &ndash; <span class=\"ok\">" + esc(fr.slice(0, 3).join(", ")) + (fr.length == 1 ? " is" : " are") + " free</span>" : "")); } }
+    var capW = cap(n) * 5, free = !cnt || (wk ? wk <= capW * 0.5 : cnt <= 2);
+    h.push('<tr><td class="who"><b>' + esc(n) + "</b>" + (free && n != "Nobody yet" ? '<span class="free">free</span>' : "") + '<small class="muted">' + (wk ? Math.round(wk * 10) / 10 + " / " + capW + "h" : cnt + " task" + (cnt == 1 ? "" : "s")) + " this week</small></td>" + row + "</tr>"); }
+  h.push("</table>");
+  $("grid").innerHTML = people.length ? h.join("") : '<div class="muted" style="padding:30px 0">No open work yet. Hand out tasks in Delegate (or add your own in Tasks) and they appear here on their due day.</div>';
+  $("hints").innerHTML = hints.length ? '<span class="bad">&#9888;</span> ' + hints.slice(0, 4).join(" &nbsp;&middot;&nbsp; ") + (hints.length > 4 ? " &nbsp;&middot;&nbsp; +" + (hints.length - 4) + " more" : "") : people.length ? '<span class="ok">&#10003; Nobody is overloaded this week.</span>' : "";
+}
+
+/* ---------- moving work ---------- */
+function stampNow() { var d = new Date(); return d.getDate() + " " + LT.MON[d.getMonth()] + " " + LT.pad(d.getHours()) + ":" + LT.pad(d.getMinutes()); }
+/* in Delegate: this item is now done by someone else */
+function giveTo(it, from, to) {
+  var dl = LT.readJson(LT.dataPath("delegate.json"), null); if (!dl) return false; var ok = false;
+  for (var i = 0; i < dl.tasks.length && !ok; i++) { var t = dl.tasks[i], list = t.subs && t.subs.length ? t.subs : [t];
+    for (var j = 0; j < list.length; j++) if (list[j].code == it.code) { var x = list[j], cur = names(x.who || t.who), out = [], put = false;
+      for (var k = 0; k < cur.length; k++) { if (from && same(cur[k], from)) { if (!put) out.push(to); put = true; } else out.push(cur[k]); } if (!put) out = from ? out.concat([to]) : [to];
+      x.who = out.join(", "); var st = stampNow() + " · me"; x.updated = st; t.updated = st; (t.history = t.history || []).push(st + "  " + x.code + ": " + (from || "nobody") + " → " + to + "  (week plan)"); ok = true; } }
+  if (!ok) return false; LT.saveJson(LT.dataPath("delegate.json"), dl);
+  try { if (window.parent !== window && window.parent.plannerChanged) window.parent.plannerChanged(); } catch (e) { }   // Delegate reads its file again (and tells the Tasks tab)
+  return true;
+}
+function drop(key, from, to, iso) {
+  var it = byKey(key); if (!it) return;
+  if (to && !has(it, to)) {
+    if (it.from != "d") { LT.toast("Your own task stays with you - hand it out in Tasks > Delegate"); return; }
+    if (to == "Nobody yet") return;
+    var was = from && from != "Nobody yet" ? from : it.who.length == 1 && it.who[0] != "Nobody yet" ? it.who[0] : "";
+    if (!confirm("Give " + it.code + " to " + to + (was ? " instead of " + was : "") + "?\n\n" + it.title + "\n\nThis changes who does it in Delegate. A task sheet already sent is not sent again.")) return;
+    if (!giveTo(it, was, to)) { alert("Couldn't change who does " + it.code + "."); return; } }
+  var old = store.plan[key]; if (iso) store.plan[key] = iso; else delete store.plan[key];
+  save(); render();
+  if (iso && it.due && iso > it.due) LT.toast(it.code + " is now planned after its due date (" + LT.fmtDate(it.due) + ")");
+}
+/* each person's work for this week goes on their free days, never after its due date (late work: as soon as possible) */
+function spread() {
+  var ds = days(), td = LT.today(), before = JSON.stringify(store.plan), moved = 0;
+  for (var p = 0; p < people.length; p++) { var n = people[p], mine = [], load = {}, i;
+    for (i = 0; i < items.length; i++) { var it = items[i], d = dayOf(it); if (it.who[0] && same(it.who[0], n) && ((d >= ds[0] && d <= ds[4]) || (it.due && it.due < td && ds[4] >= td))) mine.push(it); }
+    mine.sort(function (a, b) { return (a.due || "9") < (b.due || "9") ? -1 : (a.due || "9") > (b.due || "9") ? 1 : 0; });
+    var open = []; for (i = 0; i < 5; i++) if (!isOff(n, ds[i]) && ds[i] >= td) { open.push(ds[i]); load[ds[i]] = 0; }
+    if (!open.length) continue; var c = cap(n);
+    for (i = 0; i < mine.length; i++) { var m = mine[i], e = est(m) / m.who.length || c / store.max, lim = m.due && m.due >= open[0] ? m.due : open[open.length - 1], best = "";
+      for (var k = 0; k < open.length; k++) { if (open[k] > lim) break; if (!best || load[open[k]] < load[best] - 0.01) best = open[k]; }   // the emptiest day up to the due date (the earliest of equals)
+      best = best || open[0]; load[best] += e; if (dayOf(m) != best) moved++; if (best == m.due) delete store.plan[m.key]; else store.plan[m.key] = best; } }
+  if (!moved) { store.plan = JSON.parse(before); LT.toast("Already spread as well as it can be"); return; }
+  save(); render(); LT.diaryAdd("plan", "Week plan: work spread over the week of " + LT.fmtDate(ds[0]) + " (" + moved + " task" + (moved == 1 ? "" : "s") + " moved)");
+  LT.toast(moved + " task" + (moved == 1 ? "" : "s") + " moved to freer days", function () { store.plan = JSON.parse(before); save(); render(); });
+}
+function optMenu(x, y) {
+  LT.menu(x, y, [
+    { label: "Show my own tasks (from Tasks)", on: store.mine, fn: function () { store.mine = !store.mine; save(); render(); } },
+    { label: "With no hours: more than " + store.max + " tasks a day is too much...", fn: function () { var v = parseInt(prompt("How many tasks a day is the most (when the tasks have no hours)?", "" + store.max), 10); if (v >= 1 && v <= 20) { store.max = v; save(); render(); } } },
+    "-",
+    { label: "Clear the plan (everything back on its due date)", fn: function () { if (confirm("Put every task back on its due date? Leave days stay.")) { store.plan = {}; save(); render(); } } }]);
+}
+
+$("bPrev").onclick = function () { monday = plus(monday, -7); render(); }; $("bNext").onclick = function () { monday = plus(monday, 7); render(); }; $("bNow").onclick = function () { monday = mondayOf(day0()); render(); };
+$("bSpread").onclick = spread;
+$("bOpt").onclick = function (e) { var r = this.getBoundingClientRect(); optMenu(Math.max(4, r.right - 320), r.bottom + 2); (e || window.event).cancelBubble = true; };
+var G = $("grid");
+G.onclick = function (e) { e = e || window.event; var el = e.target || e.srcElement, off = el.getAttribute && el.getAttribute("data-off"); if (!off) return;
+  var k = off.split("|"), key = k[0].toLowerCase() + "|" + k[1]; if (store.off[key]) delete store.off[key]; else { store.off[key] = 1; LT.diaryAdd("plan", "Week plan: " + k[0] + " on leave " + LT.fmtDate(k[1])); } save(); render(); };
+G.ondblclick = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-k"); if (!c) return; var it = byKey(c.getAttribute("data-k")); if (!it) return;
+  var v = prompt("Hours needed for " + (it.code || "this task") + ":\n" + it.title, wl.estimates[it.key] == null ? "" : "" + wl.estimates[it.key]); if (v == null) return; v = parseFloat(v);
+  var w = LT.readJson(LT.dataPath("workload.json"), null) || {}; w.estimates = w.estimates || {}; if (v >= 0) w.estimates[it.key] = v; else delete w.estimates[it.key]; LT.saveJson(LT.dataPath("workload.json"), w); load(); render(); };
+G.ondragstart = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-k"); if (!c) return; dragKey = c.getAttribute("data-k"); dragFrom = c.getAttribute("data-row") || ""; try { e.dataTransfer.setData("text", dragKey); e.dataTransfer.effectAllowed = "move"; } catch (x) { } };
+function target(e) { var el = e.target || e.srcElement; return LT.up(el, "data-c") || LT.up(el, "data-tray"); }
+function over(td, on) { if (td) td.className = td.className.replace(/ ?over/g, "") + (on ? " over" : ""); }
+G.ondragover = function (e) { e = e || window.event; if (target(e)) { if (e.preventDefault) e.preventDefault(); e.returnValue = false; } return false; };
+G.ondragenter = function (e) { e = e || window.event; var t = target(e); if (t) { if (e.preventDefault) e.preventDefault(); over(t, true); } return false; };
+G.ondragleave = function (e) { e = e || window.event; var el = e.target || e.srcElement, t = target(e); if (t && el === t) over(t, false); };
+G.ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); var t = target(e), k = dragKey, f = dragFrom; dragKey = null; if (!t || !k) return false;
+  var c = t.getAttribute("data-c"); if (c) { var a = c.split("|"); drop(k, f, a[0], a[1]); } else drop(k, f, "", ""); return false; };
+
+function look() { LT.applyLook(["#grid table{border:{bw}px solid {line}}", "#grid th{color:{muted};background:{panel};border-bottom:{bw}px solid {line}}", "#grid th.today{color:{accent}}", "#grid td{border-bottom:1px solid {lineSoft};border-left:1px solid {lineSoft}}",
+  "#grid td.who{background:{panel}}", ".it{background:{chip};border-radius:{r}px;border-left:3px solid {accent}}", ".it.mine{border-left-color:{muted}}", ".it.late{border-left-color:{bad}}", ".it.late b{color:{bad}}",
+  "#grid td.c.hot{background:{badSoft}}", "#grid td.c.hot .ld{color:{bad}}", "#grid td.c.warm .ld{color:{warn}}", "#grid td.c.cool .ld{color:{ok}}", "#grid td.c.off{background:{chip}}", "#grid td.c.off .ld{color:{muted}}",
+  "#grid td.over{outline:2px dashed {accent};outline-offset:-3px}", ".free{background:{okSoft};color:{ok};border-radius:{rc}px}", ".offb:hover{color:{accent}}"]); }
+window.ltTheme = look; window.ltShown = function () { load(); render(); }; window.ltReload = function () { load(); render(); };
+window.ltPlan = { drop: drop, spread: spread, items: function () { return items; }, people: function () { return people; }, cell: cell, days: days, store: function () { return store; } };   // for the tests
+monday = mondayOf(day0()); look(); load(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

@@ -10,7 +10,7 @@
   Lew's Toolbox - (shown inside Home, view Core) the core page.
   Nodes = tabs with live counts. Drag a node to move it (core.json keeps the layout), drag it to the shelf to hide it.
   Click a node = its items; drag an item onto another node = a job (opens the right tab with the item), onto the core = a summary.
-  Old HTA engine: plain mouse events, the pictures are SVG text put in with innerHTML, nothing animates.
+  Old HTA engine: plain mouse events, the pictures are SVG text put in with innerHTML; motion is a slow script timer (about 11 frames a second) that only moves existing points.
 -->
 <style>
 html,body{-ms-user-select:none;user-select:none}
@@ -113,22 +113,52 @@ function hello() {
 function size() { var s = $("stage"); return { w: s.clientWidth || 900, h: s.clientHeight || 420 }; }
 function R0() { return Math.max(60, Math.min(105, size().h * 0.26)); }
 function svgOpen(S) { return '<svg xmlns="http://www.w3.org/2000/svg" width="' + S.w + '" height="' + S.h + '" viewBox="0 0 ' + S.w + " " + S.h + '">'; }
+/* the core: 80 points on a ball, joined to their neighbours. P3 = the points in 3D, ED = the joins; place() puts them on the page for one angle of turn. */
+var P3 = [], ED = [], curves = [], M = { on: false, frame: 0, ang: 0, timer: null };
 function buildSphere() {
-  var S = size(), cx = S.w / 2, cy = S.h / 2, R = R0(), V = LT.themeVars(), acc = V.accent, dot = V.text, s = [svgOpen(S)], i, j, n = 90, P = [], ga = Math.PI * (3 - Math.sqrt(5));
+  var S = size(), cx = S.w / 2, cy = S.h / 2, R = R0(), V = LT.themeVars(), acc = V.accent, dot = V.text, s = [svgOpen(S)], i, j, n = 80, ga = Math.PI * (3 - Math.sqrt(5));
+  P3 = []; ED = [];
+  for (i = 0; i < n; i++) { var y = 1 - 2 * i / (n - 1), r = Math.sqrt(1 - y * y), th = ga * i; P3.push([Math.cos(th) * r, y, Math.sin(th) * r]); }
+  for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) { var dx = P3[i][0] - P3[j][0], dy = P3[i][1] - P3[j][1], dz = P3[i][2] - P3[j][2]; if (dx * dx + dy * dy + dz * dz < .2) ED.push([i, j]); }
   s.push('<defs><radialGradient id="cg"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".12" stop-color="' + acc + '" stop-opacity=".9"/><stop offset=".5" stop-color="' + acc + '" stop-opacity=".22"/><stop offset="1" stop-color="' + acc + '" stop-opacity="0"/></radialGradient></defs>');
-  s.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + (R * 1.9) + '" fill="url(#cg)" opacity=".5"/><circle cx="' + cx + '" cy="' + cy + '" r="' + (R + 30) + '" fill="none" stroke="' + acc + '" stroke-opacity=".25"/>');
-  for (i = 0; i < n; i++) { var y = 1 - 2 * i / (n - 1), r = Math.sqrt(1 - y * y), th = ga * i, x = Math.cos(th) * r, z = Math.sin(th) * r; P.push({ x: cx + (x * Math.cos(.5) + z * Math.sin(.5)) * R, y: cy + y * R * .98, z: -x * Math.sin(.5) + z * Math.cos(.5) }); }
-  for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) { var dx = P[i].x - P[j].x, dy = P[i].y - P[j].y; if (dx * dx + dy * dy < R * R * .22) s.push('<line x1="' + P[i].x.toFixed(1) + '" y1="' + P[i].y.toFixed(1) + '" x2="' + P[j].x.toFixed(1) + '" y2="' + P[j].y.toFixed(1) + '" stroke="' + dot + '" stroke-opacity="' + (.1 + .3 * ((P[i].z + P[j].z) / 2 + 1) / 2).toFixed(2) + '" stroke-width=".8"/>'); }
-  for (i = 0; i < n; i++) s.push('<circle cx="' + P[i].x.toFixed(1) + '" cy="' + P[i].y.toFixed(1) + '" r="' + (1 + 1.3 * (P[i].z + 1) / 2).toFixed(1) + '" fill="' + dot + '" opacity="' + (.3 + .6 * (P[i].z + 1) / 2).toFixed(2) + '"/>');
-  s.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + (R * .43) + '" fill="url(#cg)"/><circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#fff"/></svg>');
-  $("sph").innerHTML = s.join(""); $("coreHit").style.left = cx + "px"; $("coreHit").style.top = cy + "px";
+  s.push('<circle id="glow" cx="' + cx + '" cy="' + cy + '" r="' + (R * 1.9) + '" fill="url(#cg)" opacity=".5"/><circle cx="' + cx + '" cy="' + cy + '" r="' + (R + 30) + '" fill="none" stroke="' + acc + '" stroke-opacity=".25"/><g id="eds">');
+  for (i = 0; i < ED.length; i++) s.push('<line stroke="' + dot + '" stroke-opacity=".2" stroke-width=".8"/>');
+  s.push('</g><g id="pts">'); for (i = 0; i < n; i++) s.push('<circle r="1.8" fill="' + dot + '"/>');
+  s.push('</g><circle id="heart" cx="' + cx + '" cy="' + cy + '" r="' + (R * .43) + '" fill="url(#cg)"/><circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#fff"/></svg>');
+  $("sph").innerHTML = s.join(""); $("coreHit").style.left = cx + "px"; $("coreHit").style.top = cy + "px"; place();
+}
+function place() {
+  var S = size(), cx = S.w / 2, cy = S.h / 2, R = R0(), a = .5 + M.ang, ca = Math.cos(a), sa = Math.sin(a), X = [], Y = [], Z = [], i;
+  for (i = 0; i < P3.length; i++) { var p = P3[i]; X.push((cx + (p[0] * ca + p[2] * sa) * R).toFixed(1)); Y.push((cy + p[1] * R * .98).toFixed(1)); Z.push(-p[0] * sa + p[2] * ca); }
+  var ls = $("sph").getElementsByTagName("line"), cs = document.getElementById("pts"); cs = cs ? cs.getElementsByTagName("circle") : [];
+  for (i = 0; i < ED.length && i < ls.length; i++) { var e = ED[i], l = ls[i]; l.setAttribute("x1", X[e[0]]); l.setAttribute("y1", Y[e[0]]); l.setAttribute("x2", X[e[1]]); l.setAttribute("y2", Y[e[1]]); }
+  for (i = 0; i < cs.length; i++) { cs[i].setAttribute("cx", X[i]); cs[i].setAttribute("cy", Y[i]); cs[i].setAttribute("opacity", (.3 + .6 * (Z[i] + 1) / 2).toFixed(2)); }
 }
 function drawLines() {
-  var S = size(), cx = S.w / 2, cy = S.h / 2, R = R0(), acc = LT.themeVars().accent, s = [svgOpen(S)];
+  var S = size(), cx = S.w / 2, cy = S.h / 2, R = R0(), acc = LT.themeVars().accent, s = [svgOpen(S)]; curves = [];
   for (var k in pos) if (pos.hasOwnProperty(k)) { var x = pos[k][0] * S.w, y = pos[k][1] * S.h, a = Math.atan2(y - cy, x - cx), ex = cx + Math.cos(a) * (R - 4), ey = cy + Math.sin(a) * (R - 4), mx = (x + ex) / 2;
     s.push('<path d="M' + x.toFixed(1) + " " + y.toFixed(1) + " C" + mx.toFixed(1) + " " + y.toFixed(1) + " " + mx.toFixed(1) + " " + ey.toFixed(1) + " " + ex.toFixed(1) + " " + ey.toFixed(1) + '" fill="none" stroke="' + acc + '" stroke-opacity=".32"/>');
-    var ts = [.3, .62]; for (var i = 0; i < 2; i++) { var t = ts[i], u = 1 - t, bx = u * u * u * x + 3 * u * u * t * mx + 3 * u * t * t * mx + t * t * t * ex, by = u * u * u * y + 3 * u * u * t * y + 3 * u * t * t * ey + t * t * t * ey; s.push('<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="' + (2.2 + i) + '" fill="' + acc + '" opacity="' + (.6 + i * .25) + '"/>'); } }
-  s.push("</svg>"); $("lin").innerHTML = s.join("");
+    for (var i = 0; i < 2; i++) { curves.push([x, y, mx, ex, ey, i ? .62 : .3]); s.push('<circle r="' + (2.2 + i) + '" fill="' + acc + '" opacity="' + (.6 + i * .25) + '"/>'); } }
+  s.push("</svg>"); $("lin").innerHTML = s.join(""); dots();
+}
+/* the dots on the lines: each sits at its own point of the curve, moved on by the frame count when the core is in motion */
+function dots() {
+  var cs = $("lin").getElementsByTagName("circle"), sh = M.on ? (M.frame % 60) / 60 : 0;
+  for (var i = 0; i < cs.length && i < curves.length; i++) { var c = curves[i], t = (c[5] + sh) % 1, u = 1 - t;
+    cs[i].setAttribute("cx", (u * u * u * c[0] + 3 * u * u * t * c[2] + 3 * u * t * t * c[2] + t * t * t * c[3]).toFixed(1)); cs[i].setAttribute("cy", (u * u * u * c[1] + 3 * u * u * t * c[1] + 3 * u * t * t * c[4] + t * t * t * c[4]).toFixed(1)); }
+}
+/* ---------- motion: the core turns, the glow breathes, the dots flow. Only while Home shows the Core, never while you drag.
+   Smooth mode = still, unless Settings > "Keep the Core moving" is ticked (the other tabs stay smooth either way). ---------- */
+function wantMotion() { var s = LT.settings(); return s.coreMotion !== false && (!LT.smooth() || s.coreMove === true); }
+function tick() {
+  if (drag || !$("stage").offsetWidth || !document.body.offsetWidth) return;   // hidden (another tab, the Dashboard) or dragging: nothing is drawn
+  M.frame++; M.ang += .008; place(); dots();
+  var b = .5 + .16 * Math.sin(M.frame / 11), g = document.getElementById("glow"), h = document.getElementById("heart"); if (g) g.setAttribute("opacity", b.toFixed(2)); if (h) h.setAttribute("opacity", (.8 + .2 * Math.sin(M.frame / 11)).toFixed(2));
+}
+function motion() {
+  var on = wantMotion(); if (on == M.on && (!on || M.timer)) return; M.on = on;
+  if (M.timer) { window.clearInterval(M.timer); M.timer = null; }
+  if (on) M.timer = window.setInterval(tick, 90); else { M.ang = 0; M.frame = 0; var g = document.getElementById("glow"); if (g) g.setAttribute("opacity", ".5"); place(); dots(); }
 }
 function render() {
   gather(); hello(); var S = size(), h = "", sh = '<span class="t muted">Shelf</span>', any = false;
@@ -244,9 +274,9 @@ function look() { LT.applyLook(["#stage{background:{panel};border:{bw}px solid {
   ".nd .b{background:{bg};border:1px solid {line};border-radius:16px;color:{text}}", ".nd.sel .b,.nd.over .b{border-color:{accent};box-shadow:0 0 0 3px {accSoft}}", ".nd em{background:{accent};color:{accText}}", ".nd em.r{background:{bad};color:#fff}",
   "#coreHit.over{box-shadow:0 0 0 2px {accent}}", "#panel,#info{background:{bg};border:1px solid {line};border-radius:{r2}px;box-shadow:{big}}", ".itm{background:{panel};border:1px solid {line};border-radius:{r}px}", ".itm:hover{border-color:{accent}}", "#panel .op{color:{accent}}",
   "#ghost{background:{accent};color:{accText};border-radius:{r}px}", "#shelf{border:1px dashed {line};border-radius:{r2}px}", "#shelf.over{border-color:{accent};background:{accSoft}}", ".sc{background:{panel};border:1px solid {line};border-radius:{r}px}", ".sc:hover{border-color:{accent}}"]); }
-window.ltTheme = function () { look(); buildSphere(); render(); }; window.ltShown = window.ltReload = function () { buildSphere(); render(); };
-window.ltCore = { pos: function () { return pos; }, items: function () { return items; }, job: job, summary: summary };   // for the tests
-look(); load(); buildSphere(); render(); LT.tabKeys();
+window.ltTheme = function () { look(); buildSphere(); render(); motion(); }; window.ltShown = window.ltReload = function () { buildSphere(); render(); motion(); };
+window.ltCore = { motion: function () { return { on: M.on, frame: M.frame }; }, pos: function () { return pos; }, items: function () { return items; }, job: job, summary: summary };   // for the tests
+look(); load(); buildSphere(); render(); motion(); LT.tabKeys();
 </script>
 </body>
 </html>

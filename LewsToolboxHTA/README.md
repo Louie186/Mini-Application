@@ -465,6 +465,7 @@ Home opens on the **Core**: a glowing core with your tabs around it as **nodes**
 
 - **Drag an item onto the core** (or click it) = what the Toolbox knows: for a file its drawing, revision, last issue (*this one is newer*); for a task its status, due date, who; for a transmittal who, when, reply
 - A pair with no job says so and does nothing. The Core follows your theme (copper on Ember)
+- **Motion:** the core turns slowly, the glow breathes and the dots flow along the lines – a slow script timer, **only while Home shows the Core** (another tab or the Dashboard: nothing runs) and never while you drag. **Smooth mode = still.** Settings → Speed: **Keep the Core moving** (moves in Smooth mode too; every other tab stays smooth) · **Core in motion** (untick = never moves)
 
 ## Transmittal
 

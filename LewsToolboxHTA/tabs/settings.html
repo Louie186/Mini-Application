@@ -20,6 +20,8 @@
 
   <div class="h">Speed</div>
   <label><input type="checkbox" id="smooth" style="height:auto"> <b>Smooth mode</b> (recommended) &ndash; no animations, lighter shadows: clicking and scrolling stay quick on every look</label>
+  <label style="display:block;margin:6px 0 0 22px"><input type="checkbox" id="coreMove" style="height:auto"> <b>Keep the Core moving</b> in Smooth mode &ndash; Home's core still turns, glows and flows; every other tab stays smooth</label>
+  <label style="display:block;margin:6px 0 0 22px"><input type="checkbox" id="coreMotion" style="height:auto"> <b>Core in motion</b> &ndash; untick for a core that never moves</label>
   <div class="muted">Switch it off to get the sliding, fading and counting animations back (nicer on a fast PC, slower on others).</div>
   <div style="margin-top:6px"><button class="btn small" id="bGpu">&#9889; Turn on graphics acceleration...</button><button class="btn small" id="bGpuOff">Turn it off again</button> <span class="muted" id="gpuInfo"></span></div>
   <div class="muted">Windows draws the Toolbox window without your graphics card unless told to. This sets one <b>user</b> setting (no admin needed, only for this program, <b>mshta.exe</b>) &ndash; restart the Toolbox after. If anything looks wrong, <b>Turn it off again</b>.</div>
@@ -110,7 +112,7 @@ function refresh() {
   LT.$("autoRep").checked = !!S.autoReport; LT.$("autoDay").value = "" + (S.autoReportDay || 5);
   LT.$("lhPath").innerHTML = S.launcherHome ? LT.esc(S.launcherHome + "\\QuickLaunch-data") + ' <span class="muted">(shared with QuickLaunch.hta)</span>' : LT.esc(LT.dataDir() + "\\QuickLaunch-data") + ' <span class="muted">(the Toolbox\'s own list)</span>';
   LT.$("trPath").innerHTML = S.trackerFolder ? LT.esc(S.trackerFolder) : '<span class="muted">Not linked</span>';
-  LT.$("tips").checked = S.tips !== false; LT.$("smooth").checked = S.smooth !== false; gpuShow();
+  LT.$("tips").checked = S.tips !== false; LT.$("smooth").checked = S.smooth !== false; LT.$("coreMove").checked = S.coreMove === true; LT.$("coreMotion").checked = S.coreMotion !== false; gpuShow();
   LT.$("remind").checked = S.remind !== false;
   LT.$("askLog").checked = S.askLog !== false; var off = []; for (var ak in (S.askLogOff || {})) if (S.askLogOff.hasOwnProperty(ak)) off.push(ak); LT.$("askOffN").innerHTML = off.length ? "Not asking for: " + LT.esc(off.join(", ")) : "";
   var tl = LT.main() ? LT.main().tabList() : [], th = "";
@@ -181,6 +183,8 @@ LT.$("bTrOff").onclick = function () { save(function (s) { s.trackerFolder = "";
 LT.$("bPin").onclick = function () { if (LT.main()) { var l = LT.main().makeShortcut(); if (l) alert("A Lew's Toolbox shortcut is on your Desktop (it's selected).\n\nRight-click it > Pin to taskbar\n(Windows 11: right-click > Show more options > Pin to taskbar)."); } };
 
 /* ---------- speed ---------- */
+LT.$("coreMove").onclick = function () { var on = this.checked; save(function (s) { s.coreMove = on; }); if (LT.main()) LT.main().themeChanged(window); LT.toast(on ? "The Core moves, also in Smooth mode" : "The Core is still in Smooth mode"); };
+LT.$("coreMotion").onclick = function () { var on = this.checked; save(function (s) { s.coreMotion = on; }); if (LT.main()) LT.main().themeChanged(window); LT.toast(on ? "The Core can move" : "The Core never moves"); };
 LT.$("smooth").onclick = function () { var on = this.checked; save(function (s) { s.smooth = on; }); look(); if (LT.main()) LT.main().themeChanged(window); LT.toast(on ? "Smooth mode on" : "Smooth mode off - animations are back"); };
 var GPU = "HKCU\\Software\\Microsoft\\Internet Explorer\\Main\\FeatureControl\\FEATURE_GPU_RENDERING\\mshta.exe";
 function gpuState() { try { return LT.wsh.RegRead(GPU) == 1; } catch (e) { return false; } }

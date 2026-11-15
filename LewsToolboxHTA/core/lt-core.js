@@ -686,8 +686,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.28";
+  L.VERSION = "2026.11.29";
   L.WHATS_NEW = [
+    { v: "2026.11.29", items: [
+      "<b>The Core moves</b>: it turns slowly, the glow breathes and the dots flow along the lines &ndash; only while Home shows the Core, never while you drag. <b>In Smooth mode it stays still</b>, unless you tick <b>Settings &rarr; Speed &rarr; Keep the Core moving</b> (the other tabs stay smooth)" ] },
     { v: "2026.11.28", items: [
       "<b>&#9673; Core</b> (Home): your tabs as nodes around a glowing core, with live counts. <b>Drag a node</b> to arrange the page (it's kept), drag it to the shelf to put it away. <b>Click a node</b> for its items; <b>drag an item onto another node</b> to do a job (a file onto Tasks = a review task, a task onto Delegate = hand it out...) or <b>onto the core</b> for what the Toolbox knows about it. <b>Dashboard</b> (top right) brings the cards back" ] },
     { v: "2026.11.27", items: [

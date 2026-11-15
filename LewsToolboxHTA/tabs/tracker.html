@@ -906,6 +906,7 @@ window.ltReceive = function (what, value) {
   else if (what == "view") { data.view = value; save(); render(); }
   /* from the top bar's + New */
   else if (what == "new-task") edit(null);
+  else if (what == "delegate") { var dt = byCode(value); if (dt) delegate(dt); }   // from Home > Core: a task dropped on Delegate
   else if (what == "templates") { var r = $("bTpl").getBoundingClientRect(); tplMenu(r.left, r.bottom + 2); }
   /* from search (Ctrl+K): open that task */
   else if (what == "show-task") { var st = byCode(value); if (st) { data.view = st.status == "Done" ? "done" : "open"; save(); render(); picked = st; edit(st); } }

@@ -686,8 +686,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.27";
+  L.VERSION = "2026.11.28";
   L.WHATS_NEW = [
+    { v: "2026.11.28", items: [
+      "<b>&#9673; Core</b> (Home): your tabs as nodes around a glowing core, with live counts. <b>Drag a node</b> to arrange the page (it's kept), drag it to the shelf to put it away. <b>Click a node</b> for its items; <b>drag an item onto another node</b> to do a job (a file onto Tasks = a review task, a task onto Delegate = hand it out...) or <b>onto the core</b> for what the Toolbox knows about it. <b>Dashboard</b> (top right) brings the cards back" ] },
     { v: "2026.11.27", items: [
       "<b>&#128198; Week plan</b> (Delegate): one row per person, one column per day. Drag a task to a day or to another person, mark leave, see who has too much and who is free &middot; <b>Spread fairly</b> lays each person's week out for you",
       "<b>&#128229; Smart Inbox</b> (new tab): drop a pile of files &ndash; each one shows where it goes (next to its older revision, or by your rules), wrong names are fixed, old revisions move to Superseded. Preview first, then one button &middot; Undo",

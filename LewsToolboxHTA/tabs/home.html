@@ -57,6 +57,7 @@
 @keyframes ltRise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
 .anim .rise{animation:ltRise .55s cubic-bezier(.2,.8,.2,1) both}
 #repWrap{display:none;position:absolute;left:0;top:0;right:0;bottom:0}#repBar{height:46px;display:flex;align-items:center;padding:0 16px}#repBar b{margin-left:10px}
+#coreWrap{display:none;position:absolute;left:0;top:0;right:0;bottom:0}#coreBar{position:absolute;right:18px;top:12px;z-index:2}#coreBar .btn{margin:0 0 0 6px}#coreFrame{position:absolute;left:0;top:0;width:100%;height:100%;border:0}
 #repFrame{position:absolute;left:0;top:46px;right:0;bottom:0;width:100%;height:calc(100% - 46px);border:0}
 </style>
 <script src="../core/lt-core.js"></script>
@@ -66,7 +67,7 @@
 <div id="wrap">
   <div id="head">
     <div><div id="hello"></div><div id="date" class="muted"></div></div>
-    <div id="headR"><input type="text" id="quick" placeholder="Add a task...  e.g.  Check RFI drawings fri #Tower1 !"><button class="btn primary" id="bAdd">+ Add</button><button class="btn" id="bRep" title="Your weekly update in one click - ready to paste into an email">&#128202; Weekly report</button></div>
+    <div id="headR"><input type="text" id="quick" placeholder="Add a task...  e.g.  Check RFI drawings fri #Tower1 !"><button class="btn primary" id="bAdd">+ Add</button><button class="btn" id="bCore" title="Home as a glowing core: your tabs as nodes you can arrange">&#9673; Core</button><button class="btn" id="bRep" title="Your weekly update in one click - ready to paste into an email">&#128202; Weekly report</button></div>
   </div>
   <div id="repReady" class="box rise" style="display:none"></div>
   <div class="hero"><div class="box rise" id="stand"></div><div class="rise" id="heroP" data-go="register" data-view="status"></div></div>
@@ -93,6 +94,7 @@
   <div id="inList"></div>
   <div class="acts"><button class="btn small" id="inCheck" title="Check the new files in Folder Check">Check them in Folder Check</button><button class="btn small" id="inSeen">Mark as seen</button><button class="btn small" id="inOpenF">Open the folder</button><span class="sp"></span><button class="btn small" id="inStop" title="Stop watching this folder">Stop watching</button></div>
 </div></div>
+<div id="coreWrap"><iframe application="yes" id="coreFrame"></iframe><div id="coreBar"><button class="btn small" id="bDash" title="The dashboard: cards, charts, weekly report">&#9638; Dashboard</button></div></div>
 <div id="repWrap"><div id="repBar"><button class="btn small" id="repBack" style="margin:0">&lsaquo; Back to Home</button><b>Weekly report</b></div><iframe application="yes" id="repFrame"></iframe></div>
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso, links = [];
@@ -316,7 +318,13 @@ function loadOf(name, wl, dl) {
 function ago(t) { if (!t) return ""; var m = Math.round((new Date() - t) / 60000); return m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : LT.fmtDate(LT.iso(new Date(t))); }
 function repDone() { var s = LT.settings(); s.reportReady = ""; LT.saveSettings(s); render(true); try { LT.main().bell(); } catch (e) { } }
 /* the weekly report opens inside Home */
-function report(on) { $("repWrap").style.display = on ? "block" : "none"; $("wrap").style.display = on ? "none" : ""; if (on) { var f = $("repFrame"); if (!f.src) f.src = "parts/report.html"; else try { f.contentWindow.ltShown && f.contentWindow.ltShown(); } catch (e) { } } }
+/* Home has two faces: the Core (parts/core.html - nodes around a glowing core) and the Dashboard (this page). Your choice is kept. */
+function isCore() { return LT.settings().homeView != "dash"; }
+function homeView(v) { var s = LT.settings(); s.homeView = v == "dash" ? "dash" : "core"; LT.saveSettings(s); showFace(); if (!isCore()) render(true); }
+function showFace() { var c = isCore() && $("repWrap").style.display != "block"; $("coreWrap").style.display = c ? "block" : "none"; $("wrap").style.display = c || $("repWrap").style.display == "block" ? "none" : "";
+  if (c) { var f = $("coreFrame"); if (!f.src) f.src = "parts/core.html"; else try { f.contentWindow.ltShown && f.contentWindow.ltShown(); } catch (e) { } } }
+function report(on) { $("repWrap").style.display = on ? "block" : "none"; $("wrap").style.display = on ? "none" : ""; showFace(); if (on) { var f = $("repFrame"); if (!f.src) f.src = "parts/report.html"; else try { f.contentWindow.ltShown && f.contentWindow.ltShown(); } catch (e) { } } }
+$("bCore").onclick = function () { homeView("core"); }; $("bDash").onclick = function () { homeView("dash"); };
 $("bRep").onclick = function () { report(true); }; $("repBack").onclick = function () { report(false); render(true); };
 $("bAdd").onclick = function () { var v = LT.trim($("quick").value); if (!v) { $("quick").focus(); return; } if (LT.main()) { LT.main().send("tracker", "add-task", v); $("quick").value = ""; } };
 $("quick").onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13) { $("bAdd").onclick(); return false; } };
@@ -349,10 +357,10 @@ $("inStop").onclick = function () { var W = LT.watchLoad(), F = W.folders[inF]; 
 $("inRef2").onclick = function () { try { if (LT.main()) LT.main().background(); else LT.watchScan(); } catch (er) { } window.setTimeout(function () { render(true); drawIn(); }, 700); };
 function look() { LT.applyLook([".box,.kpi{background:{panel};border:1px solid {line};border-radius:14px;box-shadow:{shadow}}", ".kpi:hover{border-color:{accent}}", "#heroP{box-shadow:0 14px 34px rgba(234,122,18,.28)}", "#heroP:hover{transform:translateY(-2px)}", "#heroP{transition:transform .2s}", ".srow:hover .sh b{color:{accent}}", ".it{border-bottom:1px solid {line}}.it:last-child{border-bottom:0}", ".it:hover b,.tile:hover{color:{accent}}", ".go{color:{accent}}", ".box h3 .n{background:{chip};color:{muted}}", ".box h3 svg,.kpi .t svg{color:{accent}}", ".tile{background:{bg};border-radius:8px}", ".wfh{display:flex;align-items:center;margin:8px 0 4px}.wfh b{font-weight:600}.wfh svg{color:{accent};vertical-align:-3px}.wfh .wa{margin-left:auto}.wfh>.muted,.wfh>.bad{margin-left:8px}.box h3 .n:empty{display:none}.wfh .wa span{cursor:pointer;margin-left:10px;font-size:.85em;font-weight:600;color:{accent}}.wfh .wa span:last-child{color:{muted}}.wrow{padding:7px 0;border-top:1px solid {line}}.wrow:first-child{border-top:0}.wl1{display:flex;align-items:center}.wl1 .wn{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}.wrow .wn{font-weight:600;margin-right:10px;white-space:nowrap}.wrow .wn svg{color:{accent};vertical-align:-3px}.wc{display:inline-block;padding:1px 8px;border-radius:99px;font-size:.78em;font-weight:600;background:{chip};margin:2px 6px 2px 0;white-space:nowrap}.wc.add{color:{ok}}.wc.chg{color:{warn}}.wc.rem{color:{bad}}.wc.ex{color:{muted}}.wc.z{opacity:.5}.wrow .wt{font-size:.8em;white-space:nowrap}.wsn{margin-left:10px;cursor:pointer;font-size:.82em;font-weight:600;color:{accent}}#inBox[data-incard=\"1\"]:hover{border-color:{accent}}#inCard{width:900px;max-width:94%;height:84%;display:flex;flex-direction:column}#inList{flex:1 1 auto;min-height:0;overflow:auto;border-top:1px solid {line}}#inCard .acts{margin-top:8px}.wsum{font-size:.8em;margin:0 0 4px 21px}.wday{font-size:.72em;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:{muted};margin:6px 0 0 21px}.nb2{background:{accent};color:{accText};border-radius:99px;padding:0 8px;font-size:.78em;font-weight:700;margin-left:6px}",
     "#repReady{display:flex;align-items:center;margin-bottom:16px;padding:12px 16px;border-color:{accent}!important}#repReady .rrI{width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;margin-right:12px;background:{grad};color:#16120a}#repReady .m{flex:1 1 auto}#repReady .btn{margin:0 0 0 8px}.rrX{cursor:pointer;margin-left:12px;color:{muted}}", "#repBar{background:{panel};border-bottom:1px solid {line}}"]); }
-window.ltTheme = function () { look(); render(true); try { $("repFrame").contentWindow.ltTheme(); } catch (e) { } };
-window.ltShown = function () { if ($("repWrap").style.display != "block") { animNext = true; render(); } }; window.ltReload = function () { render(true); if ($("inDlg").style.display == "block") drawIn(); };
+window.ltTheme = function () { look(); render(true); try { $("repFrame").contentWindow.ltTheme(); } catch (e) { } try { $("coreFrame").contentWindow.ltTheme(); } catch (e) { } };
+window.ltShown = function () { if ($("repWrap").style.display != "block") { if (isCore()) showFace(); else { animNext = true; render(); } } }; window.ltReload = function () { if (isCore()) showFace(); render(true); if ($("inDlg").style.display == "block") drawIn(); };
 window.ltReceive = function (what) { if (what == "report") report(true); };
-look(); render(); LT.tabKeys();
+look(); render(); showFace(); LT.tabKeys();
 </script>
 </body>
 </html>

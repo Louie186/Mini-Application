@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Core</title>
+<meta name="lt-icon" content="&#9673;">
+<meta name="lt-desc" content="Home as a glowing core: your tabs are nodes around it. Arrange them, click one to see its items, drag an item onto another node to do a job.">
+<!--
+  Lew's Toolbox - (shown inside Home, view Core) the core page.
+  Nodes = tabs with live counts. Drag a node to move it (core.json keeps the layout), drag it to the shelf to hide it.
+  Click a node = its items; drag an item onto another node = a job (opens the right tab with the item), onto the core = a summary.
+  Old HTA engine: plain mouse events, the pictures are SVG text put in with innerHTML, nothing animates.
+-->
+<style>
+html,body{-ms-user-select:none;user-select:none}
+#app{display:flex;flex-direction:column;height:100%}
+#hi{flex:none;padding:12px 18px 0;line-height:1.35}
+#hi b.g{font-size:1.7em;letter-spacing:-.5px}
+#hi .s{margin-top:2px}
+#hi .r{float:right;margin:0 118px 0 0}
+#stage{flex:1 1 auto;position:relative;min-height:0;margin:10px 18px 0;overflow:hidden}
+#sph,#lin{position:absolute;left:0;top:0;width:100%;height:100%}
+.lb{position:absolute;left:18px;top:12px;font-size:.78em;letter-spacing:2px;text-transform:uppercase}
+.tip{position:absolute;right:18px;top:12px;font-size:.85em}
+#coreHit{position:absolute;width:220px;height:220px;margin:-110px 0 0 -110px;border-radius:110px}
+.nd{position:absolute;width:100px;margin:-28px 0 0 -50px;text-align:center;cursor:move}
+.nd .b{position:relative;width:54px;height:54px;line-height:52px;margin:0 auto 5px;text-align:center}
+.nd .b svg{vertical-align:middle}
+.nd em{position:absolute;right:-9px;top:-9px;min-width:20px;height:20px;line-height:20px;padding:0 5px;font-style:normal;font-weight:bold;font-size:.8em;border-radius:10px;color:#fff}
+.nd span.t{font-size:.86em}
+#panel{position:absolute;display:none;width:290px;padding:12px;z-index:8}
+#panel h4{font-size:1em;margin-bottom:1px}
+#panel .p{font-size:.85em;margin-bottom:6px}
+.itm{display:block;padding:6px 9px;margin-top:5px;cursor:move;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em}
+.itm small{display:block;overflow:hidden;text-overflow:ellipsis}
+#panel .op{display:inline-block;margin-top:9px;cursor:pointer;text-decoration:underline;font-size:.9em}
+#info{position:absolute;display:none;width:330px;padding:14px;z-index:9;line-height:1.5}
+#info h4{margin-bottom:4px;word-wrap:break-word}
+#info .x{float:right;cursor:pointer;padding:0 4px}
+#ghost{position:absolute;display:none;z-index:20;padding:6px 10px;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.92em;pointer-events:none}
+#shelf{flex:none;margin:10px 18px 12px;padding:8px 12px 2px;min-height:50px}
+#shelf .t{display:inline-block;font-size:.78em;letter-spacing:2px;text-transform:uppercase;margin:0 10px 6px 0;vertical-align:middle}
+#shelf .h{float:right;font-size:.85em;margin-top:6px}
+.sc{display:inline-block;height:30px;line-height:28px;padding:0 11px;margin:0 6px 6px 0;cursor:move;vertical-align:middle;font-size:.92em}
+.sc svg{vertical-align:middle;margin-right:6px}
+</style>
+<script src="../../core/lt-core.js"></script>
+<script src="../../core/lt-transmittal.js"></script>
+</head>
+<body>
+<div id="app">
+  <div id="hi"></div>
+  <div id="stage"><div id="sph"></div><div id="lin"></div><div class="lb muted">Toolbox core</div><div class="tip muted">Drag a node to move it &middot; click it for its items &middot; drag an item onto another node or the core</div>
+    <div id="coreHit"></div><div id="nodes"></div><div id="panel"></div><div id="info"></div></div>
+  <div id="shelf"></div>
+</div>
+<div id="ghost"></div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso;
+/* the nodes: key, name, icon, the tab it opens ([tab, message, value]) and where it starts (share of the page) */
+var NODES = [
+  ["tasks", "Tasks", "taskcheck", ["tracker"], [.17, .2]], ["delegate", "Delegate", "delegate", ["delegate"], [.27, .47]], ["transmittal", "Transmittal", "transmittal", ["transmittal", "view", "hist"], [.17, .74]], ["register", "Register", "register", ["register"], [.07, .5]],
+  ["incoming", "Incoming", "inbox", ["inbox", "incoming"], [.83, .2]], ["models", "Models", "model", ["register"], [.73, .47]], ["reports", "Reports", "report", ["home", "report"], [.83, .74]], ["late", "Late", "timer", ["tracker", "view", "overdue"], [.93, .5]],
+  ["plan", "Week plan", "calendar", ["delegate", "view", "planner"], null], ["inbox", "Smart Inbox", "download", ["inbox"], null], ["diary", "Diary", "note", ["diary"], null], ["check", "Folder Check", "check", ["check"], null],
+  ["files", "Bulk Files", "files", ["files"], null], ["folders", "Project Folders", "folders", ["folders"], null], ["scurve", "S-curve", "report", ["register"], null], ["launcher", "Launcher", "launch", ["launcher"], null], ["fun", "Fun", "star", ["fun"], null]];
+var pos = {}, items = {}, counts = {}, open = null, drag = null, sphere = "";
+function FILE() { return LT.dataPath("core.json"); }
+function nodeOf(k) { for (var i = 0; i < NODES.length; i++) if (NODES[i][0] == k) return NODES[i]; return null; }
+function fresh() { pos = {}; for (var i = 0; i < NODES.length; i++) if (NODES[i][4]) pos[NODES[i][0]] = NODES[i][4].slice(0); }
+function load() { fresh(); var s = LT.readJson(FILE(), null); if (s && s.pos) { pos = {}; for (var k in s.pos) if (s.pos.hasOwnProperty(k) && nodeOf(k)) pos[k] = s.pos[k]; } }
+function save() { try { LT.saveJson(FILE(), { pos: pos }); } catch (e) { } }
+function J(n) { return LT.readJson(LT.dataPath(n), null) || {}; }
+function main() { return LT.main(); }
+function go(a) { var m = main(); if (!m) return; if (a.length > 1) m.send(a[0], a[1], a[2] || ""); else m.show(a[0]); }
+function stem(n) { var k = n.lastIndexOf("."); return k > 0 ? n.substring(0, k) : n; }
+
+/* ---------- live data: what each node holds ---------- */
+function gather() {
+  items = {}; counts = {}; var td = LT.today(), i, j, k;
+  for (i = 0; i < NODES.length; i++) items[NODES[i][0]] = [];
+  var tr = J("tracker.json").tasks || [];
+  for (i = 0; i < tr.length; i++) { var t = tr[i]; if (t.status == "Done") continue; var it = { kind: "task", ref: t.code, text: (t.code ? t.code + " " : "") + t.title, sub: (t.due ? "due " + LT.fmtDate(t.due) : "no date") + (t.who ? " · " + t.who : ""), due: t.due || "9" };
+    items.tasks.push(it); if (t.due && t.due < td) items.late.push(it); }
+  var dg = J("delegate.json").tasks || [];
+  for (i = 0; i < dg.length; i++) { var T = dg[i], list = T.subs && T.subs.length ? T.subs : [T];
+    for (j = 0; j < list.length; j++) { var x = list[j]; if (x.status == "Completed") continue; var due = x.due || T.due || "", d = { kind: "dtask", ref: T.code, code: x.code, text: x.code + " " + (list === T.subs ? x.title + " (" + T.title + ")" : T.title), sub: (x.who || T.who || "nobody yet") + (due ? " · due " + LT.fmtDate(due) : ""), due: due || "9" };
+      items.delegate.push(d); if (due && due < td) items.late.push(d); } }
+  var byDue = function (a, b) { return a.due < b.due ? -1 : a.due > b.due ? 1 : 0; }; items.tasks.sort(byDue); items.delegate.sort(byDue); items.late.sort(byDue);
+  var lg = LT.trLoad().log; counts.transmittal = lg.length;
+  for (i = lg.length - 1; i >= 0 && items.transmittal.length < 12; i--) { var L = lg[i], rp = L.replies || []; items.transmittal.push({ kind: "tr", ref: L.no, text: L.no + " to " + (L.to || "?"), sub: LT.fmtDate(L.date) + " · " + (L.items || []).length + " item(s) · " + (rp.length ? "reply " + (rp[rp.length - 1].code || "in") : "no reply yet") }); }
+  var w = LT.watchLoad();
+  for (i = 0; i < w.folders.length; i++) { var pd = w.folders[i].pending || []; for (j = 0; j < pd.length; j++) if (pd[j].kind != "deleted") items.incoming.push({ kind: "file", ref: pd[j].path, text: pd[j].rel.split("\\").pop(), sub: (w.folders[i].name || "") + " · " + pd[j].kind }); }
+  var ix = LT.registerIndex(), P = ix.current ? LT.readJson(LT.registerFile(ix.current), null) : null; counts.register = 0;
+  if (P) { for (k in P.drawings || {}) if (P.drawings.hasOwnProperty(k)) counts.register++; var seen = {};
+    for (i = 0; i < (P.models || []).length; i++) { var mo = P.models[i].model; if (mo && !seen[mo]) { seen[mo] = 1; items.models.push({ kind: "model", ref: mo, text: mo, sub: [P.models[i].tower, P.models[i].typo].join(" ") }); } } }
+  var rd = LT.exportsDir() + "\\Weekly reports";
+  if (fso.FolderExists(rd)) { var e = new Enumerator(fso.GetFolder(rd).Files), rs = []; for (; !e.atEnd(); e.moveNext()) if (/\.html?$/i.test("" + e.item().Name)) rs.push("" + e.item().Path); rs.sort(); rs.reverse();
+    for (i = 0; i < rs.length && i < 8; i++) items.reports.push({ kind: "file", ref: rs[i], text: fso.GetFileName(rs[i]), sub: "weekly report" }); }
+}
+function count(k) { return counts[k] != null ? counts[k] : items[k].length; }
+function hello() {
+  var h = (new Date()).getHours(), nm = LT.settings().userName || "", bits = [], lg = LT.trLoad().log, p = LT.project();
+  if (items.late.length) bits.push('<b class="bad">' + items.late.length + " late.</b>");
+  for (var i = lg.length - 1; i >= 0; i--) { var d = LT.parseIso(lg[i].date), n = d ? Math.floor((new Date() - d) / 864e5) : 0; if (n > 60) break; if (n >= 7 && !(lg[i].replies || []).length) { bits.push(esc(lg[i].no) + " has had no reply for " + n + " days."); break; } }
+  if (items.incoming.length) bits.push(items.incoming.length + " new file" + (items.incoming.length == 1 ? "" : "s") + " in Incoming.");
+  if (!bits.length) bits.push("Nothing is late. Nothing new came in.");
+  $("hi").innerHTML = '<span class="r"><button class="btn small" id="bReset">Reset layout</button></span><b class="g">Good ' + (h < 12 ? "morning" : h < 18 ? "afternoon" : "evening") + (nm ? ", " + esc(nm.split(" ")[0]) : "") + '.</b><div class="s muted">' + (p ? esc(p.name) + " &middot; " : "") + esc(LT.fmtDate(LT.today())) + " &middot; " + bits.join(" ") + "</div>";
+  $("bReset").onclick = function () { fresh(); save(); open = null; render(); LT.toast("Layout reset"); };
+}
+
+/* ---------- drawing ---------- */
+function size() { var s = $("stage"); return { w: s.clientWidth || 900, h: s.clientHeight || 420 }; }
+function R0() { return Math.max(60, Math.min(105, size().h * 0.26)); }
+function svgOpen(S) { return '<svg xmlns="http://www.w3.org/2000/svg" width="' + S.w + '" height="' + S.h + '" viewBox="0 0 ' + S.w + " " + S.h + '">'; }
+function buildSphere() {
+  var S = size(), cx = S.w / 2, cy = S.h / 2, R = R0(), V = LT.themeVars(), acc = V.accent, dot = V.text, s = [svgOpen(S)], i, j, n = 90, P = [], ga = Math.PI * (3 - Math.sqrt(5));
+  s.push('<defs><radialGradient id="cg"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset=".12" stop-color="' + acc + '" stop-opacity=".9"/><stop offset=".5" stop-color="' + acc + '" stop-opacity=".22"/><stop offset="1" stop-color="' + acc + '" stop-opacity="0"/></radialGradient></defs>');
+  s.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + (R * 1.9) + '" fill="url(#cg)" opacity=".5"/><circle cx="' + cx + '" cy="' + cy + '" r="' + (R + 30) + '" fill="none" stroke="' + acc + '" stroke-opacity=".25"/>');
+  for (i = 0; i < n; i++) { var y = 1 - 2 * i / (n - 1), r = Math.sqrt(1 - y * y), th = ga * i, x = Math.cos(th) * r, z = Math.sin(th) * r; P.push({ x: cx + (x * Math.cos(.5) + z * Math.sin(.5)) * R, y: cy + y * R * .98, z: -x * Math.sin(.5) + z * Math.cos(.5) }); }
+  for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) { var dx = P[i].x - P[j].x, dy = P[i].y - P[j].y; if (dx * dx + dy * dy < R * R * .22) s.push('<line x1="' + P[i].x.toFixed(1) + '" y1="' + P[i].y.toFixed(1) + '" x2="' + P[j].x.toFixed(1) + '" y2="' + P[j].y.toFixed(1) + '" stroke="' + dot + '" stroke-opacity="' + (.1 + .3 * ((P[i].z + P[j].z) / 2 + 1) / 2).toFixed(2) + '" stroke-width=".8"/>'); }
+  for (i = 0; i < n; i++) s.push('<circle cx="' + P[i].x.toFixed(1) + '" cy="' + P[i].y.toFixed(1) + '" r="' + (1 + 1.3 * (P[i].z + 1) / 2).toFixed(1) + '" fill="' + dot + '" opacity="' + (.3 + .6 * (P[i].z + 1) / 2).toFixed(2) + '"/>');
+  s.push('<circle cx="' + cx + '" cy="' + cy + '" r="' + (R * .43) + '" fill="url(#cg)"/><circle cx="' + cx + '" cy="' + cy + '" r="6" fill="#fff"/></svg>');
+  $("sph").innerHTML = s.join(""); $("coreHit").style.left = cx + "px"; $("coreHit").style.top = cy + "px";
+}
+function drawLines() {
+  var S = size(), cx = S.w / 2, cy = S.h / 2, R = R0(), acc = LT.themeVars().accent, s = [svgOpen(S)];
+  for (var k in pos) if (pos.hasOwnProperty(k)) { var x = pos[k][0] * S.w, y = pos[k][1] * S.h, a = Math.atan2(y - cy, x - cx), ex = cx + Math.cos(a) * (R - 4), ey = cy + Math.sin(a) * (R - 4), mx = (x + ex) / 2;
+    s.push('<path d="M' + x.toFixed(1) + " " + y.toFixed(1) + " C" + mx.toFixed(1) + " " + y.toFixed(1) + " " + mx.toFixed(1) + " " + ey.toFixed(1) + " " + ex.toFixed(1) + " " + ey.toFixed(1) + '" fill="none" stroke="' + acc + '" stroke-opacity=".32"/>');
+    var ts = [.3, .62]; for (var i = 0; i < 2; i++) { var t = ts[i], u = 1 - t, bx = u * u * u * x + 3 * u * u * t * mx + 3 * u * t * t * mx + t * t * t * ex, by = u * u * u * y + 3 * u * u * t * y + 3 * u * t * t * ey + t * t * t * ey; s.push('<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="' + (2.2 + i) + '" fill="' + acc + '" opacity="' + (.6 + i * .25) + '"/>'); } }
+  s.push("</svg>"); $("lin").innerHTML = s.join("");
+}
+function render() {
+  gather(); hello(); var S = size(), h = "", sh = '<span class="t muted">Shelf</span>', any = false;
+  for (var i = 0; i < NODES.length; i++) { var N = NODES[i], k = N[0];
+    if (pos[k]) { var c = count(k); h += '<div class="nd' + (open == k ? " sel" : "") + '" data-n="' + k + '" style="left:' + Math.round(pos[k][0] * S.w) + "px;top:" + Math.round(pos[k][1] * S.h) + 'px" title="Double-click opens ' + esc(N[1]) + '"><div class="b">' + LT.icon(N[2], 22) + (c ? '<em class="' + (k == "late" ? "r" : "") + '">' + (c > 999 ? Math.floor(c / 1000) + "k" : c) + "</em>" : "") + '</div><span class="t muted">' + esc(N[1]) + "</span></div>"; }
+    else { any = true; sh += '<span class="sc" data-s="' + k + '">' + LT.icon(N[2], 15) + esc(N[1]) + "</span>"; } }
+  $("nodes").innerHTML = h;
+  $("shelf").innerHTML = '<span class="h muted">Drag onto the page to add &middot; drag a node here to hide it</span>' + sh + (any ? "" : '<span class="muted">Everything is on the page.</span>');
+  drawLines(); showPanel();
+}
+function showPanel() {
+  var p = $("panel"); if (!open || !pos[open]) { p.style.display = "none"; open = null; return; }
+  var S = size(), N = nodeOf(open), x = pos[open][0] * S.w, y = pos[open][1] * S.h, L = items[open], h = "<h4>" + esc(N[1]) + (count(open) ? " &middot; " + count(open) : "") + "</h4>";
+  h += '<div class="p muted">' + (L.length ? "Drag one onto another node, or onto the core" : open == "register" ? count(open) + " drawings. Drop a file here to find its drawing." : "Nothing waiting here. Drop an item on this node to send it here.") + "</div>";
+  for (var i = 0; i < L.length && i < 9; i++) h += '<span class="itm" data-i="' + i + '" title="' + esc(L[i].text) + '">' + esc(L[i].text) + '<small class="muted">' + esc(L[i].sub || "") + "</small></span>";
+  if (L.length > 9) h += '<div class="p muted" style="margin-top:6px">+ ' + (L.length - 9) + " more</div>";
+  h += '<span class="op" data-open="' + open + '">Open ' + esc(N[1]) + " &rsaquo;</span>";
+  p.innerHTML = h; p.style.display = "block"; var pw = 290, ph = p.offsetHeight;
+  p.style.left = Math.max(6, Math.min(S.w - pw - 6, x < S.w / 2 ? x + 46 : x - 46 - pw)) + "px"; p.style.top = Math.max(6, Math.min(S.h - ph - 6, y - 30)) + "px";
+}
+
+/* ---------- drop an item on the core: what the Toolbox knows about it ---------- */
+function summary(it) {
+  var r = [], i;
+  if (it.kind == "file") { var nm = fso.GetFileName(it.ref), sp = LT.trSplit(stem(nm)), d = null; try { var R = LT.register(); d = R ? R.find(nm) : null; } catch (e) { }
+    r.push(d ? "Drawing: <b>" + esc(d.title || d.number) + "</b>" + (d.tower ? " &middot; " + esc(d.tower) : "") + (d.typo ? " &middot; " + esc(d.typo) : "") : '<span class="muted">Not on the Drawing Register</span>');
+    if (sp.rev) r.push("Revision: <b>" + esc(sp.rev) + "</b>");
+    var is = LT.trIssued()[sp.base.toUpperCase()]; r.push(is ? "Last issued: <b>" + esc(is.rev || "no rev") + "</b> in " + esc(is.no) + " (" + esc(LT.fmtDate(is.date)) + ")" + (sp.rev && is.rev && LT.revCmp(sp.rev, is.rev) > 0 ? ' &ndash; <span class="ok">this one is newer</span>' : "") : "Never issued");
+    try { if (fso.FileExists(it.ref)) r.push("Changed: " + esc(LT.fmtDate(LT.iso(new Date(fso.GetFile(it.ref).DateLastModified))))); } catch (e) { }
+    r.push('<span class="muted">' + esc(fso.GetParentFolderName(it.ref)) + "</span>"); }
+  else if (it.kind == "task") { var ts = J("tracker.json").tasks || []; for (i = 0; i < ts.length; i++) if (ts[i].code == it.ref) { var t = ts[i], dn = 0; for (var s = 0; s < (t.subs || []).length; s++) if (t.subs[s].done || t.subs[s].status == "Done") dn++;
+      r.push("Status: <b>" + esc(t.status) + "</b> &middot; " + esc(t.priority || "Normal")); r.push(t.due ? "Due: <b" + (t.due < LT.today() ? ' class="bad"' : "") + ">" + esc(LT.fmtDate(t.due)) + "</b>" : "No due date"); if (t.who) r.push("Who: " + esc(t.who)); if (t.project) r.push("Project: " + esc(t.project));
+      if ((t.subs || []).length) r.push("Checklist: " + dn + " of " + t.subs.length + " done"); if (t.delegated) r.push("Delegated to " + esc(t.delegated.to) + " as " + esc(t.delegated.code)); } }
+  else if (it.kind == "dtask") { var ds = J("delegate.json").tasks || []; for (i = 0; i < ds.length; i++) if (ds[i].code == it.ref) { var T = ds[i], x = T; for (var q = 0; q < (T.subs || []).length; q++) if (T.subs[q].code == it.code) x = T.subs[q];
+      r.push("Who: <b>" + esc(x.who || T.who || "nobody yet") + "</b>"); r.push("Status: " + esc(x.status || "Not started")); var du = x.due || T.due; r.push(du ? "Due: <b" + (du < LT.today() ? ' class="bad"' : "") + ">" + esc(LT.fmtDate(du)) + "</b>" : "No due date");
+      if ((x.outputs || []).length) r.push("Output received: " + x.outputs.length); if (T.tr) r.push("Sent with " + esc(T.tr)); } }
+  else if (it.kind == "tr") { var lg = LT.trLoad().log; for (i = 0; i < lg.length; i++) if (lg[i].no == it.ref) { var L = lg[i], rp = L.replies || [];
+      r.push("To: <b>" + esc(L.to || "?") + "</b>" + (L.attn ? " (" + esc(L.attn) + ")" : "")); r.push("Sent: " + esc(LT.fmtDate(L.date)) + (L.purpose ? " &middot; " + esc(L.purpose) : "")); r.push((L.items || []).length + " item(s)");
+      r.push(rp.length ? "Reply: <b>" + esc(rp[rp.length - 1].code || "received") + "</b> " + esc(LT.fmtDate(rp[rp.length - 1].date)) : '<span class="warn">No reply yet</span>'); } }
+  else if (it.kind == "model") r.push("Model in the Drawing Register" + (it.sub ? ": " + esc(it.sub) : ""));
+  var b = $("info"), S = size(); b.innerHTML = '<span class="x muted" id="infoX">&#10005;</span><h4>' + esc(it.text) + "</h4>" + r.join("<br>"); b.style.display = "block";
+  b.style.left = Math.round(S.w / 2 - 165) + "px"; b.style.top = Math.max(6, Math.round(S.h / 2 - b.offsetHeight / 2)) + "px";
+}
+
+/* ---------- the jobs: an item dropped on a node ---------- */
+function job(it, to) {
+  var m = main(), N = nodeOf(to), nm = it.kind == "file" ? fso.GetFileName(it.ref) : "", base = nm ? LT.trSplit(stem(nm)).base : "", done = "";
+  if (!m) return "";
+  if (it.kind == "file") {
+    if (to == "inbox") { m.send("inbox", "add", it.ref); done = "ready to file in the Smart Inbox"; }
+    else if (to == "transmittal") { m.send("transmittal", "view", "new"); m.send("transmittal", "add-files", JSON.stringify([it.ref])); done = "added to a new transmittal"; }
+    else if (to == "tasks") { m.send("tracker", "add-task", "Review " + nm); done = "new task: Review " + nm; }
+    else if (to == "register" || to == "scurve") { m.send("register", "find", base); done = "looked up in the Drawing Register"; }
+    else if (to == "check") { m.send("check", "check-folder", fso.GetParentFolderName(it.ref)); done = "its folder is in Folder Check"; }
+    else if (to == "diary") { m.send("diary", "search", base); done = "its history in the Diary"; }
+    else if (to == "files") { m.send("files", "open-folder", fso.GetParentFolderName(it.ref)); done = "its folder is in Bulk Files"; }
+    else if (to == "reports" || to == "incoming") { try { LT.open(it.ref); done = "opened"; } catch (e) { } } }
+  else if (it.kind == "task") {
+    if (to == "delegate") { m.send("tracker", "delegate", it.ref); done = "handing it out in Delegate"; }
+    else if (to == "plan") { m.send("delegate", "view", "planner"); done = "Week plan is open - drag it to a day"; }
+    else if (to == "tasks" || to == "late") { m.send("tracker", "show-task", it.ref); done = "opened - set its new date"; }
+    else if (to == "diary") { m.send("diary", "search", it.ref); done = "its history in the Diary"; } }
+  else if (it.kind == "dtask") {
+    if (to == "delegate") { m.send("delegate", "show-task", it.ref); done = "opened in Delegate"; }
+    else if (to == "late") { m.send("delegate", "chase"); done = "chase-up messages are ready"; }
+    else if (to == "plan") { m.send("delegate", "view", "planner"); done = "Week plan is open - drag it to a day or a person"; }
+    else if (to == "diary") { m.send("diary", "search", it.ref); done = "its history in the Diary"; } }
+  else if (it.kind == "tr") {
+    if (to == "diary") { m.send("diary", "search", it.ref); done = "who sent it, to whom and when"; }
+    else if (to == "transmittal") { m.send("transmittal", "view", "hist"); done = "the History is open"; }
+    else if (to == "reports") { m.send("home", "report"); done = "the weekly report is open"; } }
+  else if (it.kind == "model") { if (to == "register" || to == "models") { m.send("register", "find", it.ref); done = "its drawings in the Drawing Register"; } }
+  return done ? it.text.split(" ")[0] + " → " + N[1] + ": " + done : "";
+}
+
+/* ---------- one mouse engine for nodes, shelf chips and items ---------- */
+function ev(e) { return e || window.event; }
+function tgt(e) { return e.target || e.srcElement; }
+function under(x, y, skip) { if (skip) skip.style.visibility = "hidden"; var el = document.elementFromPoint(x, y); if (skip) skip.style.visibility = "";
+  while (el && el != document.body) { if (el.id == "coreHit" || el.id == "shelf" || (el.getAttribute && el.getAttribute("data-n"))) return el; el = el.parentNode; } return null; }
+var marked = null;
+function mark(el) { if (marked) marked.className = marked.className.replace(/ ?over/g, ""); marked = el; if (el) el.className += " over"; }
+document.onmousedown = function (e) { e = ev(e); var t = tgt(e), it = LT.up(t, "data-i"), nd = LT.up(t, "data-n"), sc = LT.up(t, "data-s");
+  if (t.id == "infoX") { $("info").style.display = "none"; return; }
+  if (!it && !nd && !sc) { if (LT.up(t, "data-open") || t.id == "bReset" || t.tagName == "BUTTON") return; var inP = false, x = t; while (x) { if (x.id == "panel" || x.id == "info") inP = true; x = x.parentNode; } if (!inP) { $("info").style.display = "none"; if (open) { open = null; render(); } } return; }
+  drag = { el: it || nd || sc, kind: it ? "item" : nd ? "node" : "chip", x0: e.clientX, y0: e.clientY, moved: false }; if (e.preventDefault) e.preventDefault(); return false; };
+document.onmousemove = function (e) { if (!drag) return; e = ev(e); if (!drag.moved && Math.abs(e.clientX - drag.x0) + Math.abs(e.clientY - drag.y0) < 6) return; drag.moved = true;
+  var r = $("stage").getBoundingClientRect(), g = $("ghost");
+  if (drag.kind == "node") { var k = drag.el.getAttribute("data-n"); pos[k] = [Math.max(.05, Math.min(.95, (e.clientX - r.left) / r.width)), Math.max(.1, Math.min(.88, (e.clientY - r.top) / r.height))];
+    drag.el.style.left = Math.round(pos[k][0] * r.width) + "px"; drag.el.style.top = Math.round(pos[k][1] * r.height) + "px"; drawLines(); if (open) { open = null; $("panel").style.display = "none"; }
+    var u = under(e.clientX, e.clientY, drag.el); mark(u && u.id == "shelf" ? u : null); }
+  else { if (drag.kind == "item") $("panel").style.visibility = "hidden";   // the list steps aside, so a node under it can take the drop
+    g.style.display = "block"; g.innerHTML = esc(drag.kind == "item" ? items[open][+drag.el.getAttribute("data-i")].text : nodeOf(drag.el.getAttribute("data-s"))[1]); g.style.left = (e.clientX + 14) + "px"; g.style.top = (e.clientY + 12) + "px";
+    var u2 = under(e.clientX, e.clientY); mark(drag.kind == "item" && u2 && u2.id != "shelf" && u2.getAttribute("data-n") != open ? u2 : null); }
+  return false; };
+document.onmouseup = function (e) { if (!drag) return; e = ev(e); var D = drag; drag = null; $("ghost").style.display = "none"; var hit = D.kind == "item" ? under(e.clientX, e.clientY) : null; $("panel").style.visibility = ""; mark(null); var r = $("stage").getBoundingClientRect();
+  if (D.kind == "node") { var k = D.el.getAttribute("data-n"); if (!D.moved) { open = open == k ? null : k; $("info").style.display = "none"; render(); return; }
+    var u = under(e.clientX, e.clientY, D.el); if (u && u.id == "shelf") { delete pos[k]; LT.toast(nodeOf(k)[1] + " is on the shelf"); } save(); render(); return; }
+  if (D.kind == "chip") { var s = D.el.getAttribute("data-s"), inside = e.clientX > r.left && e.clientX < r.right && e.clientY > r.top && e.clientY < r.bottom;
+    if (D.moved && !inside) return; pos[s] = D.moved ? [Math.max(.05, Math.min(.95, (e.clientX - r.left) / r.width)), Math.max(.1, Math.min(.88, (e.clientY - r.top) / r.height))] : [.5, .86]; save(); render(); LT.toast(nodeOf(s)[1] + " added to the page"); return; }
+  if (!open) return; var it = items[open][+D.el.getAttribute("data-i")]; if (!it) return;
+  if (!D.moved) { summary(it); return; }
+  var t = hit; if (!t || t.id == "shelf") return;
+  if (t.id == "coreHit") { summary(it); return; }
+  var to = t.getAttribute("data-n"); if (to == open && open != "late") return;
+  var msg = job(it, to); LT.toast(msg || nodeOf(open)[1] + " → " + nodeOf(to)[1] + ": nothing to do for this pair"); };
+document.ondblclick = function (e) { var nd = LT.up(tgt(ev(e)), "data-n"); if (nd) go(nodeOf(nd.getAttribute("data-n"))[3]); };
+document.onclick = function (e) { var o = LT.up(tgt(ev(e)), "data-open"); if (o) go(nodeOf(o.getAttribute("data-open"))[3]); };
+document.onselectstart = function () { return false; };
+var rt = null; window.onresize = function () { if (rt) window.clearTimeout(rt); rt = window.setTimeout(function () { buildSphere(); render(); }, 120); };
+
+function look() { LT.applyLook(["#stage{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}", "#hi b.g{color:{text}}",
+  ".nd .b{background:{bg};border:1px solid {line};border-radius:16px;color:{text}}", ".nd.sel .b,.nd.over .b{border-color:{accent};box-shadow:0 0 0 3px {accSoft}}", ".nd em{background:{accent};color:{accText}}", ".nd em.r{background:{bad};color:#fff}",
+  "#coreHit.over{box-shadow:0 0 0 2px {accent}}", "#panel,#info{background:{bg};border:1px solid {line};border-radius:{r2}px;box-shadow:{big}}", ".itm{background:{panel};border:1px solid {line};border-radius:{r}px}", ".itm:hover{border-color:{accent}}", "#panel .op{color:{accent}}",
+  "#ghost{background:{accent};color:{accText};border-radius:{r}px}", "#shelf{border:1px dashed {line};border-radius:{r2}px}", "#shelf.over{border-color:{accent};background:{accSoft}}", ".sc{background:{panel};border:1px solid {line};border-radius:{r}px}", ".sc:hover{border-color:{accent}}"]); }
+window.ltTheme = function () { look(); buildSphere(); render(); }; window.ltShown = window.ltReload = function () { buildSphere(); render(); };
+window.ltCore = { pos: function () { return pos; }, items: function () { return items; }, job: job, summary: summary };   // for the tests
+look(); load(); buildSphere(); render(); LT.tabKeys();
+</script>
+</body>
+</html>

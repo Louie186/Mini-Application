@@ -23,7 +23,8 @@ const APP = path.resolve(__dirname, '..');
   page.on('dialog', d => { errors.push('DIALOG: ' + d.message().slice(0, 200)); d.accept(); });
   await page.goto('file://' + work + '/LewsToolbox.html'); await page.waitForTimeout(1500);
   await page.evaluate(() => { const b = document.getElementById('wnOk'); if (b) b.click(); });
-  await page.evaluate(() => { var s = LT.settings(); s.askLog = false; LT.saveSettings(s); });   // the "Log this to Transmittal?" question: only the tests about it switch it on   // the "What's new" note after an update
+  await page.evaluate(() => { var s = LT.settings(); s.askLog = false; LT.saveSettings(s); });
+  { const hf = page.frame({ url: /tabs\/home\.html/ }); if (hf) await hf.evaluate(() => { if (window.homeView) homeView('dash'); }); }   // Home opens on the Core; the older tests look at the Dashboard (t47 switches back)   // the "Log this to Transmittal?" question: only the tests about it switch it on   // the "What's new" note after an update
   const test = require(path.resolve(process.argv[2]));
   // drag with the real mouse (Playwright's dragAndDrop can miss a target near the bottom of a tab)
   const drag = async (fr, src, dst) => { const es = await fr.$(src), ez = await fr.$(dst);

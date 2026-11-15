@@ -446,6 +446,26 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 - **Your weekly report is ready** – when the report made itself (Settings), a banner on top: **Open** · **Copy for email** · ✕
 - **📊 Weekly report** – opens inside Home (was its own tab); **‹ Back to Home** to return
 
+### ◉ Core (Home's first face)
+
+Home opens on the **Core**: a glowing core with your tabs around it as **nodes**, each with its live count (Late in red). The greeting says what needs you: late work, a transmittal with no reply for a week, new files. **▦ Dashboard** (top right) shows the cards and charts instead – **◉ Core** on the Dashboard brings this back; your choice is kept.
+- **Arrange it:** drag a node anywhere (its line follows; saved in `core.json`) · drag it onto the **shelf** to put it away · drag a shelf item up to add it (Week plan, Smart Inbox, Diary, Folder Check…) · **Reset layout**
+- **Click a node** = its items (open tasks, delegated items, the last transmittals, new files in Incoming, models, weekly reports) · **double-click** (or *Open … ›*) = its tab
+- **Drag an item onto another node** = a job, done in the right tab:
+
+| Drag | Onto | What happens |
+|---|---|---|
+| a file (Incoming, Reports) | Tasks | a task *Review <file>* |
+| | Transmittal | added to a new transmittal |
+| | Smart Inbox | ready to be filed |
+| | Register | its drawing looked up · Folder Check / Bulk Files: its folder · Diary: its history |
+| a task | Delegate | handed out (asks who, if nobody yet) · Week plan: opens the plan · Diary: its history |
+| a delegated item | Late | the chase-up messages · Week plan · Delegate: opens it |
+| a transmittal | Diary | who sent it, to whom, when · Reports: the weekly report |
+
+- **Drag an item onto the core** (or click it) = what the Toolbox knows: for a file its drawing, revision, last issue (*this one is newer*); for a task its status, due date, who; for a transmittal who, when, reply
+- A pair with no job says so and does nothing. The Core follows your theme (copper on Ember)
+
 ## Transmittal
 
 ### 🚀 Issue wizard (the easy way)
@@ -555,7 +575,7 @@ A little break, under its own **FUN** heading in the menu: a slingshot game – 
 
 - **One tab = one file** in `tabs\`. The main window lists every `tabs\*.html` by itself, using the page's
   `<title>`, `<meta name="lt-order">`, `<meta name="lt-group">` (WORK / DRAWINGS / FILES heading, `-` = a line), `<meta name="lt-icon">` and `<meta name="lt-desc">` (the hover tip). Adding or changing a tab needs no other edits
-- `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload and Week plan (in Delegate); Contents, Review, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
+- `tabs\parts\` = pages shown **inside** a tab (not in the menu): Workload and Week plan (in Delegate); Core (in Home); Contents, Review, Naming, Compare (in Folder Check). `LT.appDir()` works from there too; `LT.folderPicked(f)` shares a folder with the other Folder Check views
 - `core\lt-refs.js` – references (editor, labels, plain-text lines) used by Tasks and Delegate
 - `core\lt-transmittal.js` – making a transmittal (`LT.trMake`), used by the Transmittal tab and by Delegate
 - `core\lt-taskfolder.js` – task folders (`LT.tfMake`, `tfAdd`, `tfPaste` (Ctrl+V: a snip or files copied in Explorer), `tfSave` = _task.json + Notes.txt + summary HTML/PDF, `tfRead`)

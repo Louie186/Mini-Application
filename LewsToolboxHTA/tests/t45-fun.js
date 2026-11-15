@@ -17,7 +17,19 @@ module.exports = async ({ page, out }) => {
   await page.mouse.up(); await page.waitForTimeout(100);
   ok(await f.evaluate(() => ltFun.state.mode == 'flying' || ltFun.state.mode == 'returning'), 'let go: the file is shot');
   await page.waitForTimeout(4500);
-  ok(await f.evaluate(() => ltFun.state.mode == 'idle'), 'a shot that misses comes back to its place (a hit goes in and comes back)');
+  ok(await f.evaluate(() => ltFun.state.mode == 'idle'), 'after the shot the file is back at its place, ready for the next one');
+  // a weak shot misses: the file lands on the floor, bounces and rolls, then lies there
+  await f.evaluate(() => { ltFun.floor.length = 0; document.querySelectorAll('#world > div[style*="z-index: 2"]').forEach(e => e.parentNode.removeChild(e)); ltFun.launch(-350, -500, false); });
+  await page.waitForTimeout(1800);
+  const y1 = await f.evaluate(() => ltFun.floor.length ? ltFun.floor[ltFun.floor.length - 1].y : -1), x1 = await f.evaluate(() => ltFun.floor.length ? ltFun.floor[ltFun.floor.length - 1].x : -1);
+  await page.waitForTimeout(2500);
+  const o2 = await f.evaluate(() => { var o = ltFun.floor[ltFun.floor.length - 1]; return o ? { x: o.x, y: o.y, vx: o.vx, vy: o.vy } : null; });
+  ok(y1 > 0 && o2 && Math.abs(o2.vx) < 5 && o2.vy === 0, 'a miss: the file stays on the floor - it bounced and rolled, then came to rest (x ' + Math.round(x1) + ' -> ' + (o2 && Math.round(o2.x)) + ')');
+  ok(await f.evaluate(() => ltFun.state.mode == 'idle' && document.getElementById('file').style.opacity != '0'), 'the next file is ready at once while the missed one lies on the floor');
+  await page.screenshot({ path: out + '/fun_floor.png' });
+  await f.evaluate(() => { for (var i = 0; i < 9; i++) { ltFun.state.mode = 'flying'; ltFun.spill(); } });
+  ok(await f.evaluate(() => ltFun.floor.length == 7 && document.querySelectorAll('#world > div[style*="z-index: 2"]').length <= 7), 'at most 7 files stay on the floor (the oldest goes)');
+  await page.waitForTimeout(700);
   // a guaranteed shot scores
   await f.evaluate(() => ltFun.dunk()); await page.waitForTimeout(1500);
   await page.screenshot({ path: out + '/fun_score.png' });

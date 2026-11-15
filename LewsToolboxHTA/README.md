@@ -497,7 +497,7 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 ## 🏀 Fun
 
 A little break, under its own **FUN** heading in the menu: a slingshot game – **pull the file back, let go, shoot it into the hoop**.
-- **Aim:** drag the file back (a dotted path and an arrow show where it will go; the arrow turns green when it's on target). Let go to shoot. A miss comes back to its place; a hit goes through the net with a *+1*
+- **Aim and force:** press on the file and **drag it back** – the further you pull, the harder the shot (a dotted path and an arrow show where it will go; the arrow turns green when it's on target). Let go to shoot. A hit goes through the net with a *+1*. A **miss lands on the floor, bounces and rolls around** and stays there (up to 7; the oldest goes) while the next file is ready at once
 - **Take the shot for me** makes a clean shot · `Enter` on the file does the same
 - **Scored** (this visit) and **all time · best streak** are kept in `fun.json`. The look follows your theme (Ember, Glass…)
 - **Your own files** can be in the queue: **Browse a file…**, or **📋 Paste files (Ctrl+V)** after Ctrl+C in Explorer – the file's name shows under it. With none, it shoots a demo file

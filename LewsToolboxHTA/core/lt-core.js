@@ -675,8 +675,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.24";
+  L.VERSION = "2026.11.25";
   L.WHATS_NEW = [
+    { v: "2026.11.25", items: [
+      "<b>Fun</b>: aiming works with the plain mouse &ndash; pull the file back for the force and let go &middot; a missed file now bounces and rolls around the floor" ] },
     { v: "2026.11.24", items: [
       "<b>&#127936; Fun</b> (new tab): a little break &ndash; pull the file back and shoot it into the hoop. Your own files can wait in the queue; optionally the files you score are copied into a folder" ] },
     { v: "2026.11.23", items: [

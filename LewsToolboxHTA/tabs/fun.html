@@ -41,6 +41,7 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
 #file:before{content:"";position:absolute;left:-20px;top:-20px;right:-20px;bottom:-20px}
 #fileInner{width:100%;height:100%}
 #file svg{display:block;width:56px;height:68px}
+.fl{position:absolute;left:-28px;top:-34px;width:56px;height:68px;pointer-events:none}.fl div{width:100%;height:100%}.fl svg{display:block;width:56px;height:68px}
 #cap{position:absolute;margin-left:-85px;width:170px;text-align:center;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:1;pointer-events:none}
 #dock{position:absolute;left:0;right:0;bottom:0;z-index:4;pointer-events:none;padding:0 18px 14px;text-align:center}
 #status{margin:0 0 8px;font-size:13px;min-height:20px}
@@ -197,7 +198,7 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
     world.style.width = WW + "px"; world.style.height = HH + "px"; world.style.transform = "scale(" + hs + ")";
     var topPx = head.offsetHeight + 8; ox = WW / 2 - 200; oy = topPx / hs - 10;
     hoopg.style.left = ox + "px"; hoopg.style.top = oy + "px";
-    RIM_Y = 166 + oy; RIM_L = 150 + ox; RIM_R = 250 + ox; CX = 200 + ox; REST_Y = 252 + oy; FLOOR = HH - 18;
+    RIM_Y = 166 + oy; RIM_L = 150 + ox; RIM_R = 250 + ox; CX = 200 + ox; REST_Y = 252 + oy; FLOOR = HH - 44;
     MAXPULL = clamp(HH * 0.26, 120, 210); HOME.x = clamp(WW * 0.24, 76, 300); HOME.y = Math.max(RIM_Y + 170, HH - MAXPULL - 30);
     var apex = RIM_Y - 90, vyN = Math.sqrt(2 * G * (HOME.y - apex)), T = vyN / G + Math.sqrt(2 * (RIM_Y - apex) / G), vxN = (CX - HOME.x) / T;
     K = hyp(vxN, vyN) * 1.35 / MAXPULL;
@@ -246,7 +247,24 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
   }
   function resetHome(withEnter) { s.mode = "idle"; s.x = HOME.x; s.y = HOME.y; s.vx = s.vy = 0; s.rot = 0; s.w = 0; s.scored = false; fileEl.style.zIndex = ""; fileEl.style.opacity = 1; if (withEnter) enterT = 0.35; setLabel(); cap.style.opacity = 1; render(); }
   function finishScore() { fileEl.style.opacity = 0; window.setTimeout(function () { setCls(zone, "hot", false); resetHome(true); }, 340); }
-  function miss() { setCls(zone, "hot", false); streak = 0; showStats(); s.mode = "returning"; s.rt = 0; s.fx = s.x; s.fy = s.y; s.rot = ((s.rot + 180) % 360 + 360) % 360 - 180; s.fr = s.rot; say("Off the rim. Pull back and shoot again."); }
+  /* a miss: the file lands on the floor and bounces / rolls around there (up to 7 stay; the oldest goes); the next shot is ready */
+  var floorItems = [];
+  function spill() {
+    setCls(zone, "hot", false); streak = 0; showStats(); say("Off the rim. Pull back and shoot again.");
+    var el = fileEl.cloneNode(true); el.removeAttribute("id"); el.removeAttribute("title"); el.style.zIndex = "2"; el.style.opacity = 1; el.style.cursor = "default"; el.onmousedown = null; el.className = "fl"; el.removeAttribute("tabindex");
+    var inner = el.getElementsByTagName("div")[0]; if (inner) inner.removeAttribute("id");
+    world.appendChild(el); floorItems.push({ el: el, x: s.x, y: s.y, vx: s.vx, vy: s.vy, rot: s.rot, w: s.w });
+    while (floorItems.length > 7) { var old = floorItems.shift(); if (old.el.parentNode) old.el.parentNode.removeChild(old.el); }
+    s.mode = "spilled"; fileEl.style.opacity = 0; cap.style.opacity = 0; window.setTimeout(function () { resetHome(true); }, 450);
+  }
+  function updateFloor(dt) {
+    for (var i = 0; i < floorItems.length; i++) { var o = floorItems[i];
+      o.vy += G * dt; o.x += o.vx * dt; o.y += o.vy * dt; o.rot += o.w * dt;
+      if (o.x < R + 6) { o.x = R + 6; o.vx = Math.abs(o.vx) * 0.5; } if (o.x > WW - R - 6) { o.x = WW - R - 6; o.vx = -Math.abs(o.vx) * 0.5; }
+      if (o.y > FLOOR) { o.y = FLOOR; o.vy = -o.vy * 0.45; o.vx *= 0.8; o.w *= 0.7; if (Math.abs(o.vy) < 90) o.vy = 0; }
+      if (o.y >= FLOOR && o.vy === 0) { o.vx *= Math.pow(0.3, dt); o.w *= Math.pow(0.2, dt); if (Math.abs(o.vx) < 4) o.vx = 0; if (Math.abs(o.w) < 3) o.w = 0; }
+      o.el.style.transform = "translate(" + o.x.toFixed(1) + "px," + o.y.toFixed(1) + "px) rotate(" + o.rot.toFixed(1) + "deg)"; }
+  }
 
   function update(dt) {
     clock += dt;
@@ -258,20 +276,17 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
         if (py < RIM_Y && s.y >= RIM_Y && s.vy > 0 && Math.abs(s.x - CX) <= 46) score();
         if (!s.scored) {
           if (s.x < R + 6) { s.x = R + 6; s.vx = Math.abs(s.vx) * 0.5; } if (s.x > WW - R - 6) { s.x = WW - R - 6; s.vx = -Math.abs(s.vx) * 0.5; }
-          if (s.y > FLOOR) { s.y = FLOOR; s.vy = -s.vy * 0.45; s.vx *= 0.78; s.w *= 0.7; if (Math.abs(s.vy) < 90) { s.vy = 0; s.onFloor = true; } }
-          if (s.onFloor) s.vx *= 0.97;
+          if (s.y > FLOOR) { s.y = FLOOR; spill(); return; }   // touched the floor: it stays there
           setCls(zone, "hot", s.x > 84 + ox && s.x < 316 + ox && s.y > 10 + oy && s.y < 170 + oy);
-          if ((s.onFloor && s.t > 0.4) || s.t > 3.5) miss();
+          if (s.t > 4) spill();
         }
       } else {
         s.vy = Math.min(s.vy + 700 * dt, 260); s.vx = 0; s.x += (CX - s.x) * Math.min(1, 5 * dt); s.y += s.vy * dt; s.rot += (0 - s.rot) * Math.min(1, 4 * dt);
         if (s.y >= REST_Y) { s.y = REST_Y; s.vy = 0; if (!s.fading) { s.fading = true; window.setTimeout(finishScore, 650); } }
       }
       render();
-    } else if (s.mode == "returning") {
-      s.rt += dt / 0.5; var p = Math.min(1, s.rt), e = 1 - Math.pow(1 - p, 3);
-      s.x = s.fx + (HOME.x - s.fx) * e; s.y = s.fy + (HOME.y - s.fy) * e; s.rot = s.fr * (1 - e); render(); if (p >= 1) resetHome(false);
     }
+    updateFloor(dt);
     /* effects */
     var by = 0, sc = 1; if (s.mode == "idle") by = -2 - 2 * Math.sin(clock * 2 * Math.PI / 2.6);
     if (enterT > 0) { enterT -= dt; var q = 1 - Math.max(0, enterT) / 0.35; sc = 0.55 + 0.45 * q; fileInner.style.opacity = q; } else fileInner.style.opacity = 1;
@@ -287,18 +302,30 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
     raf(frame);
   }
 
-  /* ---- pointer: pull back, release to shoot (pointer events; mouse events on older engines) ---- */
+  /* ---- mouse: pull the file back (anywhere in the pull range), let go to shoot.
+     Plain mouse events: they work in the HTA window on every PC (pointer events don't always reach the page there) ---- */
   var drag = null;
+  function ev(e) { return e || window.event; }
   function toWorld(e) { var r = world.getBoundingClientRect(); return { x: (e.clientX - r.left) / hs, y: (e.clientY - r.top) / hs }; }
-  function down(e) { if (s.mode != "idle") return; if (e.preventDefault) e.preventDefault(); try { if (fileEl.setPointerCapture && e.pointerId != null) fileEl.setPointerCapture(e.pointerId); } catch (err) { } drag = { id: e.pointerId }; s.mode = "drag"; cap.style.opacity = 0; }
-  function move(e) {
-    if (!drag || (e.pointerId != null && drag.id != null && e.pointerId != drag.id)) return;
-    var p = toWorld(e), dx = p.x - HOME.x, dy = p.y - HOME.y, d = hyp(dx, dy); if (d > MAXPULL) { dx *= MAXPULL / d; dy *= MAXPULL / d; } dy = Math.min(dy, HH - 24 - HOME.y);
-    s.x = HOME.x + dx; s.y = HOME.y + dy; s.rot = clamp(dx * 0.15, -20, 20); render(); drawPreview(-dx * K, -dy * K);
+  function stop(e) { if (e.preventDefault) e.preventDefault(); e.returnValue = false; if (e.stopPropagation) e.stopPropagation(); e.cancelBubble = true; return false; }
+  function down(e) {
+    e = ev(e); if (e.button > 1) return true;   // left button only
+    if (s.mode == "drag") up(e);
+    if (s.mode != "idle") return stop(e);
+    stop(e); drag = { on: 1 }; s.mode = "drag"; cap.style.opacity = 0; try { if (fileEl.setCapture) fileEl.setCapture(); } catch (x) { } return false;
   }
-  function up(e) { if (!drag || (e.pointerId != null && drag.id != null && e.pointerId != drag.id)) return; drag = null; var dx = s.x - HOME.x, dy = s.y - HOME.y; hideDots(); if (hyp(dx, dy) < 16) { resetHome(false); return; } launch(-dx * K, -dy * K); }
-  if (window.PointerEvent) { fileEl.addEventListener("pointerdown", down, false); fileEl.addEventListener("pointermove", move, false); fileEl.addEventListener("pointerup", up, false); fileEl.addEventListener("pointercancel", up, false); }
-  else { fileEl.onmousedown = down; document.onmousemove = move; document.onmouseup = up; }
+  function move(e) {
+    if (!drag) return; e = ev(e);
+    var p = toWorld(e), dx = p.x - HOME.x, dy = p.y - HOME.y, d = hyp(dx, dy); if (d > MAXPULL) { dx *= MAXPULL / d; dy *= MAXPULL / d; } dy = Math.min(dy, HH - 24 - HOME.y);
+    s.x = HOME.x + dx; s.y = HOME.y + dy; s.rot = clamp(dx * 0.15, -20, 20); render(); drawPreview(-dx * K, -dy * K); return stop(e);
+  }
+  function up(e) {
+    if (!drag) return; drag = null; try { if (document.releaseCapture) document.releaseCapture(); } catch (x) { }
+    var dx = s.x - HOME.x, dy = s.y - HOME.y; hideDots(); if (hyp(dx, dy) < 16) { resetHome(false); return false; } launch(-dx * K, -dy * K); return false;
+  }
+  fileEl.onmousedown = down; fileEl.ondragstart = fileEl.onselectstart = function () { return false; };
+  if (document.addEventListener) { document.addEventListener("mousemove", move, false); document.addEventListener("mouseup", up, false); } else { document.attachEvent("onmousemove", move); document.attachEvent("onmouseup", up); }
+  fileEl.onlosecapture = function () { if (drag) up(window.event); };
   fileEl.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 13 || e.keyCode == 32) { autoShot(); return false; } };
   $("auto").onclick = autoShot;
 
@@ -321,7 +348,7 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
   $("cpOn").onclick = function () { if (this.checked && !st.copyTo) { var f = LT.pickFolder("Copy the files you score into this folder"); if (f) st.copyTo = f; else { this.checked = false; return; } } st.copy = this.checked; saveSt(); optShow(); };
   $("cpPick").onclick = function () { var f = LT.pickFolder("Copy the files you score into this folder"); if (f) { st.copyTo = f; saveSt(); optShow(); } };
 
-  window.ltFun = { dunk: dunk, autoShot: autoShot, addPaths: addPaths, state: s, queue: queue, st: st, optShow: optShow };
+  window.ltFun = { launch: launch, spill: spill, floor: floorItems, dunk: dunk, autoShot: autoShot, addPaths: addPaths, state: s, queue: queue, st: st, optShow: optShow };
   window.ltTheme = function () { paint(); };
   window.ltShown = function () { layout(); };
   window.onresize = layout;

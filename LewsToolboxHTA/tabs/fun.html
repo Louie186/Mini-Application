@@ -29,10 +29,10 @@
 #opt{margin-top:2px;pointer-events:auto;font-size:13px}
 #opt input{height:auto;margin-right:6px;vertical-align:-2px}
 #hoopg{position:absolute;width:400px;height:260px}
-#zone{position:absolute;left:84px;top:10px;width:232px;height:150px;z-index:1;border-radius:18px;text-align:center;padding-top:14px}
-#zone svg{width:22px;height:22px}
-#zone .zt{margin-top:6px;font-size:18px;font-weight:500}
-#zone .zs{font-size:12px;margin-top:2px}
+#zone{position:absolute;left:84px;top:10px;width:232px;height:150px;z-index:1;border-radius:18px;text-align:center;padding-top:8px}
+#zone svg{width:18px;height:18px}
+#zone .zt{margin-top:3px;font-size:15px;font-weight:500;line-height:1.2}
+#zone .zs{font-size:11px;margin-top:1px;line-height:1.2}
 svg.hoop{position:absolute;left:0;top:0;width:400px;height:260px;z-index:3;pointer-events:none;overflow:visible}
 #pop{position:absolute;left:256px;top:92px;z-index:6;font-size:28px;font-weight:700;opacity:0;pointer-events:none}
 .dot{position:absolute;left:-3px;top:-3px;width:6px;height:6px;border-radius:50%;z-index:4;pointer-events:none;display:none}
@@ -80,21 +80,21 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
       <line id="aimLine" x1="0" y1="0" x2="0" y2="0"/>
       <path id="aimHead" d=""/>
     </svg>
-    <div id="file" tabindex="0" title="Pull back and let go"><div id="fileInner"></div></div>
+    <div id="file" tabindex="0" title="Pull the ball back and let go"><div id="fileInner"></div></div>
     <div id="cap"></div>
   </div>
   <div id="head">
     <div class="row">
       <div>
         <h1>Fun corner</h1>
-        <p class="sub muted">Pull the file back and let go. Swish!</p>
+        <p class="sub muted">Pull the ball back and let go. Swish!</p>
         <div class="actions"><button class="btn" id="browse">Browse a file...</button><button class="btn" id="paste" title="Copy files in Explorer first (Ctrl+C)">&#128203; Paste files (Ctrl+V)</button><button class="btn" id="auto">Take the shot for me</button></div>
         <div id="opt"><label><input type="checkbox" id="cpOn"> Copy the files I score into</label> <button class="btn small" id="cpPick" style="margin:0 6px 0 4px">Folder...</button><span class="muted" id="cpLbl"></span></div>
       </div>
       <div id="badge">Scored <b id="count">0</b><div class="muted" id="stats" style="font-size:12px;margin-top:2px"></div></div>
     </div>
   </div>
-  <div id="dock"><p id="status" class="muted">Pull the file back and let go to shoot.</p><ul id="list"></ul></div>
+  <div id="dock"><p id="status" class="muted">Pull the ball back and let go to shoot.</p><ul id="list"></ul></div>
 </div></div>
 <script>
 (function () {
@@ -110,7 +110,7 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
   function setCls(el, c, on) { var r = new RegExp("(^| )" + c + "( |$)", "g"), s = (el.className || "").replace(r, " ").replace(/^\s+|\s+$/g, ""); el.className = on ? (s ? s + " " : "") + c : s; }
 
   /* world units (the world is the stage divided by the scale hs) */
-  var G = 1000, K = 8, MAXPULL = 150, R = 11, DT = 1 / 60, hs = 1, WW = 400, HH = 700, ox = 0, oy = 0, FLOOR = 680, HOME = { x: 90, y: 480 }, RIM_Y = 176, RIM_L = 150, RIM_R = 250, CX = 200, REST_Y = 262;
+  var G = 1000, K = 8, MAXPULL = 150, R = 13, DT = 1 / 60, hs = 1, WW = 400, HH = 700, ox = 0, oy = 0, FLOOR = 680, HOME = { x: 90, y: 480 }, RIM_Y = 176, RIM_L = 150, RIM_R = 250, CX = 200, REST_Y = 262;
 
   /* ---- saved score ---- */
   var FILE = LT.dataPath("fun.json"), st = LT.readJson(FILE, null) || {}; st.total = st.total || 0; st.best = st.best || 0; st.copy = !!st.copy; st.copyTo = st.copyTo || "";
@@ -143,19 +143,34 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
     $("mesh").setAttribute("d", d);
   })();
 
-  function fileSvg(ext) {
-    return '<svg viewBox="0 0 56 68"><path d="M8 2H36L54 20V60Q54 66 48 66H8Q2 66 2 60V8Q2 2 8 2Z" fill="' + C.paper + '" stroke="' + C.line + '" stroke-width="1"/><path d="M36 2V14Q36 20 42 20H54Z" fill="' + C.fold + '"/>' +
-      '<rect x="10" y="28" width="30" height="3" rx="1.5" fill="' + C.fileline + '"/><rect x="10" y="35" width="24" height="3" rx="1.5" fill="' + C.fileline + '"/><rect x="10" y="42" width="28" height="3" rx="1.5" fill="' + C.fileline + '"/>' +
-      '<rect x="8" y="50" width="28" height="12" rx="3" fill="' + C.pdf + '"/><text x="22" y="59" font-size="8" font-weight="700" text-anchor="middle" fill="#fff" font-family="Segoe UI, Arial, sans-serif">' + LT.esc(ext) + "</text></svg>";
+  /* the ball: an orange basketball with dark seams (the same everywhere: the shot, the list, the floor) */
+  function fileSvg() {
+    return '<svg viewBox="0 0 56 68"><circle cx="28" cy="34" r="19" fill="#e8762c" stroke="#3a2314" stroke-width="1.6"/>' +
+      '<path d="M9 34H47M28 15V53M13.5 20.5Q24 34 13.5 47.5M42.5 20.5Q32 34 42.5 47.5" fill="none" stroke="#3a2314" stroke-width="1.5" stroke-linecap="round"/>' +
+      '<path d="M18 22Q22 18 28 17" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2" stroke-linecap="round"/></svg>';
   }
   function extOf(name) { var i = name.lastIndexOf("."); if (i < 0) return "FILE"; return (name.substring(i + 1).replace(/[^a-z0-9]/gi, "").substring(0, 4).toUpperCase()) || "FILE"; }
   function fmt(n) { if (n < 1024) return n + " B"; if (n < 1048576) return Math.round(n / 1024) + " KB"; return (n / 1048576).toFixed(1) + " MB"; }
 
   /* ---- the queue of files to shoot: yours (Browse / Paste) or the demo file ---- */
-  var DEMO = { name: "A-101-P01.pdf", size: Math.round(2.4 * 1048576), path: "" }, queue = [];
+  var DEMO = { name: "", size: 0, path: "" }, queue = [];
   function peek() { return queue.length ? queue[0] : DEMO; }
   function take() { return queue.length ? queue.shift() : { name: DEMO.name, size: DEMO.size, path: "" }; }
-  function setLabel() { var p = peek(); cap.innerHTML = LT.esc(p.name); fileInner.innerHTML = fileSvg(extOf(p.name)); }
+  /* one ball per queued file (up to 15 on screen): the front one is yours to aim; the others wait in a pile and follow its path */
+  var MAXVIS = 15, pile = [], batch = null;
+  function pileXY(i, n) {   // follower i of n: a pyramid under the front ball (rows of 2, 3, 4...)
+    var r = 1, k = i, rows = 1, q = n - 1; while (q >= rows + 1) { q -= rows + 1; rows++; } while (k >= r + 1) { k -= r + 1; r++; }
+    var step = Math.min(22, Math.max(12, (FLOOR - HOME.y - 64) / rows)), cnt = r + 1;
+    return { x: HOME.x + (k - (cnt - 1) / 2) * 27, y: HOME.y + 36 + (r - 1) * step };
+  }
+  function placePile() { for (var i = 0; i < pile.length; i++) { var o = pileXY(i, pile.length); pile[i].__x = o.x; pile[i].__y = o.y; pile[i].style.transform = "translate(" + o.x.toFixed(1) + "px," + o.y.toFixed(1) + "px) scale(.7)"; } }
+  function buildPile() {
+    for (var i = 0; i < pile.length; i++) if (pile[i].parentNode) pile[i].parentNode.removeChild(pile[i]); pile = [];
+    var n = Math.min(Math.max(queue.length, 1), MAXVIS) - 1;
+    for (var j = 0; j < n; j++) { var el = document.createElement("div"); el.className = "fl"; el.style.zIndex = "3"; el.innerHTML = "<div>" + fileSvg() + "</div>"; world.appendChild(el); pile.push(el); }
+    placePile();
+  }
+  function setLabel() { var p = peek(); cap.innerHTML = LT.esc(p.name) + (queue.length > 1 ? (p.name ? " " : "") + "(+" + (queue.length - 1) + " more)" : ""); fileInner.innerHTML = fileSvg(); if (!batch) buildPile(); }
   function say(m) { statusEl.innerHTML = LT.esc(m); }
   function addPaths(paths) {
     var n = 0; for (var i = 0; i < paths.length; i++) { var p = paths[i]; try { if (fso.FileExists(p)) { queue.push({ name: fso.GetFileName(p), size: +fso.GetFile(p).Size, path: p }); n++; } } catch (e) { } }
@@ -173,8 +188,8 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
   function addScore(f, copied) {
     session++; st.total++; streak++; if (streak > st.best) st.best = streak; saveSt(); countEl.innerHTML = session; showStats(); flash = 0.4; countEl.style.color = C.orange;
     var li = document.createElement("li"); li.className = "item";
-    li.innerHTML = '<div class="ficon">' + fileSvg(extOf(f.name)) + '</div><div class="meta"><b></b><span></span></div><div class="prog"><span class="state">Scoring... 0%</span><div class="pbar"><i></i></div></div><div class="check">&#10003;</div>';
-    li.getElementsByTagName("b")[0].innerHTML = LT.esc(f.name); li.getElementsByTagName("span")[0].innerHTML = LT.esc(fmt(f.size));
+    li.innerHTML = '<div class="ficon">' + fileSvg() + '</div><div class="meta"><b></b><span></span></div><div class="prog"><span class="state">Scoring... 0%</span><div class="pbar"><i></i></div></div><div class="check">&#10003;</div>';
+    li.getElementsByTagName("b")[0].innerHTML = LT.esc(f.name || "Swish!"); li.getElementsByTagName("span")[0].innerHTML = f.name ? LT.esc(fmt(f.size)) : "basket";
     list.insertBefore(li, list.firstChild); while (list.children.length > 2) list.removeChild(list.lastChild);
     var bar = li.getElementsByTagName("i")[0], stt = li.getElementsByTagName("span")[1], dur = 900 + Math.random() * 700, t0 = new Date().getTime(), end = copied ? "Copied to " + fso.GetFileName(st.copyTo) : "Scored";
     (function tick() { var p = Math.min(1, (new Date().getTime() - t0) / dur), e = 1 - Math.pow(1 - p, 2); bar.style.width = Math.round(e * 100) + "%"; stt.innerHTML = p < 1 ? "Scoring... " + Math.round(e * 100) + "%" : LT.esc(end);
@@ -202,7 +217,7 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
     MAXPULL = clamp(HH * 0.26, 120, 210); HOME.x = clamp(WW * 0.24, 76, 300); HOME.y = Math.max(RIM_Y + 170, HH - MAXPULL - 30);
     var apex = RIM_Y - 90, vyN = Math.sqrt(2 * G * (HOME.y - apex)), T = vyN / G + Math.sqrt(2 * (RIM_Y - apex) / G), vxN = (CX - HOME.x) / T;
     K = hyp(vxN, vyN) * 1.35 / MAXPULL;
-    cap.style.left = HOME.x + "px"; cap.style.top = (HOME.y + 44) + "px";
+    cap.style.left = HOME.x + "px"; cap.style.top = (HOME.y - 56) + "px"; placePile();
     if (s.mode == "idle") { s.x = HOME.x; s.y = HOME.y; render(); }
   }
 
@@ -228,7 +243,7 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
     var x = s.x, y = s.y, u = vx, w = vy, k = 0, onTarget = false;
     for (var n = 0; n < 300; n++) {
       u += accel(x, y, w) * DT; w += G * DT; var py = y; x += u * DT; y += w * DT;
-      if (py < RIM_Y && y >= RIM_Y && Math.abs(x - CX) <= 35) onTarget = true;
+      if (py < RIM_Y && y >= RIM_Y && Math.abs(x - CX) <= 50 - 4 - R) onTarget = true;
       if (n % 5 == 4 && k < dots.length) { var d = dots[k]; d.style.display = "block"; d.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px)"; d.style.opacity = (0.95 - k * 0.03).toFixed(2); k++; }
       if (w > 0 && y > RIM_Y + 50) break; if (x < 0 || x > WW) break;
     }
@@ -236,26 +251,52 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
   }
 
   /* ---- launch / score / miss ---- */
-  function launch(vx, vy, guided) { s.mode = "flying"; s.guided = !!guided; s.vx = vx; s.vy = vy; s.t = 0; s.scored = false; s.onFloor = false; s.fading = false; s.w = (vx >= 0 ? 1 : -1) * (120 + Math.abs(vx) * 0.2); cap.style.opacity = 0; hideDots(); say(""); }
+  function launch(vx, vy, guided) { s.mode = "flying"; s.guided = !!guided; s.vx = vx; s.vy = vy; s.t = 0; s.scored = false; s.onFloor = false; s.fading = false; s.w = (vx >= 0 ? 1 : -1) * (120 + Math.abs(vx) * 0.2); cap.style.opacity = 0; hideDots(); say("");
+    if (pile.length) { batch = { els: pile, n: pile.length, delay: 0.13, rec: [{ t: 0, x: s.x, y: s.y, r: s.rot }], t: 0, scoredAt: -1, restT: -1, spillAt: -1, spill: null, sc: [], done: [], idx: [], scoredN: 0, leadDone: false }; pile = []; } else batch = null; }
   function autoShot() { if (s.mode != "idle") return; var apex = RIM_Y - 62, vy = -Math.sqrt(2 * G * (s.y - apex)), T = -vy / G + Math.sqrt(2 * (RIM_Y - apex) / G); launch((CX - s.x) / T, vy, false); }
   /* a guaranteed shot: a clean arc into the middle of the hoop (used by the tests) */
   function dunk() { if (s.mode != "idle") return; var apex = RIM_Y - 90, vy = -Math.sqrt(2 * G * (s.y - apex)), T = -vy / G + Math.sqrt(2 * (RIM_Y - apex) / G); launch((CX - s.x) / T, vy, true); }
   function score() {
-    s.scored = true; s.vx *= 0.2; s.vy = Math.max(s.vy * 0.55, 120); fileEl.style.zIndex = "2"; setCls(zone, "hot", true); swish(); popPlus();
-    var f = take(), to = copyOut(f); addScore(f, !!to);
-    say("Swish. " + f.name + (to ? " is copied to " + to : " scores!") + (st.copy && !f.path ? "  (no file location, so nothing was copied)" : ""));
+    s.scored = true; s.vx *= 0.2; s.vy = Math.max(s.vy * 0.55, 120); fileEl.style.zIndex = "2"; setCls(zone, "hot", true); if (batch) { batch.scoredAt = s.t; batch.scoredN++; } award();
+  }
+  function award() {
+    swish(); popPlus(); var f = take(), to = copyOut(f); addScore(f, !!to);
+    say((f.name ? "Swish. " + f.name + (to ? " is copied to " + to : " scores!") : "Swish!") + (st.copy && f.name && !f.path ? "  (no file location, so nothing was copied)" : ""));
   }
   function resetHome(withEnter) { s.mode = "idle"; s.x = HOME.x; s.y = HOME.y; s.vx = s.vy = 0; s.rot = 0; s.w = 0; s.scored = false; fileEl.style.zIndex = ""; fileEl.style.opacity = 1; if (withEnter) enterT = 0.35; setLabel(); cap.style.opacity = 1; render(); }
-  function finishScore() { fileEl.style.opacity = 0; window.setTimeout(function () { setCls(zone, "hot", false); resetHome(true); }, 340); }
+  function finishScore() { fileEl.style.opacity = 0; if (batch) { batch.leadDone = true; checkBatch(); } else window.setTimeout(function () { setCls(zone, "hot", false); resetHome(true); }, 340); }
+  /* the shot is over when the front ball and every follower are done: then the next ball(s) come */
+  function checkBatch() { var b = batch; if (!b || !b.leadDone) return; for (var j = 0; j < b.n; j++) if (!b.done[j]) return;
+    batch = null; setCls(zone, "hot", false); if (b.scoredN > 1) say(b.scoredN + " balls in with one shot!"); window.setTimeout(function () { resetHome(true); }, 340); }
   /* a miss: the file lands on the floor and bounces / rolls around there (up to 7 stay; the oldest goes); the next shot is ready */
   var floorItems = [];
+  function trimFloor() { while (floorItems.length > 14) { var old = floorItems.shift(); if (old.el.parentNode) old.el.parentNode.removeChild(old.el); } }
   function spill() {
     setCls(zone, "hot", false); streak = 0; showStats(); say("Off the rim. Pull back and shoot again.");
     var el = fileEl.cloneNode(true); el.removeAttribute("id"); el.removeAttribute("title"); el.style.zIndex = "2"; el.style.opacity = 1; el.style.cursor = "default"; el.onmousedown = null; el.className = "fl"; el.removeAttribute("tabindex");
     var inner = el.getElementsByTagName("div")[0]; if (inner) inner.removeAttribute("id");
-    world.appendChild(el); floorItems.push({ el: el, x: s.x, y: s.y, vx: s.vx, vy: s.vy, rot: s.rot, w: s.w });
-    while (floorItems.length > 7) { var old = floorItems.shift(); if (old.el.parentNode) old.el.parentNode.removeChild(old.el); }
-    s.mode = "spilled"; fileEl.style.opacity = 0; cap.style.opacity = 0; window.setTimeout(function () { resetHome(true); }, 450);
+    world.appendChild(el); floorItems.push({ el: el, x: s.x, y: s.y, vx: s.vx, vy: s.vy, rot: s.rot, w: s.w }); trimFloor();
+    if (batch) { batch.spillAt = s.t; batch.spill = { x: s.x, y: s.y, vx: s.vx, vy: s.vy, rot: s.rot, w: s.w }; }
+    s.mode = "spilled"; fileEl.style.opacity = 0; cap.style.opacity = 0;
+    if (batch) { batch.leadDone = true; checkBatch(); } else window.setTimeout(function () { resetHome(true); }, 450);
+  }
+  function pathAt(b, j, t) {
+    var rec = b.rec, i = b.idx[j] || 0; while (i < rec.length - 2 && rec[i + 1].t <= t) i++; b.idx[j] = i;
+    var a = rec[i], c = rec[Math.min(i + 1, rec.length - 1)], u = c.t > a.t ? clamp((t - a.t) / (c.t - a.t), 0, 1) : 0;
+    return { x: a.x + (c.x - a.x) * u, y: a.y + (c.y - a.y) * u, r: a.r + (c.r - a.r) * u };
+  }
+  function updateBatch(dt) {
+    var b = batch; if (!b) return; b.t += dt;
+    for (var j = 0; j < b.n; j++) {
+      if (b.done[j]) continue; var el = b.els[j], tf = b.t - (j + 1) * b.delay; if (tf < 0 || !b.rec.length) continue;
+      if (b.scoredAt >= 0 && !b.sc[j] && tf >= b.scoredAt) { b.sc[j] = 1; b.scoredN++; award(); }
+      if (b.spillAt >= 0 && tf >= b.spillAt) {   // the same miss as the front ball: onto the floor, a little scattered
+        var sp = b.spill; el.className = "fl"; el.style.zIndex = "2"; floorItems.push({ el: el, x: sp.x, y: sp.y, vx: sp.vx + (Math.random() - .5) * 90, vy: sp.vy, rot: sp.rot, w: sp.w + (Math.random() - .5) * 180 }); trimFloor(); b.done[j] = true; streak = 0; continue; }
+      if (b.restT >= 0 && tf >= b.restT + 0.65) { el.style.opacity = 0; if (el.parentNode) el.parentNode.removeChild(el); b.done[j] = true; continue; }
+      var p = pathAt(b, j, Math.min(tf, b.rec[b.rec.length - 1].t)), bl = Math.min(1, tf / 0.12), x = el.__x + (p.x - el.__x) * bl, y = el.__y + (p.y - el.__y) * bl;
+      el.style.transform = "translate(" + x.toFixed(1) + "px," + y.toFixed(1) + "px) rotate(" + p.r.toFixed(1) + "deg) scale(" + (0.7 + 0.3 * bl).toFixed(2) + ")";
+    }
+    checkBatch();
   }
   function updateFloor(dt) {
     for (var i = 0; i < floorItems.length; i++) { var o = floorItems[i];
@@ -282,11 +323,12 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
         }
       } else {
         s.vy = Math.min(s.vy + 700 * dt, 260); s.vx = 0; s.x += (CX - s.x) * Math.min(1, 5 * dt); s.y += s.vy * dt; s.rot += (0 - s.rot) * Math.min(1, 4 * dt);
-        if (s.y >= REST_Y) { s.y = REST_Y; s.vy = 0; if (!s.fading) { s.fading = true; window.setTimeout(finishScore, 650); } }
+        if (s.y >= REST_Y) { s.y = REST_Y; s.vy = 0; if (batch && batch.restT < 0) batch.restT = s.t; if (!s.fading) { s.fading = true; window.setTimeout(finishScore, 650); } }
       }
+      if (batch) batch.rec.push({ t: s.t, x: s.x, y: s.y, r: s.rot });
       render();
     }
-    updateFloor(dt);
+    updateBatch(dt); updateFloor(dt);
     /* effects */
     var by = 0, sc = 1; if (s.mode == "idle") by = -2 - 2 * Math.sin(clock * 2 * Math.PI / 2.6);
     if (enterT > 0) { enterT -= dt; var q = 1 - Math.max(0, enterT) / 0.35; sc = 0.55 + 0.45 * q; fileInner.style.opacity = q; } else fileInner.style.opacity = 1;
@@ -348,7 +390,7 @@ svg.aim{position:absolute;left:0;top:0;width:100%;height:100%;z-index:4;pointer-
   $("cpOn").onclick = function () { if (this.checked && !st.copyTo) { var f = LT.pickFolder("Copy the files you score into this folder"); if (f) st.copyTo = f; else { this.checked = false; return; } } st.copy = this.checked; saveSt(); optShow(); };
   $("cpPick").onclick = function () { var f = LT.pickFolder("Copy the files you score into this folder"); if (f) { st.copyTo = f; saveSt(); optShow(); } };
 
-  window.ltFun = { launch: launch, spill: spill, floor: floorItems, dunk: dunk, autoShot: autoShot, addPaths: addPaths, state: s, queue: queue, st: st, optShow: optShow };
+  window.ltFun = { batch: function () { return batch; }, pile: function () { return pile; }, launch: launch, spill: spill, floor: floorItems, dunk: dunk, autoShot: autoShot, addPaths: addPaths, state: s, queue: queue, st: st, optShow: optShow };
   window.ltTheme = function () { paint(); };
   window.ltShown = function () { layout(); };
   window.onresize = layout;

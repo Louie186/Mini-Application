@@ -496,12 +496,13 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 
 ## 🏀 Fun
 
-A little break, under its own **FUN** heading in the menu: a slingshot game – **pull the file back, let go, shoot it into the hoop**.
-- **Aim and force:** press on the file and **drag it back** – the further you pull, the harder the shot (a dotted path and an arrow show where it will go; the arrow turns green when it's on target). Let go to shoot. A hit goes through the net with a *+1*. A **miss lands on the floor, bounces and rolls around** and stays there (up to 7; the oldest goes) while the next file is ready at once
-- **Take the shot for me** makes a clean shot · `Enter` on the file does the same
+A little break, under its own **FUN** heading in the menu: a slingshot game – **pull the ball back, let go, shoot it into the hoop**.
+- **Aim and force:** press on the ball and **drag it back** – the further you pull, the harder the shot (a dotted path and an arrow show where it will go; the arrow turns green when it's on target). Let go to shoot. A hit goes through the net with a *+1*
+- **A miss lands on the floor, bounces and rolls around** and stays there (up to 14; the oldest goes) while the next ball is ready at once
+- **One ball per file:** put files in the queue (**Browse a file…**, or **📋 Paste files (Ctrl+V)** after Ctrl+C in Explorer) and you see **a ball for each** (up to 15 at a time; the caption says *B-1.pdf (+5 more)*). You **aim once**: the front ball goes, and **every other ball follows exactly the same path**, one after another. They all score or all miss together – each ball that scores counts one file. With no files there's one plain ball with no name
+- **Take the shot for me** makes a clean shot · `Enter` on the ball does the same
 - **Scored** (this visit) and **all time · best streak** are kept in `fun.json`. The look follows your theme (Ember, Glass…)
-- **Your own files** can be in the queue: **Browse a file…**, or **📋 Paste files (Ctrl+V)** after Ctrl+C in Explorer – the file's name shows under it. With none, it shoots a demo file
-- **Copy the files I score into [folder]** (optional, off by default) – a scored file is **copied** into that folder (never moved; a name already there gets *(2)*). Files dropped from Explorer have no location the Toolbox can see, so they only celebrate
+- **Copy the files I score into [folder]** (optional, off by default) – each file that scores is **copied** into that folder (never moved; a name already there gets *(2)*). Files dropped from Explorer have no location the Toolbox can see, so they only celebrate
 
 ## Settings
 

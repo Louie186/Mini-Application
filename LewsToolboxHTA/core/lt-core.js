@@ -686,8 +686,10 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.29";
+  L.VERSION = "2026.11.30";
   L.WHATS_NEW = [
+    { v: "2026.11.30", items: [
+      "<b>Typology &rarr; model</b> (Drawing Register &rarr; Models): type a typology, or paste a list, and see its model in each tower (pick one tower if you like), with the link to open it and how many drawings use it. Case, spaces and dashes don't matter; part of a name gives the close matches. <b>Copy (for Excel)</b> &middot; <b>Ctrl+K</b> finds a model by its typology too" ] },
     { v: "2026.11.29", items: [
       "<b>The Core moves</b>: it turns slowly, the glow breathes and the dots flow along the lines &ndash; only while Home shows the Core, never while you drag. <b>In Smooth mode it stays still</b>, unless you tick <b>Settings &rarr; Speed &rarr; Keep the Core moving</b> (the other tabs stay smooth)" ] },
     { v: "2026.11.28", items: [

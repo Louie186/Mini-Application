@@ -51,6 +51,8 @@ module.exports = async ({ page, out, drag }) => {
   await t.evaluate(() => { var x = blank(); x.title = 'Undated thing'; addTask(x); save(); render(); });
   ok(await t.evaluate(() => /Undated thing/.test($('main').querySelector('.nodate').innerText)), 'tasks with no due date wait in a strip above the calendar');
   await page.evaluate(() => { var x = document.getElementById('toast'); if (x) x.style.display = 'none'; }); await t.evaluate(() => { var x = document.getElementById('toast'); if (x) x.style.display = 'none'; });   // the "Copied" toast of the step before sits over today's cell for 6 s
+  await page.setViewportSize({ width: 1180, height: 900 }); await page.waitForTimeout(150);   // mid-month today's row is low: a taller window keeps the strip and today both clear of the filter bar
   await drag(t, '.nodate .ev', 'td.tdy'); await page.waitForTimeout(150);
+  await page.setViewportSize({ width: 1180, height: 700 }); await page.waitForTimeout(100);
   ok(await t.evaluate(() => byCode('TL-003').due == LT.today()), 'drag it onto a day: it gets that date');
 };

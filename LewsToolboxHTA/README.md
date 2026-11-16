@@ -303,6 +303,10 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - The model name opens it (ACC link / file) with a click; *(no link)* means add its Path in Setup → Models
 - **Show the N drawings** – each with its status · **📁 Make a set** – the model's drawings become a My set (to print, check or issue)
 - **No model yet** – drawings without a tower / typology match · the search box finds a model, tower or typology
+- **🔍 Typology → model** (top of the view): type a typology, or paste a list (one per line, or with commas) → the **model of each, per tower**, with its link (click to open) and how many drawings use it
+  - **All towers** / one tower · case, spaces and dashes don't matter (`1bra` = `1BR-A`) · part of a name shows the **close matches** (marked) · a typology with no model says so
+  - **Copy (for Excel)** = Typology · Tower · Model in columns · what you typed is kept with the project · it reads Setup → Models and the drawings that already have a model
+  - **Ctrl+K** finds a model by its typology too – Enter opens this lookup with it
 
 **📈 S-curve** (a view next to Models) – drawings issued over time against the plan
 - **Start**, **Finish** (dd/mm/yyyy) and **Drawings** (empty = all the MIDP's drawings); **Plan shape**: *Standard S* (slow start, fast middle, slow end) or *Straight line*. Saved with the project

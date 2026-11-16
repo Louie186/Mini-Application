@@ -308,6 +308,8 @@ function qsIndex() {
   for (i = 0; i < tl.length; i++) (function (t) { var its = []; for (j = 0; j < (t.items || []).length; j++) its.push((t.items[j].number || "") + " " + (t.items[j].rev || "") + " " + (t.items[j].title || ""));
     add("Transmittal", t.no, "to " + (t.to || "?"), LT.fmtDate(t.date) + "  " + its.join("  ").substring(0, 300), function () { if (t.dir && fso.FolderExists(t.dir)) LT.open(t.dir); else show("transmittal"); }); })(tl[i]);
   try { var R = LT.register(); if (R) { var ds = R.list(); for (i = 0; i < ds.length; i++) (function (d) { add("Drawing", d.number, d.title, [d.cat, d.tower].join("  "), function () { LTMain.send("register", "find", d.number); }); })(ds[i]); } } catch (e) { }
+  try { var ix = LT.registerIndex(), RP = ix.current ? LT.readJson(LT.registerFile(ix.current), null) : null, ms = RP ? RP.models || [] : [], seenM = {};   // typology -> model (Drawing Register > Models)
+    for (i = 0; i < ms.length; i++) (function (m) { var k = (m.tower + "|" + m.typo + "|" + m.model).toLowerCase(); if (!m.model || seenM[k]) return; seenM[k] = 1; add("Model", m.typo, m.model, (m.tower ? m.tower + "  " : "") + "typology " + m.typo, function () { LTMain.send("register", "typology", m.typo); }); })(ms[i]); } catch (e) { }
   for (i = 0; i < tabs.length; i++) (function (t) { add("Tab", "", t.title, "", function () { show(t.key); }); })(tabs[i]);
   return o;
 }
@@ -319,7 +321,7 @@ function qsFind() {
   var q = w.join(" ");
   qsHits.sort(function (a, b) { var s = function (x) { return x.code.toLowerCase() == q ? 0 : x.title.toLowerCase().indexOf(q) == 0 || x.code.toLowerCase().indexOf(q) == 0 ? 1 : 2; }; return s(a) - s(b); });
   var h = ""; for (var j = 0; j < qsHits.length; j++) { var y = qsHits[j]; h += '<div class="qr' + (j == qsOn ? " on" : "") + '" data-q="' + j + '"><span class="k">' + LT.esc(y.kind) + "</span>" + (y.code ? '<span class="c">' + LT.esc(y.code) + "</span>" : "") + LT.esc(y.title) + (y.sub ? '<span class="s">' + LT.esc(y.sub) + "</span>" : "") + "</div>"; }
-  LT.$("qsRes").innerHTML = h || (w[0] ? '<div class="qr">Nothing found for "' + LT.esc(q) + '"</div>' : '<div class="qr" style="cursor:default">Type a task, drawing number, transmittal (TR-005), a name or a file name.</div>');
+  LT.$("qsRes").innerHTML = h || (w[0] ? '<div class="qr">Nothing found for "' + LT.esc(q) + '"</div>' : '<div class="qr" style="cursor:default">Type a task, drawing number, transmittal (TR-005), a typology, a name or a file name.</div>');
 }
 function qsMark() { var rs = LT.$("qsRes").childNodes; for (var i = 0; i < rs.length; i++) rs[i].className = "qr" + (i == qsOn ? " on" : ""); try { rs[qsOn].scrollIntoView(false); } catch (e) { } }
 function qsGo(i) { var x = qsHits[i]; if (!x) return; closeSearch(); x.go(); }

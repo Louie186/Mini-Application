@@ -292,6 +292,8 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
   2. Left = the MIDP (narrow it with the Section / Tower / Typology filters and the search box above). Right = your set
   3. **Drag** drawings from left to right (select several with **Ctrl** / **Shift** + click), or double-click, or **Add →** / **All shown →**. Drag back (or **← Remove**) to take them out
      - The left list **stays as it was** while you add: drawings already in the set stay in place, dimmed with *✓ in the set*, and the scroll doesn't jump
+     - **The set keeps your order** – the order you drop them in. Drop on a drawing in the set = it goes before that one; drag inside the set = reorder
+  4. **☑ Task checklist** – a new task in Tasks whose checklist is the set, one item per drawing in the set's order (each linked to its drawing)
   - Saved with the project. A drawing later removed from the MIDP shows struck through in the set
   - Use it: Tasks → a task → **📘 From the MIDP…** → **My set** – and **↻ Update from the MIDP** follows the set when you change it
 - **Online link** – double-click a drawing → **Online link** (ACC / SharePoint / BIM 360). It shows as **🔗 link** in the list; drawing references in Tasks / Delegate then open it, and summaries, packs and emails include it
@@ -307,6 +309,8 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
   - **All towers** / one tower · case, spaces and dashes don't matter (`1bra` = `1BR-A`) · part of a name shows the **close matches** (marked) · a typology with no model says so
   - **Copy (for Excel)** = Typology · Tower · Model in columns · what you typed is kept with the project · it reads Setup → Models and the drawings that already have a model
   - **Ctrl+K** finds a model by its typology too – Enter opens this lookup with it
+  - **My list** (right of the results): **drag results into it – they stay in the order you drop them** · drop on an item = before it · drag inside = reorder · drag back left (or ✕) = out · double-click a result = add to the end. A new search keeps the list, so you can collect from several searches
+  - **☑ Task checklist** – a new task in Tasks whose checklist is the list, in your order (each item linked to its model); Tasks opens it to set the date and who · **📁 Save as a set** – the models' drawings, model by model in your order · **Copy** (for Excel) · **Clear**
 
 **📈 S-curve** (a view next to Models) – drawings issued over time against the plan
 - **Start**, **Finish** (dd/mm/yyyy) and **Drawings** (empty = all the MIDP's drawings); **Plan shape**: *Standard S* (slow start, fast middle, slow end) or *Straight line*. Saved with the project

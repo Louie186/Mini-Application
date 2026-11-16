@@ -686,8 +686,11 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.30";
+  L.VERSION = "2026.11.31";
   L.WHATS_NEW = [
+    { v: "2026.11.31", items: [
+      "<b>My list</b> (Drawing Register &rarr; Models &rarr; Typology &rarr; model): drag results to the right &ndash; they line up <b>in the order you drop them</b> (drop on one to go before it, drag to reorder, drag back to take out). Then <b>&#9745; Task checklist</b> (a new task, checklist in that order), <b>Save as a set</b> or Copy",
+      "<b>My sets keep your order</b>: drawings stay in the order you drop them (drop on a drawing = before it, drag inside the set = reorder) &middot; <b>&#9745; Task checklist</b> makes a task from the set" ] },
     { v: "2026.11.30", items: [
       "<b>Typology &rarr; model</b> (Drawing Register &rarr; Models): type a typology, or paste a list, and see its model in each tower (pick one tower if you like), with the link to open it and how many drawings use it. Case, spaces and dashes don't matter; part of a name gives the close matches. <b>Copy (for Excel)</b> &middot; <b>Ctrl+K</b> finds a model by its typology too" ] },
     { v: "2026.11.29", items: [

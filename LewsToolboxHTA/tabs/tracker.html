@@ -906,6 +906,9 @@ window.ltReceive = function (what, value) {
   else if (what == "view") { data.view = value; save(); render(); }
   /* from the top bar's + New */
   else if (what == "new-task") edit(null);
+  else if (what == "from-list") { var L = JSON.parse(value), t = blank(); t.title = L.title || "Checklist"; t.project = L.project || "";   // from the Drawing Register: My list / My set -> a checklist, in that order
+    for (var i = 0; i < (L.subs || []).length; i++) t.subs.push({ code: "", title: L.subs[i].title, who: "", due: "", status: "To do", refs: L.subs[i].refs || [], dwg: L.subs[i].dwg || "" });
+    addTask(t); for (var j = 0; j < t.subs.length; j++) t.subs[j].code = t.code + "." + (j + 1); LT.taskEvent(t, "Checklist of " + t.subs.length + " from the Drawing Register"); data.view = "open"; save(); render(); picked = t; edit(t); LT.toast(t.code + ": " + t.subs.length + " checklist items - set the date and who"); }
   else if (what == "delegate") { var dt = byCode(value); if (dt) delegate(dt); }   // from Home > Core: a task dropped on Delegate
   else if (what == "templates") { var r = $("bTpl").getBoundingClientRect(); tplMenu(r.left, r.bottom + 2); }
   /* from search (Ctrl+K): open that task */

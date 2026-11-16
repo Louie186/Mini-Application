@@ -680,14 +680,18 @@ function mpPass(d, f) {
   for (var i = 0; i < ws.length; i++) if (h.indexOf(ws[i]) < 0 && h.replace(/[\s\-_]/g, "").indexOf(ws[i].replace(/[\s\-_]/g, "")) < 0) return false;
   return true;
 }
-function mpSetOf(id) { try { var a = LT.register().sets(); for (var i = 0; i < a.length; i++) if (a[i].id == id) return a[i]; } catch (e) { } return null; }
+function mpSetOf(id) { try { if (id == "__look") return mpLook(); var a = LT.register().sets(); for (var i = 0; i < a.length; i++) if (a[i].id == id) return a[i]; } catch (e) { } return null; }
+/* the Drawing Register's List lookup, used like a set: the drawings it found, in its order */
+function mpLook() { try { var R = LT.register(), P = R ? LT.readJson(LT.registerFile(R.id), null) : null, rs = P && P.lookup ? P.lookup.rows || [] : [], k = [];
+  for (var i = 0; i < rs.length; i++) if (rs[i].key) k.push(rs[i].key); return k.length ? { id: "__look", name: "List lookup", keys: k } : null; } catch (e) { return null; } }
 function mpAll() { var R = LT.register(); if (!R) return null; var a = R.list(), o = []; for (var i = 0; i < a.length; i++) if (a[i].inMidp) o.push(a[i]); return { R: R, list: o }; }
 function mpOpen() {
   readSubs(); var M = mpAll();
   if (!M) { alert("There's no Drawing Register yet.\n\nDrawing Register tab > Load new MIDP... - then come back here."); return; }
   var f = work.midp || {}, opt = function (id, key, cur) { var s = {}, a = []; for (var i = 0; i < M.list.length; i++) { var v = M.list[i][key]; if (v && !s[v]) { s[v] = 1; a.push(v); } } if (key != "cat") a.sort();
     var h = '<option value="">All</option>'; for (var j = 0; j < a.length; j++) h += "<option" + (a[j] == cur ? " selected" : "") + ">" + esc(a[j]) + "</option>"; $(id).innerHTML = h; };
-  var sets = M.R.sets(), sh = '<option value="">(none)</option>'; for (var s = 0; s < sets.length; s++) sh += '<option value="' + esc(sets[s].id) + '"' + (sets[s].id == f.set ? " selected" : "") + ">" + esc(sets[s].name) + " (" + sets[s].keys.length + ")</option>"; $("mpSet").innerHTML = sh;
+  var sets = M.R.sets(), sh = '<option value="">(none)</option>', lk = mpLook(); for (var s = 0; s < sets.length; s++) sh += '<option value="' + esc(sets[s].id) + '"' + (sets[s].id == f.set ? " selected" : "") + ">" + esc(sets[s].name) + " (" + sets[s].keys.length + ")</option>";
+  if (lk) sh += '<option value="__look"' + (f.set == "__look" ? " selected" : "") + ">&#128203; List lookup (" + lk.keys.length + ")</option>"; $("mpSet").innerHTML = sh;
   opt("mpCat", "cat", f.cat); opt("mpTower", "tower", f.tower); opt("mpTypo", "typo", f.typo); $("mpQ").value = f.q || "";
   $("mpProj").innerHTML = "&middot; " + esc(M.R.name) + " &middot; " + M.list.length + " drawings in the current MIDP"; mpTick = {}; $("mp").style.display = "block"; mpFind(true); try { $("mpQ").focus(); } catch (e) { }
 }
@@ -696,6 +700,7 @@ function mpFind(all) {
   var M = mpAll(), f = mpFilter(), have = {}; mpRows = [];
   for (var h = 0; h < work.subs.length; h++) if (work.subs[h].dwg) have[work.subs[h].dwg.toUpperCase()] = 1;
   for (var i = 0; i < M.list.length; i++) if (mpPass(M.list[i], f)) mpRows.push(M.list[i]);
+  var So = f.set ? mpSetOf(f.set) : null; if (So) { var ix = {}; for (var z = 0; z < So.keys.length; z++) ix[So.keys[z]] = z; mpRows.sort(function (a, b) { return ix[a.key] - ix[b.key]; }); }   // a set or the List lookup: in its own order
   if (all) { mpTick = {}; for (var k = 0; k < mpRows.length; k++) if (!have[mpRows[k].number.toUpperCase()]) mpTick[mpRows[k].number] = 1; }
   var any = f.q || f.cat || f.tower || f.typo || f.set, n = 0, rows = ['<table class="grid nofit nonum"><tr><th></th><th>Drawing</th><th>Title</th><th>Section</th><th>Tower</th><th>Typology</th></tr>'];
   for (var j = 0; j < mpRows.length && j < 1500; j++) { var d = mpRows[j], had = have[d.number.toUpperCase()]; if (mpTick[d.number]) n++;
@@ -748,10 +753,15 @@ function mpCheck() {
 /* ---------- checklist in the edit dialog ---------- */
 var subRef = -1;
 function dmyOf(iso) { var d = D(iso); return d ? LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear() : ""; }
+/* a checklist item that is a drawing of the MIDP: its Tower / Typology / Model under it (the model opens with a click) */
+function subNo(x) { if (x.dwg) return x.dwg; var f = LT.trim((x.title || "").split(/\s+/)[0] || ""); return LT.isDocNo(f) ? f : ""; }
+function subInfo(x) { var no = subNo(x), f = no ? LT.dwgInfo(no) : null; if (!f) return "";
+  var bits = []; if (f.tower) bits.push(esc(f.tower)); if (f.typo) bits.push(esc(f.typo)); if (f.model) bits.push(f.link ? '<span class="mlk" data-ml="' + esc(f.link) + '" title="' + esc(f.link) + ' - click to open">&#128279; ' + esc(f.model) + "</span>" : esc(f.model));
+  return bits.length ? '<div class="sinfo muted" title="From the Drawing Register">' + bits.join(" &middot; ") + "</div>" : ""; }
 function drawSubs() {
   var h = ['<tr><th style="width:84px">ID</th><th>Item</th><th style="width:150px">Who</th><th style="width:105px">Due</th><th style="width:84px">Status</th><th class="sr">Refs</th><th style="width:24px"></th></tr>'];
   for (var i = 0; i < work.subs.length; i++) { var x = work.subs[i];
-    h.push('<tr data-si="' + i + '"' + (i == subRef ? ' class="sel"' : "") + '><td class="tid">' + esc(x.code || "(new)") + '</td><td><input type="text" class="sT" value="' + esc(x.title) + '"></td><td><input type="text" class="sW" list="pplList" value="' + esc(x.who || "") + '" placeholder="' + (work.who ? "(" + esc(work.who) + ")" : "") + '"></td>' +
+    h.push('<tr data-si="' + i + '"' + (i == subRef ? ' class="sel"' : "") + '><td class="tid">' + esc(x.code || "(new)") + '</td><td><input type="text" class="sT" value="' + esc(x.title) + '">' + subInfo(x) + '</td><td><input type="text" class="sW" list="pplList" value="' + esc(x.who || "") + '" placeholder="' + (work.who ? "(" + esc(work.who) + ")" : "") + '"></td>' +
       '<td><input type="text" class="sD" value="' + esc(x.dueText != null ? x.dueText : dmyOf(x.due)) + '"></td><td><select class="sS"><option' + (x.status != "Done" ? " selected" : "") + '>To do</option><option' + (x.status == "Done" ? " selected" : "") + '>Done</option></select></td>' +
       '<td class="sr" data-sref="' + i + '" title="References for this item">&#128206; ' + (x.refs.length || "+") + '</td><td><span class="sx" data-sdel="' + i + '" style="cursor:pointer" title="Remove">&#10005;</span></td></tr>'); }
   $("subs").innerHTML = work.subs.length ? h.join("") : '<tr><td class="muted">No checklist items.</td></tr>';
@@ -817,7 +827,7 @@ function exportMenu(x, y) {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["#nd{position:fixed;right:16px;top:120px;width:330px;max-height:60%;overflow:auto;z-index:5;background:{panel};border:1px solid {line};border-radius:16px;box-shadow:{big}}#nd.fold{position:static;float:right;width:auto;max-height:none;overflow:visible;margin:0 6px 6px 0;box-shadow:none;border-radius:99px}#nd.fold #ndH{border-bottom:0;border-radius:99px}#nd.fold .ndt{margin-left:10px}#ndH{position:sticky;top:0;padding:10px 14px;cursor:pointer;background:{panel};border-bottom:1px solid {line};display:flex;align-items:center}#ndH .ndn{background:{accent};color:{accText};border-radius:99px;padding:0 8px;font-size:.8em;font-weight:700;margin-left:8px}#ndH .ndt{margin-left:auto;color:{muted};font-weight:700}",
+function look() { LT.applyLook([".sinfo{font-size:.82em;padding:2px 2px 0}.sinfo .mlk{color:{accent};cursor:pointer;text-decoration:underline}", "#nd{position:fixed;right:16px;top:120px;width:330px;max-height:60%;overflow:auto;z-index:5;background:{panel};border:1px solid {line};border-radius:16px;box-shadow:{big}}#nd.fold{position:static;float:right;width:auto;max-height:none;overflow:visible;margin:0 6px 6px 0;box-shadow:none;border-radius:99px}#nd.fold #ndH{border-bottom:0;border-radius:99px}#nd.fold .ndt{margin-left:10px}#ndH{position:sticky;top:0;padding:10px 14px;cursor:pointer;background:{panel};border-bottom:1px solid {line};display:flex;align-items:center}#ndH .ndn{background:{accent};color:{accText};border-radius:99px;padding:0 8px;font-size:.8em;font-weight:700;margin-left:8px}#ndH .ndt{margin-left:auto;color:{muted};font-weight:700}",
     ".ndhint{font-size:.82em;padding:6px 14px 2px}.ndi{padding:8px 14px;border-bottom:1px solid {line};cursor:grab}.ndi:last-child{border-bottom:0}.ndt1{display:flex}.ndt1 b{flex:1 1 auto;font-weight:600}.ndx{cursor:pointer;color:{muted};margin-left:8px}.ndx:hover{color:{bad}}.ndf{display:flex;margin-top:6px}.ndf input{width:86px;height:28px;margin:0 6px 0 0;padding:0 8px}.ndf input+input{width:96px}.ndf select{width:78px;height:28px;margin:0 6px 0 0;padding:0 6px}.ndf .btn{margin:0;height:28px}","td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}", ".tfn{background:{bg};border-left:3px solid {accent};border-radius:{r}px}", "#tfDrop{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}", ".tfc:hover{color:{accent}}",
   "table.cal th{color:{muted};border-bottom:{bw}px solid {line}}table.cal td{border:1px solid {line}}table.cal td.cur{background:{panel}}table.cal td.cur .n{color:{text}}table.cal td.cur.we{background:{panel};box-shadow:inset 0 0 0 999px rgba(128,128,128,.04)}",
   "table.cal td.oth{background:{chip};box-shadow:inset 0 0 0 999px rgba(128,128,128,.10)}table.cal td.oth .n{color:{muted};font-weight:normal}table.cal td.oth .ev{opacity:.5}",

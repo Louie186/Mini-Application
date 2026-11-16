@@ -686,8 +686,11 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.32";
+  L.VERSION = "2026.11.33";
   L.WHATS_NEW = [
+    { v: "2026.11.33", items: [
+      "<b>List lookup &rarr; &#9745; Task checklist</b>: a new task whose checklist is the list, in its order &middot; in Tasks &rarr; &#128216; From the MIDP, the <b>List lookup</b> is a choice next to My sets (both keep their own order)",
+      "<b>Checklist items show Tower &middot; Typology &middot; Model</b> under them when they are drawings of the MIDP &ndash; the model opens with a click" ] },
     { v: "2026.11.32", items: [
       "<b>List lookup from My sets</b>: <b>&#128193; From My set</b> fills the list with a set's drawings (in its order) and fills in Tower / Typology / Model at once &middot; My sets &rarr; <b>&#128203; List lookup</b> does the same in one click",
       "<b>Saved filters &rarr; your lists</b>: pick one of My sets, or My list (Typology &rarr; model), and the Drawing Register shows only those drawings, in every view, until you clear it" ] },

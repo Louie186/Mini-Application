@@ -80,4 +80,23 @@ module.exports = async ({ page, out, drag }) => {
   ok(await r.evaluate(() => shown.length == 4), 'it stays on while you change view (Status...)');
   await r.click('#fClear'); await page.waitForTimeout(150);
   ok(await r.evaluate(() => shown.length == 5 && /Saved filters/.test($('fSaved').innerText)), 'Clear filters: every drawing again');
+  // ---------- List lookup -> task checklist; in Tasks the items show Tower / Typology / Model ----------
+  await r.evaluate(() => { var S = setOf('s1'); lookFromSet(S); }); await page.waitForTimeout(150);
+  await r.evaluate(() => { $('lkText').value += '\r\nX-NOT-A-DRAWING-99'; $('lkGo').click(); }); await page.waitForTimeout(150);
+  await r.click('#lkTask'); await page.waitForTimeout(900);
+  const t3 = await tk.evaluate(() => { var t = data.tasks[data.tasks.length - 1]; return { title: t.title, subs: t.subs.map(x => x.title + '/' + x.dwg) }; });
+  ok(t3.title == 'Drawing list' && t3.subs.length == 4 && /^T1-ZZ-DR-A-5001 – Unit 5001\/T1-ZZ-DR-A-5001/.test(t3.subs[0]) && /X-NOT-A-DRAWING-99\/$/.test(t3.subs[3]), 'List lookup > Task checklist: one item per line, in the list\'s order (a line not in the MIDP stays as plain text)');
+  const info = await tk.evaluate(() => [...document.querySelectorAll('#subs tr[data-si]')].map(r => { var i = r.querySelector('.sinfo'); return i ? i.innerText : ''; }));
+  ok(/T1 · 1BR-A · M-T1-1BRA/.test(info[0]) && /T3 · 1BR-A · M-T3-1BRA/.test(info[1]) && info[3] == '', 'in the task: items that are MIDP drawings show Tower · Typology · Model under them (others show nothing)');
+  await page.screenshot({ path: out + '/task_checklist_info.png' });
+  // in Tasks: From the MIDP can use the List lookup (and a set) in its own order
+  await tk.evaluate(() => { var o = document.querySelectorAll('.ov'); for (var i = 0; i < o.length; i++) o[i].style.display = 'none'; edit(null); }); await page.waitForTimeout(200);
+  await tk.click('#eMidp'); await page.waitForTimeout(200);
+  ok(/List lookup \(3\)/.test(await tk.evaluate(() => $('mpSet').innerText)), 'Tasks > From the MIDP: the List lookup is a choice next to My sets');
+  await tk.evaluate(() => { $('mpSet').value = '__look'; $('mpSet').onchange(); }); await page.waitForTimeout(150);
+  ok(await tk.evaluate(() => mpRows.map(d => d.number).join(',')) == 'T1-ZZ-DR-A-5001,T3-ZZ-DR-A-7001,T2-ZZ-DR-A-6001', '... in the list\'s own order');
+  await tk.evaluate(() => { $('mpSet').value = 's1'; $('mpSet').onchange(); }); await page.waitForTimeout(100);
+  ok(await tk.evaluate(() => mpRows.map(d => d.number).join(',')) == 'T1-ZZ-DR-A-5001,T3-ZZ-DR-A-7001,T2-ZZ-DR-A-6001', 'a My set there also keeps its order');
+  await tk.click('#mpOk'); await page.waitForTimeout(150);
+  ok(await tk.evaluate(() => work.subs.length == 3 && /T1 · 1BR-A/.test(document.querySelector('#subs .sinfo').innerText)), 'Add as checklist items: they show Tower · Typology · Model too');
 };

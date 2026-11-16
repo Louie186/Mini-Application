@@ -273,7 +273,7 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 - **📋 Status** view – where every sheet is: **Not started · In progress · Checked · Issued**, with counts, a progress bar and **% issued** (click a count to see only those)
   - **Issued** comes by itself from the Transmittal log (the last rev, TR number and date). Set the others: click the status, or tick rows → **Set status ▾**. A status you set after the last issue wins (e.g. being revised again)
 - **📋 List lookup** – someone gives you a list of drawings (or you make one): get Tower, Typology and Model for each, then send it for checking
-  1. Paste the list (one drawing per line; a description after a Tab, two spaces, `;` or `|` – optional), or **Load from Excel / CSV…** (the drawing-number column is found by itself, the next text column is the description)
+  1. Paste the list (one drawing per line; a description after a Tab, two spaces, `;` or `|` – optional), or **📁 From My set ▾** (a set's drawings, in its order – filled in at once), or **Load from Excel / CSV…** (the drawing-number column is found by itself, the next text column is the description)
   2. **▶ Fill in Tower / Typology / Model** – drawings in the register take its values (a revision on the number is ignored); others are **guessed from the description** (orange, "guess: like …") the same way as new MIDP drawings; unknown with no description = *not found*
   3. The **Model is clickable** (opens the .rvt or the ACC link). The list is kept until you Clear it
   4. **Export ▾**: **Excel for checking** – model as a hyperlink, guesses in blue, yellow **Checked** (Yes / No / Query) and **Comments** columns, frozen heading, prints landscape · **HTML page** (opens anywhere, clickable models, a tick box per drawing) · copy as text
@@ -294,6 +294,8 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
      - The left list **stays as it was** while you add: drawings already in the set stay in place, dimmed with *✓ in the set*, and the scroll doesn't jump
      - **The set keeps your order** – the order you drop them in. Drop on a drawing in the set = it goes before that one; drag inside the set = reorder
   4. **☑ Task checklist** – a new task in Tasks whose checklist is the set, one item per drawing in the set's order (each linked to its drawing)
+  5. **📋 List lookup** – Tower, Typology and Model for every drawing of the set (the List lookup, filled in at once)
+  - **Saved filters ▾ → Show only a list:** pick a set (or **My list** from Typology → model) and every view shows only those drawings – the button shows its name; **✕ Clear** or *Show every drawing again* turns it off
   - Saved with the project. A drawing later removed from the MIDP shows struck through in the set
   - Use it: Tasks → a task → **📘 From the MIDP…** → **My set** – and **↻ Update from the MIDP** follows the set when you change it
 - **Online link** – double-click a drawing → **Online link** (ACC / SharePoint / BIM 360). It shows as **🔗 link** in the list; drawing references in Tasks / Delegate then open it, and summaries, packs and emails include it

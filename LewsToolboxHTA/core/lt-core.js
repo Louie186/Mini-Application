@@ -686,8 +686,11 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.31";
+  L.VERSION = "2026.11.32";
   L.WHATS_NEW = [
+    { v: "2026.11.32", items: [
+      "<b>List lookup from My sets</b>: <b>&#128193; From My set</b> fills the list with a set's drawings (in its order) and fills in Tower / Typology / Model at once &middot; My sets &rarr; <b>&#128203; List lookup</b> does the same in one click",
+      "<b>Saved filters &rarr; your lists</b>: pick one of My sets, or My list (Typology &rarr; model), and the Drawing Register shows only those drawings, in every view, until you clear it" ] },
     { v: "2026.11.31", items: [
       "<b>My list</b> (Drawing Register &rarr; Models &rarr; Typology &rarr; model): drag results to the right &ndash; they line up <b>in the order you drop them</b> (drop on one to go before it, drag to reorder, drag back to take out). Then <b>&#9745; Task checklist</b> (a new task, checklist in that order), <b>Save as a set</b> or Copy",
       "<b>My sets keep your order</b>: drawings stay in the order you drop them (drop on a drawing = before it, drag inside the set = reorder) &middot; <b>&#9745; Task checklist</b> makes a task from the set" ] },

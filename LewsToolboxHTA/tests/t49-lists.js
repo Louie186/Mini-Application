@@ -51,4 +51,33 @@ module.exports = async ({ page, out, drag }) => {
   await r.click('#stTask'); await page.waitForTimeout(900);
   const t2 = await tk.evaluate(() => { var t = data.tasks[data.tasks.length - 1]; return { title: t.title, subs: t.subs.map(x => x.title + '/' + x.dwg) }; });
   ok(t2.title == 'Serviced units' && t2.subs.join('|') == 'T1-ZZ-DR-A-5001 – Unit 5001/T1-ZZ-DR-A-5001|T3-ZZ-DR-A-7001 – Unit 7001/T3-ZZ-DR-A-7001|T2-ZZ-DR-A-6001 – Unit 6001/T2-ZZ-DR-A-6001', 'My sets > Task checklist: one item per drawing, in the set\'s order (linked to the drawing)');
+  // ---------- List lookup from a My set ----------
+  await tk.evaluate(() => { var o = document.querySelectorAll('.ov'); for (var i = 0; i < o.length; i++) o[i].style.display = 'none'; });
+  await page.click('.nb[data-k="register"]'); await page.waitForTimeout(400);
+  await r.evaluate(() => { P.lookup = null; saveP(); view = 'look'; render(); }); await page.waitForTimeout(100);
+  await r.click('#lkSets'); await page.waitForTimeout(100);
+  ok(/Serviced units\s*3/.test(await r.evaluate(() => document.getElementById('menu').innerText)), 'List lookup: From My set lists your sets');
+  await r.evaluate(() => { var m = document.querySelectorAll('#menu .mi'); for (var i = 0; i < m.length; i++) if (/Serviced units/.test(m[i].innerText)) m[i].click(); }); await page.waitForTimeout(200);
+  const lk = await r.evaluate(() => ({ nums: P.lookup.rows.map(x => x.num).join(','), typo: P.lookup.rows.map(x => x.typo).join(','), mdl: P.lookup.rows.map(x => x.model).join(','), text: $('lkText').value }));
+  ok(lk.nums == 'T1-ZZ-DR-A-5001,T3-ZZ-DR-A-7001,T2-ZZ-DR-A-6001' && /T1-ZZ-DR-A-5001\tUnit 5001/.test(lk.text), 'pick a set: its drawings fill the list, in the set\'s order');
+  ok(lk.typo == '1BR-A,1BR-A,1BR-A' && lk.mdl == 'M-T1-1BRA,M-T3-1BRA,M-T2-1BRA', '... and Tower / Typology / Model are filled in at once');
+  await page.screenshot({ path: out + '/lookup_from_set.png' });
+  await r.evaluate(() => { P.lookup = null; saveP(); view = 'sets'; curSet = 's1'; render(); }); await page.waitForTimeout(150);
+  await r.click('#stLook'); await page.waitForTimeout(200);
+  ok(await r.evaluate(() => view == 'look' && P.lookup.rows.length == 3), 'My sets > List lookup: the same in one click');
+  // ---------- Saved filters: My sets and My list ----------
+  await r.evaluate(() => { view = 'midp'; render(); }); await page.waitForTimeout(100);
+  await r.click('#fSaved'); await page.waitForTimeout(100);
+  const menu = await r.evaluate(() => document.getElementById('menu').innerText);
+  ok(/Serviced units\s*3/.test(menu) && /My list \(Typology → model\)\s*3 models/.test(menu), 'Saved filters lists My sets and My list');
+  const pick = t => r.evaluate(t => { var m = document.querySelectorAll('#menu .mi'); for (var i = 0; i < m.length; i++) if (m[i].innerText.indexOf(t) >= 0) { m[i].click(); return; } }, t);
+  await pick('Serviced units'); await page.waitForTimeout(150);
+  const rows = () => r.evaluate(() => shown.slice(0).sort().join(','));
+  ok(await rows() == 'T1-ZZ-DR-A-5001,T2-ZZ-DR-A-6001,T3-ZZ-DR-A-7001' && /Serviced units/.test(await r.evaluate(() => $('fSaved').innerText)), 'pick a set: only its drawings show (the button says which)');
+  await r.click('#fSaved'); await pick('My list'); await page.waitForTimeout(150);
+  ok(await rows() == 'T1-ZZ-DR-A-5001,T1-ZZ-DR-A-5002,T2-ZZ-DR-A-6001,T3-ZZ-DR-A-7001', 'pick My list: the drawings of its models');
+  await r.evaluate(() => { var t = [...document.querySelectorAll('#views .chip')].find(c => /Status/.test(c.innerText)); t.click(); }); await page.waitForTimeout(150);
+  ok(await r.evaluate(() => shown.length == 4), 'it stays on while you change view (Status...)');
+  await r.click('#fClear'); await page.waitForTimeout(150);
+  ok(await r.evaluate(() => shown.length == 5 && /Saved filters/.test($('fSaved').innerText)), 'Clear filters: every drawing again');
 };

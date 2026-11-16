@@ -178,7 +178,7 @@ function loadAll() {
 }
 function find(id) { for (var i = 0; i < IX.projects.length; i++) if (IX.projects[i].id == id) return IX.projects[i]; return null; }
 function openProject(id) {
-  pid = id; P = null; ticked = {}; lastTick = -1; F = { cat: {}, tower: {}, typo: {} };
+  pid = id; P = null; ticked = {}; lastTick = -1; F = { cat: {}, tower: {}, typo: {} }; LF = null; try { lfLabel(); } catch (e) { }   // another project: its own lists
   if (id) { P = LT.readJson(LT.registerFile(id), null); if (!P) P = blank(find(id).name); var b = blank(""); for (var k in b) if (P[k] === undefined) P[k] = b[k]; IX.current = id; saveIx(); }
   var h = ""; for (var i = 0; i < IX.projects.length; i++) h += '<option value="' + esc(IX.projects[i].id) + '"' + (IX.projects[i].id == id ? " selected" : "") + ">" + esc(IX.projects[i].name) + "</option>";
   $("proj").innerHTML = h;
@@ -346,7 +346,7 @@ var F = { cat: {}, tower: {}, typo: {} }, FN = { cat: "Section", tower: "Tower",
 function fillFilters() {
   var bs = { cat: "fbCat", tower: "fbTower", typo: "fbTypo" }, any = false;
   for (var f in bs) if (bs.hasOwnProperty(f)) { var n = keys(F[f]).length; if (n) any = true; $(bs[f]).innerHTML = FN[f] + ": " + (n == 0 ? "All" : n == 1 ? esc(keys(F[f])[0]) : n + " ticked") + " &#9662;"; $(bs[f]).className = "btn small fb" + (n ? " on" : ""); }
-  $("fClear").style.display = any || LT.trim($("search").value) || cfOn() ? "" : "none";
+  $("fClear").style.display = any || LF || LT.trim($("search").value) || cfOn() ? "" : "none";
 }
 function values(f) { var D = P.drawings, c = {}, a = []; for (var k in D) if (D.hasOwnProperty(k)) { var v = D[k][f] || "(empty)"; if (view != "all" && view != "gone" && D[k].inMidp === false) continue; if (!c[v]) { c[v] = 0; a.push(v); } c[v]++; } if (f != "cat") a.sort(); return { list: a, count: c }; }
 function pickShow(f, btn) {
@@ -360,7 +360,12 @@ function pickList() {
   $("pkList").innerHTML = h || '<div class="muted">Nothing matches.</div>';
 }
 function pickHide() { $("pick").style.display = "none"; pickKey = ""; }
+/* a list as a filter (Saved filters > My sets / My list): only its drawings. LF = { name, keys: { key: 1 } } or null */
+var LF = null;
+function lfLabel() { var b = $("fSaved"); if (b) b.innerHTML = LF ? "&#9733; " + esc(LF.name) + " &#9662;" : "&#9734; Saved filters &#9662;"; if (b) b.className = "btn small" + (LF ? " on" : ""); }
+function lfSet(name, keyList) { var o = {}; for (var i = 0; i < keyList.length; i++) o[keyList[i]] = 1; LF = keyList.length ? { name: name, keys: o } : null; lfLabel(); fillFilters(); render(); if (LF) LT.toast(name + ": " + keyList.length + " drawing(s)"); }
 function pass(k, d, s) {
+  if (LF && !LF.keys[k] && view != "sets") return false;
   if ((view == "midp" || view == "status" || view == "sets") && s.gone) return false;
   if (view == "status" && stF && dStat(k, d).st != stF) return false; if (view == "changes" && !P.changes[k]) return false; if (view == "check" && !s.check) return false; if (view == "gone" && !s.gone) return false;
   var q = LT.trim($("search").value).toLowerCase();
@@ -385,6 +390,11 @@ function cfBox(c) { return '<input type="text" class="cfi" data-cf="' + c + '" v
 function savedMenu(x, y) {
   P.filters = P.filters || []; var m = [];
   for (var i = 0; i < P.filters.length; i++) (function (f) { m.push({ label: "&#9734; <b>" + esc(f.name) + "</b>", fn: function () { F = JSON.parse(JSON.stringify(f.F || { cat: {}, tower: {}, typo: {} })); CF = JSON.parse(JSON.stringify(f.CF || {})); $("search").value = f.q || ""; fillFilters(); render(); LT.toast(f.name + ": " + shown.length + " drawing(s)"); } }); })(P.filters[i]);
+  var ss = P.sets || [], ml = (P.tlook || {}).list || [];
+  if (ss.length || ml.length) { if (m.length) m.push("-"); m.push({ label: '<span class="muted">Show only a list:</span>', fn: function () { } }); }
+  for (var si = 0; si < ss.length; si++) (function (S) { m.push({ label: "&#128193; " + esc(S.name) + ' <span class="muted">' + S.keys.length + "</span>", on: LF && LF.name == S.name, fn: function () { lfSet(S.name, S.keys.slice(0)); } }); })(ss[si]);
+  if (ml.length) m.push({ label: "&#128203; My list (Typology &rarr; model) " + '<span class="muted">' + ml.length + " model" + (ml.length == 1 ? "" : "s") + "</span>", on: LF && LF.name == "My list", fn: function () { var ks = [], seen = {}; for (var i = 0; i < ml.length; i++) { var mk = modelKeys(ml[i]); for (var j = 0; j < mk.length; j++) if (!seen[mk[j]]) { seen[mk[j]] = 1; ks.push(mk[j]); } } if (!ks.length) { alert("The models in My list have no drawings in the MIDP yet."); return; } lfSet("My list", ks); } });
+  if (LF) m.push({ label: "&#10005; Show every drawing again (" + esc(LF.name) + " off)", fn: function () { LF = null; lfLabel(); fillFilters(); render(); } });
   if (m.length) m.push("-");
   m.push({ label: "&#43; Save the filter you have now...", fn: function () { if (!cfOn() && !LT.trim($("search").value) && !keys(F.cat).length && !keys(F.tower).length && !keys(F.typo).length) { alert("Set a filter first (the boxes under the headings, the search, or Section / Tower / Typology)."); return; }
     var n = prompt("Name for this filter (e.g. Residential Enlarged):", ""); if (!n || !LT.trim(n)) return; n = LT.trim(n);
@@ -631,6 +641,10 @@ function modelsView() {
     if (o) { var m = G2[+o.getAttribute("data-mo")].model; mOpen[m] = !mOpen[m]; modelsView(); return; }
     if (st) { var g2 = G2[+st.getAttribute("data-mset")]; P.sets = P.sets || []; P.sets.push({ id: LT.uid("s"), name: g2.model, keys: g2.keys.slice(0), made: LT.today() }); saveP(); LT.toast('Set "' + g2.model + '" made (' + g2.keys.length + " drawings) - in My sets"); render(); } };
 }
+/* a My set into the List lookup: its drawings, in the set's order (number + title), then filled in at once */
+function lookFromSet(S) { var t = []; for (var i = 0; i < S.keys.length; i++) { var d = P.drawings[S.keys[i]]; t.push((d ? d.num : S.keys[i]) + (d && d.title ? "\t" + d.title : "")); }
+  if (!t.length) { alert('The set "' + S.name + '" is empty.'); return; }
+  var txt = t.join("\r\n"); P.lookup = { text: txt, at: LT.today(), rows: lookRun(lookParse(txt)), from: S.name }; saveP(); view = "look"; render(); LT.toast(S.keys.length + ' drawing(s) from "' + S.name + '"'); }
 function lookView() {
   var L = P.lookup || {}, rows = L.rows || [];
   $("tickBar").style.display = "none";
@@ -638,8 +652,8 @@ function lookView() {
   $("sum").innerHTML = "Paste or load a list of drawing numbers (with a description if you have one) &ndash; Tower, Typology and Model are filled in; the model opens with a click. Then <b>Export</b> it for someone to check." +
     (rows.length ? '<br><b>' + rows.length + " drawing(s)</b>" + (nG ? ' &middot; <span class="warn">' + nG + " guessed (from the description)</span>" : "") + (nNot ? ' &middot; <span class="bad">' + nNot + " not in the register</span>" : "") + (function () { var d = 0, m = 0; for (var q = 0; q < rows.length; q++) { if (rows[q].isModel) m++; else if (rows[q].rev && rows[q].midRev && up(rows[q].rev) != up(rows[q].midRev)) d++; } return (d ? ' &middot; <span class="warn">' + d + " revision(s) differ from the MIDP</span>" : "") + (m ? " &middot; " + m + " model(s)" : ""); })() : "");
   var h = ['<div class="lk"><div class="lkin"><div class="lkh">1. The list <span class="muted">(one drawing per line; a description after a Tab, 2 spaces, ; or |)</span></div><textarea id="lkText" placeholder="T1-ZZ-DR-A-2101\tServiced Apartment 1BR Type A - Plan\nT1-ZZ-DR-A-2102\n...">' + esc(L.text || "") + '</textarea>' +
-    '<div><button class="btn primary" id="lkGo">&#9654; Fill in Tower / Typology / Model</button><button class="btn" id="lkFile">Load from Excel / CSV...</button><button class="btn" id="lkClear">Clear</button></div></div>'];
-  if (rows.length) { h.push('<div class="lkres"><div class="lkh">2. The result <button class="btn small" id="lkExp">Export &#9662;</button><button class="btn small" id="lkSet" title="All the drawings found (and every drawing of the models in the list) become a My set">&#128193; Make a set</button></div><table class="grid nofit nonum" id="lkT" style="width:100%"><colgroup><col style="width:' + Math.max(150, Math.round(lookLongest(rows) * (LT.themeVars().fs || 13) * 0.66) + 16) + 'px"><col><col style="width:96px"><col style="width:56px"><col style="width:76px"><col style="width:26%"><col style="width:120px"></colgroup><tr><th>Drawing</th><th>Description</th><th title="Your list\'s revision against the MIDP">Rev &middot; MIDP</th><th>Tower</th><th>Typology</th><th>Model</th><th>From</th></tr>');
+    '<div><button class="btn primary" id="lkGo">&#9654; Fill in Tower / Typology / Model</button><button class="btn" id="lkFile">Load from Excel / CSV...</button><button class="btn" id="lkSets" title="Use the drawings of one of My sets, in the set&#39;s order">&#128193; From My set &#9662;</button><button class="btn" id="lkClear">Clear</button></div></div>'];
+  if (rows.length) { h.push('<div class="lkres"><div class="lkh">2. The result <button class="btn small" id="lkExp">Export &#9662;</button><button class="btn small" id="lkSet" title="All the drawings found (and every drawing of the models in the list) become a My set">&#128193; Make a set</button></div><table class="grid nofit nonum" id="lkT" style="width:100%;min-width:900px"><colgroup><col style="width:' + Math.max(150, Math.round(lookLongest(rows) * (LT.themeVars().fs || 13) * 0.66) + 16) + 'px"><col><col style="width:96px"><col style="width:56px"><col style="width:76px"><col style="width:26%"><col style="width:120px"></colgroup><tr><th>Drawing</th><th>Description</th><th title="Your list\'s revision against the MIDP">Rev &middot; MIDP</th><th>Tower</th><th>Typology</th><th>Model</th><th>From</th></tr>');
     for (var j = 0; j < rows.length; j++) { var r = rows[j], g = r.src.indexOf("guess") == 0, nf = r.src == "not found";
       h.push('<tr><td class="no">' + esc(r.num) + '</td><td class="small">' + esc(r.desc || r.title || "") + (r.desc && r.title && up(r.desc) != up(r.title) ? '<div class="muted small">register: ' + esc(r.title) + "</div>" : "") + "</td>" + revCell(r) + "<td" + (g ? ' class="warn g"' : "") + ">" + esc(r.tower) + "</td><td" + (g ? ' class="warn g"' : "") + ">" + esc(r.typo) + "</td><td>" +
         (r.model ? (r.link ? '<span class="mlk" data-ml="' + esc(r.link) + '" title="' + esc(r.link) + '">' + esc(r.model) + "</span>" : esc(r.model) + (modelRaw(r.model) ? ' <span class="warn small" title="' + esc(modelRaw(r.model)) + ' - set where ACC is on this PC: Setup > ACC on this PC">(ACC path not found here)</span>' : ' <span class="muted small" title="No link - add the path in the models list (Setup > Import from Excel, or the 4th part of a line), or set a models folder">(no link)</span>')) : nf ? "" : '<span class="muted">&ndash;</span>') +
@@ -649,6 +663,10 @@ function lookView() {
   $("res").innerHTML = h.join("");
   $("lkGo").onclick = function () { var t = $("lkText").value, list = lookParse(t); if (!list.length) { alert("Paste drawing numbers first - one per line."); return; } P.lookup = { text: t, at: LT.today(), rows: lookRun(list) }; saveP(); render(); };
   $("lkClear").onclick = function () { P.lookup = null; saveP(); render(); };
+  $("lkSets").onclick = function (e) { var ss = P.sets || [], r = this.getBoundingClientRect(), m = [];
+    if (!ss.length) m.push({ label: '<span class="muted">No sets yet &ndash; make one in My sets</span>', fn: function () { } });
+    for (var i = 0; i < ss.length; i++) (function (S) { m.push({ label: esc(S.name) + ' <span class="muted">' + S.keys.length + "</span>", fn: function () { lookFromSet(S); } }); })(ss[i]);
+    LT.menu(r.left, r.bottom + 2, m); (e || window.event).cancelBubble = true; };
   $("lkFile").onclick = function () { LT.pickFile(function (p) { var t = ""; try { var rows2 = /\.(xlsx|xlsm|xls)$/i.test(p) ? (function () { var b = LT.readExcelAll(p); return b.rows[b.names[0]]; })() : LT.parseCsv(LT.readText(p));
       var nc = -1, best = 0, cnt = {}; for (var r2 = 0; r2 < rows2.length; r2++) for (var c2 = 0; c2 < (rows2[r2] || []).length; c2++) if (LT.isDocNo(LT.cell(rows2[r2], c2))) { cnt[c2] = (cnt[c2] || 0) + 1; if (cnt[c2] > best) { best = cnt[c2]; nc = c2; } }
       if (nc < 0) { alert("No drawing numbers found in that file."); return; }
@@ -741,7 +759,7 @@ function setsView() {
   var L = ['<div class="pane" data-pane="L"><div class="ph">The MIDP &ndash; ' + (function () { var c = 0; for (var q = 0; q < left.length; q++) if (!inSet[left[q]]) c++; return c; })() + " not in the set" + ' <span class="muted">(use the filters / search above)</span></div><div class="pl" data-pane="L">'];
   for (var a = 0; a < left.length && a < 1500; a++) L.push(row("L", left[a], a));
   L.push("</div></div>");
-  var mid = '<div class="mid"><button class="btn small" id="stAdd" title="Add the selected drawings">Add &rarr;</button><button class="btn small" id="stAddAll" title="Add every drawing shown on the left">All shown &rarr;</button><button class="btn small" id="stRem" title="Remove the selected drawings">&larr; Remove</button><button class="btn small" id="stClr">&larr; Clear</button><button class="btn small primary" id="stTask" title="A new task whose checklist is this set, in this order">&#9745; Task checklist</button></div>';
+  var mid = '<div class="mid"><button class="btn small" id="stAdd" title="Add the selected drawings">Add &rarr;</button><button class="btn small" id="stAddAll" title="Add every drawing shown on the left">All shown &rarr;</button><button class="btn small" id="stRem" title="Remove the selected drawings">&larr; Remove</button><button class="btn small" id="stClr">&larr; Clear</button><button class="btn small primary" id="stTask" title="A new task whose checklist is this set, in this order">&#9745; Task checklist</button><button class="btn small" id="stLook" title="Tower, Typology and Model for every drawing of this set (List lookup)">&#128203; List lookup</button></div>';
   var R = ['<div class="pane" data-pane="R"><div class="ph"><b>' + esc(S.name) + "</b> &ndash; " + S.keys.length + " drawing(s)" + (function () { var g = 0; for (var q = 0; q < S.keys.length; q++) if (!D[S.keys[q]] || D[S.keys[q]].inMidp === false) g++; return g ? ' &middot; <span class="warn">' + g + " not in the MIDP now</span>" : ""; })() + '</div><div class="pl" data-pane="R">'];
   var ord = S.keys.slice(0);   // your order: as you dropped them (drag inside the set to change it)
   for (var b = 0; b < ord.length; b++) R.push(row("R", ord[b], b));
@@ -782,6 +800,7 @@ function bindSets() {
   res.ondragstart = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-side"); if (!r) return; var side = r.getAttribute("data-side"), k = r.getAttribute("data-key"), o = side == "L" ? selL : selR;
     if (!o[k]) { if (side == "L") selL = {}; else selR = {}; (side == "L" ? selL : selR)[k] = 1; }
     setDrag = { side: side, keys: sel(side) }; try { e.dataTransfer.setData("text", k); e.dataTransfer.effectAllowed = "move"; } catch (x) { } };
+  btn("stLook", function () { var S = setOf(curSet); if (!S || !S.keys.length) { alert("The set is empty - drag drawings into it first."); return; } lookFromSet(S); });
   btn("stTask", function () { var S = setOf(curSet); if (!S || !S.keys.length) { alert("The set is empty - drag drawings into it first."); return; }
     var subs = []; for (var i = 0; i < S.keys.length; i++) { var d = P.drawings[S.keys[i]], no = d ? d.num : S.keys[i]; subs.push({ title: no + (d && d.title ? " \u2013 " + d.title : ""), dwg: no, refs: [{ kind: "drawing", value: no }] }); }
     toTask(S.name, subs); });
@@ -1014,7 +1033,7 @@ for (var im in iMap) if (iMap.hasOwnProperty(im)) (function (id, key) { $(id).on
 $("views").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-v"); if (c) { view = c.getAttribute("data-v"); render(); } };
 $("filters").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-f"); if (!b) return; var f = b.getAttribute("data-f"); if (pickKey == f) { pickHide(); return; } pickShow(f, b); (e || window.event).cancelBubble = true; };
 $("search").onkeyup = function () { fillFilters(); render(); };
-$("fClear").onclick = function () { F = { cat: {}, tower: {}, typo: {} }; CF = {}; $("search").value = ""; fillFilters(); render(); };
+$("fClear").onclick = function () { F = { cat: {}, tower: {}, typo: {} }; CF = {}; LF = null; lfLabel(); $("search").value = ""; fillFilters(); render(); };
 $("fSaved").onclick = function (e) { if (!P) return; var a = at(this); savedMenu(a[0], a[1]); stop(e); };
 /* typing in a column filter (also in the heading that stays on top while scrolling) */
 (function () { var h = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-cf") == null || !P) return; var c = t.getAttribute("data-cf");

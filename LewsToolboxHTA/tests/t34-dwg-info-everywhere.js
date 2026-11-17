@@ -10,11 +10,11 @@ module.exports = async ({ page, out }) => {
   const txt = (fr) => fr.evaluate(() => document.getElementById('res').innerText.replace(/\s+/g, ' '));
   // Compare
   await page.click('.nb[data-k="check"]'); await page.waitForTimeout(500); await page.mouse.move(900, 600);
-  const c = page.frame({ url: /check\.html/ }); await c.click('[data-fv="compare"]'); await page.waitForTimeout(600);
+  const c = page.frame({ url: /check\.html/ }); await c.evaluate(() => setView('compare')); await page.waitForTimeout(600);
   const cp = page.frame({ url: /compare\.html/ });
   await cp.evaluate(() => { cfg.a = { kind: 'folder', path: 'C:\\Old' }; cfg.b = { kind: 'folder', path: 'C:\\New' }; window.alert = () => {}; compare(); filter = 'all'; render(); });
   const ct = await txt(cp); console.log('   compare: ' + ct.slice(0, 220));
-  ok(/TWR TYPO MODEL/i.test(ct) && /T1-ZZ-DR-A-2101 T1 1BRA 🔗 A-21000/.test(ct) && /T1-ZZ-DR-A-2201 T1 2BRB A-22000/.test(ct), 'Compare: Twr / Typo / Model per drawing (linked model with 🔗)');
+  ok(/Tower · Typology · Model/i.test(ct) && /T1-ZZ-DR-A-2101 T1 · 1BRA · 🔗 A-21000/.test(ct) && /T1-ZZ-DR-A-2201 T1 · 2BRB · A-22000/.test(ct), 'Compare: Twr / Typo / Model per drawing (linked model with 🔗)');
   ok(/\[T1 1BRA T1-ZZ-BIM-A-21000\]/.test(await cp.evaluate(() => summary())), 'Compare summary text includes them');
   await cp.evaluate(() => { top.__o = []; LT.open = p => top.__o.push(p); }); await cp.click('.mlk');
   ok(await page.evaluate(() => top.__o[0] == 'https://acc.autodesk.com/m/21000'), 'Compare: click the model opens it');
@@ -23,21 +23,21 @@ module.exports = async ({ page, out }) => {
   await page.evaluate(() => LTMain.show('find')); await page.waitForTimeout(1200); await page.mouse.move(900, 600);
   const fd = page.frame({ url: /find\.html/ });
   await fd.evaluate(() => { addFolder('C:\\New'); $('q').value = 'T1-ZZ-DR-A-2101\nT1-ZZ-DR-A-9999'; find(); });
-  const ft = await txt(fd); ok(/T1 1BRA 🔗 A-21000/.test(ft), 'Find Drawings: Twr / Typo / Model');
+  const ft = await txt(fd); ok(/T1 · 1BRA · 🔗 A-21000/.test(ft), 'Find Drawings: Twr / Typo / Model');
   // Superseded
   await page.evaluate(() => LTMain.show('superseded')); await page.waitForTimeout(1200); await page.mouse.move(900, 600);
   const sp = page.frame({ url: /superseded\.html/ });
   await sp.evaluate(() => { cfg.folder = 'C:\\Prints'; find(); });
-  ok(/T1-ZZ-DR-A-2101 T1 1BRA 🔗 A-21000/.test(await txt(sp)), 'Superseded: Twr / Typo / Model on the drawing line');
+  ok(/T1-ZZ-DR-A-2101 T1 · 1BRA · 🔗 A-21000/.test(await txt(sp)), 'Superseded: Twr / Typo / Model on the drawing line');
   // Transmittal
   await page.click('.nb[data-k="transmittal"]'); await page.waitForTimeout(500); await page.mouse.move(900, 600);
   const tr = page.frame({ url: /transmittal\.html/ });
   await tr.evaluate(() => { addFiles(['C:\\New\\T1-ZZ-DR-A-2201-P01.pdf']); });
   ok(/T1 · 2BRB · A-22000/.test(await tr.evaluate(() => $('docs').innerText)), 'Transmittal: one compact Twr · Typo · Model column');
   // Names
-  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(300); await c.click('[data-fv="naming"]'); await page.waitForTimeout(600);
+  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(300); await c.evaluate(() => setView('naming')); await page.waitForTimeout(600);
   const nm = page.frame({ url: /naming\.html/ });
   await nm.evaluate(() => { folder = 'C:\\New'; try { run(); } catch (e) { } if (typeof check == 'function' && !results) check(); });
   const nt = await nm.evaluate(() => (document.getElementById('res') || {}).innerText || '');
-  ok(/TWR/i.test(nt) || !nt, 'Names: the columns are there when files are listed');
+  ok(/Tower · Typology · Model/i.test(nt) || !nt, 'Names: the columns are there when files are listed');
 };

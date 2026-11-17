@@ -50,6 +50,7 @@ td.no{font-weight:bold;white-space:nowrap}
     <div style="display:inline-block;vertical-align:top;margin-left:10px">
       <button class="btn" id="bList">&#128196; Load a list (Excel / CSV)...</button><br>
       <button class="btn" id="bReg">&#128216; From the Drawing Register...</button><br>
+      <button class="btn" id="bSet" title="The drawings of one of your sets (Drawing Register > My sets)">&#128193; From My set &#9662;</button><br>
       <button class="btn primary" id="bFind">&#128270; Find</button><button class="btn small" id="bClear">Clear</button>
     </div>
   </div>
@@ -222,6 +223,10 @@ $("bAdd").onclick = function () { addFolder(LT.pickFolder("Pick a folder to sear
 $("subs").onclick = function () { cfg.subs = this.checked; IDX = null; save(); showRoots(); };
 $("bRead").onclick = function () { IDX = null; readFolders(last ? find : null); };
 $("bStop").onclick = function () { stopNow = true; };
+$("bSet").onclick = function (e) { var R = null; try { R = LT.register(); } catch (x) { } var ss = R ? R.sets() : [], m = [], r = this.getBoundingClientRect();
+  if (!ss.length) m.push({ label: '<span class="muted">No sets yet &ndash; make one in Drawing Register &gt; My sets</span>', fn: function () { } });
+  for (var i = 0; i < ss.length; i++) (function (S) { m.push({ label: esc(S.name) + ' <span class="muted">' + S.keys.length + "</span>", fn: function () { var t = []; for (var k = 0; k < S.keys.length; k++) { var d = R.find(S.keys[k]); t.push(d ? d.number : S.keys[k]); } $("q").value = t.join("\r\n"); find(); } }); })(ss[i]);
+  LT.menu(r.left, r.bottom + 2, m); (e || window.event).cancelBubble = true; };
 $("bFind").onclick = find;
 $("bNew").onclick = function () { if (cfg.roots.length && !confirm("Start a new search?\n\nTakes all folders off the search and empties the drawings box.\n(Nothing is deleted from your drive.)")) return; cfg.roots = []; IDX = null; showRoots(); $("bClear").onclick(); };
 $("bClear").onclick = function () { $("q").value = ""; last = null; $("res").innerHTML = ""; $("sum").className = "muted"; $("sum").innerHTML = "Type the drawings, then Find."; save(); };

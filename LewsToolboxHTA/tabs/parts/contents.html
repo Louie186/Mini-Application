@@ -69,6 +69,7 @@
   <h3>Which checklist should the folder be checked against?</h3>
   <button class="btn primary" id="aReg">&#128216; My Drawing Register<div class="muted" id="aRegName" style="font-weight:normal;font-size:.9em"></div></button>
   <button class="btn" id="aCheck">&#9989; The list I use in the Submission check view<div class="muted" id="aCheckName" style="font-weight:normal;font-size:.9em"></div></button>
+  <button class="btn" id="aSet">&#128193; One of My sets (Drawing Register)&hellip;<div class="muted" style="font-weight:normal;font-size:.9em">follows the set: change the set, the check follows</div></button>
   <button class="btn" id="aPaste">&#128203; Paste a list (one drawing number per line)...</button>
   <button class="btn" id="aPick">&#128196; An Excel / CSV list...</button>
   <button class="btn" id="aNone">None &ndash; just show the drawings and their file types</button>
@@ -105,7 +106,7 @@ function checkList() { var c = LT.readJson(LT.dataPath("check.json"), null); ret
 /* ---------- step 1: the folder ---------- */
 function paths() {
   $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
-  $("refLbl").innerHTML = cfg.refKind == "paste" ? (items ? items.length : countLines(cfg.pasted)) + ' drawings <span class="muted">(pasted list)</span>' : cfg.refKind == "register" ? (refMap && refMap.reg ? esc(refMap.reg.name) + ' <span class="muted">(Drawing Register)</span>' : '<span class="muted">Drawing Register</span>') : cfg.refKind == "none" ? '<span class="muted">none &ndash; drawings and file types only</span>' : cfg.ref ? esc(fso.GetFileName(cfg.ref)) + (cfg.refKind == "check" ? ' <span class="muted">(Submission Check list)</span>' : "") + (list ? ' <span class="muted">&middot; ' + list.sheet + "</span>" : "") : '<span class="muted">not picked</span>';
+  $("refLbl").innerHTML = cfg.refKind == "set" ? (function () { var X = LT.listSet(cfg.ref); return X ? "&#128193; My set: " + esc(X.S.name) + ' <span class="muted">(' + X.S.keys.length + " drawings, follows the set)</span>" : '<span class="bad">the set was deleted</span>'; })() : cfg.refKind == "paste" ? (items ? items.length : countLines(cfg.pasted)) + ' drawings <span class="muted">(pasted list)</span>' : cfg.refKind == "register" ? (refMap && refMap.reg ? esc(refMap.reg.name) + ' <span class="muted">(Drawing Register)</span>' : '<span class="muted">Drawing Register</span>') : cfg.refKind == "none" ? '<span class="muted">none &ndash; drawings and file types only</span>' : cfg.ref ? esc(fso.GetFileName(cfg.ref)) + (cfg.refKind == "check" ? ' <span class="muted">(Submission Check list)</span>' : "") + (list ? ' <span class="muted">&middot; ' + list.sheet + "</span>" : "") : '<span class="muted">not picked</span>';
   $("subs").checked = cfg.subs; $("need").value = cfg.need || ""; $("needBox").style.display = cfg.refKind && cfg.refKind != "none" ? "" : "none";
 }
 function countLines(t) { var n = 0, l = ("" + (t || "")).split(/\r?\n/); for (var i = 0; i < l.length; i++) if (LT.trim(l[i])) n++; return n; }
@@ -126,6 +127,9 @@ function readRef(guess) {
   if (cfg.refKind == "register") { $("cols").style.display = "none"; var R = reg(); if (!R) { alert("There's no Drawing Register yet - make one in the Drawing Register tab, or pick another list."); return true; } refMap = { reg: R, n: R.count() };
     var rl = R.list(); items = []; for (var ri = 0; ri < rl.length; ri++) if (rl[ri].inMidp) { var g = R.find(rl[ri].number) || rl[ri]; items.push({ number: rl[ri].number, title: g.title || "", tower: g.tower || "", typo: g.typo || "", model: g.model || "" }); }
     items.sort(function (a, b) { return up(a.number) < up(b.number) ? -1 : 1; }); return true; }
+  if (cfg.refKind == "set") { $("cols").style.display = "none"; var X = LT.listSet(cfg.ref); if (!X) { alert("That set is no longer in the Drawing Register - pick another checklist."); return true; } refMap = { byBase: {}, bySeq: {}, seqCount: {}, n: 0 }; items = [];
+    for (var si = 0; si < X.S.keys.length; si++) { var dd = X.R.find(X.S.keys[si]); addRef({ number: dd ? dd.number : X.S.keys[si], title: dd ? dd.title : "", tower: dd ? dd.tower : "", typo: dd ? dd.typo : "", model: dd ? dd.model : "" }); }
+    return true; }
   if (cfg.refKind == "paste") { $("cols").style.display = "none"; refMap = { byBase: {}, bySeq: {}, seqCount: {}, n: 0 }; items = [];
     var ls = ("" + cfg.pasted).split(/\r?\n/);
     for (var li = 0; li < ls.length; li++) { var line = LT.trim(ls[li]); if (!line) continue;
@@ -263,17 +267,19 @@ function render() {
   if (mode == "other") { var o = ['<table class="grid"><tr><th>File</th><th>Folder</th><th>Type</th></tr>'];
     for (var k = 0; k < result.other.length; k++) { var f = result.other[k]; if ($("fType").value && f.ext != $("fType").value) continue; shown.push({ files: [f] }); o.push('<tr data-s="' + (shown.length - 1) + '"><td>' + esc(f.name) + '</td><td class="muted">' + esc(f.folder || "(top)") + "</td><td>" + esc(f.ext) + "</td></tr>"); }
     $("res").innerHTML = shown.length ? o.join("") + "</table>" : '<div class="muted" style="padding:24px">No other files.</div>'; return; }
-  var ref = !!refMap || regUsed > 0, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower</th><th>Typology</th><th>Model</th>" : LT.dwgHead()) + "<th>Folder</th><th>Note</th></tr>"];
+  var ref = !!refMap || regUsed > 0, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower &middot; Typology &middot; Model</th>" : LT.dwgHead()) + "<th>Folder</th><th>Note</th></tr>"];
   for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i];
     if (!pass(r)) continue; if (mode == "noref" && (!refMap || (result.items ? r.inList : r.ref))) continue; if (mode == "multi" && r.revs.length < 2) continue;
     shown.push(r); var note = [];
     if (refMap && !(result.items ? r.inList : r.ref)) note.push('<span class="bad">not on the checklist</span>'); if (r.revs.length > 1) note.push('<span class="warn">' + r.revs.length + " revisions here</span>");
     h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(r.base) + "</b></td><td>" + esc(r.revs.join(", ")) + "</td><td>" + badge(r.types) + "</td>" +
-      (ref ? "<td>" + esc(r.ref ? r.ref.title : "") + "</td><td>" + esc(r.ref ? r.ref.tower : "") + "</td><td>" + esc(r.ref ? r.ref.typo : "") + '</td><td style="white-space:nowrap">' + LT.modelHtml(r.ref ? r.ref.model : "") + "</td>" : LT.dwgCells(r.base)) +
+      (ref ? "<td>" + esc(r.ref ? r.ref.title : "") + "</td>" + ttm(r.ref) : LT.dwgCells(r.base)) +
       '<td class="muted">' + esc(r.folders.join(", ") || "(top)") + "</td><td>" + note.join(" &middot; ") + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
 }
+/* Tower · Typology · Model in one short cell (the model opens with a click) */
+function ttm(r) { if (!r) return "<td></td>"; var b = []; if (r.tower) b.push(esc(r.tower)); if (r.typo) b.push(esc(r.typo)); if (r.model) b.push(LT.modelHtml(r.model)); return '<td class="ti" style="white-space:nowrap">' + b.join(" &middot; ") + "</td>"; }
 function passItem(x) {
   var it = x.it, t = $("fTower").value, y = $("fTypo").value, ft = $("fType").value, q = LT.trim($("search").value).toLowerCase();
   if (t && it.tower != t) return false; if (y && it.typo != y) return false; if (ft && (!x.row || !x.row.types[ft])) return false;
@@ -282,11 +288,11 @@ function passItem(x) {
 }
 function stHtml(x) { return x.st == "done" ? '<span class="st sd">&#10004; Finished</span>' : x.st == "lacking" ? '<span class="st sl">&#9680; Lacking ' + esc(x.lack.join(", ")) + "</span>" : '<span class="st sm">&#10006; Missing</span>'; }
 function checklistView(mode) {
-  var it = result.items, h = ['<table class="grid"><tr><th>Drawing</th><th>Status</th><th>Description</th><th>Tower</th><th>Typology</th><th>Model</th><th>Revision</th><th>File types</th><th>Folder</th></tr>'];
+  var it = result.items, h = ['<table class="grid"><tr><th>Drawing</th><th>Status</th><th>Description</th><th>Tower &middot; Typology &middot; Model</th><th>Revision</th><th>File types</th><th>Folder</th></tr>'];
   for (var i = 0; i < it.length; i++) { var x = it[i];
     if (mode == "left" && x.st == "done") continue; if (mode == "done" && x.st != "done") continue; if (!passItem(x)) continue;
     shown.push(x.row || { files: [] }); var r = x.row;
-    h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(x.it.number) + "</b></td><td>" + stHtml(x) + "</td><td>" + esc(x.it.title) + "</td><td>" + esc(x.it.tower) + "</td><td>" + esc(x.it.typo) + '</td><td style="white-space:nowrap">' + LT.modelHtml(x.it.model || (LT.dwgInfo(x.it.number) || {}).model || "") + "</td><td>" + (r ? esc(r.revs.join(", ")) : "") + "</td><td>" + (r ? badge(r.types) : "") + '</td><td class="muted">' + (r ? esc(r.folders.join(", ") || "(top)") : "") + "</td></tr>"); }
+    h.push('<tr data-s="' + (shown.length - 1) + '"><td><b>' + esc(x.it.number) + "</b></td><td>" + stHtml(x) + "</td><td>" + esc(x.it.title) + "</td>" + ttm({ tower: x.it.tower, typo: x.it.typo, model: x.it.model || (LT.dwgInfo(x.it.number) || {}).model || "" }) + "<td>" + (r ? esc(r.revs.join(", ")) : "") + "</td><td>" + (r ? badge(r.types) : "") + '</td><td class="muted">' + (r ? esc(r.folders.join(", ") || "(top)") : "") + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">' + (mode == "left" ? "&#10004; Nothing remaining" + (LT.trim($("search").value) || $("fTower").value || $("fTypo").value || $("fType").value ? " with these filters." : " &ndash; everything on the checklist is in the folder.") : "Nothing to show here.") + "</div>";
 }
@@ -354,6 +360,9 @@ $("bRef").onclick = function (e) { var r = this.getBoundingClientRect(), c = che
   { label: "None &ndash; drawings and file types only", fn: function () { useRef("none"); } }]); (e || window.event).cancelBubble = true; };
 $("aCheck").onclick = function () { useRef("check"); }; $("aReg").onclick = function () { useRef("register"); }; $("aNone").onclick = function () { useRef("none"); };
 function openPaste() { $("ask").style.display = "none"; $("pText").value = cfg.refKind == "paste" ? cfg.pasted : ""; $("pasteDlg").style.display = "block"; try { $("pText").focus(); } catch (x) { } }
+$("aSet").onclick = function (e) { var R = reg(), ss = R ? R.sets() : [], m = [], r = this.getBoundingClientRect(); if (!ss.length) m.push({ label: '<span class="muted">No sets yet &ndash; make one in Drawing Register &gt; My sets</span>', fn: function () { } });
+  for (var i = 0; i < ss.length; i++) (function (S) { m.push({ label: esc(S.name) + ' <span class="muted">' + S.keys.length + "</span>", fn: function () { useRef("set", S.id); } }); })(ss[i]);
+  LT.menu(r.left, r.bottom + 2, m); (e || window.event).cancelBubble = true; };
 $("aPaste").onclick = openPaste; $("pCancel").onclick = function () { $("pasteDlg").style.display = "none"; };
 $("pOk").onclick = function () { var t = $("pText").value; if (!countLines(t)) { alert("Paste at least one drawing number."); return; } $("pasteDlg").style.display = "none"; cfg.pasted = t; cfg.show = ""; useRef("paste"); };
 $("need").onchange = function () { if (LT.trim(this.value) == LT.trim(cfg.need || "")) return; cfg.need = this.value; save(); if (result) run(); };

@@ -19,7 +19,7 @@ module.exports = async ({ page, out }) => {
   ok(rows.indexOf('10110-P01 T1 1BRB 21001 -') >= 0, 'a model with no link: shown, not clickable');
   ok(rows.some(x => /letter none/.test(x)), 'a file not in the register: just "–"');
   console.log('   head: ' + await r.evaluate(() => $('tbl').rows[0].innerText.replace(/\s+/g, ' ') + ' / mlk ' + $('res').querySelectorAll('.mlk').length));
-  ok(await r.evaluate(() => /TWR\s*TYPO\s*MODEL/i.test($('tbl').rows[0].innerText) && $('res').querySelectorAll('.mlk').length == 1), 'compact Twr / Typo / Model columns; the linked model is clickable');
+  ok(await r.evaluate(() => /Tower · Typology · Model/i.test($('tbl').rows[0].innerText) && $('res').querySelectorAll('.mlk').length == 1), 'one compact Tower · Typology · Model column; the linked model is clickable');
   await r.evaluate(() => { top.__o = []; LT.open = p => top.__o.push(p); }); await r.click('.mlk');
   ok(await page.evaluate(() => top.__o[0] == 'https://acc.autodesk.com/docs/files/projects/x?entityId=21000'), 'click the model: opens it in ACC');
   ok(await r.evaluate(() => /21000/.test(htmlReport()) && /\[T1 1BRA\]/.test(textReport()) || /T1/.test(htmlReport())), 'reports include Tower / Typology / Model');

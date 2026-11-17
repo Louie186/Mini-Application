@@ -118,7 +118,7 @@ module.exports = async ({ page, out }) => {
   await c.evaluate(() => { useRef('none'); });
   ok(await c.evaluate(() => result.rows.length == 2 && regUsed == 2 && /<th>Tower/.test(document.getElementById('res').innerHTML)), '"None" still shows Tower / Typology / Model from the register');
   await page.screenshot({ path: out + '/j_contents_reg.png' });
-  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(300); await page.mouse.move(900, 600); await page.frame({ url: /check\.html/ }).click('[data-fv="sub"]');   // Folder Check remembers the last view
+  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(300); await page.mouse.move(900, 600); await page.frame({ url: /check\.html/ }).evaluate(() => setView('sub'));   // Folder Check remembers the last view
   const k = page.frame({ url: /check\.html/ });
   await page.evaluate(() => { const fs = window.__mockFs, p = 'C:\\Lists\\Short.csv'; fs.files[p.toLowerCase()] = { path: p, text: 'Number,Title\r\n9001-ABC-T1-ZZ-PLN-INT-10100,A\r\n9001-ABC-T2-ZZ-PLN-INT-20101,B\r\n', time: Date.now() }; });
   await k.evaluate(() => { cfg.folder = 'C:\\Sub'; readList('C:\\Lists\\Short.csv', true); cfg.list = 'C:\\Lists\\Short.csv'; saveCfg(); showPaths(); });

@@ -708,12 +708,19 @@ var LT = (function () {
     var tr = L.readJson(L.dataPath("tracker.json"), null) || {}; for (i = 0; i < (tr.tasks || []).length; i++) if (tr.tasks[i].midp && tr.tasks[i].midp.set == setId) o.push({ where: "Tasks", code: tr.tasks[i].code, title: tr.tasks[i].title });
     var dg = L.readJson(L.dataPath("delegate.json"), null) || {}; for (j = 0; j < (dg.tasks || []).length; j++) if (dg.tasks[j].setId == setId) o.push({ where: "Delegate", code: dg.tasks[j].code, title: dg.tasks[j].title });
     var ck = L.readJson(L.dataPath("check.json"), null) || {}; if (ck.list == "set:" + setId) o.push({ where: "Folder Check", code: "", title: "Submission check" });
+    var cn = L.readJson(L.dataPath("contents.json"), null) || {}; if (cn.refKind == "set" && cn.ref == setId) o.push({ where: "Folder Check", code: "", title: "Contents" });
+    var rv = L.readJson(L.dataPath("revisions.json"), null) || {}; if (rv.only == setId) o.push({ where: "Folder Check", code: "", title: "Revisions" });
     var ca = L.readJson(L.dataPath("checkall.json"), null) || {}; if (JSON.stringify(ca).indexOf('"' + setId + '"') >= 0) o.push({ where: "Folder Check", code: "", title: "Check all" });
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.38";
+  L.VERSION = "2026.11.39";
   L.WHATS_NEW = [
+    { v: "2026.11.39", items: [
+      "<b>Folder Check, simpler</b>: five views &ndash; <b>Contents</b>, <b>Checklist</b>, <b>Revisions</b> (new), <b>Find</b>, <b>Review</b> &ndash; and <b>Tools &#9662;</b> for Submission check, Names, Compare and Superseded",
+      "<b>Revisions</b> (new): a folder or a list against the <b>MIDP</b> or a <b>LOD list</b> &ndash; same / older / newer, with Tower &middot; Typology &middot; Model; only one set if you like; Export CSV",
+      "<b>My sets everywhere</b>: Contents and Find take one of My sets too (Contents follows the set when it changes)",
+      "<b>Tower &middot; Typology &middot; Model</b> is one compact column in every list" ] },
     { v: "2026.11.38", items: [
       "<b>Live lists</b>: a task made from one of <b>My sets</b> (Task checklist, or From the MIDP &gt; My set) now <b>follows the set</b> &ndash; in Tasks and in Delegate. Add a drawing to the set: a <b>NEW</b> item appears. Take one out: its item is <b>flagged removed</b> (never deleted; it doesn't hold the task open and isn't sent). <b>Accept the changes</b> clears the marks; <b>Show list changes</b> hides them; <b>Stop following</b> keeps the items as they are",
       "<b>My sets</b> shows where each set is used (Tasks, Delegate, Folder Check)",
@@ -831,16 +838,16 @@ var LT = (function () {
     return (DWG.c[k] = o);
   };
   L.dwgOn = function () { L.dwgInfo("-"); return !!(DWG && DWG.R); };   // no Drawing Register yet: no columns
-  L.dwgBlank = function () { return L.dwgOn() ? '<td class="ti"></td><td class="ti"></td><td class="ti"></td>' : ""; };
-  L.dwgHead = function () { if (!L.dwgOn()) return ""; return '<th class="ti" title="Tower (Drawing Register)">Twr</th><th class="ti" title="Typology (Drawing Register)">Typo</th><th class="ti" title="Model (Drawing Register) - click to open it">Model</th>'; };
+  /* one compact column everywhere: "T1 · 1BRA · 🔗 INT-21000" (the model opens with a click; the full model name on hover) */
+  L.dwgBlank = function () { return L.dwgOn() ? '<td class="ti"></td>' : ""; };
+  L.dwgHead = function () { if (!L.dwgOn()) return ""; return '<th class="ti" title="Tower · Typology · Model (Drawing Register) - the model opens with a click">Tower &middot; Typology &middot; Model</th>'; };
   L.dwgCells = function (name) {
     if (!L.dwgOn()) return "";
-    var f = L.dwgInfo(name), ns = ' style="white-space:nowrap"';
-    if (!f) return '<td class="ti muted"' + ns + ' title="Not in the Drawing Register">' + (name && DWG && DWG.R ? "&ndash;" : "") + '</td><td class="ti"></td><td class="ti"></td>';
-    return '<td class="ti"' + ns + ' title="' + L.esc(f.title) + '">' + L.esc(f.tower) + '</td><td class="ti"' + ns + ">" + L.esc(f.typo) + '</td><td class="ti mo"' + ns + ' title="' + L.esc(f.model + (f.link ? " - click to open" : "")) + '">' +
-      (f.model && f.link ? '<span class="mlk" data-ml="' + L.esc(f.link) + '">&#128279; ' + L.esc(f.short) + "</span>" : L.esc(f.short)) + "</td>";
+    var f = L.dwgInfo(name);
+    if (!f) return '<td class="ti muted" title="Not in the Drawing Register">' + (name && DWG && DWG.R ? "&ndash;" : "") + "</td>";
+    return L.dwgCell(name);
   };
-  /* one compact cell instead of three (narrow tables): "T1 · 1BRA · 🔗 INT-21000" */
+  /* the compact cell */
   L.dwgCell = function (name) { var f = L.dwgInfo(name); if (!f) return L.dwgOn() ? '<td class="ti muted"></td>' : "";
     return '<td class="ti" style="white-space:nowrap" title="' + L.esc(f.title + " - " + f.model) + '">' + L.esc([f.tower, f.typo].join(" \u00b7 ")) + (f.model ? " \u00b7 " + (f.link ? '<span class="mlk" data-ml="' + L.esc(f.link) + '">&#128279; ' + L.esc(f.short) + "</span>" : L.esc(f.short)) : "") + "</td>"; };
   /* a model name as a link (when the register knows where it opens) */

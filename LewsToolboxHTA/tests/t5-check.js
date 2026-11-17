@@ -13,6 +13,7 @@ module.exports = async ({ page, out }) => {
   });
   await page.click('.nb[data-k="check"]'); await page.waitForTimeout(600);
   const f = page.frame({ url: /check\.html/ });
+  await f.evaluate(() => setView('sub'));   // the classic Submission check is under Tools now
   await f.evaluate(() => { window.top.__nextFolder = 'C:\\Sub'; }); await f.click('#bFolder');
   await f.evaluate(() => { readList('C:\\Lists\\list.csv', true); cfg.list = 'C:\\Lists\\list.csv'; saveCfg(); showPaths(); });
   ok(await f.evaluate(() => cfg.colName == 'Drawing Number' && cfg.colRev == 'Rev' && cfg.colFmt == 'Format' && cfg.colFolder == 'Folder' && cfg.colTitle == 'Title' && headRow == 2), 'heading row found under the title rows; columns guessed');

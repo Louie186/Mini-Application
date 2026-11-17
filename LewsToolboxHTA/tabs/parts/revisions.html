@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Revisions</title>
+<meta name="lt-desc" content="Does a folder (or a list) have the revision the MIDP - or your LOD list - says? Same / older / newer / not in the reference, with Tower &middot; Typology &middot; Model.">
+<!--
+  Lew's Toolbox - (a view inside the Folder Check tab) Revision check.
+  What is checked: a folder (its files; optionally only the drawings of one of My sets) or a list (Excel / CSV / pasted "number  rev").
+  Against: the MIDP (Drawing Register, each drawing's Rev) or a LOD list (Excel / CSV with a number and a revision column) - you choose.
+  Settings: revisions.json.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#sum{flex:none;padding:8px 14px}
+#chips .cb{display:inline-block;padding:4px 11px;margin:0 6px 4px 0;font-weight:bold;cursor:pointer}
+#res{flex:1 1 auto;overflow:auto;min-height:0}
+.st{display:inline-block;padding:1px 8px;font-weight:bold;font-size:.9em;white-space:nowrap}
+.right{float:right}
+#pasteDlg .card{width:620px}#pText{width:100%;height:300px;font-family:Consolas,'Lucida Console',monospace}
+</style>
+<script src="../../core/lt-core.js"></script>
+<script src="../../core/lt-transmittal.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><span class="lbl big">Check</span>
+    <select id="src" style="width:150px;margin:0 8px 6px 0"><option value="folder">a folder</option><option value="list">a list</option></select>
+    <span id="srcFolder"><button class="btn" id="bFolder">&#128194; Folder...</button><span class="path" id="folderLbl"></span><label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> subfolders</label>
+      <button class="btn small" id="bOnly" title="Only the drawings of one of My sets">Only a set &#9662;</button><span class="lbl muted" id="onlyLbl"></span></span>
+    <span id="srcList"><button class="btn" id="bList">&#128196; Excel / CSV...</button><button class="btn" id="bPaste">&#128203; Paste...</button><span class="path" id="listLbl"></span></span>
+  </div>
+  <div class="step">
+    <span class="num">2</span><span class="lbl big">Against</span>
+    <select id="ref" style="width:240px;margin:0 8px 6px 0"><option value="midp">the MIDP (Drawing Register)</option><option value="lod">a LOD list (Excel / CSV)</option></select>
+    <span id="lodBox"><button class="btn" id="bLod">&#128196; LOD list...</button><span class="path" id="lodLbl"></span></span>
+    <button class="btn primary" id="bRun">&#9654; Check revisions</button>
+  </div>
+  <div class="step bar">
+    <span class="num">3</span><span class="lbl">Show:</span><select id="show" style="width:200px;margin:0 8px 6px 0"><option value="diff">Only what differs</option><option value="all">Everything</option></select>
+    <input type="text" id="q" placeholder="Search" style="width:170px;margin:0 8px 6px 0">
+    <span class="right"><button class="btn" id="bCsv">Export CSV</button></span>
+  </div>
+  <div id="sum"><div id="sumTxt" class="muted">Pick what to check and what to check it against, then &#9654; Check revisions.</div><div id="chips"></div></div>
+  <div id="res"></div>
+</div>
+<div class="ov" id="pasteDlg"><div class="card">
+  <h3>Paste the list</h3>
+  <div class="muted" style="margin-bottom:8px">One drawing per line with its revision: <b>A-101  P02</b>, <b>A-101-P02</b> or a column copied from Excel (number, then revision).</div>
+  <textarea id="pText" spellcheck="false"></textarea>
+  <div class="acts"><span class="sp"></span><button class="btn" id="pCancel">Cancel</button><button class="btn primary" id="pOk">Use this list</button></div>
+</div></div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg, rows = [], shown = [], chip = "";
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
+function FILE() { return LT.dataPath("revisions.json"); }
+function load() { cfg = LT.readJson(FILE(), null) || {}; var d = { src: "folder", folder: "", subs: true, only: "", list: "", pasted: "", ref: "midp", lod: "", show: "diff" }; for (var k in d) if (cfg[k] === undefined) cfg[k] = d[k]; }
+function save() { try { LT.saveJson(FILE(), cfg); } catch (e) { } }
+function U(s) { return LT.trim(s).toUpperCase(); }
+function split(stem) { var i = Math.max(stem.lastIndexOf("-"), stem.lastIndexOf("_")); if (i > 0 && (stem.match(/[-_]/g) || []).length >= 2 && REV.test(stem.substring(i + 1))) return { base: stem.substring(0, i), rev: stem.substring(i + 1).toUpperCase() }; return { base: stem, rev: "" }; }
+function reg() { try { return LT.register(); } catch (e) { return null; } }
+
+function paths() {
+  $("src").value = cfg.src; $("ref").value = cfg.ref; $("subs").checked = cfg.subs; $("show").value = cfg.show;
+  $("srcFolder").style.display = cfg.src == "folder" ? "" : "none"; $("srcList").style.display = cfg.src == "list" ? "" : "none"; $("lodBox").style.display = cfg.ref == "lod" ? "" : "none";
+  $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
+  var X = cfg.only ? LT.listSet(cfg.only) : null; $("onlyLbl").innerHTML = X ? "&#128193; only " + esc(X.S.name) + ' (' + X.S.keys.length + ') <span class="lk" id="onlyX" style="cursor:pointer;text-decoration:underline">all</span>' : "";
+  if ($("onlyX")) $("onlyX").onclick = function () { cfg.only = ""; save(); paths(); };
+  $("listLbl").innerHTML = cfg.list == "paste" ? lines(cfg.pasted).length + " pasted" : cfg.list ? esc(fso.GetFileName(cfg.list)) : '<span class="muted">not picked</span>';
+  $("lodLbl").innerHTML = cfg.lod ? esc(fso.GetFileName(cfg.lod)) : '<span class="muted">not picked</span>';
+}
+function lines(t) { var o = [], ls = ("" + (t || "")).split(/\r?\n/); for (var i = 0; i < ls.length; i++) if (LT.trim(ls[i])) o.push(LT.trim(ls[i])); return o; }
+
+/* ---------- what is checked: { base -> { base, revs: [..], where: "folder / file" } } ---------- */
+function fromFolder() {
+  var o = {}, n = 0, only = null;
+  if (cfg.only) { var X = LT.listSet(cfg.only); if (X) { only = {}; for (var i = 0; i < X.S.keys.length; i++) { var d = X.R.find(X.S.keys[i]); only[U(d ? d.number : X.S.keys[i])] = 1; } } }
+  var walk = function (dir, rel, depth) { var fo; try { fo = fso.GetFolder(dir); } catch (e) { return; }
+    var e = new Enumerator(fo.Files); for (; !e.atEnd() && n < 30000; e.moveNext()) { var nm = "" + e.item().Name, k = nm.lastIndexOf("."); if (k <= 0 || /^~\$|^thumbs\.db$/i.test(nm)) continue; n++;
+      var sp = split(nm.substring(0, k)), b = U(sp.base); if (!isNo(sp.base)) continue; if (only && !only[b]) continue;
+      var x = o[b] || (o[b] = { base: sp.base, revs: [], where: [] }); if (sp.rev && x.revs.indexOf(sp.rev) < 0) x.revs.push(sp.rev); if (x.where.indexOf(rel || "(top)") < 0) x.where.push(rel || "(top)"); }
+    if (cfg.subs && depth < 6) { var sf = new Enumerator(fo.SubFolders); for (; !sf.atEnd(); sf.moveNext()) if (!(sf.item().Attributes & 6)) walk("" + sf.item().Path, (rel ? rel + "\\" : "") + sf.item().Name, depth + 1); } };
+  walk(cfg.folder, "", 0);
+  if (only) for (var ob in only) if (only.hasOwnProperty(ob) && !o[ob]) o[ob] = { base: ob, revs: [], where: [], missing: true };   // in the set, not in the folder
+  return o;
+}
+/* a list with revisions: Excel / CSV (number + revision columns) or pasted lines */
+function numRev(text) { var m = /^(\S+?)(?:[\t ;|,]+([A-Z]{1,2}\d{1,3}|\d{2,3}))?(?:[\t ;|,].*)?$/i.exec(LT.trim(text)); if (!m) return null; var sp = split(m[1].replace(/\.[a-z0-9]{2,4}$/i, "")); return { base: sp.base, rev: (m[2] || sp.rev || "").toUpperCase() }; }
+/* an Excel / CSV list: the number column and the revision column are found from the headings, else from the values (numbers like A-101, revisions like P02) */
+function isNo(v) { v = LT.trim(v); return /\d/.test(v) && /[-_]/.test(v) && !/\s/.test(v); }
+function readTable(p) { var L = LT.readList(p, ""), c = LT.listColumns(L, {}, true), t = L.table, iN = L.head.indexOf(c.name), iR = c.rev ? L.head.indexOf(c.rev) : -1, o = [], w = 0, r, col;
+  for (r = 0; r < Math.min(t.length, 300); r++) w = Math.max(w, (t[r] || []).length);
+  var score = function (col, test) { var n = 0, all = 0; for (var r2 = 0; r2 < Math.min(t.length, 300); r2++) { var v = LT.cell(t[r2], col); if (!v) continue; all++; if (test(v)) n++; } return all ? n / all : 0; };
+  if (iN < 0 || score(iN, isNo) < 0.5) { var bN = -1, sN = 0; for (col = 0; col < w; col++) { var x = score(col, isNo); if (x > sN) { sN = x; bN = col; } } if (bN >= 0) iN = bN; }
+  if (iR < 0) { var bR = -1, sR = 0.5; for (col = 0; col < w; col++) { if (col == iN) continue; var y = score(col, function (v) { return REV.test(LT.trim(v)); }); if (y >= sR) { sR = y; bR = col; } } iR = bR; }
+  for (r = 0; r < t.length; r++) { var v = LT.cell(t[r], iN); if (!v || !isNo(v)) continue; var sp = split(v.replace(/\.[a-z0-9]{2,4}$/i, "")); o.push({ base: sp.base, rev: U(iR >= 0 ? LT.cell(t[r], iR) : sp.rev) }); }
+  return { rows: o, revCol: iR >= 0 }; }
+function fromList() { var o = {}, src = [];
+  if (cfg.list == "paste") { var ls = lines(cfg.pasted); for (var i = 0; i < ls.length; i++) { var x = numRev(ls[i]); if (x && /\d/.test(x.base)) src.push(x); } }
+  else src = readTable(cfg.list).rows;
+  for (var j = 0; j < src.length; j++) { var b = U(src[j].base), y = o[b] || (o[b] = { base: src[j].base, revs: [], where: ["list"] }); if (src[j].rev && y.revs.indexOf(src[j].rev) < 0) y.revs.push(src[j].rev); }
+  return o; }
+/* ---------- the reference: base -> rev ---------- */
+function refRevs() { var o = {};
+  if (cfg.ref == "midp") { var R = reg(); if (!R) throw new Error("There's no Drawing Register yet - load the MIDP in the Drawing Register tab, or check against a LOD list."); var l = R.list(); for (var i = 0; i < l.length; i++) { if (!l[i].inMidp) continue; var d = R.find(l[i].key) || {}; o[U(l[i].number)] = { rev: U(d.rev || ""), title: l[i].title }; } return o; }
+  if (!cfg.lod || !fso.FileExists(cfg.lod)) throw new Error("Pick the LOD list (Excel / CSV with a drawing number and a revision column).");
+  var t = readTable(cfg.lod); if (!t.revCol) throw new Error("No revision column found in the LOD list (a heading like Rev or Revision).");
+  for (var j = 0; j < t.rows.length; j++) o[U(t.rows[j].base)] = { rev: t.rows[j].rev, title: "" }; return o; }
+function hi(revs) { var h = ""; for (var i = 0; i < revs.length; i++) if (!h || LT.revCmp(revs[i], h) > 0) h = revs[i]; return h; }
+
+function run() {
+  if (cfg.src == "folder" && (!cfg.folder || !fso.FolderExists(cfg.folder))) { alert("Pick the folder first."); return; }
+  if (cfg.src == "list" && !cfg.list) { alert("Pick the list first (Excel / CSV, or paste it)."); return; }
+  var have, ref; try { have = cfg.src == "folder" ? fromFolder() : fromList(); ref = refRevs(); } catch (e) { alert(e.message || e); return; }
+  rows = [];
+  for (var k in have) if (have.hasOwnProperty(k)) { var x = have[k], r = ref[k], h = hi(x.revs), st;
+    if (x.missing) st = "missing"; else if (!r) st = "noref"; else if (!r.rev) st = "norev"; else if (!h) st = "nohere"; else { var c = LT.revCmp(h, r.rev); st = c == 0 ? "same" : c < 0 ? "older" : "newer"; }
+    rows.push({ base: x.base, here: x.revs.slice(0).sort(LT.revCmp).join(", "), hi: h, ref: r ? r.rev : "", st: st, where: x.where.join(", ") }); }
+  rows.sort(function (a, b) { return U(a.base) < U(b.base) ? -1 : 1; });
+  chip = ""; draw();
+}
+var ST = { same: ["&#10004; Same", "ok"], older: ["&#9888; Older than the reference", "bad"], newer: ["&#9650; Newer than the reference", "warn"], noref: ["Not in the reference", "muted"], norev: ["The reference has no revision", "muted"], nohere: ["No revision in the name", "warn"], missing: ["&#10006; In the set, not in the folder", "bad"] };
+function draw() {
+  var c = {}, q = LT.trim($("q").value).toLowerCase(), diff = $("show").value == "diff"; for (var i = 0; i < rows.length; i++) c[rows[i].st] = (c[rows[i].st] || 0) + 1;
+  var against = cfg.ref == "midp" ? "the MIDP" : "the LOD list";
+  $("sumTxt").innerHTML = rows.length ? "<b>" + rows.length + " drawing" + (rows.length == 1 ? "" : "s") + "</b> checked against " + against + (c.same ? ' &middot; <span class="ok">' + c.same + " same</span>" : "") + (c.older ? ' &middot; <span class="bad">' + c.older + " older</span>" : "") + (c.newer ? ' &middot; <span class="warn">' + c.newer + " newer</span>" : "") : '<span class="muted">Nothing found to check.</span>';
+  var ch = ""; for (var s in ST) if (ST.hasOwnProperty(s) && c[s]) ch += '<span class="cb chip' + (chip == s ? " on" : "") + '" data-c="' + s + '">' + ST[s][0] + " " + c[s] + "</span>"; $("chips").innerHTML = ch;
+  var h = ['<table class="grid"><tr><th>Drawing</th>' + LT.dwgHead() + "<th>" + (cfg.src == "folder" ? "In the folder" : "On the list") + "</th><th>" + (cfg.ref == "midp" ? "MIDP" : "LOD") + "</th><th>Result</th>" + (cfg.src == "folder" ? "<th>Where</th>" : "") + "</tr>"]; shown = [];
+  for (var j = 0; j < rows.length; j++) { var r = rows[j];
+    if (chip ? r.st != chip : diff && r.st == "same") continue; if (q && (r.base + " " + LT.dwgText(r.base)).toLowerCase().indexOf(q) < 0) continue; shown.push(r);
+    h.push("<tr><td><b>" + esc(r.base) + "</b></td>" + LT.dwgCells(r.base) + "<td>" + esc(r.here || "-") + "</td><td>" + esc(r.ref || "-") + '</td><td><span class="st ' + ST[r.st][1] + '">' + ST[r.st][0] + "</span></td>" + (cfg.src == "folder" ? '<td class="muted">' + esc(r.where) + "</td>" : "") + "</tr>"); }
+  h.push("</table>");
+  $("res").innerHTML = shown.length ? h.join("") : rows.length ? '<div class="muted" style="padding:24px">' + (diff && !chip ? "&#10004; Every revision matches " + against + "." : "Nothing to show here.") + "</div>" : "";
+}
+function csv() { if (!rows.length) { alert("Check first."); return; }
+  var t = [["Drawing", "Tower", "Typology", "Model", cfg.src == "folder" ? "In the folder" : "On the list", cfg.ref == "midp" ? "MIDP" : "LOD", "Result", "Where"]];
+  for (var i = 0; i < rows.length; i++) { var f = LT.dwgInfo(rows[i].base) || {}; t.push([rows[i].base, f.tower || "", f.typo || "", f.model || "", rows[i].here, rows[i].ref, ST[rows[i].st][0].replace(/&[^;]+;\s*/g, ""), rows[i].where]); }
+  var p = LT.exportsDir() + "\\Revision check_" + LT.stamp() + ".csv"; LT.mkdirs(LT.exportsDir()); LT.writeCsv(p, t); window.__lastCsv = p; try { LT.showInFolder(p); } catch (e) { } LT.toast("Saved: " + fso.GetFileName(p)); }
+
+$("src").onchange = function () { cfg.src = this.value; save(); paths(); }; $("ref").onchange = function () { cfg.ref = this.value; save(); paths(); };
+$("subs").onclick = function () { cfg.subs = this.checked; save(); }; $("show").onchange = function () { cfg.show = this.value; save(); draw(); }; $("q").onkeyup = draw;
+$("bFolder").onclick = function () { var f = LT.pickFolder("The folder to check"); if (f) { cfg.folder = f; save(); paths(); LT.folderPicked(f); } };
+$("bOnly").onclick = function (e) { var R = reg(), ss = R ? R.sets() : [], m = [], r = this.getBoundingClientRect(); if (!ss.length) m.push({ label: '<span class="muted">No sets yet</span>', fn: function () { } });
+  for (var i = 0; i < ss.length; i++) (function (S) { m.push({ label: esc(S.name) + ' <span class="muted">' + S.keys.length + "</span>", on: cfg.only == S.id, fn: function () { cfg.only = S.id; save(); paths(); } }); })(ss[i]);
+  m.push("-", { label: "All the drawings in the folder", fn: function () { cfg.only = ""; save(); paths(); } }); LT.menu(r.left, r.bottom + 2, m); (e || window.event).cancelBubble = true; };
+$("bList").onclick = function () { LT.pickFile(function (p) { cfg.list = p; save(); paths(); }); };
+$("bPaste").onclick = function () { $("pText").value = cfg.pasted || ""; $("pasteDlg").style.display = "block"; };
+$("pCancel").onclick = function () { $("pasteDlg").style.display = "none"; };
+$("pOk").onclick = function () { cfg.pasted = $("pText").value; cfg.list = "paste"; save(); $("pasteDlg").style.display = "none"; paths(); };
+$("bLod").onclick = function () { LT.pickFile(function (p) { cfg.lod = p; save(); paths(); }); };
+$("bRun").onclick = run; $("bCsv").onclick = csv;
+$("chips").onclick = function (e) { var c = LT.up((e || window.event).target || (e || window.event).srcElement, "data-c"); if (c) { chip = chip == c.getAttribute("data-c") ? "" : c.getAttribute("data-c"); draw(); } };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#chips .cb{border-radius:{rc}px}", ".st.ok{background:{okSoft};color:{ok}}.st.bad{background:{badSoft};color:{bad}}.st.warn{background:{warnSoft};color:{warn}}.st.muted{background:{chip}}", ".st{border-radius:{rc}px}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); paths(); };
+window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value) && !cfg.folder) { cfg.folder = value; save(); paths(); } };
+window.ltRev = { run: run, rows: function () { return rows; }, cfg: function () { return cfg; } };   // for the tests
+look(); load(); paths(); LT.tabKeys();
+</script>
+</body>
+</html>

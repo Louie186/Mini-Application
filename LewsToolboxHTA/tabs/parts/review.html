@@ -121,10 +121,10 @@ function render() {
     '<div id="chips"><span class="cbtn c-left" data-sh="left">To check ' + n.left + '</span><span class="cbtn c-ok" data-sh="done">&#10004; Checked ' + n.ok + '</span><span class="cbtn c-cm" data-sh="cm">&#9998; Comments ' + n.cm + '</span><span class="cbtn c-no" data-sh="cm">&#10006; Not OK ' + n.no + '</span><span class="cbtn" data-sh="all">Everything ' + n.all + "</span></div>";
   shown = []; for (var i = 0; i < lines.length; i++) if (pass(lines[i])) shown.push(lines[i]);
   if ($("remTop").checked) { var a = [], b = []; for (var j = 0; j < shown.length; j++) ((R.items[shown[j].key] || {}).st || shown[j].gone ? b : a).push(shown[j]); shown = a.concat(b); var split = a.length && b.length ? a.length : -1; }
-  var h = ['<table class="grid" id="tbl"><tr><th>Drawing / file</th><th title="Tower (Drawing Register)">Twr</th><th title="Typology (Drawing Register)">Typo</th><th title="Model (Drawing Register) - click to open">Model</th><th>Type</th><th>Review</th><th>Note</th><th>By / when</th><th>Folder</th></tr>'];
+  var h = ['<table class="grid" id="tbl"><tr><th>Drawing / file</th><th title="Tower · Typology · Model (Drawing Register) - the model opens with a click">Tower &middot; Typology &middot; Model</th><th>Type</th><th>Review</th><th>Note</th><th>By / when</th><th>Folder</th></tr>'];
   for (var r = 0; r < shown.length; r++) { var L = shown[r], it = R.items[L.key] || {}, st = it.st || "";
-    if ($("remTop").checked && r == 0 && split > 0) h.push('<tr class="grp"><td colspan="9">To check (' + split + ")</td></tr>");
-    if ($("remTop").checked && r == split) h.push('<tr class="grp"><td colspan="9">Reviewed (' + (shown.length - split) + ")</td></tr>");
+    if ($("remTop").checked && r == 0 && split > 0) h.push('<tr class="grp"><td colspan="7">To check (' + split + ")</td></tr>");
+    if ($("remTop").checked && r == split) h.push('<tr class="grp"><td colspan="7">Reviewed (' + (shown.length - split) + ")</td></tr>");
     var tys = ""; for (var t = 0; t < L.types.length; t++) tys += '<span class="ty" data-op="' + r + '" data-ext="' + L.types[t] + '" title="Open the ' + L.types[t] + '">' + esc(L.types[t]) + "</span>";
     var bs = ""; for (var s = 1; s < ST.length; s++) bs += '<span class="sb' + (st == ST[s][0] ? " on s-" + ST[s][0] : "") + '" data-set="' + r + '" data-v="' + ST[s][0] + '">' + (s == 1 ? "&#10004; " : s == 2 ? "&#9998; " : "&#10006; ") + ST[s][1] + "</span>";
     h.push('<tr data-r="' + r + '" class="' + (L.gone ? "gone " : "") + (r == cur ? "cur" : "") + '"><td class="nm"><b>' + esc(L.name) + "</b>" + (L.isNew ? '<span class="tag t-new">NEW</span>' : "") + (L.gone ? '<span class="tag t-gone">not in the folder now</span>' : "") + "</td>" + infoCells(L) + "<td>" + tys + '</td><td class="stc">' + bs +
@@ -132,9 +132,10 @@ function render() {
   h.push("</table>");
   $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">' + (lines.length ? "Nothing here with this filter." : "No files in this folder.") + "</div>";
 }
-function infoCells(L) { var f = info(L); if (!f) return '<td class="ti muted" title="Not in the Drawing Register">&ndash;</td><td class="ti"></td><td class="ti"></td>';
-  var ps = f.model.split("-"), sh = ps.length > 3 ? ps.slice(-2).join("-") : f.model, ns = ' style="white-space:nowrap"';   // compact: the end of the model number (full name on hover)
-  return '<td class="ti"' + ns + ' title="' + esc(f.title) + '">' + esc(f.tower) + '</td><td class="ti"' + ns + ">" + esc(f.typo) + '</td><td class="ti mo"' + ns + ' title="' + esc(f.model + (f.link ? " - click to open" : "")) + '">' + (f.model && f.link ? '<span class="mlk" data-ml="' + esc(f.link) + '">&#128279; ' + esc(sh) + "</span>" : esc(sh)) + "</td>"; }
+function infoCells(L) { var f = info(L); if (!f) return '<td class="ti muted" title="Not in the Drawing Register">&ndash;</td>';   // one compact cell: T1 · 1BRA · model (the end of the model number; full name on hover)
+  var ps = f.model.split("-"), sh = ps.length > 3 ? ps.slice(-2).join("-") : f.model, bits = [f.tower, f.typo].filter(function (v) { return v; }).map(esc);
+  if (f.model) bits.push(f.link ? '<span class="mlk" data-ml="' + esc(f.link) + '" title="' + esc(f.model) + ' - click to open">&#128279; ' + esc(sh) + "</span>" : '<span title="' + esc(f.model) + '">' + esc(sh) + "</span>");
+  return '<td class="ti" style="white-space:nowrap" title="' + esc(f.title) + '">' + bits.join(" &middot; ") + "</td>"; }
 function setSt(L, v, toggle) {
   if (L.gone && !v) return; var it = item(L);
   it.st = toggle && it.st == v ? "" : v; it.by = it.st ? me() : ""; it.at = it.st ? stamp() : "";

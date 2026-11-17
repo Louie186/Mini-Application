@@ -339,11 +339,20 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
 
 ## Folder Check
 
-Pick the folder once – every view uses it (and remembers which view you used last):
-- **✅ Submission check** – the folder against your list (revisions, file types, wrong folder, Remaining on top) – below
-- **🔍 Contents & checklist** – what's in the folder, and a quick checklist: finished / remaining – see *Contents & checklist*
-- **🏷 Names** – every file name against your naming rule – see *Names*
-- **🔄 Compare** – this folder ("Now") against the last submission – see *Compare*
+Five views (pick the folder once – every view uses it), plus **🔧 Tools ▾**:
+1. **🔍 Contents** – what's in a folder: every drawing once, its revisions, file types and counts, with **Tower · Typology · Model** from the MIDP in one short column. Give it a checklist (the Drawing Register, **one of My sets** – it follows the set –, a list or pasted numbers) to see **finished / remaining** – see *Contents & checklist*
+2. **✅ Checklist** – a checklist (**My set**, Excel / CSV, pasted) against the folder that goes out: remaining, wrong revision, missing file types, extra files, old revisions – and **Collect** – see *Check all*
+3. **🏷 Revisions** – does a folder (or a list) have the revision it should? See *Revisions*
+4. **🔎 Find** – where are these drawings? One, many, an Excel / CSV list, or **From My set** – in folders and subfolders
+5. **📝 Review** – the folder is your checklist: mark each drawing Checked / Comments (mark-ups too) / Not OK, with notes
+- **🔧 Tools ▾:** the classic **Submission check**, **Names** (naming rule), **Compare** (last submission vs this one), **Superseded** (move old revisions out)
+- Tower · Typology · Model is **one compact column** in every list (the model opens with a click; the full name on hover)
+
+### 🏷 Revisions
+1. **Check** a folder (subfolders too; **Only a set ▾** limits it to one of My sets – drawings of the set that aren't in the folder show as *missing*) – or **a list**: Excel / CSV (the number and revision columns are found by themselves) or **Paste…** (`A-10101  P02` or `A-10101-P02`, one per line)
+2. **Against** the **MIDP** (the Drawing Register's revision) or **a LOD list** (Excel / CSV with a number and a revision) – you choose each time
+3. **▶ Check revisions** – every drawing: what's in the folder (all revisions found) against the reference: **✔ Same**, **⚠ Older**, **▲ Newer**, *not in the reference*, *no revision in the name* – with Tower · Typology · Model
+- **Show:** *Only what differs* (default) or *Everything* · click a count to see only those · Search · **Export CSV** (in exports)
 
 ### 🚦 Check all (the easy way)
 

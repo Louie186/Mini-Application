@@ -4,6 +4,7 @@ module.exports = async (ctx) => {
   const { page, out } = ctx; const ok = (c, w) => console.log((c ? 'PASS ' : 'FAIL ') + w);
   await base(ctx);   // same made-up folder + list, check already run
   const f = page.frame({ url: /check\.html/ });
+  await f.evaluate(() => setView('sub'));   // the classic Submission check is under Tools now
   await f.selectOption('#show', 'all'); await page.waitForTimeout(150);
   ok(await f.evaluate(() => $('remTop').checked), 'Remaining on top is on by default');
   const order = await f.evaluate(() => shown.filter(r => r.status).map(r => r.status).join('|'));

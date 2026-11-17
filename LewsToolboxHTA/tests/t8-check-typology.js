@@ -15,6 +15,7 @@ module.exports = async ({ page, out }) => {
   });
   await page.click('.nb[data-k="check"]'); await page.waitForTimeout(400);
   const f = page.frame({ url: /check\.html/ });
+  await f.evaluate(() => setView('sub'));   // the classic Submission check is under Tools now
   await f.evaluate(() => { cfg.folder = 'C:\\Sub'; readList('C:\\Lists\\Typology.xlsx', true); cfg.list = 'C:\\Lists\\Typology.xlsx'; saveCfg(); showPaths(); });
   const cols = await f.evaluate(() => [cfg.colName, cfg.colTitle, cfg.colTower, cfg.colTypo, cfg.colModel].join(' | '));
   ok(cols == 'Column A | Column B | Column C | Column D | Column E', 'columns guessed from the cells: ' + cols);

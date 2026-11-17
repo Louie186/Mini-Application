@@ -7,7 +7,7 @@
 <meta name="lt-order" content="7">
 <meta name="lt-group" content="Drawings">
 <meta name="lt-icon" content="&#9989;">
-<meta name="lt-desc" content="One folder, four checks: Submission (against your list: missing, wrong revision, missing PDF / DWG, not on the list), Contents &amp; checklist (what&#39;s in it, what&#39;s finished / remaining), Names (naming rule) and Compare (with the last submission).">
+<meta name="lt-desc" content="Five checks for a folder: Contents (what is in it, counts, Tower &middot; Typology &middot; Model), Checklist (a My set or list against it: what remains), Revisions (against the MIDP or a LOD list), Find (where drawings are) and Review (mark each drawing). Tools: Submission check, Names, Compare, Superseded.">
 <!--
   Lew's Toolbox - Folder Check (was Submission Check, Folder Contents, Naming Checker and What Changed):
   the Submission check view is this page; the other views are pages in tabs\parts shown in a frame below the view bar.
@@ -38,7 +38,7 @@
 </head>
 <body>
 <div id="app">
-  <div id="fcv" class="bar vtabs"><button class="btn" data-fv="checkall" title="Checklist + the folder that goes out + where it comes from: everything in one go">&#128678; Check all</button><button class="btn" data-fv="sub">&#9989; Submission check</button><button class="btn" data-fv="contents">&#128269; Contents &amp; checklist</button><button class="btn" data-fv="review" title="Drawings sent to you to check: the folder becomes your checklist">&#128221; Review</button><button class="btn" data-fv="naming">&#127991; Names</button><button class="btn" data-fv="compare">&#128260; Compare</button><button class="btn" data-fv="find" title="Find drawings by number in many folders (was its own tab)">&#128270; Find drawings</button><button class="btn" data-fv="superseded" title="Move old revisions out of a print folder (was its own tab)">&#128465; Superseded</button></div>
+  <div id="fcv" class="bar vtabs"><button class="btn" data-fv="contents" title="What is in a folder: every drawing once, its revisions and file types, counts, and Tower &middot; Typology &middot; Model from the MIDP">&#128269; Contents</button><button class="btn" data-fv="checkall" title="A checklist (My set, Excel / CSV, pasted) against the folder: remaining, wrong revision, missing file types, extra files - and Collect">&#9989; Checklist</button><button class="btn" data-fv="revisions" title="Revisions of a folder or a list against the MIDP - or a LOD list">&#127991; Revisions</button><button class="btn" data-fv="find" title="Where are these drawings? One, many, or an Excel / CSV list - in folders and subfolders">&#128270; Find</button><button class="btn" data-fv="review" title="The folder is your checklist: mark each drawing checked / comments / not OK">&#128221; Review</button><button class="btn" id="fcTools" title="Submission check (the classic one), Names, Compare, Superseded">&#128295; Tools &#9662;</button></div>
   <div class="step bar">
     <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Submission folder...</button><span class="path big" id="folderLbl"></span>
     <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
@@ -383,6 +383,7 @@ var subFrames = {};
 function setView(v) {
   cfg.view = v; saveCfg();
   var bs = $("fcv").getElementsByTagName("button"); for (var i = 0; i < bs.length; i++) bs[i].className = "btn" + (bs[i].getAttribute("data-fv") == v ? " on" : "");
+  var tl = TOOLS[v]; $("fcTools").innerHTML = "&#128295; " + (tl ? tl : "Tools") + " &#9662;"; $("fcTools").className = "btn" + (tl ? " on" : "");
   var kids = $("app").children; for (var k = 0; k < kids.length; k++) if (kids[k].id != "fcv" && kids[k].id != "vOther") kids[k].style.display = v == "sub" ? "" : "none";
   $("vOther").style.display = v == "sub" ? "none" : "block";
   for (var n in subFrames) if (subFrames.hasOwnProperty(n)) subFrames[n].style.display = n == v ? "block" : "none";
@@ -394,8 +395,15 @@ function setView(v) {
 /* the folder picked in another view goes to this one (if it's different) */
 function share(v) { if (v == "find" || v == "superseded") return; try { var w = subFrames[v].contentWindow; if (cfg.folder && w.ltReceive && (v == "compare" || !w.cfg || w.cfg.folder != cfg.folder) && !(v == "naming" && w.folder == cfg.folder)) w.ltReceive("open-folder", cfg.folder); } catch (e) { } }
 window.ltFolderPicked = function (f) { cfg.folder = f; saveCfg(); showPaths(); };
-$("fcv").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-fv"); if (b) setView(b.getAttribute("data-fv")); };
-look(); loadCfg(); $("remTop").checked = cfg.remTop !== false; setView(cfg.view || "sub");
+/* the main views: Contents, Checklist, Revisions, Find, Review - the rest under Tools */
+var TOOLS = { sub: "Submission check", naming: "Names", compare: "Compare", superseded: "Superseded" };
+$("fcv").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, b = LT.up(t, "data-fv");
+  if (t.id == "fcTools" || (t.parentNode && t.parentNode.id == "fcTools")) { var r = $("fcTools").getBoundingClientRect(), m = [];
+    for (var k in TOOLS) if (TOOLS.hasOwnProperty(k)) (function (k) { m.push({ label: TOOLS[k] + ' <span class="muted">' + TOOL_TIP[k] + "</span>", on: cfg.view == k, fn: function () { setView(k); } }); })(k);
+    LT.menu(r.left, r.bottom + 2, m); e.cancelBubble = true; return; }
+  if (b) setView(b.getAttribute("data-fv")); };
+var TOOL_TIP = { sub: "&ndash; the classic list check", naming: "&ndash; the naming rule", compare: "&ndash; last submission vs this one", superseded: "&ndash; move old revisions out" };
+look(); loadCfg(); $("remTop").checked = cfg.remTop !== false; setView(cfg.view || "contents");
 if (listThere()) { try { if (isSet(cfg.list) || !/\.(xlsx|xlsm|xls)$/i.test(cfg.list)) readList(cfg.list, false); } catch (e) { } }
 showPaths(); LT.tabKeys();
 </script>

@@ -8,7 +8,9 @@ module.exports = async ({ page, out }) => {
   await page.click('.nb[data-k="check"]'); await page.waitForTimeout(500); await page.mouse.move(900, 600);
   const k = page.frame({ url: /check\.html/ });
   ok(await page.evaluate(() => /Folder Check/.test(document.querySelector('.nb[data-k="check"]').innerText)), 'the tab is called Folder Check');
-  ok(await k.evaluate(() => document.querySelectorAll('#fcv button').length == 8 && $('fcv').innerText.indexOf('Submission') >= 0 && $('fcv').innerText.indexOf('Review') >= 0), 'eight views: Check all, Submission, Find, Superseded, Contents & checklist, Review, Names, Compare');
+  ok(await k.evaluate(() => document.querySelectorAll('#fcv [data-fv]').length == 5 && /Contents\s*Checklist\s*Revisions\s*Find\s*Review/.test($('fcv').innerText) && /Tools/.test($('fcv').innerText)), 'five views: Contents, Checklist, Revisions, Find, Review + Tools');
+  ok(await k.evaluate(() => cfg.view == 'contents'), 'it opens on Contents');
+  await k.evaluate(() => setView('sub'));   // the classic Submission check is under Tools
   await k.evaluate(() => { top.__nextFolder = 'C:\\Sub1'; }); await k.click('#bFolder');
   await k.click('[data-fv="contents"]'); await page.waitForTimeout(600);
   const c = page.frame({ url: /contents\.html/ });
@@ -18,12 +20,12 @@ module.exports = async ({ page, out }) => {
   ok(await c.evaluate(() => result && result.rows.length == 2), 'Contents reads it (2 drawings)');
   await c.evaluate(() => { top.__nextFolder = 'C:\\Sub2'; }); await c.click('#bFolder'); await page.waitForTimeout(200);
   ok(await k.evaluate(() => cfg.folder == 'C:\\Sub2'), 'a folder picked in Contents goes back to Submission');
-  await k.click('[data-fv="naming"]'); await page.waitForTimeout(600);
+  await k.evaluate(() => setView('naming')); await page.waitForTimeout(600);
   ok(await page.frame({ url: /naming\.html/ }).evaluate(() => folder == 'C:\\Sub2'), 'Names uses it too');
-  await k.click('[data-fv="compare"]'); await page.waitForTimeout(600);
+  await k.evaluate(() => setView('compare')); await page.waitForTimeout(600);
   ok(await page.frame({ url: /compare\.html/ }).evaluate(() => cfg.b && cfg.b.path == 'C:\\Sub2'), 'Compare: it becomes "Now" (this submission)');
   await k.evaluate(() => { loadCfg(); });
   ok(await k.evaluate(() => cfg.view == 'compare'), 'the last view is remembered');
-  await k.click('[data-fv="sub"]'); await page.waitForTimeout(100);
+  await k.evaluate(() => setView('sub')); await page.waitForTimeout(100);
   ok(await k.evaluate(() => $('vOther').style.display == 'none' && $('bRun').offsetHeight > 0), 'back to Submission check');
 };

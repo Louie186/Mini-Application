@@ -19,7 +19,7 @@ module.exports = async ({ page, out }) => {
   ok(await page.evaluate(() => { const r = LT.nameRule(); return LT.nameFix('prj_keo_t1_zz_dr_a_101_p1', r) == 'PRJ-KEO-T1-ZZ-DR-A-00101-P01' && LT.nameFix('PRJ KEO T1 ZZ DR A 10102 P01', r) == 'PRJ-KEO-T1-ZZ-DR-A-10102-P01' && LT.nameFix('Notes from Sam', r) == null && LT.nameFix('PRJ-KEO-T1-ZZ-DR-A-10104-P02', r) == null; }),
     'nameFix: wrong separators, lower case, short number (101 -> 00101), P1 -> P01; nothing for a name it can\'t guess or one already right');
   await page.click('.nb[data-k="check"]'); await page.waitForTimeout(500);
-  const c = page.frame({ url: /check\.html/ }); await c.click('[data-fv="naming"]'); await page.waitForTimeout(600);
+  const c = page.frame({ url: /check\.html/ }); await c.evaluate(() => setView('naming')); await page.waitForTimeout(600);
   const nm = page.frame({ url: /naming\.html/ }); await quiet(nm);
   await nm.evaluate(() => ltReceive('open-folder', 'C:\\Names')); await page.waitForTimeout(150);
   ok(await nm.evaluate(() => /Rename to the rule \(2\)/.test($('bRen').innerText) && $('res').querySelectorAll('.fx').length == 2 && /by hand/.test($('res').innerText)), 'Names: a "Rename to" column with the fixed name ticked; "by hand" where it can\'t be guessed; button Rename to the rule (2)');

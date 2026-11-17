@@ -71,6 +71,7 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
     <span class="lbl">Person:</span><select id="person" style="width:160px;margin:0 8px 6px 0"></select>
     <input type="text" id="search" placeholder="Search" style="width:170px;margin:0 8px 6px 0">
     <label class="lbl"><input type="checkbox" id="hideDone" checked style="height:auto"> Hide completed</label>
+    <label class="lbl" title="Items new in their set (NEW) and items taken out of it (removed)"><input type="checkbox" id="showLC" style="height:auto"> Show list changes</label>
     <span class="lbl muted" id="hint"></span>
   </div>
   <div id="selBar" class="bar2" style="display:none"></div>
@@ -174,16 +175,24 @@ function load() {
 function save() { try { LT.saveJson(FILE(), data); writeFeed(); } catch (e) { alert("Delegate data couldn't be saved to:\n" + FILE()); } }
 function names(s) { var a = ("" + (s || "")).split(/\s*(?:,|;|&|\/|\band\b)\s*/i), out = []; for (var i = 0; i < a.length; i++) if (LT.trim(a[i])) out.push(LT.trim(a[i])); return out; }
 function has(who, p) { var n = names(who); for (var i = 0; i < n.length; i++) if (n[i].toLowerCase() == p.toLowerCase()) return true; return false; }
+function live(t) { var o = []; for (var i = 0; i < t.subs.length; i++) if (!t.subs[i].listGone) o.push(t.subs[i]); return o; }   // items still in their set (removed ones are flagged, not counted)
 function statusOf(t) {
-  if (!t.subs.length) return t.status;
-  var done = 0, ns = 0; for (var i = 0; i < t.subs.length; i++) { if (t.subs[i].status == "Completed") done++; if (t.subs[i].status == "Not started") ns++; }
-  return done == t.subs.length ? "Completed" : ns == t.subs.length ? "Not started" : "In progress";
+  var L = live(t); if (!t.subs.length) return t.status; if (!L.length) return "Completed";
+  var done = 0, ns = 0; for (var i = 0; i < L.length; i++) { if (L[i].status == "Completed") done++; if (L[i].status == "Not started") ns++; }
+  return done == L.length ? "Completed" : ns == L.length ? "Not started" : "In progress";
 }
 function progress(t) {
   if (!t.subs.length) return t.status == "Completed" ? 1 : t.status == "In progress" ? 0.5 : 0;
-  var s = 0; for (var i = 0; i < t.subs.length; i++) s += t.subs[i].status == "Completed" ? 1 : t.subs[i].status == "In progress" ? 0.5 : 0;
-  return s / t.subs.length;
+  var L = live(t), s = 0; if (!L.length) return 1; for (var i = 0; i < L.length; i++) s += L[i].status == "Completed" ? 1 : L[i].status == "In progress" ? 0.5 : 0;
+  return s / L.length;
 }
+/* ---------- live lists: a task that follows one of My sets (made from it in Tasks) - new drawings come in as new items, removed ones are flagged ---------- */
+function syncLists() { var ch = false;
+  for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (!t.setId || statusOf(t) == "Completed" && !live(t).length) continue;
+    var r = LT.listSync(t, t.setId, function (d) { return { id: LT.uid("s"), code: "", title: d.number + (d.title ? " \u2013 " + d.title : ""), who: "", due: "", status: "Not started", notes: "", refs: [{ kind: "drawing", value: d.number }], updated: "" }; });
+    if (r && (r.added || r.gone)) { for (var k = 0; k < t.subs.length; k++) if (!t.subs[k].code) t.subs[k].code = nextSub(t); var st = stampNow(); t.updated = st; t.history.push(st + "  List " + r.name + ": " + (r.added ? "+" + r.added + " new" : "") + (r.added && r.gone ? ", " : "") + (r.gone ? r.gone + " removed" : "")); ch = true; } }
+  if (ch) save(); }
+function acceptList(t) { t.subs = live(t); for (var i = 0; i < t.subs.length; i++) delete t.subs[i].listNew; save(); render(); }
 function norm(v) {
   var t = LT.trim(v).toLowerCase();
   if (t == "done" || t == "yes" || t == "complete" || t == "completed") return "Completed";
@@ -321,6 +330,7 @@ function render() {
   if (data.imports.length) { var li = data.imports[data.imports.length - 1]; h += '<span class="lbl muted">Last reply: ' + esc(li.from) + ", " + esc(li.when) + "</span>"; }
   $("views").innerHTML = h;
   $("filters").style.display = view == "workload" || view == "planner" ? "none" : "";
+  $("showLC").checked = LT.listShow();
   if (view != "list") $("selBar").style.display = "none";
   if (view == "workload") { workload(); return; }
   if (view == "planner") { planner(); return; }
@@ -452,11 +462,11 @@ function list(tasks) {
     if (!match(t, who, words)) continue;
     var whole = !who || has(t.who, who);
     rowMap.push({ t: t, s: null });
-    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td class="ck">' + (t.fromWeb ? "" : '<input type="checkbox" style="height:auto" data-ckt="' + esc(t.code) + '"' + (t.subs.length ? (allSel(t) ? " checked" : "") : (SEL[t.code] ? " checked" : "")) + ' title="' + (t.subs.length ? "Tick all its items" : "Tick this task") + '">') + "</td><td>" + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + (t.subs.length ? ' <span class="nums" data-nums="' + esc(t.code) + '" title="' + (t.hideNums ? "Show" : "Hide") + ' the item numbers">' + (t.hideNums ? "#" : "#&#824;") + "</span>" : "") + "</td><td>" + esc(t.title) + outChip(t) + "</td>" + (dw ? "<td></td>" : "") + "<td>" + esc(t.group) + '</td><td class="asg" data-asg="' + esc(t.code) + '" title="Click to assign">' + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
+    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td class="ck">' + (t.fromWeb ? "" : '<input type="checkbox" style="height:auto" data-ckt="' + esc(t.code) + '"' + (t.subs.length ? (allSel(t) ? " checked" : "") : (SEL[t.code] ? " checked" : "")) + ' title="' + (t.subs.length ? "Tick all its items" : "Tick this task") + '">') + "</td><td>" + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + (t.subs.length ? ' <span class="nums" data-nums="' + esc(t.code) + '" title="' + (t.hideNums ? "Show" : "Hide") + ' the item numbers">' + (t.hideNums ? "#" : "#&#824;") + "</span>" : "") + "</td><td>" + esc(t.title) + (t.setId ? (function () { var x = LT.listSet(t.setId); return ' <span class="lset" title="Follows My set - change the set in the Drawing Register and this follows">&#128279; ' + esc(x ? x.S.name : "set deleted") + "</span>"; })() : "") + outChip(t) + "</td>" + (dw ? "<td></td>" : "") + "<td>" + esc(t.group) + '</td><td class="asg" data-asg="' + esc(t.code) + '" title="Click to assign">' + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
     for (var j = 0; j < t.subs.length; j++) {
-      var s = t.subs[j]; if (!whole && !has(s.who, who)) continue;
+      var s = t.subs[j]; if (!whole && !has(s.who, who)) continue; if (s.listGone && !LT.listShow()) continue;
       rowMap.push({ t: t, s: s });
-      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.status == "Completed" ? ' class="muted' + (SEL[s.code] ? " sel" : "") + '"' : SEL[s.code] ? ' class="sel"' : "") + '><td class="ck"><input type="checkbox" style="height:auto" data-cks="' + esc(s.code) + '"' + (SEL[s.code] ? " checked" : "") + "></td><td>" + (t.hideNums ? "" : esc(s.code)) + '</td><td class="it" title="' + esc(s.title) + '"><span class="one">&#8627; ' + esc(s.title) + "</span>" + outChip(s) + "</td>" + (dw ? '<td class="dwi">' + (itemInfo(s) || "") + "</td>" : "") + '<td></td><td class="asg" data-asg="' + esc(s.code) + '" title="Click to assign (to every ticked item, when this one is ticked)">' + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
+      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.listGone ? ' data-gone="1"' : "") + (s.status == "Completed" ? ' class="muted' + (SEL[s.code] ? " sel" : "") + '"' : SEL[s.code] ? ' class="sel"' : "") + '><td class="ck"><input type="checkbox" style="height:auto" data-cks="' + esc(s.code) + '"' + (SEL[s.code] ? " checked" : "") + "></td><td>" + (t.hideNums ? "" : esc(s.code)) + '</td><td class="it" title="' + esc(s.title) + '"><span class="one">&#8627; ' + (LT.listShow() && s.listNew ? '<span class="lnew">NEW</span>' : "") + (s.listGone ? '<span class="lgn" title="Taken out of the set - right-click the task: Accept list changes">removed</span>' : "") + esc(s.title) + "</span>" + outChip(s) + "</td>" + (dw ? '<td class="dwi">' + (itemInfo(s) || "") + "</td>" : "") + '<td></td><td class="asg" data-asg="' + esc(s.code) + '" title="Click to assign (to every ticked item, when this one is ticked)">' + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
     }
   }
   h.push("</table>"); var st0 = $("main").scrollTop, sl0 = $("main").scrollLeft;   // drawn again (after an assign...): stay where you were
@@ -490,7 +500,7 @@ function selBar() { var L = selList(), b = $("selBar"); if (view != "list" || !r
   paintSel();
 }
 /* the selection shows without drawing the list again: rows are highlighted, tick boxes follow, the bar counts (nothing moves) */
-function selKey(m) { return m.s ? m.s.code : m.t.subs.length ? "" : m.t.code; }
+function selKey(m) { return m.s ? (m.s.listGone ? "" : m.s.code) : m.t.subs.length ? "" : m.t.code; }
 function paintSel() {
   var rs = $("main").getElementsByTagName("tr"), n = 0;
   for (var i = 0; i < rs.length; i++) { var r = rs[i].getAttribute("data-r"); if (r == null) continue; var m = rowMap[+r]; if (!m) continue; var k = selKey(m), on = k ? !!SEL[k] : m.t.subs.length && allSel(m.t);
@@ -575,10 +585,10 @@ function fromLog(L, under) {
   for (var d = 0; d < data.tasks.length; d++) if (data.tasks[d].log && data.tasks[d].log == L.code) { view = "list"; render(); openSend(data.tasks[d]); return data.tasks[d]; }
   if (under) return fromLogUnder(L, under);
   var g = groupOf(L.who), st = stampNow() + " · me";
-  var t = { id: LT.uid("t"), code: nextCode(), hideNums: !!L.hideNums, log: L.code, title: L.title, group: g ? g.name : "", project: L.project || data.project, who: L.who, due: L.due || "", status: "Not started", notes: L.notes || "",
+  var t = { id: LT.uid("t"), code: nextCode(), hideNums: !!L.hideNums, setId: L.midp && L.midp.set ? L.midp.set : "", log: L.code, title: L.title, group: g ? g.name : "", project: L.project || data.project, who: L.who, due: L.due || "", status: "Not started", notes: L.notes || "",
     refs: copy(L.refs || []), created: LT.today(), updated: st, history: [st + "  From Tasks " + L.code + (g ? "  (group " + g.name + ", lead " + g.lead + ")" : "")], subs: [] };
   for (var i = 0; i < (L.subs || []).length; i++) { var x = L.subs[i];
-    t.subs.push({ id: LT.uid("s"), code: t.code + "." + (i + 1), title: x.title, who: x.who || "", due: x.due || "", status: x.status == "Done" ? "Completed" : "Not started", notes: "", refs: copy(x.refs || []), updated: "" }); }
+    t.subs.push({ id: LT.uid("s"), code: t.code + "." + (i + 1), title: x.title, who: x.who || "", due: x.due || "", status: x.status == "Done" ? "Completed" : "Not started", notes: "", refs: copy(x.refs || []), updated: "", dwg: x.dwg || "" }); if (x.listGone) t.subs[t.subs.length - 1].listGone = x.listGone; }
   if (!t.subs.length) t.status = L.status == "Done" ? "Completed" : "Not started";
   /* a task folder: what's in its Reference folder goes along (copied into the transmittal) */
   if (L.folder && fso.FolderExists(L.folder)) { var have = {}; for (var h = 0; h < t.refs.length; h++) have[(t.refs[h].value || "").toLowerCase()] = 1;
@@ -721,6 +731,9 @@ function rowMenu(t, s, x, y) {
   if (s || !t.subs.length) for (var i = 0; i < ST.length; i++) (function (v) {
     m.push({ label: "Status: " + v, on: (s ? s.status : t.status) == v, fn: function () { var st = stampNow() + " · me"; if (s) { s.status = v; s.updated = st; s.doneOn = v == "Completed" ? LT.today() : ""; } else { t.status = v; t.doneOn = v == "Completed" ? LT.today() : ""; } t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); save(); render(); } });
   })(ST[i]);
+  if (t.setId) { var nN = 0, nG = 0; for (var q = 0; q < t.subs.length; q++) { if (t.subs[q].listNew) nN++; if (t.subs[q].listGone) nG++; }
+    if (nN || nG) m.push({ label: "&#10003; Accept list changes (" + (nN ? "+" + nN + " new" : "") + (nN && nG ? ", " : "") + (nG ? nG + " removed" : "") + ")", fn: function () { acceptList(t); } });
+    m.push({ label: "Stop following the set (keep the items)", fn: function () { if (confirm("Stop following the set? The items stay as they are now.")) { delete t.setId; save(); render(); } } }); }
   if (t.subs.length) m.push({ label: (t.hideNums ? "Show" : "Hide") + " the item numbers (" + t.code + ".1, .2...)", fn: function () { t.hideNums = !t.hideNums; save(); render(); } });
   m.push("-", { label: "&#128279; Output" + (outCount(s || t) ? " (" + outCount(s || t) + ")" : "") + "...", fn: function () { openOut(t, s); } },
     { label: "&#8617; Send back for changes...", fn: function () { sendBack(t, s); } });
@@ -977,7 +990,7 @@ function buildSimple(path, tasks, project, by, label) {
       var t = tasks[k];
       ws.Cells(r, 1).Value = t.code; ws.Cells(r, 2).Value = t.title; ws.Cells(r, 4).Value = t.who || ""; putDate(ws.Cells(r, 5), t.due); ws.Cells(r, 6).Value = t.subs.length ? "" : t.status; ws.Cells(r, 7).Value = t.notes || "";
       ws.Range("A" + r + ":C" + r).Font.Bold = true; r++;
-      for (var s = 0; s < t.subs.length; s++) { var sb = t.subs[s]; ws.Cells(r, 1).Value = sb.code; ws.Cells(r, 3).Value = sb.title; ws.Cells(r, 4).Value = sb.who || ""; putDate(ws.Cells(r, 5), sb.due || t.due); ws.Cells(r, 6).Value = sb.status; ws.Cells(r, 7).Value = sb.notes || ""; r++; }
+      for (var s = 0; s < t.subs.length; s++) { var sb = t.subs[s]; if (sb.listGone) continue; ws.Cells(r, 1).Value = sb.code; ws.Cells(r, 3).Value = sb.title; ws.Cells(r, 4).Value = sb.who || ""; putDate(ws.Cells(r, 5), sb.due || t.due); ws.Cells(r, 6).Value = sb.status; ws.Cells(r, 7).Value = sb.notes || ""; r++; }
     }
     box(ws.Range("A3:G" + Math.max(3, r - 1)));
     if (fso.FileExists(path)) fso.DeleteFile(path);
@@ -994,9 +1007,9 @@ function ascii(s) { return ("" + s).replace(/[^\x20-\x7e]/g, function (c) { retu
 function buildPack(path, tasks, project, by, label, person, exportId, team, copied, extra) {
   var list = [];
   for (var i = 0; i < tasks.length; i++) { var t = tasks[i], subs = [];
-    for (var j = 0; j < t.subs.length; j++) { var sj = t.subs[j], pr = packRefs(sj.refs, copied), inf = packInfo(sj);
+    for (var j = 0; j < t.subs.length; j++) { var sj = t.subs[j]; if (sj.listGone) continue; var pr = packRefs(sj.refs, copied), inf = packInfo(sj);
       if (inf.no) pr = pr.filter(function (r) { return !(r.k == "drawing" && ("" + sj.title).toUpperCase().indexOf(inf.no.toUpperCase()) >= 0); });   // the drawing is already the item's title: not again under it
-      subs.push({ code: sj.code, title: sj.title, who: sj.who || "", due: sj.due || t.due || "", status: sj.status, notes: sj.notes || "", refs: pr, isNew: !!sj.isNew, outs: outLines(sj), info: inf.text, infoH: inf.link }); }
+      subs.push({ code: sj.code, title: sj.title, who: sj.who || "", due: sj.due || t.due || "", status: sj.status, notes: sj.notes || "", refs: pr, isNew: !!sj.isNew || (!!sj.listNew && LT.listShow()), outs: outLines(sj), info: inf.text, infoH: inf.link, dno: inf.no || "", tower: inf.tower || "", model: inf.model || "" }); }
     list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", subs: subs, refs: packRefs(t.refs, copied).concat(t.boardRefs || []), isNew: !!t.isNew, outs: outLines(t) }); }
   var pack = { id: exportId, projectId: "toolbox", project: project, by: by, at: LT.today(), label: label, person: person, MARK: MARK, tasks: list, team: team || [] };
   if (extra) for (var xk in extra) if (extra.hasOwnProperty(xk)) pack[xk] = extra[xk];
@@ -1029,8 +1042,9 @@ function copyRefs(pool, folder, warn) {
 /* an item that is a drawing: its model (Drawing Register) next to it in the pack - only when "show each drawing's model" is ticked; the link opens the model */
 function packInfo(x) { var no = x.dwg || "", r = x.refs || []; if (!no) for (var i = 0; i < r.length; i++) if (r[i].kind == "drawing") { no = r[i].value; break; }
   if (!no) { var w = LT.trim((x.title || "").split(/\s+/)[0] || ""); if (LT.isDocNo(w)) no = w; }
-  var f = no && LT.settings().packModel === true ? LT.dwgInfo(no) : null; if (!f || !f.model) return { no: no, text: "", link: "" };   // only the model, and only when ticked in Send to people
-  return { no: no, text: f.model, link: f.link || "" }; }
+  var f = no ? LT.dwgInfo(no) : null, o = { no: no, text: "", link: "", tower: f ? f.tower : "", model: f ? f.model : "" };   // tower / model: for sorting in the pack
+  if (f && f.model && LT.settings().packModel === true) { o.text = f.model; o.link = f.link || ""; }   // shown: only the model, and only when ticked in Send to people
+  return o; }
 function packRefs(refs, copied) {
   var o = []; copied = copied || {};
   for (var i = 0; i < (refs || []).length; i++) { var r = refs[i], c = copied[(r.value || "").toLowerCase()], h = "";
@@ -1279,7 +1293,7 @@ function copyWeb() {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook([".dlist td.ck,.dlist th.ck{width:26px;padding-right:2px}.dlist td.it{white-space:nowrap}.dlist td.it .one{display:inline-block;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.dlist td.dwi{white-space:nowrap;font-size:.88em;color:{muted}}.dlist td.dwi .mlk{color:{accent};cursor:pointer;text-decoration:underline}#send .lk{cursor:pointer;text-decoration:underline}#taskList label{display:block;padding:2px 0}.dlist tr.sel td{background:{accSoft}!important}.dlist tr[data-r]{cursor:default}.dlist td.asg{cursor:pointer}.dlist td.asg:hover{color:{accent};text-decoration:underline}.nums{cursor:pointer;color:{muted};font-size:.85em;margin-left:4px}.nums:hover{color:{accent}}#selBar{white-space:nowrap;overflow:hidden;background:{accSoft};border-bottom:1px solid {line}}", "#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
+function look() { LT.applyLook([".dlist td.ck,.dlist th.ck{width:26px;padding-right:2px}.dlist td.it{white-space:nowrap}.dlist td.it .one{display:inline-block;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.dlist td.dwi{white-space:nowrap;font-size:.88em;color:{muted}}.dlist td.dwi .mlk{color:{accent};cursor:pointer;text-decoration:underline}#send .lk{cursor:pointer;text-decoration:underline}#taskList label{display:block;padding:2px 0}.dlist .lnew,.dlist .lgn{display:inline-block;font-size:.72em;font-weight:bold;padding:0 5px;margin-right:5px;border-radius:{rc}px;background:{okSoft};color:{ok}}.dlist .lgn{background:{badSoft};color:{bad}}.dlist tr[data-gone] td{opacity:.55}.dlist tr[data-gone] .one{text-decoration:line-through}.dlist .lset{font-size:.8em;color:{muted};margin-left:6px;font-weight:normal}.dlist tr.sel td{background:{accSoft}!important}.dlist tr[data-r]{cursor:default}.dlist td.asg{cursor:pointer}.dlist td.asg:hover{color:{accent};text-decoration:underline}.nums{cursor:pointer;color:{muted};font-size:.85em;margin-left:4px}.nums:hover{color:{accent}}#selBar{white-space:nowrap;overflow:hidden;background:{accSoft};border-bottom:1px solid {line}}", "#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
   ".col{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}.col.over{border-color:{accent};background:{hover}}",
   ".dc{background:{bg};border:{bw}px solid {line};border-radius:{r}px}.dc:hover{border-color:{accent}}",
   ".pb{background:{chip};border-radius:3px}.pb i{background:{accent}}",
@@ -1349,7 +1363,8 @@ document.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 27) 
 
 /* called by the main window */
 window.ltTheme = function () { look(); try { var w = $("wlFrame") || $("plFrame"); if (w) w.contentWindow.ltTheme(); } catch (e) { } if (view != "workload" && view != "planner") render(); };
-window.ltReload = function () { load(); render(); };
+$("showLC").onclick = function () { var st = LT.settings(); st.showListChanges = this.checked; LT.saveSettings(st); render(); };
+window.ltReload = function () { load(); syncLists(); render(); };
 window.ltReceive = function (what, value) {
   if (what == "from-log") fromLog(JSON.parse(value));
   else if (what == "show-task") { var t = findTask(value); view = "list"; $("search").value = value || ""; render(); if (t) edit(t); }
@@ -1358,8 +1373,8 @@ window.ltReceive = function (what, value) {
   else if (what == "person") { view = "list"; var o = $("person").options, hit = false; for (var i = 0; i < o.length; i++) if (same(o[i].text, value)) { $("person").selectedIndex = i; hit = true; } if (!hit) { $("person").value = ""; $("search").value = value; } else $("search").value = ""; render(); }
   else if (what == "chase") openChase();
 };
-window.ltShown = function () { loadWeb(); render(); };
-look(); load(); render(); LT.tabKeys(); LT.datePicker(function (i) { return i.id == "eDue" || /(^| )iD( |$)/.test(i.className); });
+window.ltShown = function () { loadWeb(); syncLists(); render(); };
+look(); load(); syncLists(); render(); LT.tabKeys(); LT.datePicker(function (i) { return i.id == "eDue" || /(^| )iD( |$)/.test(i.className); });
 </script>
 </body>
 </html>

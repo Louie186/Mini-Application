@@ -685,9 +685,39 @@ var LT = (function () {
       } };
   };
 
+  /* ---------- live lists: a task (Tasks or Delegate) linked to one of My sets follows the set ----------
+     L.listSync(task, setId, make) - drawings added to the set become new items (x.listNew = date), items whose drawing left the set
+     are flagged (x.listGone = date, never deleted), and come back if it returns. make(d) builds a new item from { number, title }.
+     Returns null (no register / no set) or { name, added, gone }. L.listShow() = Settings / "Show list changes" (on by default). */
+  L.listShow = function () { return L.settings().showListChanges !== false; };
+  L.listSet = function (setId) { try { var R = L.register(); if (!R || !setId) return null; var a = R.sets(); for (var i = 0; i < a.length; i++) if (a[i].id == setId) return { R: R, S: a[i] }; } catch (e) { } return null; };
+  L.listSync = function (t, setId, make) {
+    var x = L.listSet(setId); if (!x) return null; t.subs = t.subs || [];
+    var U = function (v) { return L.trim(v || "").toUpperCase(); }, have = {}, inSet = {}, order = {}, added = 0, gone = 0, i;
+    for (i = 0; i < t.subs.length; i++) if (t.subs[i].dwg) have[U(t.subs[i].dwg)] = t.subs[i];
+    for (i = 0; i < x.S.keys.length; i++) { var d = x.R.find(x.S.keys[i]), no = d ? d.number : x.S.keys[i]; inSet[U(no)] = 1; order[U(no)] = i;
+      if (!have[U(no)]) { var it = make({ number: no, title: d ? d.title : "" }); it.dwg = no; it.listNew = L.today(); t.subs.push(it); have[U(no)] = it; added++; } }
+    for (i = 0; i < t.subs.length; i++) { var s0 = t.subs[i]; if (!s0.dwg) continue;
+      if (!inSet[U(s0.dwg)] && !s0.listGone) { s0.listGone = L.today(); gone++; } else if (inSet[U(s0.dwg)] && s0.listGone) delete s0.listGone; }
+    if (added) { var pos = function (s1) { return s1.dwg && order.hasOwnProperty(U(s1.dwg)) ? order[U(s1.dwg)] : 1e9; };   // the set's order; items not from the set keep theirs, after
+      var idx = []; for (i = 0; i < t.subs.length; i++) idx.push(i); var subs = t.subs; idx.sort(function (a, b) { return pos(subs[a]) - pos(subs[b]) || a - b; }); t.subs = idx.map(function (k) { return subs[k]; }); }
+    return { name: x.S.name, added: added, gone: gone };
+  };
+  /* where a set is used: [{ where: "Tasks" | "Delegate" | "Folder Check", code, title }] */
+  L.listUses = function (setId) { var o = [], i, j;
+    var tr = L.readJson(L.dataPath("tracker.json"), null) || {}; for (i = 0; i < (tr.tasks || []).length; i++) if (tr.tasks[i].midp && tr.tasks[i].midp.set == setId) o.push({ where: "Tasks", code: tr.tasks[i].code, title: tr.tasks[i].title });
+    var dg = L.readJson(L.dataPath("delegate.json"), null) || {}; for (j = 0; j < (dg.tasks || []).length; j++) if (dg.tasks[j].setId == setId) o.push({ where: "Delegate", code: dg.tasks[j].code, title: dg.tasks[j].title });
+    var ck = L.readJson(L.dataPath("check.json"), null) || {}; if (ck.list == "set:" + setId) o.push({ where: "Folder Check", code: "", title: "Submission check" });
+    var ca = L.readJson(L.dataPath("checkall.json"), null) || {}; if (JSON.stringify(ca).indexOf('"' + setId + '"') >= 0) o.push({ where: "Folder Check", code: "", title: "Check all" });
+    return o; };
+
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.37";
+  L.VERSION = "2026.11.38";
   L.WHATS_NEW = [
+    { v: "2026.11.38", items: [
+      "<b>Live lists</b>: a task made from one of <b>My sets</b> (Task checklist, or From the MIDP &gt; My set) now <b>follows the set</b> &ndash; in Tasks and in Delegate. Add a drawing to the set: a <b>NEW</b> item appears. Take one out: its item is <b>flagged removed</b> (never deleted; it doesn't hold the task open and isn't sent). <b>Accept the changes</b> clears the marks; <b>Show list changes</b> hides them; <b>Stop following</b> keeps the items as they are",
+      "<b>My sets</b> shows where each set is used (Tasks, Delegate, Folder Check)",
+      "<b>Task packs: Sort</b> by drawing number, model or tower (nothing is hidden)" ] },
     { v: "2026.11.37", items: [
       "<b>Delegate: selecting stays still</b> &ndash; like My sets: click a row = it's highlighted (Ctrl + click = one more, Shift + click = a range); the list isn't drawn again and doesn't move. Then click an <b>Assigned to</b> cell, or use the bar (always there) &ndash; the list keeps its place after the change too" ] },
     { v: "2026.11.36", items: [

@@ -92,7 +92,8 @@
       'input.pick{width:auto;margin:0 2px 0 0;cursor:pointer}.picks{position:sticky;top:0;z-index:5;background:#fff8e6;border:1px solid #f0d98c;border-radius:10px;padding:6px 12px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px}.picks select{font:inherit;padding:3px 8px;border-radius:6px}';
     document.head.appendChild(css);
     document.addEventListener('change', function (e) { var w = e.target.getAttribute && e.target.getAttribute('data-who'); if (w) { setItem(w, 'who', e.target.value); save(); }
-      var pk = e.target.getAttribute && e.target.getAttribute('data-pick'); if (pk) { PICK[pk] = e.target.checked; render(); } });
+      var pk = e.target.getAttribute && e.target.getAttribute('data-pick'); if (pk) { PICK[pk] = e.target.checked; render(); }
+      if (e.target.id === 'srt') { S.sort = e.target.value; save(); render(); } });
     document.title = 'Tasks \u2014 ' + (P.label || P.person || '');
 
     var OPEN = {};
@@ -143,6 +144,10 @@
       if (q) { var h = [(l.t || l.nt).title, l.n ? l.n.title : l.base.title, l.code || ''].join(' ').toLowerCase(); if (h.indexOf(q) < 0) return false; }
       return true;
     }
+    /* sort the items of each task: as sent, by drawing number, model or tower (nothing is hidden) */
+    function sortLines(ls) { var k = S.sort || ''; if (!k) return ls;
+      var key = function (l) { var b = l.base && l.base !== l.t ? l.base : {}, no = b.dno || (l.n ? l.n.title : b.title) || ''; return k === 'dno' ? [no, ''] : [b[k] || '\uffff', no]; };   // empty values last
+      return ls.map(function (l, i) { return { l: l, i: i, k: key(l) }; }).sort(function (a, b) { return a.k[0].localeCompare(b.k[0], undefined, { numeric: true }) || a.k[1].localeCompare(b.k[1], undefined, { numeric: true }) || a.i - b.i; }).map(function (x) { return x.l; }); }
     function render() {
       var all = lines(), done = all.filter(function (l) { return stOf(l) === 'Completed'; }).length, lateN = all.filter(late).length;
       var pct = all.length ? Math.round(done / all.length * 100) : 0;
@@ -152,12 +157,13 @@
       if (S.help) h += '<div class="help"><span>\ud83d\udc4b Click <b>To do / Doing / Done</b> on each line \u00b7 <b>\u270e</b> adds a note \u00b7 <b>\ud83d\udd17</b> adds the link to your output (ACC, WeTransfer, a file path) \u00b7 then <b>\ud83d\udce4 Save reply</b> and ' + (P.board ? 'save it in the <b>' + esc(P.board.replies || '_Replies') + '</b> folder' : 'send the file to ' + esc(P.by || 'me')) + '.</span><button data-help="0">Got it</button></div>';
       h += picksHtml();
       h += '<div class="bar2"><input id="q" placeholder="Search\u2026" value="' + esc(S.q) + '">' + [['all', 'All'], ['open', 'To do'], ['done', 'Done']].map(function (f) { return '<button class="chip' + (S.filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' + f[1] + '</button>'; }).join('') +
+        '<select id="srt" title="Sort the items (nothing is hidden)" style="font:inherit;font-size:14px;padding:5px 8px;border:1px solid var(--line);border-radius:999px;background:#fff">' + [['', 'Sort: as sent'], ['dno', 'Sort: drawing number'], ['model', 'Sort: model'], ['tower', 'Sort: tower']].map(function (o) { return '<option value="' + o[0] + '"' + ((S.sort || '') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
         '<button class="chip panelbtn' + (S.panel === 'task' ? ' on' : '') + '" data-panel="task">+ New task</button><button class="chip panelbtn' + (S.panel === 'msg' ? ' on' : '') + '" data-panel="msg">\ud83d\udcac Message' + (S.msg ? ' \u2713' : '') + '</button></div>';
       if (S.panel === 'task') h += '<div class="card panelcard"><div class="panel"><input id="ntT" placeholder="Task name \u2014 something extra you are working on"><textarea id="ntI" placeholder="Items \u2014 one per line (optional)"></textarea>' +
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="lbl">Target date</span><input id="ntD" type="date" style="width:auto"><button class="main" data-newtask="1">Add task</button></div></div></div>';
       if (S.panel === 'msg') h += '<div class="card panelcard"><div class="panel"><input id="nm" placeholder="Your name" value="' + esc(S.name) + '"><textarea id="msg" placeholder="Anything to tell ' + esc(P.by || 'me') + '? (goes with your reply)">' + esc(S.msg) + '</textarea></div></div>';
       P.tasks.forEach(function (t) {
-        var mine = all.filter(function (l) { return l.t === t; }), ls = mine.filter(match);
+        var mine = all.filter(function (l) { return l.t === t; }), ls = sortLines(mine.filter(match));
         if (!ls.length && (S.q || S.filter !== 'all')) return;
         var dn = mine.filter(function (l) { return stOf(l) === 'Completed'; }).length;
         var tlate = t.due && t.due < TODAY && dn < mine.length;

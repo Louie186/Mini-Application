@@ -184,6 +184,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
    - **Excel task sheet** (yellow boxes, Status drop-down, + / − groups, NEW blocks, a **References** column) – made through your Excel
    - **Which tasks** (top of Send to people): all open tasks, or only the ones you ticked in the list – untick any; the people below follow the tasks you keep
    - **HTML task pack** – opens in any browser (phone too); references are clickable; they press **Save reply** and send you the .txt
+     - **Sort** (next to the search): as sent, by drawing number, model or tower – nothing is hidden
      - one line per item when it fits, **the full name always shows**, all items the same size (a long name wraps onto a second line; the drawing isn't repeated under it). Tick **show each drawing's model** (Send to people, under the HTML task pack) to put **only the model** next to each drawing – off by default, remembered, the Team Board follows it. A group's lead **ticks several items → Assign to** one person at once
    - **Simple Excel table**
    - **Make a transmittal for each person** (on by default) – see below
@@ -304,6 +305,12 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
      - **Order: mine** – the order you drop them in: drop on a drawing in the set = before that one; drag inside the set = reorder (dragging inside switches to *mine*)
   4. **☑ Task checklist** – a new task in Tasks whose checklist is the set, one item per drawing in the set's order (each linked to its drawing)
   5. **📋 List lookup** – Tower, Typology and Model for every drawing of the set (the List lookup, filled in at once)
+  - **Live lists – a set is linked, not copied.** A task made from a set (☑ Task checklist, or Tasks → 📘 From the MIDP… → My set) **follows it**, in Tasks and in Delegate (when you delegate it):
+    - add a drawing to the set → a **NEW** item appears in the task (and in Delegate, with the next item number)
+    - take one out → its item is **flagged "removed"** (struck through) – never deleted, it doesn't keep the task open, and it isn't sent in task packs or Excel sheets
+    - the task window says *Follows My set …  · +1 new · 1 removed* – **Accept the changes** (clears NEW, takes out the removed items) · **Stop following** (keeps the items as they are) · **Show list changes** (off = no marks, removed items hidden; also in Delegate's filter bar). Delegate: right-click the task for the same
+    - each item keeps its own status, who and notes when the set changes; the task's history notes every change
+    - **Used in:** under the set's name in My sets – the tasks and checks that use it
   - **Saved filters ▾ → Show only a list:** pick a set (or **My list** from Typology → model) and every view shows only those drawings – the button shows its name; **✕ Clear** or *Show every drawing again* turns it off
   - Saved with the project. A drawing later removed from the MIDP shows struck through in the set
   - Use it: Tasks → a task → **📘 From the MIDP…** → **My set** – and **↻ Update from the MIDP** follows the set when you change it

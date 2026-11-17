@@ -677,7 +677,7 @@ var LT = (function () {
       count: function () { var n = 0; for (var k2 in D) if (D.hasOwnProperty(k2)) n++; return n; },
       find: function (s) {
         s = L.trim(s).toUpperCase().replace(/\.[A-Z0-9]{2,4}$/, "").replace(/-+$/, "");
-        var hit = function (k3) { var d = D[k3]; return d ? { number: d.num || k3, title: d.title || "", cat: d.cat || "", tower: d.tower || "", typo: d.typo || "", ok: !!d.ok, link: d.link || "", model: d.model || (d.typo && d.typo != "-" ? mm[up(d.tower) + "|" + up(d.typo)] || d.impModel || "" : "") } : null; };
+        var hit = function (k3) { var d = D[k3]; return d ? { number: d.num || k3, title: d.title || "", rev: d.rev || "", inMidp: d.inMidp !== false, cat: d.cat || "", tower: d.tower || "", typo: d.typo || "", ok: !!d.ok, link: d.link || "", model: d.model || (d.typo && d.typo != "-" ? mm[up(d.tower) + "|" + up(d.typo)] || d.impModel || "" : "") } : null; };
         if (D[s]) return hit(s);
         var p = s.split(/[-_]/); while (p.length > 2) { p.pop(); var b = p.join("-"); if (D[b]) return hit(b); }
         var ns2 = s.split(/[-_ .]+/); for (var q = ns2.length - 1; q >= 0; q--) if (/^\d{3,}$/.test(ns2[q]) && cnt[ns2[q]] == 1) return hit(seq[ns2[q]]);
@@ -686,8 +686,12 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.33";
+  L.VERSION = "2026.11.34";
   L.WHATS_NEW = [
+    { v: "2026.11.34", items: [
+      "<b>Watched folders on the Core</b> (Home): each folder with its new / changed / removed files, <b>&#8635; Refresh</b> and <b>+ Watch a folder</b> &ndash; click a folder for the Incoming list (as on the Dashboard)",
+      "<b>Folder Check &rarr; Submission: &#128193; My set</b> as the list &ndash; found / missing / not on the list for a set's drawings (any revision counts, the one found is noted)",
+      "<b>My sets follow the MIDP's order</b> by themselves, however you add drawings &middot; <b>Only the ones not in the set yet</b> shows what's still missing &middot; <b>Order: mine</b> if you want your own order" ] },
     { v: "2026.11.33", items: [
       "<b>List lookup &rarr; &#9745; Task checklist</b>: a new task whose checklist is the list, in its order &middot; in Tasks &rarr; &#128216; From the MIDP, the <b>List lookup</b> is a choice next to My sets (both keep their own order)",
       "<b>Checklist items show Tower &middot; Typology &middot; Model</b> under them when they are drawings of the MIDP &ndash; the model opens with a click" ] },

@@ -21,7 +21,8 @@ module.exports = async ({ page, out, drag }) => {
   ok(await f.evaluate(() => findTask('T002').status == 'Not started'), 'board: Undo puts it back');
   await f.dragAndDrop('.dc:has-text("Level 16 walls")', '.col[data-st="Completed"]'); await page.waitForTimeout(100);
   ok(await f.evaluate(() => statusOf(findTask('T001')) == 'Not started' && /comes from them/.test($('toast').innerText)), 'board: a task with items is not moved (message says why)');
-  // ---- Calendar
+  // ---- Calendar (a taller window: late in the month the target day sits low, where dragging scrolls the page)
+  await page.setViewportSize({ width: 1180, height: 900 }); await page.waitForTimeout(150);
   await f.click('[data-v="cal"]'); await page.waitForTimeout(200);
   ok(await f.evaluate(() => document.querySelectorAll('.ev.p').length == 2 && document.querySelectorAll('.ev:not(.p)').length == 1), 'calendar: 2 tasks due + 1 items chip');
   await f.evaluate(() => { calMonth = null; });
@@ -38,6 +39,7 @@ module.exports = async ({ page, out, drag }) => {
   await drag(f, '.ev:not(.p):has-text("Level 16 walls")', `td[data-day="${d3}"]`); await page.waitForTimeout(150);
   ok(await f.evaluate(([d1, d3]) => { var t = findTask('T001'); return t.subs[0].due == d1 && t.subs[1].due == d3; }, [d1, d3]), 'calendar: with a person picked, only their items move');
   await f.evaluate(() => { $('person').value = ''; render(); });
+  await page.setViewportSize({ width: 1180, height: 700 }); await page.waitForTimeout(100);
   // saved to disk
   const disk = await page.evaluate(() => JSON.parse(Object.values(window.__mockFs.files).find(x => /\\delegate\.json$/i.test(x.path)).text));
   ok(disk.tasks[0].subs[1].due == d3, 'changes saved in delegate.json');

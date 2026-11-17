@@ -295,7 +295,8 @@ One list of every drawing in a project, kept up to date from the MIDP. One regis
   2. Left = the MIDP (narrow it with the Section / Tower / Typology filters and the search box above). Right = your set
   3. **Drag** drawings from left to right (select several with **Ctrl** / **Shift** + click), or double-click, or **Add →** / **All shown →**. Drag back (or **← Remove**) to take them out
      - The left list **stays as it was** while you add: drawings already in the set stay in place, dimmed with *✓ in the set*, and the scroll doesn't jump
-     - **The set keeps your order** – the order you drop them in. Drop on a drawing in the set = it goes before that one; drag inside the set = reorder
+     - **Order: as the MIDP** (the default) – however you add them, the set is always in the MIDP's order · **☐ Only the ones not in the set yet** (left) shows just what is still missing
+     - **Order: mine** – the order you drop them in: drop on a drawing in the set = before that one; drag inside the set = reorder (dragging inside switches to *mine*)
   4. **☑ Task checklist** – a new task in Tasks whose checklist is the set, one item per drawing in the set's order (each linked to its drawing)
   5. **📋 List lookup** – Tower, Typology and Model for every drawing of the set (the List lookup, filled in at once)
   - **Saved filters ▾ → Show only a list:** pick a set (or **My list** from Typology → model) and every view shows only those drawings – the button shows its name; **✕ Clear** or *Show every drawing again* turns it off
@@ -353,6 +354,7 @@ Everything about a submission in one go – no more checking Folder 1 against Fo
 
 1. **Submission folder…** (include subfolders)
 2. **My list (Excel / CSV)…** – any register, transmittal or checklist
+   - or **📁 My set ▾** – one of your sets (Drawing Register → My sets) is the list: its drawings with the MIDP's title, Tower, Typology and Model. A set has no revision, so **any revision of the drawing counts as found** (the revision in the folder is noted); pick *Rev (MIDP)* as the Revision column to check against the MIDP's revision instead
    - **Sheet:** it picks the sheet with drawing numbers in Column A (else the one with the most numbers); change it with the **Sheet** picker
    - Works **with or without a heading row** (no heading: Column A = numbers, Column B = description)
    - Rows like **"Residential"** or **"Enlarged drawings"** are read as **category titles**, not drawings – the results show each drawing's category
@@ -462,6 +464,7 @@ Your dashboard – it only reads what the other tabs saved, and every card opens
 ### ◉ Core (Home's first face)
 
 Home opens on the **Core**: a glowing core with your tabs around it as **nodes**, each with its live count (Late in red). The greeting says what needs you: late work, a transmittal with no reply for a week, new files. **▦ Dashboard** (top right) shows the cards and charts instead – **◉ Core** on the Dashboard brings this back; your choice is kept.
+- **Watched folders** (under the greeting): each folder with **+new ~changed −removed**, when it was checked, **↻ Refresh** and **+ Watch a folder** – click a folder for the Incoming list (Added / Changed / Removed / All files), as on the Dashboard. The **Incoming** node opens it too
 - **Arrange it:** drag a node anywhere (its line follows; saved in `core.json`) · drag it onto the **shelf** to put it away · drag a shelf item up to add it (Week plan, Smart Inbox, Diary, Folder Check…) · **Reset layout**
 - **Click a node** = its items (open tasks, delegated items, the last transmittals, new files in Incoming, models, weekly reports) · **double-click** (or *Open … ›*) = its tab
 - **Drag an item onto another node** = a job, done in the right tab:

@@ -757,16 +757,16 @@ function setsView() {
   if (!P.sets.length) h.push('<div class="muted" style="padding:8px">No sets yet &ndash; <b>+ New set</b>, e.g. <i>Serviced units</i>.</div>');
   if (S) h.push('<div style="margin-top:8px"><button class="btn small" id="stRen">&#9998; Rename</button><button class="btn small" id="stDel">&#10005; Delete</button></div>');
   h.push("</div>");
-  shown = []; var left = [];
-  for (var k = 0; k < ks.length; k++) { var d = D[ks[k]]; if (!pass(ks[k], d, stat(ks[k], d))) continue; shown.push(ks[k]); if (S) left.push(ks[k]); }   // the left keeps every drawing (in the set = dimmed): nothing jumps when you add
+  shown = []; var left = []; if (S && S.order != "mine") { var before = S.keys.join("|"); setSort(S); if (S.keys.join("|") != before) saveP(); }
+  for (var k = 0; k < ks.length; k++) { var d = D[ks[k]]; if (!pass(ks[k], d, stat(ks[k], d))) continue; if (S && setOnlyOut && inSet[ks[k]]) continue; shown.push(ks[k]); if (S) left.push(ks[k]); }   // the left keeps every drawing (in the set = dimmed): nothing jumps when you add
   var row = function (side, k2, ix) { var d2 = D[k2], gone = !d2 || d2.inMidp === false, sel = (side == "L" ? selL : selR)[k2];
     return '<div class="dr' + (sel ? " sel" : "") + (gone ? " gone" : "") + (side == "L" && inSet[k2] ? " ins" : "") + '" draggable="true" data-side="' + side + '" data-ix="' + ix + '" data-key="' + esc(k2) + '" title="' + esc(d2 ? d2.title + (d2.cat ? " \u00b7 " + d2.cat : "") : "") + (gone ? " (not in the MIDP now)" : "") + '"><span class="no">' + esc(d2 ? d2.num : k2) + "</span> " + esc(d2 ? d2.title : "(not in the register)") + (d2 && d2.typo && d2.typo != "-" ? ' <span class="muted">' + esc(d2.typo) + "</span>" : "") + "</div>"; };
   if (!S) { h.push('<div class="pane"></div></div>'); $("res").innerHTML = h.join(""); bindSets(); return; }
-  var L = ['<div class="pane" data-pane="L"><div class="ph">The MIDP &ndash; ' + (function () { var c = 0; for (var q = 0; q < left.length; q++) if (!inSet[left[q]]) c++; return c; })() + " not in the set" + ' <span class="muted">(use the filters / search above)</span></div><div class="pl" data-pane="L">'];
+  var L = ['<div class="pane" data-pane="L"><div class="ph">The MIDP &ndash; ' + (function () { var c = 0; for (var q = 0; q < left.length; q++) if (!inSet[left[q]]) c++; return c; })() + " not in the set" + ' <span class="muted">(use the filters / search above)</span><label class="small" style="display:block;margin-top:3px"><input type="checkbox" id="stOut" style="height:auto"' + (setOnlyOut ? " checked" : "") + '> Only the ones not in the set yet</label></div><div class="pl" data-pane="L">'];
   for (var a = 0; a < left.length && a < 1500; a++) L.push(row("L", left[a], a));
   L.push("</div></div>");
   var mid = '<div class="mid"><button class="btn small" id="stAdd" title="Add the selected drawings">Add &rarr;</button><button class="btn small" id="stAddAll" title="Add every drawing shown on the left">All shown &rarr;</button><button class="btn small" id="stRem" title="Remove the selected drawings">&larr; Remove</button><button class="btn small" id="stClr">&larr; Clear</button><button class="btn small primary" id="stTask" title="A new task whose checklist is this set, in this order">&#9745; Task checklist</button><button class="btn small" id="stLook" title="Tower, Typology and Model for every drawing of this set (List lookup)">&#128203; List lookup</button></div>';
-  var R = ['<div class="pane" data-pane="R"><div class="ph"><b>' + esc(S.name) + "</b> &ndash; " + S.keys.length + " drawing(s)" + (function () { var g = 0; for (var q = 0; q < S.keys.length; q++) if (!D[S.keys[q]] || D[S.keys[q]].inMidp === false) g++; return g ? ' &middot; <span class="warn">' + g + " not in the MIDP now</span>" : ""; })() + '</div><div class="pl" data-pane="R">'];
+  var R = ['<div class="pane" data-pane="R"><div class="ph"><b>' + esc(S.name) + "</b> &ndash; " + S.keys.length + " drawing(s)" + ' <span class="small" style="float:right">Order: <span class="chip small' + (S.order != "mine" ? " on" : "") + '" id="stOrdM" title="Always in the MIDP\'s order - easy to see what is missing">as the MIDP</span><span class="chip small' + (S.order == "mine" ? " on" : "") + '" id="stOrdY" title="The order you drop or drag them in">mine</span></span>' + (function () { var g = 0; for (var q = 0; q < S.keys.length; q++) if (!D[S.keys[q]] || D[S.keys[q]].inMidp === false) g++; return g ? ' &middot; <span class="warn">' + g + " not in the MIDP now</span>" : ""; })() + '</div><div class="pl" data-pane="R">'];
   var ord = S.keys.slice(0);   // your order: as you dropped them (drag inside the set to change it)
   for (var b = 0; b < ord.length; b++) R.push(row("R", ord[b], b));
   if (!ord.length) R.push('<div class="muted" style="padding:16px">Drag drawings here from the left (select several with Ctrl / Shift), or double-click them.</div>');
@@ -776,11 +776,16 @@ function setsView() {
 }
 function setsSave(msg) { var pl = $("res").querySelectorAll(".pl"), tops = []; for (var i = 0; i < pl.length; i++) tops.push(pl[i].scrollTop); var rt = $("res").scrollTop;
   saveP(); render(); var pl2 = $("res").querySelectorAll(".pl"); for (var j = 0; j < pl2.length && j < tops.length; j++) pl2[j].scrollTop = tops[j]; $("res").scrollTop = rt; if (msg) LT.toast(msg); }
+/* a set's order: as the MIDP (default - then what's missing is easy to see) or your own (S.order = "mine", when you drag inside the set) */
+function setSort(S) { if (!S || S.order == "mine") return; var ks = order(P.drawings), ix = {}; for (var i = 0; i < ks.length; i++) ix[ks[i]] = i;
+  S.keys.sort(function (a, b) { var x = ix.hasOwnProperty(a) ? ix[a] : 1e9, y = ix.hasOwnProperty(b) ? ix[b] : 1e9; return x - y || (a < b ? -1 : a > b ? 1 : 0); }); }
+var setOnlyOut = false;
 function setAdd(keys, at) { var S = setOf(curSet); if (!S) return; var have = {}, n = 0, add = []; for (var i = 0; i < S.keys.length; i++) have[S.keys[i]] = 1; for (var j = 0; j < keys.length; j++) if (!have[keys[j]]) { add.push(keys[j]); have[keys[j]] = 1; n++; }
-  if (at == null || at < 0 || at > S.keys.length) at = S.keys.length; for (var a = 0; a < add.length; a++) S.keys.splice(at + a, 0, add[a]); selL = {}; setsSave(n + " added to " + S.name); }
+  if (at == null || at < 0 || at > S.keys.length) at = S.keys.length; for (var a = 0; a < add.length; a++) S.keys.splice(at + a, 0, add[a]); setSort(S); selL = {}; setsSave(n + " added to " + S.name); }
 /* drag inside the set: the dragged drawings go before the row you drop on (or to the end) */
 function setMove(keys, beforeKey) { var S = setOf(curSet); if (!S) return; var mv = {}, i; for (i = 0; i < keys.length; i++) mv[keys[i]] = 1; var rest = S.keys.filter(function (k) { return !mv[k]; }), at = beforeKey ? rest.indexOf(beforeKey) : -1, put = [];
-  for (i = 0; i < S.keys.length; i++) if (mv[S.keys[i]]) put.push(S.keys[i]); if (at < 0) at = rest.length; S.keys = rest.slice(0, at).concat(put, rest.slice(at)); setsSave(); }
+  for (i = 0; i < S.keys.length; i++) if (mv[S.keys[i]]) put.push(S.keys[i]); if (at < 0) at = rest.length; S.keys = rest.slice(0, at).concat(put, rest.slice(at));
+  var was = S.order; S.order = "mine"; setsSave(was != "mine" ? "Your own order for this set now (Order: as the MIDP puts it back)" : ""); }
 function setRemove(keys) { var S = setOf(curSet); if (!S) return; var rm = {}; for (var i = 0; i < keys.length; i++) rm[keys[i]] = 1; var b = S.keys.length; S.keys = S.keys.filter(function (k) { return !rm[k]; }); selR = {}; setsSave((b - S.keys.length) + " removed from " + S.name); }
 var RES_EV = ["onclick", "ondblclick", "ondragstart", "ondragover", "ondragleave", "ondrop"], resOrig = null;
 /* My sets puts its own mouse handlers on the list area; the other views get the normal ones back */
@@ -806,6 +811,9 @@ function bindSets() {
   res.ondragstart = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-side"); if (!r) return; var side = r.getAttribute("data-side"), k = r.getAttribute("data-key"), o = side == "L" ? selL : selR;
     if (!o[k]) { if (side == "L") selL = {}; else selR = {}; (side == "L" ? selL : selR)[k] = 1; }
     setDrag = { side: side, keys: sel(side) }; try { e.dataTransfer.setData("text", k); e.dataTransfer.effectAllowed = "move"; } catch (x) { } };
+  btn("stOrdM", function () { var S = setOf(curSet); if (!S) return; S.order = ""; setSort(S); setsSave("In the MIDP's order"); });
+  btn("stOrdY", function () { var S = setOf(curSet); if (!S || S.order == "mine") return; S.order = "mine"; setsSave("Your own order: drop on a drawing to put it before that one, drag inside to reorder"); });
+  if ($("stOut")) $("stOut").onclick = function () { setOnlyOut = this.checked; selL = {}; setsView(); };
   btn("stLook", function () { var S = setOf(curSet); if (!S || !S.keys.length) { alert("The set is empty - drag drawings into it first."); return; } lookFromSet(S); });
   btn("stTask", function () { var S = setOf(curSet); if (!S || !S.keys.length) { alert("The set is empty - drag drawings into it first."); return; }
     var subs = []; for (var i = 0; i < S.keys.length; i++) { var d = P.drawings[S.keys[i]], no = d ? d.num : S.keys[i]; subs.push({ title: no + (d && d.title ? " \u2013 " + d.title : ""), dwg: no, refs: [{ kind: "drawing", value: no }] }); }

@@ -19,6 +19,14 @@ module.exports = async ({ page, out, drag }) => {
   ok(await badge('tasks') == '2' && await badge('late') == '1 red' && await badge('incoming') == '1' && await badge('transmittal') == '2' && await badge('register') == '1', 'each node shows its live count (Late in red)');
   const hi = await c.evaluate(() => $('hi').innerText);
   ok(/Good (morning|afternoon|evening), Lew\./.test(hi) && /1 late/.test(hi) && /TR-001 has had no reply for 9 days/.test(hi) && /1 new file in Incoming/.test(hi), 'the greeting says what needs you: late, no reply, new files');
+  // the watched folders are on the Core too (as on the Dashboard)
+  const wt = await c.evaluate(() => $('watch') ? $('watch').innerText : '');
+  ok(/Watching 1 folder/.test(wt) && /Incoming\s*\+1/.test(wt) && /Refresh/.test(wt) && /Watch a folder/.test(wt), 'Core shows the watched folders: name, new files, Refresh, + Watch a folder');
+  await c.click('[data-wf="0"]'); await page.waitForTimeout(200);
+  ok(await home.evaluate(() => $('inDlg').style.display == 'block' && /T1-ZZ-DR-A-5000-P02\.pdf/.test($('inList').innerText)), 'click a folder: Home\'s Incoming list opens (Added / Changed / Removed / All files)');
+  await home.click('#inClose'); await page.waitForTimeout(100);
+  await page.evaluate(() => { top.__nextFolder = 'C:\\Inc2'; LT.mkdirs('C:\\Inc2'); }); await c.click('#wAdd'); await page.waitForTimeout(1800);   // the Core draws again once the new folder is read
+  ok(/Watching 2 folders/.test(await c.evaluate(() => $('watch').innerText)), '+ Watch a folder from the Core');
   const before = await c.evaluate(() => ltCore.pos().register.slice());
   await drag(c, '.nd[data-n="register"] .b', '.lb'); await page.waitForTimeout(150);
   const after = await c.evaluate(() => ltCore.pos().register);

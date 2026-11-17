@@ -324,6 +324,13 @@ function homeView(v) { var s = LT.settings(); s.homeView = v == "dash" ? "dash" 
 function showFace() { var c = isCore() && $("repWrap").style.display != "block"; $("coreWrap").style.display = c ? "block" : "none"; $("wrap").style.display = c || $("repWrap").style.display == "block" ? "none" : "";
   if (c) { var f = $("coreFrame"); if (!f.src) f.src = "parts/core.html"; else try { f.contentWindow.ltShown && f.contentWindow.ltShown(); } catch (e) { } } }
 function report(on) { $("repWrap").style.display = on ? "block" : "none"; $("wrap").style.display = on ? "none" : ""; showFace(); if (on) { var f = $("repFrame"); if (!f.src) f.src = "parts/report.html"; else try { f.contentWindow.ltShown && f.contentWindow.ltShown(); } catch (e) { } } }
+/* the Core (parts/core.html) shows the watched folders too and uses these: the Incoming list, Refresh, Watch a folder */
+window.homeIn = {
+  open: function (i) { openIn(i || 0); },
+  refresh: function () { try { if (LT.main()) LT.main().background(); else LT.watchScan(); } catch (er) { } render(true); LT.toast("Checked just now"); coreAgain(); },
+  add: function () { var f = LT.pickFolder("A folder to watch (where new drawings arrive)"); if (f) { LT.watchAdd(f); render(true); LT.toast("Watching " + fso.GetFileName(f) + " - new files show up here and on the bell"); coreAgain(); } },
+  seen: function (i) { LT.watchSeen(i); render(true); try { LT.main().bell(); } catch (er) { } coreAgain(); } };
+function coreAgain() { try { $("coreFrame").contentWindow.ltReload(); } catch (e) { } window.setTimeout(function () { try { $("coreFrame").contentWindow.ltReload(); } catch (e) { } }, 1500); }
 $("bCore").onclick = function () { homeView("core"); }; $("bDash").onclick = function () { homeView("dash"); };
 $("bRep").onclick = function () { report(true); }; $("repBack").onclick = function () { report(false); render(true); };
 $("bAdd").onclick = function () { var v = LT.trim($("quick").value); if (!v) { $("quick").focus(); return; } if (LT.main()) { LT.main().send("tracker", "add-task", v); $("quick").value = ""; } };
@@ -344,7 +351,7 @@ $("wrap").onclick = function (e) {
   if (l && LT.main()) { var k = links[+l.getAttribute("data-l")]; if (k.what && k.value !== "") LT.main().send(k.tab, k.what, k.value); else if (k.what == "view") LT.main().send(k.tab, "view", k.value); else LT.main().show(k.tab); return; }
   if (g && LT.main()) { if (g.getAttribute("data-view")) LT.main().send(g.getAttribute("data-go"), "view", g.getAttribute("data-view")); else LT.main().show(g.getAttribute("data-go")); }
 };
-$("inClose").onclick = function () { $("inDlg").style.display = "none"; };
+$("inClose").onclick = function () { $("inDlg").style.display = "none"; if (isCore()) coreAgain(); };
 $("inDlg").onclick = function (e) { var t = e.target || e.srcElement; if (t === $("inDlg")) { $("inDlg").style.display = "none"; return; }
   var tb = LT.up(t, "data-intab"), o = LT.up(t, "data-open"); if (tb) { inTab = tb.getAttribute("data-intab"); drawIn(); return; }
   if (o) { try { LT.open(o.getAttribute("data-open")); } catch (x) { alert("Couldn't open it - it may have moved."); } } };

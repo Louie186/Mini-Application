@@ -72,7 +72,7 @@ function load() { fresh(); var s = LT.readJson(FILE(), null); if (s && s.pos) { 
 function save() { try { LT.saveJson(FILE(), { pos: pos }); } catch (e) { } }
 function J(n) { return LT.readJson(LT.dataPath(n), null) || {}; }
 function main() { return LT.main(); }
-function go(a) { var m = main(); if (!m) return; if (a.length > 1) m.send(a[0], a[1], a[2] || ""); else m.show(a[0]); }
+function go(a) { if (a[0] == "inbox" && a[1] == "incoming" && hin() && LT.watchLoad().folders.length) { hin().open(0); return; } var m = main(); if (!m) return; if (a.length > 1) m.send(a[0], a[1], a[2] || ""); else m.show(a[0]); }
 function stem(n) { var k = n.lastIndexOf("."); return k > 0 ? n.substring(0, k) : n; }
 
 /* ---------- live data: what each node holds ---------- */
@@ -99,6 +99,16 @@ function gather() {
     for (i = 0; i < rs.length && i < 8; i++) items.reports.push({ kind: "file", ref: rs[i], text: fso.GetFileName(rs[i]), sub: "weekly report" }); }
 }
 function count(k) { return counts[k] != null ? counts[k] : items[k].length; }
+/* the watched folders (Incoming), as on the Dashboard: each folder with its new / changed / removed, Refresh, + Watch a folder. A click opens Home's Incoming list. */
+function hin() { try { return window.parent.homeIn || null; } catch (e) { return null; } }
+function watchStrip() {
+  var w = LT.watchLoad(), h = ['<div id="watch">'], ago = function (t) { if (!t) return "not checked yet"; var m = Math.round((new Date() - t) / 60000); return "checked " + (m < 1 ? "just now" : m < 60 ? m + " min ago" : m < 1440 ? Math.round(m / 60) + " h ago" : LT.fmtDate(LT.iso(new Date(t)))); };
+  h.push('<span class="wt">' + LT.icon("inbox", 15) + " Watching " + (w.folders.length ? w.folders.length + " folder" + (w.folders.length == 1 ? "" : "s") : "no folder") + "</span>");
+  for (var i = 0; i < w.folders.length; i++) { var F = w.folders[i], pd = F.pending || [], a = 0, c = 0, r = 0; for (var j = 0; j < pd.length; j++) { if (pd[j].kind == "new") a++; else if (pd[j].kind == "deleted") r++; else c++; }
+    h.push('<span class="wf' + (pd.length ? " has" : "") + '" data-wf="' + i + '" title="' + esc(F.path) + " - " + ago(F.at) + ' - click for the list"><b>' + esc(F.name || F.path) + "</b> " + (F.missing ? '<span class="bad">folder not found</span>' : (a ? '<span class="ok">+' + a + "</span> " : "") + (c ? '<span class="warn">~' + c + "</span> " : "") + (r ? '<span class="bad">&minus;' + r + "</span>" : "") + (pd.length ? "" : '<span class="muted">nothing new</span>')) + "</span>"); }
+  h.push('<span class="wa muted">' + esc(w.at ? ago(w.at) : "") + '</span><span class="wb" id="wRef" title="Check the folders now">&#8635; Refresh</span><span class="wb" id="wAdd">+ Watch a folder</span></div>');
+  $("hi").insertAdjacentHTML("beforeend", h.join(""));
+}
 function hello() {
   var h = (new Date()).getHours(), nm = LT.settings().userName || "", bits = [], lg = LT.trLoad().log, p = LT.project();
   if (items.late.length) bits.push('<b class="bad">' + items.late.length + " late.</b>");
@@ -107,6 +117,7 @@ function hello() {
   if (!bits.length) bits.push("Nothing is late. Nothing new came in.");
   $("hi").innerHTML = '<span class="r"><button class="btn small" id="bReset">Reset layout</button></span><b class="g">Good ' + (h < 12 ? "morning" : h < 18 ? "afternoon" : "evening") + (nm ? ", " + esc(nm.split(" ")[0]) : "") + '.</b><div class="s muted">' + (p ? esc(p.name) + " &middot; " : "") + esc(LT.fmtDate(LT.today())) + " &middot; " + bits.join(" ") + "</div>";
   $("bReset").onclick = function () { fresh(); save(); open = null; render(); LT.toast("Layout reset"); };
+  watchStrip();
 }
 
 /* ---------- drawing ---------- */
@@ -265,12 +276,16 @@ document.onmouseup = function (e) { if (!drag) return; e = ev(e); var D = drag; 
   if (t.id == "coreHit") { summary(it); return; }
   var to = t.getAttribute("data-n"); if (to == open && open != "late") return;
   var msg = job(it, to); LT.toast(msg || nodeOf(open)[1] + " → " + nodeOf(to)[1] + ": nothing to do for this pair"); };
+$("hi").onclick = function (e) { var t = tgt(ev(e)), f = LT.up(t, "data-wf"), H = hin();
+  if (t.id == "wRef") { if (H) H.refresh(); else { LT.watchScan(); render(); } return; }
+  if (t.id == "wAdd") { if (H) H.add(); else { var p = LT.pickFolder("A folder to watch (where new drawings arrive)"); if (p) { LT.watchAdd(p); render(); } } return; }
+  if (f && H) H.open(+f.getAttribute("data-wf")); };
 document.ondblclick = function (e) { var nd = LT.up(tgt(ev(e)), "data-n"); if (nd) go(nodeOf(nd.getAttribute("data-n"))[3]); };
 document.onclick = function (e) { var o = LT.up(tgt(ev(e)), "data-open"); if (o) go(nodeOf(o.getAttribute("data-open"))[3]); };
 document.onselectstart = function () { return false; };
 var rt = null; window.onresize = function () { if (rt) window.clearTimeout(rt); rt = window.setTimeout(function () { buildSphere(); render(); }, 120); };
 
-function look() { LT.applyLook(["#stage{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}", "#hi b.g{color:{text}}",
+function look() { LT.applyLook(["#stage{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}", "#hi b.g{color:{text}}", "#watch{margin-top:6px;font-size:.88em;line-height:26px}#watch .wt{margin-right:10px;color:{muted}}#watch .wt svg{vertical-align:middle}#watch .wf{display:inline-block;padding:0 10px;margin:0 6px 4px 0;border:1px solid {line};border-radius:{rc}px;cursor:pointer;background:{panel}}#watch .wf.has{border-color:{accent}}#watch .wf:hover{border-color:{accent}}#watch .wa{margin:0 10px 0 4px}#watch .wb{cursor:pointer;color:{accent};margin-right:12px}#watch .wb:hover{text-decoration:underline}",
   ".nd .b{background:{bg};border:1px solid {line};border-radius:16px;color:{text}}", ".nd.sel .b,.nd.over .b{border-color:{accent};box-shadow:0 0 0 3px {accSoft}}", ".nd em{background:{accent};color:{accText}}", ".nd em.r{background:{bad};color:#fff}",
   "#coreHit.over{box-shadow:0 0 0 2px {accent}}", "#panel,#info{background:{bg};border:1px solid {line};border-radius:{r2}px;box-shadow:{big}}", ".itm{background:{panel};border:1px solid {line};border-radius:{r}px}", ".itm:hover{border-color:{accent}}", "#panel .op{color:{accent}}",
   "#ghost{background:{accent};color:{accText};border-radius:{r}px}", "#shelf{border:1px dashed {line};border-radius:{r2}px}", "#shelf.over{border-color:{accent};background:{accSoft}}", ".sc{background:{panel};border:1px solid {line};border-radius:{r}px}", ".sc:hover{border-color:{accent}}"]); }

@@ -44,7 +44,7 @@
     <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
   </div>
   <div class="step">
-    <span class="num">2</span><button class="btn" id="bList">&#128196; My list (Excel / CSV)...</button><span class="path big" id="listLbl"></span>
+    <span class="num">2</span><button class="btn" id="bList">&#128196; My list (Excel / CSV)...</button><button class="btn" id="bSetList" title="Use one of your sets (Drawing Register > My sets) as the list">&#128193; My set &#9662;</button><span class="path big" id="listLbl"></span>
     <div id="cols" style="margin-left:32px">
       <span id="sheetBox"><span class="lbl">Sheet:</span><select id="cSheet"></select></span>
       <span class="lbl">File name / number:</span><select id="cName"></select>
@@ -87,14 +87,31 @@ function splitRev(stem) {
 /* ---------- step 1 + 2 ---------- */
 function showPaths() {
   $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>';
-  $("listLbl").innerHTML = cfg.list ? esc(fso.GetFileName(cfg.list)) + (table ? ' <span class="muted">(' + Math.max(0, table.length - headRow - 1) + " rows)</span>" : "") : '<span class="muted">not picked</span>';
+  $("listLbl").innerHTML = cfg.list ? (isSet(cfg.list) ? "&#128193; " : "") + esc(listName()) + (table ? ' <span class="muted">(' + Math.max(0, table.length - headRow - 1) + " rows)</span>" : "") : '<span class="muted">not picked</span>';
   $("subs").checked = cfg.subs;
   $("cols").style.display = table ? "" : "none";
 }
 function pickFolder() { var f = LT.pickFolder("Pick the submission folder"); if (f) { cfg.folder = f; saveCfg(); showPaths(); } }
+/* a My set (Drawing Register > My sets) as the list: cfg.list = "set:<id>". Its drawings in the set's order, with the MIDP's title, revision, tower, typology and model */
+function isSet(p) { return /^set:/.test(p || ""); }
+function setOfList(p) { try { var R = LT.register(), a = R ? R.sets() : [], id = ("" + p).substring(4); for (var i = 0; i < a.length; i++) if (a[i].id == id) return { R: R, S: a[i] }; } catch (e) { } return null; }
+function listName() { if (!cfg.list) return ""; if (isSet(cfg.list)) { var x = setOfList(cfg.list); return "My set: " + (x ? x.S.name : "(deleted)"); } return fso.GetFileName(cfg.list); }
+function listThere() { return cfg.list && (isSet(cfg.list) ? !!setOfList(cfg.list) : fso.FileExists(cfg.list)); }
+function setTable(p) { var x = setOfList(p); if (!x) throw new Error("That set is no longer in the Drawing Register (deleted, or another project is open there).");
+  var t = [["Drawing", "Title", "Rev (MIDP)", "Tower", "Typology", "Model"]];
+  for (var i = 0; i < x.S.keys.length; i++) { var d = x.R.find(x.S.keys[i]); t.push(d ? [d.number, d.title, d.rev || "", d.tower, d.typo, d.model] : [x.S.keys[i], "", "", "", "", ""]); }
+  sheets = ["(My set)"]; cfg.sheet = "(My set)"; table = t; headRow = 0; head = t[0].slice(0);
+  cfg.colName = "Drawing"; cfg.colTitle = "Title"; cfg.colTower = "Tower"; cfg.colTypo = "Typology"; cfg.colModel = "Model"; cfg.colFolder = ""; cfg.colFmt = "";
+  if (cfg.colRev && head.indexOf(cfg.colRev) < 0) cfg.colRev = "";   // the MIDP's revision is only checked if you pick it as the Rev column
+  fillCols(); }
+function pickSet(x, y) { var a = []; try { a = LT.register() ? LT.register().sets() : []; } catch (e) { }
+  var m = []; if (!a.length) m.push({ label: '<span class="muted">No sets yet &ndash; make one in Drawing Register &gt; My sets</span>', fn: function () { } });
+  for (var i = 0; i < a.length; i++) (function (S) { m.push({ label: esc(S.name) + ' <span class="muted">' + S.keys.length + " drawing" + (S.keys.length == 1 ? "" : "s") + "</span>", on: cfg.list == "set:" + S.id, fn: function () { cfg.list = "set:" + S.id; cfg.colRev = ""; try { setTable(cfg.list); } catch (e) { alert(e.message); return; } saveCfg(); showPaths(); } }); })(a[i]);
+  LT.menu(x, y, m); }
 function pickList() { LT.pickFile(function (p) { try { readList(p, true); cfg.list = p; saveCfg(); showPaths(); } catch (e) { alert("Couldn't read that list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); } }); }
 /* reads the list and guesses which columns are which (the person can change them) */
 function readList(p, guess) {
+  if (isSet(p)) { setTable(p); return; }
   var L = LT.readList(p, guess ? "" : cfg.sheet);
   sheets = L.sheets; cfg.sheet = L.sheet; table = L.table; headRow = L.headRow; head = L.head;
   var c = LT.listColumns(L, { name: cfg.colName, title: cfg.colTitle, rev: cfg.colRev, fmt: cfg.colFmt, folder: cfg.colFolder, tower: cfg.colTower, typo: cfg.colTypo, model: cfg.colModel }, guess);
@@ -148,6 +165,7 @@ function check(rows, files, defFormats) {
       var cand = bySeq[entry] || [];
       for (var cc = 0; cc < cand.length; cc++) { if (!want || splitRev(up(cand[cc].stem)).rev == want) exact.push(cand[cc]); else other.push(cand[cc]); }
     }
+    else if (!want && !revIn && isSet(cfg.list)) { exact = (byBase[bas] || []).slice(0); if (exact.length) { var rvs = []; for (var rq = 0; rq < exact.length; rq++) { var rv0 = splitRev(up(exact[rq].stem)).rev; if (rv0 && rvs.indexOf(rv0) < 0) rvs.push(rv0); } if (rvs.length) row.note += "Revision in the folder: " + rvs.join(", ") + ". "; } }   // a My set has no revision: any revision of the drawing counts
     else if (wantStem) exact = (byStem[wantStem] || []).slice(0);
     else { var c = [bas + "-" + want, bas + "_" + want, bas + want, bas]; for (var k = 0; k < c.length; k++) { var l = byStem[c[k]] || []; for (var q = 0; q < l.length; q++) if (exact.indexOf(l[q]) < 0) exact.push(l[q]); } }
     if (!shortNo) { var sb = byBase[bas] || []; for (var o = 0; o < sb.length; o++) if (exact.indexOf(sb[o]) < 0) other.push(sb[o]); }
@@ -180,8 +198,8 @@ function check(rows, files, defFormats) {
 }
 function runCheck() {
   if (!cfg.folder || !fso.FolderExists(cfg.folder)) { alert("Pick the submission folder first."); return; }
-  if (!cfg.list || !fso.FileExists(cfg.list)) { alert("Pick your list first (Excel or CSV)."); return; }
-  try { readList(cfg.list, false); } catch (e) { alert("Couldn't read the list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return; }
+  if (!listThere()) { alert(isSet(cfg.list) ? "That set is no longer in the Drawing Register - pick a set or a list again." : "Pick your list first (Excel or CSV, or one of My sets)."); return; }
+  try { readList(cfg.list, false); } catch (e) { alert(isSet(cfg.list) ? e.message || e : "Couldn't read the list - is it open in Excel? Close it and try again.\n\n" + (e.message || e)); return; }
   showPaths();
   var col = function (name) { return name ? head.indexOf(name) : -1; }, iN = col(cfg.colName), iR = col(cfg.colRev), iF = col(cfg.colFmt), iD = col(cfg.colFolder), iT = col(cfg.colTitle),
     iTw = col(cfg.colTower), iTy = col(cfg.colTypo), iM = col(cfg.colModel);
@@ -282,7 +300,7 @@ function groups() {
 
 /* ---------- report ---------- */
 function summaryText() {
-  var s = "Submission check – " + LT.today() + "\r\nFolder: " + cfg.folder + "\r\nList: " + fso.GetFileName(cfg.list) + "\r\n\r\nOn the list: " + last.rows.length + "   Found: " + count("Found") + "   Files in folder: " + last.files.length + "\r\n";
+  var s = "Submission check – " + LT.today() + "\r\nFolder: " + cfg.folder + "\r\nList: " + listName() + "\r\n\r\nOn the list: " + last.rows.length + "   Found: " + count("Found") + "   Files in folder: " + last.files.length + "\r\n";
   var sts = ["Missing", "Missing file type", "Wrong revision", "Wrong folder", "Listed twice"];
   for (var i = 0; i < sts.length; i++) { var l = []; for (var j = 0; j < last.rows.length; j++) if (last.rows[j].status == sts[i]) l.push(last.rows[j]);
     if (!l.length) continue; s += "\r\n" + sts[i].toUpperCase() + " (" + l.length + ")\r\n"; for (var k = 0; k < l.length; k++) s += "  • " + l[k].entry + (l[k].note ? " – " + l[k].note : "") + "\r\n"; }
@@ -339,7 +357,7 @@ function reportMenu(x, y) {
 function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}",
   "tr.grp td{background:{chip};font-weight:bold;padding:7px 10px;border-top:{bw}px solid {line}}"]); }
 function under(btn, fn) { return function (e) { var r = btn.getBoundingClientRect(); fn(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; }; }
-$("bFolder").onclick = pickFolder; $("bList").onclick = pickList; $("bRun").onclick = runCheck;
+$("bFolder").onclick = pickFolder; $("bList").onclick = pickList; $("bSetList").onclick = function (e) { var r = this.getBoundingClientRect(); pickSet(r.left, r.bottom + 2); (e || window.event).cancelBubble = true; }; $("bRun").onclick = runCheck;
 $("subs").onclick = function () { cfg.subs = this.checked; saveCfg(); };
 $("cName").onchange = function () { cfg.colName = this.value; saveCfg(); };
 $("cSheet").onchange = function () { cfg.sheet = this.value; cfg.colName = cfg.colRev = cfg.colFmt = cfg.colFolder = cfg.colTitle = cfg.colTower = cfg.colTypo = cfg.colModel = ""; try { readList(cfg.list, false); } catch (e) { alert("Couldn't read that sheet."); } saveCfg(); showPaths(); };
@@ -378,7 +396,7 @@ function share(v) { if (v == "find" || v == "superseded") return; try { var w = 
 window.ltFolderPicked = function (f) { cfg.folder = f; saveCfg(); showPaths(); };
 $("fcv").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-fv"); if (b) setView(b.getAttribute("data-fv")); };
 look(); loadCfg(); $("remTop").checked = cfg.remTop !== false; setView(cfg.view || "sub");
-if (cfg.list && fso.FileExists(cfg.list)) { try { if (!/\.(xlsx|xlsm|xls)$/i.test(cfg.list)) readList(cfg.list, false); } catch (e) { } }
+if (listThere()) { try { if (isSet(cfg.list) || !/\.(xlsx|xlsm|xls)$/i.test(cfg.list)) readList(cfg.list, false); } catch (e) { } }
 showPaths(); LT.tabKeys();
 </script>
 </body>

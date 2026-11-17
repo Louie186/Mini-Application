@@ -686,10 +686,12 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.36";
+  L.VERSION = "2026.11.37";
   L.WHATS_NEW = [
+    { v: "2026.11.37", items: [
+      "<b>Delegate: selecting stays still</b> &ndash; like My sets: click a row = it's highlighted (Ctrl + click = one more, Shift + click = a range); the list isn't drawn again and doesn't move. Then click an <b>Assigned to</b> cell, or use the bar (always there) &ndash; the list keeps its place after the change too" ] },
     { v: "2026.11.36", items: [
-      "<b>Task packs show the full name</b> of every item (never cut; long names a little smaller)",
+      "<b>Task packs show the full name</b> of every item &ndash; never cut, all the same size; a long name wraps onto a second line",
       "<b>Send to people &rarr; Which tasks</b>: tick only the tasks to send (tasks you ticked in the list come in ticked); the people follow",
       "<b>Delegate</b>: Ctrl + click / Shift + click rows to select, then <b>click an Assigned to cell</b> &ndash; one person for all of them",
       "<b>Task packs</b>: nothing extra next to each drawing any more. Want the model there? Tick <b>show each drawing&#39;s model</b> in <b>Send to people</b> (only the model; remembered for next time, the Team Board follows it)" ] },

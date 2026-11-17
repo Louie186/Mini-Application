@@ -21,7 +21,7 @@ module.exports = async ({ page, out }) => {
   await d.evaluate(() => { $('sbWho').value = 'North Egypt'; }); await d.click('#sbAssign'); await page.waitForTimeout(150);
   const w = await d.evaluate(() => findTask('T006').subs.map(s => s.who));
   ok(w[0] == 'North Egypt' && w[2] == 'North Egypt' && w[1] == '' && /T006.1, T006.3 assigned to North Egypt \(2 at once\)/.test(findTaskHist = await d.evaluate(() => findTask('T006').history.join('|'))), 'Assign: both items go to that person (one line in the history)');
-  ok(await d.evaluate(() => $('selBar').style.display == 'none'), 'the selection clears after');
+  ok(await d.evaluate(() => /^0 selected/.test($('sbN').innerText) && $('selBar').style.display != 'none'), 'the selection clears after (the bar stays where it is)');
   await d.click('#main input[data-ckt="T006"]'); await page.waitForTimeout(100);
   ok(/4 selected/.test(await d.evaluate(() => $('selBar').innerText)), 'tick the task: all its open items are ticked');
   await d.evaluate(() => { $('sbSt').value = 'In progress'; $('sbDue').value = '20/11/2026'; }); await d.click('#sbSet'); await page.waitForTimeout(100);
@@ -31,6 +31,15 @@ module.exports = async ({ page, out }) => {
   await d.click('#main [data-nums="T006"]'); await page.waitForTimeout(100);
   ok(await d.evaluate(() => !findTask('T006').hideNums && /T006\.1/.test($('main').innerText)), '... and show them again');
 
+  // like My sets: a click only highlights - the list is not drawn again, nothing moves
+  await d.evaluate(() => { SEL = {}; render(); document.querySelector('#main table').__mark = 1; $('main').scrollTop = 30; window.__top = $('main').scrollTop; window.__barH = $('selBar').offsetHeight; });
+  await d.evaluate(() => { var c = document.querySelectorAll('#main td.it')[1], e = document.createEvent('MouseEvents'); e.initMouseEvent('click', true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null); c.dispatchEvent(e); }); await page.waitForTimeout(100);   // a click without the test tool scrolling first
+  ok(await d.evaluate(() => document.querySelector('#main table').__mark === 1 && $('main').scrollTop == window.__top && $('selBar').offsetHeight == window.__barH), 'click a row: the list is not drawn again, it does not move');
+  ok(await d.evaluate(() => document.querySelectorAll('#main tr.sel').length == 1 && /1 selected/.test($('sbN').innerText) && document.querySelector('#main tr.sel input').checked), '... the row is highlighted (its tick box follows), the bar counts 1');
+  await d.click('#main td.it >> nth=3', { modifiers: ['Control'] }); await page.waitForTimeout(80);
+  ok(await d.evaluate(() => document.querySelectorAll('#main tr.sel').length == 2 && document.querySelector('#main table').__mark === 1), 'Ctrl + click: one more, still no redraw');
+  await d.click('#main td.it >> nth=0'); await page.waitForTimeout(80);
+  ok(await d.evaluate(() => document.querySelectorAll('#main tr.sel').length == 1), 'a plain click again: only that row');
   // Ctrl / Shift + click on rows, and the Assigned to cell
   await d.evaluate(() => { SEL = {}; render(); });
   await d.click('#main td.it >> nth=0', { modifiers: ['Control'] }); await d.click('#main td.it >> nth=2', { modifiers: ['Shift'] }); await page.waitForTimeout(100);
@@ -63,6 +72,10 @@ module.exports = async ({ page, out }) => {
   ok(it.every(x => x.inf == ''), 'by default nothing extra next to the title');
   ok(it.every(x => x.h < 50), 'one line per item');
   ok(await pg.evaluate(() => [...document.querySelectorAll('.it .tt')].every(t => t.scrollWidth <= t.clientWidth + 1 && getComputedStyle(t).textOverflow != 'ellipsis')), 'the full name shows (never cut)');
+  ok(await pg.evaluate(() => new Set([...document.querySelectorAll('.it .tt')].map(t => getComputedStyle(t).fontSize)).size == 1), 'every item the same text size');
+  await pg.setViewportSize({ width: 800, height: 800 }); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => [...document.querySelectorAll('.it .tt')].every(t => t.scrollWidth <= t.clientWidth + 1) && document.querySelector('.it').offsetHeight > 50), 'a narrow window: the long names wrap onto a second line (still full)');
+  await pg.screenshot({ path: out + '/pack_narrow_wrap.png' }); await pg.setViewportSize({ width: 1400, height: 800 }); await pg.waitForTimeout(100);
   { await d.evaluate(() => { var st = LT.settings(); st.packModel = true; LT.saveSettings(st); buildPack('C:\\Out\\Tasks_Sam2.html', [findTask('T006')], 'Akala', 'Lew', 'Sam', 'Sam', 'X2', ['North Egypt', 'Ana'], {}); st.packModel = false; LT.saveSettings(st); });
     fs.writeFileSync('/tmp/claude-0/pack-many2.html', await page.evaluate(() => window.__mockFs.files['c:\\out\\tasks_sam2.html'].text));
     const p2 = await page.context().newPage(); await p2.goto('file:///tmp/claude-0/pack-many2.html'); await p2.waitForTimeout(600);

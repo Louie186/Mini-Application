@@ -106,12 +106,15 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
 <!-- send -->
 <div class="ov" id="send"><div class="card">
   <h3 id="sTitle">Send tasks to people</h3>
-  <div class="muted">Who gets a file? Each person gets only their own tasks.</div>
+  <div id="taskBox"><div class="h" style="margin-top:4px">Which tasks <span class="muted" style="font-weight:normal">&ndash; <span class="lk" id="stAllT">all</span> &middot; <span class="lk" id="stNoT">none</span></span></div><div id="taskList" style="max-height:170px;overflow-y:auto;margin-bottom:6px"></div></div>
+  <div class="h">Who gets a file</div>
+  <div class="muted">Each person gets only their own tasks.</div>
   <div id="whoList"></div>
   <label><input type="checkbox" id="sAll" style="height:auto"> Also one file with everything (for a group / the whole team)</label>
   <div class="h">File types</div>
   <label><input type="checkbox" id="sXl" checked style="height:auto"> Excel task sheet (.xlsx) &ndash; yellow boxes to fill in, drop-down status</label>
   <label><input type="checkbox" id="sPk" checked style="height:auto"> HTML task pack (.html) &ndash; opens in any browser, phone friendly, sends a reply</label>
+  <label style="margin-left:22px"><input type="checkbox" id="sMdl" style="height:auto"> show each drawing&#39;s <b>model</b> next to it in the task pack (from the Drawing Register)</label>
   <label><input type="checkbox" id="sSi" style="height:auto"> Simple Excel table (.xlsx) &ndash; plain rows</label>
   <div class="h">Transmittal</div>
   <label><input type="checkbox" id="sTr" checked style="height:auto"> Make a transmittal for each person (TR-...) &ndash; a folder with the transmittal sheet, their task pack and the reference files, ready to send</label>
@@ -449,19 +452,26 @@ function list(tasks) {
     if (!match(t, who, words)) continue;
     var whole = !who || has(t.who, who);
     rowMap.push({ t: t, s: null });
-    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td class="ck">' + (t.fromWeb ? "" : '<input type="checkbox" style="height:auto" data-ckt="' + esc(t.code) + '"' + (t.subs.length ? (allSel(t) ? " checked" : "") : (SEL[t.code] ? " checked" : "")) + ' title="' + (t.subs.length ? "Tick all its items" : "Tick this task") + '">') + "</td><td>" + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + (t.subs.length ? ' <span class="nums" data-nums="' + esc(t.code) + '" title="' + (t.hideNums ? "Show" : "Hide") + ' the item numbers">' + (t.hideNums ? "#" : "#&#824;") + "</span>" : "") + "</td><td>" + esc(t.title) + outChip(t) + "</td>" + (dw ? "<td></td>" : "") + "<td>" + esc(t.group) + "</td><td>" + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
+    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td class="ck">' + (t.fromWeb ? "" : '<input type="checkbox" style="height:auto" data-ckt="' + esc(t.code) + '"' + (t.subs.length ? (allSel(t) ? " checked" : "") : (SEL[t.code] ? " checked" : "")) + ' title="' + (t.subs.length ? "Tick all its items" : "Tick this task") + '">') + "</td><td>" + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + (t.subs.length ? ' <span class="nums" data-nums="' + esc(t.code) + '" title="' + (t.hideNums ? "Show" : "Hide") + ' the item numbers">' + (t.hideNums ? "#" : "#&#824;") + "</span>" : "") + "</td><td>" + esc(t.title) + outChip(t) + "</td>" + (dw ? "<td></td>" : "") + "<td>" + esc(t.group) + '</td><td class="asg" data-asg="' + esc(t.code) + '" title="Click to assign">' + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
     for (var j = 0; j < t.subs.length; j++) {
       var s = t.subs[j]; if (!whole && !has(s.who, who)) continue;
       rowMap.push({ t: t, s: s });
-      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.status == "Completed" ? ' class="muted"' : SEL[s.code] ? ' class="sel"' : "") + '><td class="ck"><input type="checkbox" style="height:auto" data-cks="' + esc(s.code) + '"' + (SEL[s.code] ? " checked" : "") + "></td><td>" + (t.hideNums ? "" : esc(s.code)) + '</td><td class="it" title="' + esc(s.title) + '"><span class="one">&#8627; ' + esc(s.title) + "</span>" + outChip(s) + "</td>" + (dw ? '<td class="dwi">' + (itemInfo(s) || "") + "</td>" : "") + "<td></td><td>" + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
+      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.status == "Completed" ? ' class="muted"' : SEL[s.code] ? ' class="sel"' : "") + '><td class="ck"><input type="checkbox" style="height:auto" data-cks="' + esc(s.code) + '"' + (SEL[s.code] ? " checked" : "") + "></td><td>" + (t.hideNums ? "" : esc(s.code)) + '</td><td class="it" title="' + esc(s.title) + '"><span class="one">&#8627; ' + esc(s.title) + "</span>" + outChip(s) + "</td>" + (dw ? '<td class="dwi">' + (itemInfo(s) || "") + "</td>" : "") + '<td></td><td class="asg" data-asg="' + esc(s.code) + '" title="Click to assign (to every ticked item, when this one is ticked)">' + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
     }
   }
   h.push("</table>"); selBar();
   $("main").innerHTML = rowMap.length ? h.join("") : '<div class="muted" style="padding:30px">' + (view == "web" ? "No tasks in Lew's Tracker's Delegation.json." : data.tasks.length ? "Nothing matches." : "No tasks yet &ndash; click + New task.") + "</div>";
-  $("hint").innerHTML = view == "web" ? "Read-only copy of Lew's Tracker. More &#9662; &gt; Copy Lew's Tracker tasks into the Toolbox to work on them here." : rowMap.length ? "Double-click = edit &middot; right-click = status, send, history&hellip;" : "";
+  $("hint").innerHTML = view == "web" ? "Read-only copy of Lew's Tracker. More &#9662; &gt; Copy Lew's Tracker tasks into the Toolbox to work on them here." : rowMap.length ? "Tick items (or Ctrl / Shift + click) &rarr; click an <b>Assigned to</b> cell to assign them all &middot; double-click = edit &middot; right-click = status, send, history&hellip;" : "";
 }
 /* ---------- several at once: tick items (or a task = all its items), then Assign to / Status / Due in the bar above the list ---------- */
-var SEL = {};   // item or task code -> 1
+var SEL = {}, lastPick = null;   // item or task code -> 1; the last row picked (Shift = a range)
+/* the people menu (click an "Assigned to" cell): the people of your groups, then everyone else - for every ticked item */
+function whoMenu(x, y) { var L = selList(), m = [{ label: '<span class="muted">Assign ' + L.length + " item" + (L.length == 1 ? "" : "s") + " to:</span>", fn: function () { } }], seen = {};
+  var add = function (n, grp) { if (!n || seen[n.toLowerCase()]) return; seen[n.toLowerCase()] = 1; m.push({ label: esc(n) + (grp ? ' <span class="muted">' + esc(grp) + "</span>" : ""), fn: function () { assignSel(n); } }); };
+  for (var g = 0; g < data.groups.length; g++) { var G = data.groups[g]; add(G.name, "group (its lead gets it)"); add(G.lead, G.name + " lead"); for (var k = 0; k < (G.members || []).length; k++) add(G.members[k], G.name); }
+  var pp = people(); for (var q = 0; q < pp.length; q++) add(pp[q], "");
+  m.push("-", { label: "Someone else...", fn: function () { var w = prompt("Assign the " + L.length + " item(s) to:", ""); if (w && LT.trim(w)) assignSel(LT.trim(w)); } });
+  LT.menu(x, Math.min(y, document.documentElement.clientHeight - 260), m); render(); }
 function itemInfo(x) { var no = x.dwg || "", f; if (!no) { var w = LT.trim((x.title || "").split(/\s+/)[0] || ""); if (LT.isDocNo(w)) no = w; else { var r = x.refs || []; for (var i = 0; i < r.length; i++) if (r[i].kind == "drawing") { no = r[i].value; break; } } }
   f = no ? LT.dwgInfo(no) : null; if (!f) return ""; var b = []; if (f.tower) b.push(esc(f.tower)); if (f.typo) b.push(esc(f.typo)); if (f.model) b.push(f.link ? '<span class="mlk" data-ml="' + esc(f.link) + '" title="' + esc(f.link) + ' - click to open">' + esc(f.model) + "</span>" : esc(f.model)); return b.join(" &middot; "); }
 function allSel(t) { if (!t.subs.length) return !!SEL[t.code]; for (var i = 0; i < t.subs.length; i++) if (!SEL[t.subs[i].code]) return false; return true; }
@@ -766,30 +776,43 @@ function planFor(pool, who) {
     if (mine.length) { var c = copy(t); c.subs = copy(mine); out.push(c); } }
   return out;
 }
+/* Send to people: first WHICH tasks (all open ones, or the ones you ticked in the list), then who gets a file */
+var sendAll = [];
 function openSend(only) {
   var pool = []; if (only) pool = [only]; else for (var i = 0; i < data.tasks.length; i++) if (statusOf(data.tasks[i]) != "Completed") pool.push(data.tasks[i]);
   if (!pool.length) { alert(data.tasks.length ? "All tasks are completed - nothing to send." : "Make a task first (+ New task)."); return; }
-  sendPool = pool;
-  var seen = {}, ppl = [];
-  var lead = {};
+  sendAll = pool; $("sMdl").checked = LT.settings().packModel === true;
+  var picked = {}, anySel = false; for (var a = 0; a < pool.length; a++) { var t = pool[a], on = !!SEL[t.code]; for (var b = 0; b < t.subs.length; b++) if (SEL[t.subs[b].code]) on = true; if (on) { picked[t.code] = 1; anySel = true; } }   // ticked in the list = only those
+  var h = ""; for (var c = 0; c < pool.length; c++) h += '<label><input type="checkbox" class="stk" value="' + esc(pool[c].code) + '"' + (only || !anySel || picked[pool[c].code] ? " checked" : "") + ' style="height:auto"> <b>' + esc(pool[c].code) + "</b> " + esc(pool[c].title) + ' <span class="muted">&ndash; ' + esc(pool[c].who || "nobody yet") + (pool[c].subs.length ? " &middot; " + pool[c].subs.length + " items" : "") + "</span></label>";
+  $("taskList").innerHTML = h; $("taskBox").style.display = only ? "none" : "";
+  sendPeople(); $("send").style.display = "block";
+}
+function sendTasks() { var o = [], bx = $("taskList").getElementsByTagName("input"), on = {}; for (var i = 0; i < bx.length; i++) if (bx[i].checked) on[bx[i].value] = 1; for (var k = 0; k < sendAll.length; k++) if (on[sendAll[k].code] || sendAll.length == 1) o.push(sendAll[k]); return o; }
+/* who gets a file: the people of the ticked tasks */
+function sendPeople() {
+  var pool = sendTasks(); sendPool = pool;
+  var seen = {}, ppl = [], lead = {};
   for (var p = 0; p < pool.length; p++) { var n = recipients(pool[p]), g = groupOf(pool[p].who); if (g) lead[g.lead.toLowerCase()] = (lead[g.lead.toLowerCase()] ? lead[g.lead.toLowerCase()] + ", " : "") + g.name;
     for (var k = 0; k < n.length; k++) if (!seen[n[k].toLowerCase()]) { seen[n[k].toLowerCase()] = 1; ppl.push(n[k]); } }
   ppl.sort();
   var h = ""; for (var q = 0; q < ppl.length; q++) h += '<label><input type="checkbox" class="sw" value="' + esc(ppl[q]) + '" checked style="height:auto"> ' + esc(ppl[q]) + (lead[ppl[q].toLowerCase()] ? ' <span class="muted">&ndash; lead of ' + esc(lead[ppl[q].toLowerCase()]) + ": gets the whole task and assigns the items</span>" : "") + "</label>";
-  $("whoList").innerHTML = h || '<div class="muted">No one is assigned yet &ndash; one file with everything will be made.</div>';
-  $("sAll").checked = !ppl.length;
-  $("sTitle").innerHTML = only ? "Send " + esc(only.code) + " " + esc(only.title) : "Send " + pool.length + " open task(s)";
-  $("send").style.display = "block";
+  $("whoList").innerHTML = pool.length ? h || '<div class="muted">No one is assigned yet &ndash; one file with everything will be made.</div>' : '<div class="muted">Tick at least one task above.</div>';
+  $("sAll").checked = pool.length && !ppl.length;
+  $("sTitle").innerHTML = sendAll.length == 1 ? "Send " + esc(sendAll[0].code) + " " + esc(sendAll[0].title) : "Send " + pool.length + " of " + sendAll.length + " open task(s)";
 }
 function doSend() {
   var boxes = $("whoList").getElementsByTagName("input"), ppl = [];
   for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) ppl.push(boxes[i].value);
-  var xl = $("sXl").checked, pk = $("sPk").checked, si = $("sSi").checked;
+  var xl = $("sXl").checked, pk = $("sPk").checked, si = $("sSi").checked; { var st0 = LT.settings(); st0.packModel = $("sMdl").checked; LT.saveSettings(st0); }   // remembered for next time (and the Team Board)
   if (!xl && !pk && !si) { alert("Tick at least one file type."); return; }
+  if (!sendTasks().length) { alert("Tick at least one task to send."); return; }
   if (!ppl.length && !$("sAll").checked) { alert("Tick at least one person, or “One file with everything”."); return; }
   $("send").style.display = "none";
   makeFiles(sendPool, ppl, $("sAll").checked, xl, pk, si, $("sTr").checked);
 }
+$("taskList").onclick = function (e) { var t = (e || window.event).target || (e || window.event).srcElement; if (t.tagName == "INPUT") sendPeople(); };
+$("stAllT").onclick = function () { var b = $("taskList").getElementsByTagName("input"); for (var i = 0; i < b.length; i++) b[i].checked = true; sendPeople(); };
+$("stNoT").onclick = function () { var b = $("taskList").getElementsByTagName("input"); for (var i = 0; i < b.length; i++) b[i].checked = false; sendPeople(); };
 function makeFiles(pool, ppl, everyone, xl, pk, si, tr) {
   var stamp = LT.stamp(), folder = sentRoot() + "\\" + stamp, project = data.project || "Tasks", by = LT.settings().userName || "", made = [], errors = [];
   for (var p = 0; p < pool.length; p++) if (pool[p].project) { project = pool[p].project; break; }
@@ -982,11 +1005,11 @@ function copyRefs(pool, folder, warn) {
   return copied;
 }
 /* what the pack shows for each reference: text + where it opens (a copy next to the pack, the original path, or the web link) */
-/* an item that is a drawing: "T1 · 1BR-A · model" (Drawing Register) for the pack, and the drawing's own link */
+/* an item that is a drawing: its model (Drawing Register) next to it in the pack - only when "show each drawing's model" is ticked; the link opens the model */
 function packInfo(x) { var no = x.dwg || "", r = x.refs || []; if (!no) for (var i = 0; i < r.length; i++) if (r[i].kind == "drawing") { no = r[i].value; break; }
   if (!no) { var w = LT.trim((x.title || "").split(/\s+/)[0] || ""); if (LT.isDocNo(w)) no = w; }
-  var f = no ? LT.dwgInfo(no) : null; if (!f) return { no: no, text: "", link: "" };
-  return { no: no, text: [f.tower, f.typo, f.model].filter(function (v) { return v; }).join(" \u00b7 "), link: LT.drawingLink(no) || "" }; }
+  var f = no && LT.settings().packModel === true ? LT.dwgInfo(no) : null; if (!f || !f.model) return { no: no, text: "", link: "" };   // only the model, and only when ticked in Send to people
+  return { no: no, text: f.model, link: f.link || "" }; }
 function packRefs(refs, copied) {
   var o = []; copied = copied || {};
   for (var i = 0; i < (refs || []).length; i++) { var r = refs[i], c = copied[(r.value || "").toLowerCase()], h = "";
@@ -1235,7 +1258,7 @@ function copyWeb() {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook([".dlist td.ck,.dlist th.ck{width:26px;padding-right:2px}.dlist td.it{white-space:nowrap}.dlist td.it .one{display:inline-block;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.dlist td.dwi{white-space:nowrap;font-size:.88em;color:{muted}}.dlist td.dwi .mlk{color:{accent};cursor:pointer;text-decoration:underline}.nums{cursor:pointer;color:{muted};font-size:.85em;margin-left:4px}.nums:hover{color:{accent}}#selBar{background:{accSoft};border-bottom:1px solid {line}}", "#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
+function look() { LT.applyLook([".dlist td.ck,.dlist th.ck{width:26px;padding-right:2px}.dlist td.it{white-space:nowrap}.dlist td.it .one{display:inline-block;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.dlist td.dwi{white-space:nowrap;font-size:.88em;color:{muted}}.dlist td.dwi .mlk{color:{accent};cursor:pointer;text-decoration:underline}#send .lk{cursor:pointer;text-decoration:underline}#taskList label{display:block;padding:2px 0}.dlist td.asg{cursor:pointer}.dlist td.asg:hover{color:{accent};text-decoration:underline}.nums{cursor:pointer;color:{muted};font-size:.85em;margin-left:4px}.nums:hover{color:{accent}}#selBar{background:{accSoft};border-bottom:1px solid {line}}", "#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
   ".col{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}.col.over{border-color:{accent};background:{hover}}",
   ".dc{background:{bg};border:{bw}px solid {line};border-radius:{r}px}.dc:hover{border-color:{accent}}",
   ".pb{background:{chip};border-radius:3px}.pb i{background:{accent}}",
@@ -1276,6 +1299,13 @@ $("main").onclick = function (e) { var el0 = e ? e.target : window.event.srcElem
   var ckt = el0 && el0.getAttribute && el0.getAttribute("data-ckt"), cks = el0 && el0.getAttribute && el0.getAttribute("data-cks"), nm = el0 && LT.up(el0, "data-nums");
   if (cks) { if (el0.checked) SEL[cks] = 1; else delete SEL[cks]; render(); return; }
   if (ckt) { var tt = findTask(ckt), on = el0.checked; if (!tt.subs.length) { if (on) SEL[tt.code] = 1; else delete SEL[tt.code]; } else for (var si = 0; si < tt.subs.length; si++) { if (on && tt.subs[si].status != "Completed") SEL[tt.subs[si].code] = 1; else delete SEL[tt.subs[si].code]; } render(); return; }
+  var ag = el0 && LT.up(el0, "data-asg"); if (ag && !(e || window.event).ctrlKey && !(e || window.event).shiftKey) { var code = ag.getAttribute("data-asg"); if (!SEL[code]) { SEL = {}; SEL[code] = 1; } var r0 = ag.getBoundingClientRect(); whoMenu(r0.left, r0.bottom); return; }
+  var rr0 = el0 && LT.up(el0, "data-r"), ev0 = e || window.event;
+  if (rr0 && (ev0.ctrlKey || ev0.shiftKey) && el0.tagName != "INPUT") { var m0 = rowMap[+rr0.getAttribute("data-r")]; if (m0 && !m0.t.fromWeb) { var c0 = m0.s ? m0.s.code : m0.t.subs.length ? "" : m0.t.code;
+      if (ev0.shiftKey && lastPick != null) { var a0 = Math.min(lastPick, +rr0.getAttribute("data-r")), b0 = Math.max(lastPick, +rr0.getAttribute("data-r")); for (var z0 = a0; z0 <= b0; z0++) { var mz = rowMap[z0]; if (mz.s) SEL[mz.s.code] = 1; else if (!mz.t.subs.length) SEL[mz.t.code] = 1; } }
+      else if (c0) { if (SEL[c0]) delete SEL[c0]; else SEL[c0] = 1; }
+      lastPick = +rr0.getAttribute("data-r"); render(); } return; }
+  if (cks) lastPick = +LT.up(el0, "data-r").getAttribute("data-r");
   if (nm) { var tn = findTask(nm.getAttribute("data-nums")); tn.hideNums = !tn.hideNums; save(); render(); LT.toast(tn.hideNums ? "Item numbers hidden for " + tn.code : "Item numbers shown for " + tn.code); return; }
   if (el0 && /\b(och|obk)\b/.test(el0.className || "")) { var rr = LT.up(el0, "data-r"); if (rr) { var mm = rowMap[+rr.getAttribute("data-r")]; if (mm && mm.t && !mm.t.fromWeb) { openOut(mm.t, mm.s); return; } } }
   var bp = LT.up(el0, "data-bpub"), bo = LT.up(el0, "data-bopen"), bs = LT.up(el0, "data-bset");

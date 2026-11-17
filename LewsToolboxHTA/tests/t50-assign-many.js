@@ -4,7 +4,7 @@ const fs = require('fs');
 module.exports = async ({ page, out }) => {
   const ok = (c, w) => console.log((c ? 'PASS ' : 'FAIL ') + w);
   await page.evaluate(() => { LT.mkdirs(LT.dataPath('register')); LT.saveJson(LT.dataPath('register.json'), { projects: [{ id: 'p1', name: 'Akala' }], current: 'p1' });
-    var D = {}; [['10102', '1BR-A'], ['10112', '1BR-B'], ['10122', '1BR-C'], ['10132', '1BR-D']].forEach(x => { var k = '5013-KEO-T1-ZZ-PLN-INT-' + x[0]; D[k] = { num: k, title: 'UNIT TYPE ' + x[1] + ' - DETAILED PLANS', ok: true, tower: 'T1', typo: x[1] }; });
+    var D = {}; [['10102', '1BR-A'], ['10112', '1BR-B'], ['10122', '1BR-C'], ['10132', '1BR-D']].forEach(x => { var k = '5013-KEO-T1-ZZ-PLN-INT-' + x[0]; D[k] = { num: k, title: 'UNIT TYPE ' + x[1] + ' (Res.1) - DETAILED PLANS (SMALL POWER PLAN - REFLECTED CEILING PLAN)', ok: true, tower: 'T1', typo: x[1] }; });
     LT.saveJson(LT.registerFile('p1'), { name: 'Akala', setup: {}, rules: [], history: [], changes: {}, drawings: D, sets: [], models: [{ tower: 'T1', typo: '1BR-A', model: 'M-1BRA' }, { tower: 'T1', typo: '1BR-B', model: 'M-1BRB' }] });
     var subs = Object.keys(D).map((k, i) => ({ code: 'T006.' + (i + 1), title: k + ' – ' + D[k].title, who: '', due: '', status: 'Not started', notes: '', refs: [{ kind: 'drawing', value: k }], dwg: k }));
     LT.saveJson(LT.dataPath('delegate.json'), { seq: 6, groups: [{ name: 'External team', lead: 'Sam', members: ['North Egypt', 'Ana'] }], tasks: [{ id: 'x', code: 'T006', title: 'PSPC FF&E + RCP', group: 'External team', who: 'External team', due: '', status: 'Not started', subs: subs, history: [] }] }); });
@@ -31,6 +31,27 @@ module.exports = async ({ page, out }) => {
   await d.click('#main [data-nums="T006"]'); await page.waitForTimeout(100);
   ok(await d.evaluate(() => !findTask('T006').hideNums && /T006\.1/.test($('main').innerText)), '... and show them again');
 
+  // Ctrl / Shift + click on rows, and the Assigned to cell
+  await d.evaluate(() => { SEL = {}; render(); });
+  await d.click('#main td.it >> nth=0', { modifiers: ['Control'] }); await d.click('#main td.it >> nth=2', { modifiers: ['Shift'] }); await page.waitForTimeout(100);
+  ok(/3 selected/.test(await d.evaluate(() => $('selBar').innerText)), 'Ctrl + click a row, Shift + click another: the rows between are selected');
+  await d.click('#main td.asg[data-asg="T006.2"]'); await page.waitForTimeout(100);
+  const mt = await d.evaluate(() => document.getElementById('menu').innerText);
+  ok(/Assign 3 items to/.test(mt) && /North Egypt/.test(mt) && /External team/.test(mt), 'click an "Assigned to" cell: a menu of people for all 3 selected');
+  await d.evaluate(() => { var m = document.querySelectorAll('#menu .mi'); for (var i = 0; i < m.length; i++) if (/^Ana/.test(m[i].innerText)) { m[i].click(); break; } }); await page.waitForTimeout(100);
+  ok(await d.evaluate(() => findTask('T006').subs.slice(0, 3).every(x => x.who == 'Ana') && findTask('T006').subs[3].who != 'Ana'), 'pick Ana: the 3 items are hers');
+  await d.click('#main td.asg[data-asg="T006.4"]'); await page.waitForTimeout(100);
+  ok(/Assign 1 item to/.test(await d.evaluate(() => document.getElementById('menu').innerText)), 'nothing selected: the cell assigns just its own item');
+  await d.evaluate(() => LT.hideMenu());
+  // Send to people: which tasks
+  await d.evaluate(() => { data.tasks.push({ id: 'y', code: 'T007', title: 'Other job', who: 'Ana', due: '', status: 'Not started', subs: [], history: [] }); save(); SEL = {}; render(); openSend(); }); await page.waitForTimeout(100);
+  ok(await d.evaluate(() => $('taskList').querySelectorAll('input:checked').length == 2 && /Send 2 of 2/.test($('sTitle').innerText)), 'Send to people: "Which tasks" lists the open tasks (all ticked)');
+  await d.evaluate(() => { $('taskList').querySelector('input[value="T006"]').click(); }); await page.waitForTimeout(100);
+  ok(await d.evaluate(() => /Send 1 of 2/.test($('sTitle').innerText) && sendPool.length == 1 && sendPool[0].code == 'T007' && /Ana/.test($('whoList').innerText) && !/North Egypt|Sam/.test($('whoList').innerText)), 'untick one: only the other is sent, and only its people are listed');
+  await d.evaluate(() => { $('send').style.display = 'none'; SEL = { 'T007': 1 }; openSend(); });
+  ok(await d.evaluate(() => $('taskList').querySelectorAll('input:checked').length == 1 && $('taskList').querySelector('input:checked').value == 'T007'), 'tasks ticked in the list come in ticked (the rest unticked)');
+  await page.screenshot({ path: out + '/send_which_tasks.png' });
+  await d.evaluate(() => { $('send').style.display = 'none'; data.tasks.pop(); SEL = {}; save(); render(); });
   // ---------- task pack for the group lead ----------
   await d.evaluate(() => { LT.mkdirs('C:\\Out'); var t = findTask('T006'); t.subs.forEach(s => { s.who = ''; }); buildPack('C:\\Out\\Tasks_Sam.html', [t], 'Akala', 'Lew', 'Sam', 'Sam', 'X1', ['North Egypt', 'Ana'], {}); });
   fs.writeFileSync('/tmp/claude-0/pack-many.html', await page.evaluate(() => window.__mockFs.files['c:\\out\\tasks_sam.html'].text));
@@ -39,8 +60,18 @@ module.exports = async ({ page, out }) => {
   const it = await pg.evaluate(() => [...document.querySelectorAll('.it')].map(e => ({ h: e.offsetHeight, inf: (e.querySelector('.inf') || {}).innerText || '', refs: (e.querySelector('.refs') || {}).innerText || '' })));
   ok(perr.length == 0 && it.length == 4, 'the pack opens (4 items)');
   ok(it.every(x => !/5013-KEO/.test(x.refs)), 'the drawing is not repeated under the item any more');
-  ok(it[0].inf == 'T1 · 1BR-A · M-1BRA' && it[1].inf == 'T1 · 1BR-B · M-1BRB', 'instead: Tower · Typology · Model next to the title');
+  ok(it.every(x => x.inf == ''), 'by default nothing extra next to the title');
   ok(it.every(x => x.h < 50), 'one line per item');
+  ok(await pg.evaluate(() => [...document.querySelectorAll('.it .tt')].every(t => t.scrollWidth <= t.clientWidth + 1 && getComputedStyle(t).textOverflow != 'ellipsis')), 'the full name shows (never cut)');
+  { await d.evaluate(() => { var st = LT.settings(); st.packModel = true; LT.saveSettings(st); buildPack('C:\\Out\\Tasks_Sam2.html', [findTask('T006')], 'Akala', 'Lew', 'Sam', 'Sam', 'X2', ['North Egypt', 'Ana'], {}); st.packModel = false; LT.saveSettings(st); });
+    fs.writeFileSync('/tmp/claude-0/pack-many2.html', await page.evaluate(() => window.__mockFs.files['c:\\out\\tasks_sam2.html'].text));
+    const p2 = await page.context().newPage(); await p2.goto('file:///tmp/claude-0/pack-many2.html'); await p2.waitForTimeout(600);
+    const inf2 = await p2.evaluate(() => [...document.querySelectorAll('.it')].map(e => (e.querySelector('.inf') || {}).innerText || ''));
+    ok(inf2[0] == 'M-1BRA' && inf2[1] == 'M-1BRB' && inf2[2] == '', '"show each drawing\'s model" ticked: only the model next to the title');
+    await p2.screenshot({ path: out + '/pack_model_only.png' }); await p2.close(); }
+  await d.evaluate(() => { openSend(); }); await page.waitForTimeout(150);
+  ok(await d.evaluate(() => !!$('sMdl') && $('sMdl').checked === false && /model/.test($('sMdl').parentNode.innerText)), 'Send to people: the tick box "show each drawing\'s model" (off by default, remembered)');
+  await d.evaluate(() => { $('send').style.display = 'none'; });
   await pg.click('[data-pick="T006.2"]'); await pg.click('[data-pick="T006.4"]'); await pg.waitForTimeout(100);
   ok(/2 ticked/.test(await pg.evaluate(() => document.querySelector('.picks').innerText)), 'the lead ticks several items: "2 ticked · Assign to …"');
   await pg.selectOption('#pickWho', 'Ana'); await pg.click('[data-pickgo]'); await pg.waitForTimeout(100);

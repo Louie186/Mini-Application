@@ -686,8 +686,13 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.35";
+  L.VERSION = "2026.11.36";
   L.WHATS_NEW = [
+    { v: "2026.11.36", items: [
+      "<b>Task packs show the full name</b> of every item (never cut; long names a little smaller)",
+      "<b>Send to people &rarr; Which tasks</b>: tick only the tasks to send (tasks you ticked in the list come in ticked); the people follow",
+      "<b>Delegate</b>: Ctrl + click / Shift + click rows to select, then <b>click an Assigned to cell</b> &ndash; one person for all of them",
+      "<b>Task packs</b>: nothing extra next to each drawing any more. Want the model there? Tick <b>show each drawing&#39;s model</b> in <b>Send to people</b> (only the model; remembered for next time, the Team Board follows it)" ] },
     { v: "2026.11.35", items: [
       "<b>Assign many at once</b> (Delegate): tick items (or a task = all its items) &ndash; the bar on top: <b>Assign to</b> a person of your groups, Status, Due, for all of them",
       "<b>One line per item</b> in Delegate, with a <b>Tower &middot; Typology &middot; Model</b> column for drawings &middot; <b>hide the item numbers</b> of a task (the <b>#</b> next to its ID, or right-click)",

@@ -182,8 +182,9 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
    - **More ▾ → + New task here** still makes a task only in Delegate (not in Tasks)
 2. **📤 Send to people…** – tick people and file types. Each person gets only their tasks; a group's task goes to its **lead**
    - **Excel task sheet** (yellow boxes, Status drop-down, + / − groups, NEW blocks, a **References** column) – made through your Excel
+   - **Which tasks** (top of Send to people): all open tasks, or only the ones you ticked in the list – untick any; the people below follow the tasks you keep
    - **HTML task pack** – opens in any browser (phone too); references are clickable; they press **Save reply** and send you the .txt
-     - one line per item; a drawing item shows **Tower · Typology · Model** next to its title (not the drawing again). A group's lead **ticks several items → Assign to** one person at once
+     - one line per item, **the full name always shows** (long names a little smaller; the drawing isn't repeated under it). Tick **show each drawing's model** (Send to people, under the HTML task pack) to put **only the model** next to each drawing – off by default, remembered, the Team Board follows it. A group's lead **ticks several items → Assign to** one person at once
    - **Simple Excel table**
    - **Make a transmittal for each person** (on by default) – see below
    - Saved in `exports\Delegate\<date time>`; reference copies go into its `References` folder
@@ -220,7 +221,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - `TR-…` folder (in the Transmittal tab's folder): the **transmittal sheet**, their **task pack(s)** and their **reference copies** (`References\…`, so the pack's links work there too). Drawings in the references are listed on the sheet
 - Purpose **For action**; notes name the tasks (`T001`, `TL-001`). It's in the Transmittal log, the Delegate task's history and in Tasks
 
-**Assign many at once** (Tasks view): tick items – or a task's box = all its open items, or the box in the heading = everything shown – and the bar above the list sets **Assign to** (the people of your groups, or someone else…), **Status** and **Due** for all of them; the task's history notes it. Items are **one line each** (the full title on hover); drawings show **Tower · Typology · Model** in their own column. The **#** next to a task's ID (or right-click) **hides / shows its item numbers**.
+**Assign many at once** (Tasks view): tick items (or **Ctrl + click / Shift + click** the rows), then **click an Assigned to cell** for a menu of people – or tick items – or a task's box = all its open items, or the box in the heading = everything shown – and the bar above the list sets **Assign to** (the people of your groups, or someone else…), **Status** and **Due** for all of them; the task's history notes it. Items are **one line each** (the full title on hover); drawings show **Tower · Typology · Model** in their own column. The **#** next to a task's ID (or right-click) **hides / shows its item numbers**.
 
 **Views:** **Tasks** (progress, late in red) · **▦ Board** · **📅 Calendar** · **👥 Team & groups** · **📊 Workload** · **🌐 Lew's Tracker** (read-only, when linked)
 - **▦ Board** – drag a card to another column to change its status (a task with items follows its items)

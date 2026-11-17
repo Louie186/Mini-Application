@@ -150,7 +150,8 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
   4. **🔎 Check a folder…** – pick a folder (your prints, or what someone sent back): every drawing found in it is ticked (`A-101.pdf`, `A-101-P02.pdf`, `A-101_P02.dwg` all count). The missing numbers are copied for you, and it's noted on the timeline
   - Save it as a **template** (e.g. *Print 1BRA set*): each time you use it, it brings in drawings added to the MIDP since
   - **My set** – one of your sets, or **📋 List lookup** (the drawings the Drawing Register's List lookup found) – both in their own order
-  - Every checklist item that is a drawing of the MIDP shows **Tower · Typology · Model** under it (the model opens with a click)
+  - Every checklist item that is a drawing of the MIDP shows **Tower · Typology · Model** in its own column (the model opens with a click)
+- **Several items at once** (task window): tick items (Shift + tick = a range, the box in the heading = all) → the bar above the checklist sets **Who**, **Due** or **Status** for all of them · **Hide item numbers** (under the checklist) hides TL-003.1, .2… – also when the task is delegated
 - **Templates** – right-click a task → **📑 Save as template…** (its checklist, who, references and how many days it usually takes). **📑 From template ▾** (top) starts a new task from one, due that many days from today. Delete a template from the same menu
 - **Close-out pack** – right-click a task (or **📦 Close-out pack** in its folder window): a zip of its **Output** folder + the summary (PDF + HTML) + notes, saved in the task folder as `<ID> <task> - close-out <date>.zip`
 
@@ -182,6 +183,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 2. **📤 Send to people…** – tick people and file types. Each person gets only their tasks; a group's task goes to its **lead**
    - **Excel task sheet** (yellow boxes, Status drop-down, + / − groups, NEW blocks, a **References** column) – made through your Excel
    - **HTML task pack** – opens in any browser (phone too); references are clickable; they press **Save reply** and send you the .txt
+     - one line per item; a drawing item shows **Tower · Typology · Model** next to its title (not the drawing again). A group's lead **ticks several items → Assign to** one person at once
    - **Simple Excel table**
    - **Make a transmittal for each person** (on by default) – see below
    - Saved in `exports\Delegate\<date time>`; reference copies go into its `References` folder
@@ -217,6 +219,8 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 **Transmittal for each person** (Send → "Make a transmittal for each person")
 - `TR-…` folder (in the Transmittal tab's folder): the **transmittal sheet**, their **task pack(s)** and their **reference copies** (`References\…`, so the pack's links work there too). Drawings in the references are listed on the sheet
 - Purpose **For action**; notes name the tasks (`T001`, `TL-001`). It's in the Transmittal log, the Delegate task's history and in Tasks
+
+**Assign many at once** (Tasks view): tick items – or a task's box = all its open items, or the box in the heading = everything shown – and the bar above the list sets **Assign to** (the people of your groups, or someone else…), **Status** and **Due** for all of them; the task's history notes it. Items are **one line each** (the full title on hover); drawings show **Tower · Typology · Model** in their own column. The **#** next to a task's ID (or right-click) **hides / shows its item numbers**.
 
 **Views:** **Tasks** (progress, late in red) · **▦ Board** · **📅 Calendar** · **👥 Team & groups** · **📊 Workload** · **🌐 Lew's Tracker** (read-only, when linked)
 - **▦ Board** – drag a card to another column to change its status (a task with items follows its items)

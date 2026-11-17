@@ -686,8 +686,13 @@ var LT = (function () {
   };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.34";
+  L.VERSION = "2026.11.35";
   L.WHATS_NEW = [
+    { v: "2026.11.35", items: [
+      "<b>Assign many at once</b> (Delegate): tick items (or a task = all its items) &ndash; the bar on top: <b>Assign to</b> a person of your groups, Status, Due, for all of them",
+      "<b>One line per item</b> in Delegate, with a <b>Tower &middot; Typology &middot; Model</b> column for drawings &middot; <b>hide the item numbers</b> of a task (the <b>#</b> next to its ID, or right-click)",
+      "<b>Task packs</b>: the drawing isn't repeated under each item any more &ndash; Tower &middot; Typology &middot; Model instead, one line per item, a wider page. A group's lead <b>ticks several items and assigns them together</b>",
+      "<b>Tasks checklist</b>: tick items (Shift = a range) and set Who / Due / Status for all of them &middot; Tower &middot; Typology &middot; Model in its own column &middot; <b>Hide item numbers</b> &middot; a wider task window" ] },
     { v: "2026.11.34", items: [
       "<b>Watched folders on the Core</b> (Home): each folder with its new / changed / removed files, <b>&#8635; Refresh</b> and <b>+ Watch a folder</b> &ndash; click a folder for the Incoming list (as on the Dashboard)",
       "<b>Folder Check &rarr; Submission: &#128193; My set</b> as the list &ndash; found / missing / not on the list for a set's drawings (any revision counts, the one found is noted)",
@@ -976,8 +981,9 @@ var LT = (function () {
       tb.className = tb.className.replace(/\s*fitm/, ""); tb.style.width = oldW;
       cg = document.createElement("colgroup");
       for (var c = 0; c < ths.length; c++) {
+        // a column marked data-wide (long titles kept on one line) may grow to 760px, the others to 320px
         var k = key + "|" + headText(ths[c]), w = c < nf ? 0 : sw[k] || gridCache[k];
-        if (!sw[k] && c >= nf) { var nw = Math.max(60, Math.min(nat[c], 320)); if (!w || nw > w) w = nw; gridCache[k] = w; }   // grows when new content needs more room, never shrinks by itself
+        if (!sw[k] && c >= nf) { var nw = Math.max(60, Math.min(nat[c], ths[c].getAttribute("data-wide") ? 760 : 320)); if (!w || nw > w) w = nw; gridCache[k] = w; }   // grows when new content needs more room, never shrinks by itself
         else if (!w) { w = nat[c]; gridCache[k] = 0; }
         if (c < nf) w = nat[c] + 2;
         var col = document.createElement("col"); col.style.width = w + "px"; col.setAttribute("data-gk", k); cg.appendChild(col); tot += w;

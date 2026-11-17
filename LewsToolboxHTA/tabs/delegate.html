@@ -73,6 +73,7 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
     <label class="lbl"><input type="checkbox" id="hideDone" checked style="height:auto"> Hide completed</label>
     <span class="lbl muted" id="hint"></span>
   </div>
+  <div id="selBar" class="bar2" style="display:none"></div>
   <div id="main"></div>
 </div>
 
@@ -317,6 +318,7 @@ function render() {
   if (data.imports.length) { var li = data.imports[data.imports.length - 1]; h += '<span class="lbl muted">Last reply: ' + esc(li.from) + ", " + esc(li.when) + "</span>"; }
   $("views").innerHTML = h;
   $("filters").style.display = view == "workload" || view == "planner" ? "none" : "";
+  if (view != "list") $("selBar").style.display = "none";
   if (view == "workload") { workload(); return; }
   if (view == "planner") { planner(); return; }
   if (view == "team") team(); else if (view == "board") board(); else if (view == "cal") cal(); else list(view == "web" ? web : data.tasks);
@@ -439,24 +441,48 @@ function list(tasks) {
   rowMap = [];
   var who = $("person").value, words = LT.trim($("search").value.toLowerCase()).split(/\s+/); if (!words[0]) words = [];
   var sorted = tasks.slice(0).sort(function (a, b) { var x = statusOf(a) == "Completed", y = statusOf(b) == "Completed"; if (x != y) return x ? 1 : -1; return a.code.toLowerCase() < b.code.toLowerCase() ? -1 : 1; });
-  var h = ['<table class="grid"><tr><th>ID</th><th>Task / item</th><th>Group</th><th>Assigned to</th><th>Due</th><th>Status</th><th>Progress</th><th>Notes</th><th>Last update</th></tr>'];
+  var dw = false; for (var q0 = 0; q0 < sorted.length && !dw; q0++) for (var q1 = 0; q1 < sorted[q0].subs.length && !dw; q1++) if (itemInfo(sorted[q0].subs[q1])) dw = true;   // a Tower / Typology / Model column only when items are drawings
+  var h = ['<table class="grid dlist"><tr><th class="ck" title="Tick items to assign them together"><input type="checkbox" id="ckAll" style="height:auto"></th><th>ID</th><th data-wide="1">Task / item</th>' + (dw ? '<th title="From the Drawing Register">Tower &middot; Typology &middot; Model</th>' : "") + '<th>Group</th><th>Assigned to</th><th>Due</th><th>Status</th><th>Progress</th><th>Notes</th><th>Last update</th></tr>'];
   for (var i = 0; i < sorted.length; i++) {
     var t = sorted[i], st = statusOf(t);
     if ($("hideDone").checked && st == "Completed") continue;
     if (!match(t, who, words)) continue;
     var whole = !who || has(t.who, who);
     rowMap.push({ t: t, s: null });
-    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td>' + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + "</td><td>" + esc(t.title) + outChip(t) + "</td><td>" + esc(t.group) + "</td><td>" + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
+    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td class="ck">' + (t.fromWeb ? "" : '<input type="checkbox" style="height:auto" data-ckt="' + esc(t.code) + '"' + (t.subs.length ? (allSel(t) ? " checked" : "") : (SEL[t.code] ? " checked" : "")) + ' title="' + (t.subs.length ? "Tick all its items" : "Tick this task") + '">') + "</td><td>" + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + (t.subs.length ? ' <span class="nums" data-nums="' + esc(t.code) + '" title="' + (t.hideNums ? "Show" : "Hide") + ' the item numbers">' + (t.hideNums ? "#" : "#&#824;") + "</span>" : "") + "</td><td>" + esc(t.title) + outChip(t) + "</td>" + (dw ? "<td></td>" : "") + "<td>" + esc(t.group) + "</td><td>" + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
     for (var j = 0; j < t.subs.length; j++) {
       var s = t.subs[j]; if (!whole && !has(s.who, who)) continue;
       rowMap.push({ t: t, s: s });
-      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.status == "Completed" ? ' class="muted"' : "") + "><td>" + esc(s.code) + '</td><td class="it">&#8627; ' + esc(s.title) + outChip(s) + "</td><td></td><td>" + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
+      h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.status == "Completed" ? ' class="muted"' : SEL[s.code] ? ' class="sel"' : "") + '><td class="ck"><input type="checkbox" style="height:auto" data-cks="' + esc(s.code) + '"' + (SEL[s.code] ? " checked" : "") + "></td><td>" + (t.hideNums ? "" : esc(s.code)) + '</td><td class="it" title="' + esc(s.title) + '"><span class="one">&#8627; ' + esc(s.title) + "</span>" + outChip(s) + "</td>" + (dw ? '<td class="dwi">' + (itemInfo(s) || "") + "</td>" : "") + "<td></td><td>" + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
     }
   }
-  h.push("</table>");
+  h.push("</table>"); selBar();
   $("main").innerHTML = rowMap.length ? h.join("") : '<div class="muted" style="padding:30px">' + (view == "web" ? "No tasks in Lew's Tracker's Delegation.json." : data.tasks.length ? "Nothing matches." : "No tasks yet &ndash; click + New task.") + "</div>";
   $("hint").innerHTML = view == "web" ? "Read-only copy of Lew's Tracker. More &#9662; &gt; Copy Lew's Tracker tasks into the Toolbox to work on them here." : rowMap.length ? "Double-click = edit &middot; right-click = status, send, history&hellip;" : "";
 }
+/* ---------- several at once: tick items (or a task = all its items), then Assign to / Status / Due in the bar above the list ---------- */
+var SEL = {};   // item or task code -> 1
+function itemInfo(x) { var no = x.dwg || "", f; if (!no) { var w = LT.trim((x.title || "").split(/\s+/)[0] || ""); if (LT.isDocNo(w)) no = w; else { var r = x.refs || []; for (var i = 0; i < r.length; i++) if (r[i].kind == "drawing") { no = r[i].value; break; } } }
+  f = no ? LT.dwgInfo(no) : null; if (!f) return ""; var b = []; if (f.tower) b.push(esc(f.tower)); if (f.typo) b.push(esc(f.typo)); if (f.model) b.push(f.link ? '<span class="mlk" data-ml="' + esc(f.link) + '" title="' + esc(f.link) + ' - click to open">' + esc(f.model) + "</span>" : esc(f.model)); return b.join(" &middot; "); }
+function allSel(t) { if (!t.subs.length) return !!SEL[t.code]; for (var i = 0; i < t.subs.length; i++) if (!SEL[t.subs[i].code]) return false; return true; }
+function selList() { var o = []; for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (!t.subs.length) { if (SEL[t.code]) o.push({ t: t, x: t }); } else for (var j = 0; j < t.subs.length; j++) if (SEL[t.subs[j].code]) o.push({ t: t, x: t.subs[j] }); } return o; }
+function selBar() { var L = selList(), b = $("selBar"); if (!L.length || view != "list") { b.style.display = "none"; return; }
+  var pp = people(), opts = ""; for (var g = 0; g < data.groups.length; g++) { var G = data.groups[g]; opts += '<optgroup label="' + esc(G.name) + '">'; var ms = [G.lead].concat(G.members || []); for (var k = 0; k < ms.length; k++) if (ms[k]) opts += "<option>" + esc(ms[k]) + "</option>"; opts += "</optgroup>"; }
+  var inG = {}; for (var g2 = 0; g2 < data.groups.length; g2++) { inG[(data.groups[g2].lead || "").toLowerCase()] = 1; for (var m2 = 0; m2 < (data.groups[g2].members || []).length; m2++) inG[data.groups[g2].members[m2].toLowerCase()] = 1; }
+  for (var q = 0; q < pp.length; q++) if (!inG[pp[q].toLowerCase()]) opts += "<option>" + esc(pp[q]) + "</option>";
+  b.innerHTML = '<b class="lbl">' + L.length + " selected</b>" + '<span class="lbl">Assign to</span><select id="sbWho" style="width:190px;margin:0 6px 6px 0"><option value="">pick a person&hellip;</option>' + opts + '<option value="?">someone else&hellip;</option></select><button class="btn small primary" id="sbAssign">Assign</button>' +
+    '<span class="lbl" style="margin-left:10px">Status</span><select id="sbSt" style="width:130px;margin:0 6px 6px 0"><option value=""></option>' + ST.map(function (v) { return "<option>" + v + "</option>"; }).join("") + '</select><span class="lbl">Due</span><input type="text" id="sbDue" placeholder="dd/mm/yyyy" style="width:100px;margin:0 6px 6px 0"><button class="btn small" id="sbSet">Set</button><button class="btn small" id="sbClear">Clear selection</button>';
+  b.style.display = "";
+  $("sbAssign").onclick = function () { var w = $("sbWho").value; if (w == "?") { w = prompt("Assign the " + L.length + " selected to:", ""); w = w ? LT.trim(w) : ""; } if (!w) { $("sbWho").focus(); return; } assignSel(w); };
+  $("sbSet").onclick = function () { var st = $("sbSt").value, d = LT.trim($("sbDue").value), iso = ""; if (d) { var m = /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/.exec(d); if (!m) { alert("Type the date as dd/mm/yyyy."); return; } var y = +m[3]; if (y < 100) y += 2000; iso = LT.iso(new Date(y, +m[2] - 1, +m[1])); } if (!st && !iso) return; setSel(st, iso); };
+  $("sbClear").onclick = function () { SEL = {}; render(); };
+}
+function assignSel(w) { var L = selList(), st = stampNow() + " \u00b7 me", byT = {}; for (var i = 0; i < L.length; i++) { var x = L[i].x, t = L[i].t; x.who = w; x.updated = st; t.updated = st; (byT[t.code] = byT[t.code] || { t: t, c: [] }).c.push(x === t ? t.code : x.code); }
+  for (var k in byT) if (byT.hasOwnProperty(k)) byT[k].t.history.push(st + "  " + byT[k].c.join(", ") + " assigned to " + w + " (" + byT[k].c.length + " at once)");
+  SEL = {}; save(); render(); LT.toast(L.length + " assigned to " + w); }
+function setSel(stv, due) { var L = selList(), st = stampNow() + " \u00b7 me"; for (var i = 0; i < L.length; i++) { var x = L[i].x, t = L[i].t; if (stv) { x.status = stv; x.doneOn = stv == "Completed" ? LT.today() : ""; } if (due) x.due = due; x.updated = st; t.updated = st; }
+  var by = {}; for (var j = 0; j < L.length; j++) by[L[j].t.code] = L[j].t; for (var k in by) if (by.hasOwnProperty(k)) by[k].history.push(st + "  " + L.length + " item(s): " + [stv, due ? "due " + LT.fmtDate(due) : ""].filter(Boolean).join(", ") + " (at once)");
+  SEL = {}; save(); render(); LT.toast(L.length + " updated"); }
 function dueCell(due, st) { return "<td" + (late(due, st) ? ' class="bad"' : "") + ">" + esc(LT.fmtDate(due)) + (late(due, st) ? " &nbsp;late" : "") + "</td>"; }
 function stCell(st) { return '<td class="' + (st == "Completed" ? "ok" : st == "In progress" ? "warn" : "") + '">' + st + "</td>"; }
 /* Workload (hours per person per week) lives in parts\workload.html, shown here */
@@ -518,7 +544,7 @@ function fromLog(L, under) {
   for (var d = 0; d < data.tasks.length; d++) if (data.tasks[d].log && data.tasks[d].log == L.code) { view = "list"; render(); openSend(data.tasks[d]); return data.tasks[d]; }
   if (under) return fromLogUnder(L, under);
   var g = groupOf(L.who), st = stampNow() + " · me";
-  var t = { id: LT.uid("t"), code: nextCode(), log: L.code, title: L.title, group: g ? g.name : "", project: L.project || data.project, who: L.who, due: L.due || "", status: "Not started", notes: L.notes || "",
+  var t = { id: LT.uid("t"), code: nextCode(), hideNums: !!L.hideNums, log: L.code, title: L.title, group: g ? g.name : "", project: L.project || data.project, who: L.who, due: L.due || "", status: "Not started", notes: L.notes || "",
     refs: copy(L.refs || []), created: LT.today(), updated: st, history: [st + "  From Tasks " + L.code + (g ? "  (group " + g.name + ", lead " + g.lead + ")" : "")], subs: [] };
   for (var i = 0; i < (L.subs || []).length; i++) { var x = L.subs[i];
     t.subs.push({ id: LT.uid("s"), code: t.code + "." + (i + 1), title: x.title, who: x.who || "", due: x.due || "", status: x.status == "Done" ? "Completed" : "Not started", notes: "", refs: copy(x.refs || []), updated: "" }); }
@@ -664,6 +690,7 @@ function rowMenu(t, s, x, y) {
   if (s || !t.subs.length) for (var i = 0; i < ST.length; i++) (function (v) {
     m.push({ label: "Status: " + v, on: (s ? s.status : t.status) == v, fn: function () { var st = stampNow() + " · me"; if (s) { s.status = v; s.updated = st; s.doneOn = v == "Completed" ? LT.today() : ""; } else { t.status = v; t.doneOn = v == "Completed" ? LT.today() : ""; } t.updated = st; t.history.push(st + "  " + (s ? s.code : t.code) + " → " + v); save(); render(); } });
   })(ST[i]);
+  if (t.subs.length) m.push({ label: (t.hideNums ? "Show" : "Hide") + " the item numbers (" + t.code + ".1, .2...)", fn: function () { t.hideNums = !t.hideNums; save(); render(); } });
   m.push("-", { label: "&#128279; Output" + (outCount(s || t) ? " (" + outCount(s || t) + ")" : "") + "...", fn: function () { openOut(t, s); } },
     { label: "&#8617; Send back for changes...", fn: function () { sendBack(t, s); } });
   m.push("-", { label: "&#128228; Send this task...", fn: function () { openSend(t); } },
@@ -923,7 +950,9 @@ function ascii(s) { return ("" + s).replace(/[^\x20-\x7e]/g, function (c) { retu
 function buildPack(path, tasks, project, by, label, person, exportId, team, copied, extra) {
   var list = [];
   for (var i = 0; i < tasks.length; i++) { var t = tasks[i], subs = [];
-    for (var j = 0; j < t.subs.length; j++) subs.push({ code: t.subs[j].code, title: t.subs[j].title, who: t.subs[j].who || "", due: t.subs[j].due || t.due || "", status: t.subs[j].status, notes: t.subs[j].notes || "", refs: packRefs(t.subs[j].refs, copied), isNew: !!t.subs[j].isNew, outs: outLines(t.subs[j]) });
+    for (var j = 0; j < t.subs.length; j++) { var sj = t.subs[j], pr = packRefs(sj.refs, copied), inf = packInfo(sj);
+      if (inf.no) pr = pr.filter(function (r) { return !(r.k == "drawing" && ("" + sj.title).toUpperCase().indexOf(inf.no.toUpperCase()) >= 0); });   // the drawing is already the item's title: not again under it
+      subs.push({ code: sj.code, title: sj.title, who: sj.who || "", due: sj.due || t.due || "", status: sj.status, notes: sj.notes || "", refs: pr, isNew: !!sj.isNew, outs: outLines(sj), info: inf.text, infoH: inf.link }); }
     list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", subs: subs, refs: packRefs(t.refs, copied).concat(t.boardRefs || []), isNew: !!t.isNew, outs: outLines(t) }); }
   var pack = { id: exportId, projectId: "toolbox", project: project, by: by, at: LT.today(), label: label, person: person, MARK: MARK, tasks: list, team: team || [] };
   if (extra) for (var xk in extra) if (extra.hasOwnProperty(xk)) pack[xk] = extra[xk];
@@ -953,6 +982,11 @@ function copyRefs(pool, folder, warn) {
   return copied;
 }
 /* what the pack shows for each reference: text + where it opens (a copy next to the pack, the original path, or the web link) */
+/* an item that is a drawing: "T1 · 1BR-A · model" (Drawing Register) for the pack, and the drawing's own link */
+function packInfo(x) { var no = x.dwg || "", r = x.refs || []; if (!no) for (var i = 0; i < r.length; i++) if (r[i].kind == "drawing") { no = r[i].value; break; }
+  if (!no) { var w = LT.trim((x.title || "").split(/\s+/)[0] || ""); if (LT.isDocNo(w)) no = w; }
+  var f = no ? LT.dwgInfo(no) : null; if (!f) return { no: no, text: "", link: "" };
+  return { no: no, text: [f.tower, f.typo, f.model].filter(function (v) { return v; }).join(" \u00b7 "), link: LT.drawingLink(no) || "" }; }
 function packRefs(refs, copied) {
   var o = []; copied = copied || {};
   for (var i = 0; i < (refs || []).length; i++) { var r = refs[i], c = copied[(r.value || "").toLowerCase()], h = "";
@@ -1201,7 +1235,7 @@ function copyWeb() {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook(["#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
+function look() { LT.applyLook([".dlist td.ck,.dlist th.ck{width:26px;padding-right:2px}.dlist td.it{white-space:nowrap}.dlist td.it .one{display:inline-block;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.dlist td.dwi{white-space:nowrap;font-size:.88em;color:{muted}}.dlist td.dwi .mlk{color:{accent};cursor:pointer;text-decoration:underline}.nums{cursor:pointer;color:{muted};font-size:.85em;margin-left:4px}.nums:hover{color:{accent}}#selBar{background:{accSoft};border-bottom:1px solid {line}}", "#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
   ".col{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}.col.over{border-color:{accent};background:{hover}}",
   ".dc{background:{bg};border:{bw}px solid {line};border-radius:{r}px}.dc:hover{border-color:{accent}}",
   ".pb{background:{chip};border-radius:3px}.pb i{background:{accent}}",
@@ -1238,6 +1272,11 @@ $("main").ondragenter = function (e) { e = e || window.event; var t = dropTarget
 $("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); if (overEl) { mark(overEl, false); overEl = null; } dropOn(e.target || e.srcElement); return false; };
 $("main").ondragend = function () { dragI = null; if (overEl) { mark(overEl, false); overEl = null; } };
 $("main").onclick = function (e) { var el0 = e ? e.target : window.event.srcElement; if (el0 && el0.id == "gAdd") { editGroup(null); return; }
+  if (el0 && el0.id == "ckAll") { SEL = {}; if (el0.checked) for (var ra = 0; ra < rowMap.length; ra++) { var ma = rowMap[ra]; if (ma.t.fromWeb) continue; if (ma.s) SEL[ma.s.code] = 1; else if (!ma.t.subs.length) SEL[ma.t.code] = 1; } render(); return; }
+  var ckt = el0 && el0.getAttribute && el0.getAttribute("data-ckt"), cks = el0 && el0.getAttribute && el0.getAttribute("data-cks"), nm = el0 && LT.up(el0, "data-nums");
+  if (cks) { if (el0.checked) SEL[cks] = 1; else delete SEL[cks]; render(); return; }
+  if (ckt) { var tt = findTask(ckt), on = el0.checked; if (!tt.subs.length) { if (on) SEL[tt.code] = 1; else delete SEL[tt.code]; } else for (var si = 0; si < tt.subs.length; si++) { if (on && tt.subs[si].status != "Completed") SEL[tt.subs[si].code] = 1; else delete SEL[tt.subs[si].code]; } render(); return; }
+  if (nm) { var tn = findTask(nm.getAttribute("data-nums")); tn.hideNums = !tn.hideNums; save(); render(); LT.toast(tn.hideNums ? "Item numbers hidden for " + tn.code : "Item numbers shown for " + tn.code); return; }
   if (el0 && /\b(och|obk)\b/.test(el0.className || "")) { var rr = LT.up(el0, "data-r"); if (rr) { var mm = rowMap[+rr.getAttribute("data-r")]; if (mm && mm.t && !mm.t.fromWeb) { openOut(mm.t, mm.s); return; } } }
   var bp = LT.up(el0, "data-bpub"), bo = LT.up(el0, "data-bopen"), bs = LT.up(el0, "data-bset");
   if (bp) { publishBoard(data.groups[+bp.getAttribute("data-bpub")]); return; }

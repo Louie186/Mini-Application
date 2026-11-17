@@ -58,9 +58,9 @@
     css.textContent = [
       ':root{--ink:#1f2430;--muted:#5f6675;--line:#e1e4ea;--bg:#f4f5f9;--card:#fff;--acc:#5b3e7e;--acc2:#3d2b56;--ok:#2e7d4f;--ip:#b7791f;--bad:#c0392b;--soft:#f3f0f8}',
       '*{box-sizing:border-box}body{margin:0;font:15px/1.4 "Segoe UI",Calibri,system-ui,sans-serif;color:var(--ink);background:var(--bg)}',
-      '.top{background:linear-gradient(135deg,var(--acc2),var(--acc));color:#fff;padding:10px 16px}.top .row1{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;max-width:980px;margin:0 auto}.top h1{margin:0;font-size:17px;letter-spacing:.02em}.top .sub{opacity:.85;font-size:13px}',
-      '.top .prog{max-width:980px;margin:6px auto 0;display:flex;align-items:center;gap:8px;font-size:13px}.bar{flex:1;height:7px;background:rgba(255,255,255,.25);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#9be37b}',
-      '.wrap{max-width:980px;margin:0 auto;padding:10px 12px 90px}',
+      '.top{background:linear-gradient(135deg,var(--acc2),var(--acc));color:#fff;padding:10px 16px}.top .row1{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;max-width:1400px;margin:0 auto}.top h1{margin:0;font-size:17px;letter-spacing:.02em}.top .sub{opacity:.85;font-size:13px}',
+      '.top .prog{max-width:1400px;margin:6px auto 0;display:flex;align-items:center;gap:8px;font-size:13px}.bar{flex:1;height:7px;background:rgba(255,255,255,.25);border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:#9be37b}',
+      '.wrap{max-width:1400px;margin:0 auto;padding:10px 12px 90px}',
       '.help{background:#fffbea;border:1px solid #f0d98c;border-radius:10px;padding:7px 12px;margin-bottom:10px;font-size:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.help span{flex:1}',
       '.bar2{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}.bar2 input{flex:1 1 160px;padding:6px 10px}',
       'input,textarea{font:inherit;color:inherit;border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:#fff;width:100%}textarea{min-height:34px;resize:vertical}',
@@ -78,17 +78,21 @@
       '.it textarea{grid-column:1/-1;font-size:13.5px;margin:2px 0 4px}.new{background:#fbfaff}.tag{font-size:10.5px;font-weight:700;color:var(--acc);border:1px solid var(--acc);border-radius:99px;padding:0 5px;margin-left:5px;vertical-align:1px}',
       '.add{padding:5px 12px;border-top:1px dashed var(--line);display:flex;gap:6px}.add input{flex:1;padding:4px 9px;font-size:14px;border-style:dashed}.add button{padding:3px 10px;font-size:13px}',
       '.panel{padding:10px 12px;display:grid;gap:7px}.lbl{font-size:12.5px;color:var(--muted)}',
-      '.foot{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:7px 12px;box-shadow:0 -2px 10px rgba(0,0,0,.06)}.foot .in{max-width:980px;margin:0 auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}.foot .hint{font-size:12.5px;color:var(--muted);flex:1 1 200px}',
+      '.foot{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:7px 12px;box-shadow:0 -2px 10px rgba(0,0,0,.06)}.foot .in{max-width:1400px;margin:0 auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}.foot .hint{font-size:12.5px;color:var(--muted);flex:1 1 200px}',
       '.saved{color:var(--ok)}.saved.no{color:var(--bad)}',
       '.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;padding:16px;z-index:9}.modal .box{background:#fff;border-radius:14px;padding:16px;max-width:560px;width:100%}.modal textarea{min-height:160px;font:12px Consolas,monospace}',
       '@media(max-width:600px){.it{grid-template-columns:1fr auto}.it .sts{grid-column:1/-1;order:3;justify-self:start}.due{margin-left:0;width:100%}}',
       '@media print{.foot,.help,.bar2,.add,.tools,.panelbtn,.panelcard{display:none!important}.it textarea{display:none}.wrap{padding-bottom:0}.card{break-inside:avoid}.sts button:not(.on){display:none}}'
     ].join('\n');
     css.textContent += '.refs{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:3px;font-size:13px}.refs a{color:#2f6fed;text-decoration:none}.refs a:hover{text-decoration:underline}.refs span{opacity:.85}' +
-      '.outs{margin-top:4px;font-size:13px;word-break:break-all}.outs a{color:var(--acc);margin-right:2px}.outs .had{color:var(--muted)}textarea.outin{border-color:var(--acc)}',
-      'select.who{margin-top:3px;font-size:13px;padding:2px 6px;border-radius:6px;max-width:200px}small.who{opacity:.8}';
+      '.outs{margin-top:4px;font-size:13px;word-break:break-all}.outs a{color:var(--acc);margin-right:2px}.outs .had{color:var(--muted)}textarea.outin{border-color:var(--acc)}' +
+      'select.who{margin-top:3px;font-size:13px;padding:2px 6px;border-radius:6px;max-width:200px}small.who{opacity:.8}' +
+      '.it .nm{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px}.it .nm>span.tt{flex:1 1 320px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.it .nm small{margin-left:0}' +
+      '.it .nm small.inf{white-space:nowrap;font-size:12.5px;color:var(--muted)}.it .nm small.inf a{color:#2f6fed;text-decoration:none}.it .nm .refs{margin-top:0}.it .nm em,.it .nm .outs{flex-basis:100%}.it .nm select.who{margin-top:0}' +
+      'input.pick{width:auto;margin:0 2px 0 0;cursor:pointer}.picks{position:sticky;top:0;z-index:5;background:#fff8e6;border:1px solid #f0d98c;border-radius:10px;padding:6px 12px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px}.picks select{font:inherit;padding:3px 8px;border-radius:6px}';
     document.head.appendChild(css);
-    document.addEventListener('change', function (e) { var w = e.target.getAttribute && e.target.getAttribute('data-who'); if (w) { setItem(w, 'who', e.target.value); save(); } });
+    document.addEventListener('change', function (e) { var w = e.target.getAttribute && e.target.getAttribute('data-who'); if (w) { setItem(w, 'who', e.target.value); save(); }
+      var pk = e.target.getAttribute && e.target.getAttribute('data-pick'); if (pk) { PICK[pk] = e.target.checked; render(); } });
     document.title = 'Tasks \u2014 ' + (P.label || P.person || '');
 
     var OPEN = {};
@@ -104,12 +108,18 @@
       return '<select class="who" data-who="' + esc(l.code) + '" title="Who in your team does this?"><option value="">Assign to\u2026</option>' +
         P.team.map(function (n) { return '<option' + (n === w ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') + '</select>';
     }
+    /* team packs: tick several items, then one "Assign to" for all of them */
+    var PICK = {};
+    function canPick(l) { return P.team && P.team.length && !l.n && l.base && l.base !== l.t; }
+    function picksHtml() { var n = Object.keys(PICK).filter(function (k) { return PICK[k]; }).length; if (!P.team || !P.team.length) return '';
+      return '<div class="picks">' + (n ? '<b>' + n + ' ticked</b> \u00b7 Assign to <select id="pickWho"><option value="">\u2026</option>' + P.team.map(function (x) { return '<option>' + esc(x) + '</option>'; }).join('') + '</select><button class="main" data-pickgo="1">Assign</button><button data-pickclr="1">Untick all</button>'
+        : '\u2611 Tick the boxes in front of the items to assign several to one person at once') + '</div>'; }
     function itemHtml(l) {
       var key = l.n ? 'n:' + l.n.lid : 'c:' + l.code, st = stOf(l), notes = l.n ? l.n.notes : cur(l.code, l.base).notes;
       var title = l.n ? l.n.title : (l.base === l.t ? 'Status of this task' : l.base.title), lt = late(l);
       return '<div class="it' + (st === 'Completed' ? ' done' : '') + (l.n ? ' new' : '') + '">' +
         '<div class="sts">' + ST.map(function (s, i) { return '<button class="s' + i + (s[0] === st ? ' on' : '') + '" data-st="' + key + '" data-v="' + s[0] + '">' + s[1] + '</button>'; }).join('') + '</div>' +
-        '<div class="nm"><span>' + esc(title) + '</span>' + (l.n || (!l.n && l.base !== l.t && l.base.isNew) ? '<span class="tag">NEW</span>' : '') + (!l.n && l.base && l.base.info ? '<small class="inf">' + esc(l.base.info) + '</small>' : '') +
+        '<div class="nm">' + (canPick(l) ? '<input type="checkbox" class="pick" data-pick="' + esc(l.code) + '"' + (PICK[l.code] ? ' checked' : '') + ' title="Tick several, then Assign them together (top of the page)">' : '') + '<span class="tt" title="' + esc(title) + '">' + esc(title) + '</span>' + (l.n || (!l.n && l.base !== l.t && l.base.isNew) ? '<span class="tag">NEW</span>' : '') + (!l.n && l.base && l.base.info ? '<small class="inf">' + (l.base.infoH ? '<a href="' + esc(l.base.infoH) + '" target="_blank" rel="noopener" title="Open the drawing">' + esc(l.base.info) + '</a>' : esc(l.base.info)) + '</small>' : '') +
         '<small class="' + (lt ? 'late' : '') + '">' + (l.due ? (lt ? 'overdue ' : '') + esc(fmt(l.due)) : '') + '</small>' + whoHtml(l) +
         (!l.n && l.base !== l.t ? refsHtml(l.base.refs) : '') +
         (notes && !OPEN[key] ? '<em>\u270e ' + esc(notes) + '</em>' : '') + outHtml(l, key) + '</div>' +
@@ -140,6 +150,7 @@
         '<div class="prog"><span>' + done + ' of ' + all.length + ' done' + (lateN ? ' \u00b7 <b>' + lateN + ' overdue</b>' : '') + '</span><div class="bar"><i style="width:' + pct + '%"></i></div><span>' + pct + '%</span></div></div><div class="wrap">';
       if (P.board) h += '<div class="help" style="background:#eef4ff;border-color:#b9cdf5"><span>\ud83d\udccc <b>Team Board</b> \u00b7 updated ' + esc(P.board.at || '') + ' \u00b7 refresh this page to see new tasks \u00b7 each task\u2019s files are in its own folder next to this page \u00b7 <b>Save reply</b> into the <b>' + esc(P.board.replies || '_Replies') + '</b> folder</span></div>';
       if (S.help) h += '<div class="help"><span>\ud83d\udc4b Click <b>To do / Doing / Done</b> on each line \u00b7 <b>\u270e</b> adds a note \u00b7 <b>\ud83d\udd17</b> adds the link to your output (ACC, WeTransfer, a file path) \u00b7 then <b>\ud83d\udce4 Save reply</b> and ' + (P.board ? 'save it in the <b>' + esc(P.board.replies || '_Replies') + '</b> folder' : 'send the file to ' + esc(P.by || 'me')) + '.</span><button data-help="0">Got it</button></div>';
+      h += picksHtml();
       h += '<div class="bar2"><input id="q" placeholder="Search\u2026" value="' + esc(S.q) + '">' + [['all', 'All'], ['open', 'To do'], ['done', 'Done']].map(function (f) { return '<button class="chip' + (S.filter === f[0] ? ' on' : '') + '" data-f="' + f[0] + '">' + f[1] + '</button>'; }).join('') +
         '<button class="chip panelbtn' + (S.panel === 'task' ? ' on' : '') + '" data-panel="task">+ New task</button><button class="chip panelbtn' + (S.panel === 'msg' ? ' on' : '') + '" data-panel="msg">\ud83d\udcac Message' + (S.msg ? ' \u2713' : '') + '</button></div>';
       if (S.panel === 'task') h += '<div class="card panelcard"><div class="panel"><input id="ntT" placeholder="Task name \u2014 something extra you are working on"><textarea id="ntI" placeholder="Items \u2014 one per line (optional)"></textarea>' +
@@ -218,6 +229,8 @@
       else if (a('data-outopen')) { var k1 = 'o' + a('data-outopen'); OPEN[k1] = !OPEN[k1]; render(); var to = document.querySelector('[data-out="' + a('data-outopen') + '"]'); if (to) { to.focus(); to.setSelectionRange(to.value.length, to.value.length); } }
       else if (a('data-noteopen')) { var k0 = a('data-noteopen'); OPEN[k0] = !OPEN[k0]; render(); var ta = document.querySelector('[data-note="' + k0 + '"]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
       else if (a('data-panel')) { S.panel = S.panel === a('data-panel') ? '' : a('data-panel'); save(); render(); var fi = document.getElementById(S.panel === 'task' ? 'ntT' : 'msg'); if (fi) fi.focus(); }
+      else if (a('data-pickgo')) { var pw = document.getElementById('pickWho').value; if (!pw) { document.getElementById('pickWho').focus(); return; } Object.keys(PICK).forEach(function (c) { if (PICK[c]) setItem(c, 'who', pw); }); PICK = {}; save(); render(); }
+      else if (a('data-pickclr')) { PICK = {}; render(); }
       else if (a('data-f')) { S.filter = a('data-f'); save(); render(); }
       else if (a('data-help')) { S.help = false; save(); render(); }
       else if (a('data-add')) {

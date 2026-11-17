@@ -749,7 +749,7 @@ function setOf(id) { var a = P.sets || []; for (var i = 0; i < a.length; i++) if
 function setsView() {
   P.sets = P.sets || []; var S = setOf(curSet) || P.sets[0] || null; curSet = S ? S.id : "";
   $("tickBar").style.display = "none";
-  $("sum").innerHTML = "Your own groups of drawings &ndash; set one up once, then pull it into a task any time (Tasks &gt; a task &gt; &#128216; From the MIDP &gt; <b>My set</b>). Drag drawings from the MIDP (left) into the set (right) &ndash; <b>they stay in the order you drop them</b> (drop on a drawing to put it before that one, drag inside the set to reorder); drag back to remove. <b>&#9745; Task checklist</b> makes a task from the set.";
+  $("sum").innerHTML = "Your own groups of drawings &ndash; set one up once, then pull it into a task any time (Tasks &gt; a task &gt; &#128216; From the MIDP &gt; <b>My set</b>). Drag drawings from the MIDP (left) into the set (right) &ndash; <b>the set keeps the MIDP&#39;s order</b> (tick <i>Only the ones not in the set yet</i> to see what&#39;s missing; <i>Order: mine</i> lets you drag your own order); drag back to remove. <b>&#9745; Task checklist</b> makes a task from the set.";
   var D = P.drawings, ks = order(D), inSet = {}, h = [];
   if (S) for (var i = 0; i < S.keys.length; i++) inSet[S.keys[i]] = 1;
   h.push('<div class="sets"><div class="sl"><div class="slh">My sets <button class="btn small" id="stNew">+ New set</button></div>');

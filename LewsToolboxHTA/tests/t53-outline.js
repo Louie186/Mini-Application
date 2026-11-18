@@ -13,19 +13,21 @@ module.exports = async ({ page, out }) => {
     { id: 'b', code: 'T007', title: 'Other', who: 'Ben', due: '', status: 'Not started', subs: [{ code: 'T007.1', title: 'X', who: '', due: '', status: 'Not started', notes: '' }], history: [] }] }); });
   await page.click('.nb[data-k="delegate"]'); await page.waitForTimeout(700);
   const d = page.frame({ url: /delegate\.html/ }); await d.evaluate(() => { load(); view = 'list'; render(); });
-  const rows = () => d.evaluate(() => document.querySelectorAll('#main tr[data-r]').length);
+  const rows = () => d.evaluate(() => [...document.querySelectorAll('#main tr[data-r]')].filter(r => r.style.display != 'none').length);
   ok(await rows() == 5, 'the list: 2 tasks + 3 items');
-  await d.click('[data-tog="T006"]'); await page.waitForTimeout(100);
+  await d.evaluate(() => { document.querySelector('#main table').__mark = 1; });
+  await d.click('[data-tog="T006"]'); await page.waitForTimeout(300);
+  ok(await d.evaluate(() => document.querySelector('#main table').__mark === 1), 'folding does not draw the list again (it stays still)');
   ok(await rows() == 3 && await d.evaluate(() => findTask('T006').collapsed === true && /2 items/.test($('main').innerText)), 'click ▾ on a task: its items fold away ("2 items"), remembered');
   ok(await d.evaluate(() => !findTask('T007').collapsed && /T007\.1/.test($('main').innerText)), '... only that task: the other task keeps its items');
-  await d.click('[data-tog="T006"]'); await page.waitForTimeout(100);
+  await d.click('[data-tog="T006"]'); await page.waitForTimeout(300);
   await d.evaluate(() => { var r = [...document.querySelectorAll('#main tr.task')].find(x => /T007/.test(x.innerText)); var e = document.createEvent('MouseEvents'); e.initMouseEvent('contextmenu', true, true, window, 1, 0, 0, 200, 200, false, false, false, false, 2, null); r.dispatchEvent(e); });
   ok(/Collapse this task/.test(await d.evaluate(() => document.getElementById('menu').innerText)), 'right-click a task: Collapse this task');
-  await d.evaluate(() => { var m = document.querySelectorAll('#menu .mi'); for (var i = 0; i < m.length; i++) if (/Collapse this task/.test(m[i].innerText)) m[i].click(); }); await page.waitForTimeout(100);
-  ok(await d.evaluate(() => findTask('T007').collapsed && !findTask('T006').collapsed && !/T007\.1/.test($('main').innerText) && /T006\.1/.test($('main').innerText)), '... only T007 folds');
+  await d.evaluate(() => { var m = document.querySelectorAll('#menu .mi'); for (var i = 0; i < m.length; i++) if (/Collapse this task/.test(m[i].innerText)) m[i].click(); }); await page.waitForTimeout(300);
+  ok(await d.evaluate(() => findTask('T007').collapsed && !findTask('T006').collapsed && [...document.querySelectorAll('#main tr[data-of="T007"]')].every(r => r.style.display == 'none') && [...document.querySelectorAll('#main tr[data-of="T006"]')].every(r => r.style.display != 'none')), '... only T007 folds');
   await d.evaluate(() => { delete findTask('T007').collapsed; save(); render(); });
-  await d.click('#bColAll'); await page.waitForTimeout(100); ok(await rows() == 2, 'Collapse all: only the tasks');
-  await d.click('#bExpAll'); await page.waitForTimeout(100); ok(await rows() == 5, 'Expand all: everything');
+  await d.click('#bColAll'); await page.waitForTimeout(300); ok(await rows() == 2, 'Collapse all: only the tasks');
+  await d.click('#bExpAll'); await page.waitForTimeout(300); ok(await rows() == 5, 'Expand all: everything');
   // the outline in the task window
   await d.evaluate(() => edit(findTask('T006'))); await page.waitForTimeout(100);
   await d.evaluate(t => { $('eOutline').value = t; $('eOutline').onkeyup(); }, OUT);

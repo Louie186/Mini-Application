@@ -741,8 +741,10 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.41";
+  L.VERSION = "2026.11.42";
   L.WHATS_NEW = [
+    { v: "2026.11.42", items: [
+      "<b>Folding a task is smooth</b> (Delegate): its items fold away in place, in a few quick steps &ndash; the list isn't drawn again and doesn't jump" ] },
     { v: "2026.11.41", items: [
       "<b>Work outline</b>: in the task window (Delegate and Tasks) write what they need to adjust &ndash; one point per line, <b>Tab</b> = one level in &ndash; it numbers itself (1. a. i.) and goes in the <b>task pack</b>, the <b>Excel task sheet</b> (Guide sheet) and the <b>Team Board</b>",
       "<b>Collapse one task</b>: the &#9662; button in front of a task (Delegate) folds only that task &ndash; or right-click it: Collapse this task. In the <b>task pack</b>, &#9662; on a task folds just that one too. Collapse all / Expand all stay in the filter bar" ] },

@@ -17,6 +17,13 @@ module.exports = async ({ page, out }) => {
   ok(await rows() == 5, 'the list: 2 tasks + 3 items');
   await d.click('[data-tog="T006"]'); await page.waitForTimeout(100);
   ok(await rows() == 3 && await d.evaluate(() => findTask('T006').collapsed === true && /2 items/.test($('main').innerText)), 'click ▾ on a task: its items fold away ("2 items"), remembered');
+  ok(await d.evaluate(() => !findTask('T007').collapsed && /T007\.1/.test($('main').innerText)), '... only that task: the other task keeps its items');
+  await d.click('[data-tog="T006"]'); await page.waitForTimeout(100);
+  await d.evaluate(() => { var r = [...document.querySelectorAll('#main tr.task')].find(x => /T007/.test(x.innerText)); var e = document.createEvent('MouseEvents'); e.initMouseEvent('contextmenu', true, true, window, 1, 0, 0, 200, 200, false, false, false, false, 2, null); r.dispatchEvent(e); });
+  ok(/Collapse this task/.test(await d.evaluate(() => document.getElementById('menu').innerText)), 'right-click a task: Collapse this task');
+  await d.evaluate(() => { var m = document.querySelectorAll('#menu .mi'); for (var i = 0; i < m.length; i++) if (/Collapse this task/.test(m[i].innerText)) m[i].click(); }); await page.waitForTimeout(100);
+  ok(await d.evaluate(() => findTask('T007').collapsed && !findTask('T006').collapsed && !/T007\.1/.test($('main').innerText) && /T006\.1/.test($('main').innerText)), '... only T007 folds');
+  await d.evaluate(() => { delete findTask('T007').collapsed; save(); render(); });
   await d.click('#bColAll'); await page.waitForTimeout(100); ok(await rows() == 2, 'Collapse all: only the tasks');
   await d.click('#bExpAll'); await page.waitForTimeout(100); ok(await rows() == 5, 'Expand all: everything');
   // the outline in the task window
@@ -36,6 +43,10 @@ module.exports = async ({ page, out }) => {
   const ptx = await pg.evaluate(() => document.querySelector('.olx') ? document.querySelector('.olx').innerText : '');
   ok(/1\.\s*RCP printing/.test(ptx) && /d\.\s*No clouds/.test(ptx) && /iii\.\s*Furniture Accessories and Mats\/Rugs: 62006/.test(ptx), 'task pack: the Work outline under the task, numbered 1. a. i.');
   await pg.screenshot({ path: out + '/pack_outline.png' });
+  await pg.click('[data-fold="T006"]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => !document.querySelector('.it') && !document.querySelector('.olx') && /PSPC/.test(document.querySelector('.card').innerText)), 'task pack: ▾ on a task folds just that task (outline and items hidden)');
+  await pg.click('[data-fold="T006"]'); await pg.waitForTimeout(100);
+  ok(await pg.evaluate(() => document.querySelectorAll('.it').length == 2), '... and opens it again');
   await pg.click('[data-olt="T006"]'); await pg.waitForTimeout(100);
   ok(await pg.evaluate(() => !document.querySelector('.olx') && !!document.querySelector('.olt')), '... it can be folded away');
   await pg.close();

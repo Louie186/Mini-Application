@@ -741,11 +741,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.40";
+  L.VERSION = "2026.11.41";
   L.WHATS_NEW = [
-    { v: "2026.11.40", items: [
+    { v: "2026.11.41", items: [
       "<b>Work outline</b>: in the task window (Delegate and Tasks) write what they need to adjust &ndash; one point per line, <b>Tab</b> = one level in &ndash; it numbers itself (1. a. i.) and goes in the <b>task pack</b>, the <b>Excel task sheet</b> (Guide sheet) and the <b>Team Board</b>",
-      "<b>Delegate: collapsible tasks</b> &ndash; &#9662; / &#9656; on each task (remembered), Collapse all / Expand all" ] },
+      "<b>Collapse one task</b>: the &#9662; button in front of a task (Delegate) folds only that task &ndash; or right-click it: Collapse this task. In the <b>task pack</b>, &#9662; on a task folds just that one too. Collapse all / Expand all stay in the filter bar" ] },
     { v: "2026.11.39", items: [
       "<b>Folder Check, simpler</b>: five views &ndash; <b>Contents</b>, <b>Checklist</b>, <b>Revisions</b> (new), <b>Find</b>, <b>Review</b> &ndash; and <b>Tools &#9662;</b> for Submission check, Names, Compare and Superseded",
       "<b>Revisions</b> (new): a folder or a list against the <b>MIDP</b> or a <b>LOD list</b> &ndash; same / older / newer, with Tower &middot; Typology &middot; Model; only one set if you like; Export CSV",

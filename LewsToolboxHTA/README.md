@@ -222,7 +222,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - `TR-…` folder (in the Transmittal tab's folder): the **transmittal sheet**, their **task pack(s)** and their **reference copies** (`References\…`, so the pack's links work there too). Drawings in the references are listed on the sheet
 - Purpose **For action**; notes name the tasks (`T001`, `TL-001`). It's in the Transmittal log, the Delegate task's history and in Tasks
 
-**Collapsible tasks:** **▾ / ▸** in front of a task's ID folds its items away (remembered; a folded task says *N items*) · **▸ Collapse all / ▾ Expand all** in the filter bar.
+**Collapse one task:** the **▾ / ▸** button in front of a task's ID folds **only that task's** items (remembered; a folded task says *N items*) – or right-click the task → **Collapse this task**. **▸ Collapse all / ▾ Expand all** (filter bar) do every task. In the **HTML task pack**, ▾ on a task folds just that task too.
 
 **📋 Work outline** (task window, under Notes – in Tasks too, and it comes along when you delegate): what they need to adjust, e.g.
 ```

@@ -41,7 +41,7 @@ module.exports = async ({ page, out }) => {
   await page.click('.nb[data-k="delegate"]'); await page.waitForTimeout(500);
   const d1 = await DT();
   ok(d1.subs.slice().sort().join() == 'A-101-,A-102,A-104+' && /List Units: \+1 new, 1 removed/.test(await dg.evaluate(() => data.tasks[data.tasks.length - 1].history.join('|'))), 'Delegate: the same - new item in, removed one flagged (in the history too)');
-  ok(await dg.evaluate(() => { view = 'list'; render(); return !!document.querySelector('#main tr[data-gone] .lgn') && !!document.querySelector('#main .lnew') && /Units/.test(document.querySelector('#main .lset').innerText); }), 'Delegate list: NEW / removed marks, and the task shows the set it follows');
+  ok(await dg.evaluate(() => { view = 'list'; render(); return !!document.querySelector('#main tr[data-gone] .lgn') && !!document.querySelector('#main .lnew') && /Units/.test(document.querySelector('#main .lset:not(.nit)').innerText); }), 'Delegate list: NEW / removed marks, and the task shows the set it follows');
   await page.screenshot({ path: out + '/live_list_delegate.png' });
   await dg.evaluate(() => { var t = data.tasks[data.tasks.length - 1]; t.subs.forEach(s => { if (!s.listGone) s.status = 'Completed'; }); save(); });
   ok((await DT()).st == 'Completed', 'a removed item does not hold the task open');

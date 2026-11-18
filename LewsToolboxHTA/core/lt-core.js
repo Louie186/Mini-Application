@@ -741,8 +741,10 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.42";
+  L.VERSION = "2026.11.43";
   L.WHATS_NEW = [
+    { v: "2026.11.43", items: [
+      "Fixed: the \"trIssued\" script error in the Drawing Register. If the revision helper file doesn't load, the Toolbox now reads it by itself (or tells you which file is missing)"] },
     { v: "2026.11.42", items: [
       "<b>Folding a task is smooth</b> (Delegate): its items fold away in place, in a few quick steps &ndash; the list isn't drawn again and doesn't jump" ] },
     { v: "2026.11.41", items: [
@@ -1138,5 +1140,18 @@ var LT = (function () {
     };
     if (document.attachEvent) document.attachEvent("onkeydown", h); else document.addEventListener("keydown", h, false);
   };
+  /* safety net: the revision / transmittal helpers live in core\lt-transmittal.js. If a page's own <script> for it
+     didn't load (file blocked, mixed copy...), the first call reads it from the core folder; the real file replaces these */
+  var TRN = ["trFile", "trLoad", "trSave", "trNo", "trDir", "revCmp", "trSplit", "trIssued", "revCheck", "sinceLast", "trMake"], trTried = false;
+  function trLoadNow() {
+    if (trTried) return; trTried = true;
+    var p = L.appDir() + "\\core\\lt-transmittal.js";
+    try { new Function("LT", L.readText(p))(L); }
+    catch (e) { try { alert("Lew's Toolbox couldn't load " + p + "\n\nPlease replace the whole LewsToolboxHTA folder from the latest zip (not single files).\n\n" + (e.message || e)); } catch (x) { } }
+  }
+  for (var ti = 0; ti < TRN.length; ti++) (function (nm) {
+    var stub = function () { trLoadNow(); if (L[nm] === stub) throw new Error("core\\lt-transmittal.js is missing (" + nm + ")"); return L[nm].apply(L, arguments); };
+    L[nm] = stub;
+  })(TRN[ti]);
   return L;
 })();

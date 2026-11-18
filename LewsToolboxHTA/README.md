@@ -456,6 +456,11 @@ For drawings someone sends you **to check**: the folder's own contents become yo
 2. **Folder** (subfolders, only some types)
 3. **Check names** – each wrong name says which part is wrong ("Type XX is not an allowed code"). **Export (CSV)**, **Fix names in Bulk Files**
 4. **Rename to the rule** – where the right name can be worked out (wrong separator `_` `.` or spaces, lower case, a number too short like `101` → `00101`, `P1` → `P01`), the **Rename to** column shows it, ticked. Untick any you don't want, click **Rename to the rule (N)** – same folder, extension kept. A name that's already taken is skipped (never overwritten). **Undo last rename** puts the old names back. Names it can't guess say *by hand*
+5. **Correct names from ▾** (next to the folder) – where the right numbers come from: **the MIDP**, one of **My sets**, or **an Excel / CSV list** you pick (number and revision columns are found by themselves), or *the naming rule only*
+   - A file that matches a drawing there gets that number in **Rename to** (*from MIDP / set / list*), even when the name follows the rule but the number is different
+   - **Single edit:** each row has a **number box** and a **revision box** – type in them (`c4` → `C04`), or click **MIDP rev C03** to take that revision. Editing ticks the row
+   - **Bulk edit** (ticked rows): type a revision → **Set**, **Revision +1** (C01 → C02), **Use MIDP / set / list revision**, **Use … number**, **Reset**, **Tick all shown / Untick all**. **Shift+click** a tick box ticks a range
+   - **Rename (N)** shows the new names first and warns about any that still break the rule. Nothing redraws while you edit
 
 ### Compare
 

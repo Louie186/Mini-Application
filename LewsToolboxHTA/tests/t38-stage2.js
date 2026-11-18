@@ -22,7 +22,7 @@ module.exports = async ({ page, out }) => {
   const c = page.frame({ url: /check\.html/ }); await c.evaluate(() => setView('naming')); await page.waitForTimeout(600);
   const nm = page.frame({ url: /naming\.html/ }); await quiet(nm);
   await nm.evaluate(() => ltReceive('open-folder', 'C:\\Names')); await page.waitForTimeout(150);
-  ok(await nm.evaluate(() => /Rename to the rule \(2\)/.test($('bRen').innerText) && $('res').querySelectorAll('.fx').length == 2 && /by hand/.test($('res').innerText)), 'Names: a "Rename to" column with the fixed name ticked; "by hand" where it can\'t be guessed; button Rename to the rule (2)');
+  ok(await nm.evaluate(() => /Rename \(2\)/.test($('bRen').innerText) && $('res').querySelectorAll('.src').length == 2 && /by hand/.test($('res').innerText)), 'Names: a "Rename to" column with the fixed name ticked; "by hand" where it can\'t be guessed; button Rename to the rule (2)');
   await page.screenshot({ path: out + '/s2_names.png' });
   await nm.click('#bRen'); await page.waitForTimeout(150);
   let files = await F();

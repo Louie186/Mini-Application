@@ -26,6 +26,7 @@
 .right{float:right}
 </style>
 <script src="../../core/lt-core.js"></script>
+<script src="../../core/lt-transmittal.js"></script>
 </head>
 <body>
 <div id="app">
@@ -47,12 +48,23 @@
     <span class="num">2</span><button class="btn" id="bFolder">&#128194; Folder...</button><span class="path big" id="folderLbl"></span>
     <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
     <span class="lbl">Only:</span><input type="text" id="only" style="width:120px;margin:0 8px 6px 0" placeholder="e.g. pdf, dwg">
+    <span class="lbl big">Correct names from:</span><button class="btn" id="bMatch" title="The right drawing numbers (and revisions) come from here">MIDP &#9662;</button><span class="lbl muted" id="matchInfo"></span>
   </div>
   <div class="step bar">
     <span class="num">3</span><button class="btn primary" id="bRun">&#9654; Check names</button>
     <span class="lbl">Show:</span><select id="show" style="width:150px;height:26px;margin:0 8px 6px 0"><option value="bad" selected>Problems only</option><option value="all">Everything</option></select>
     <span class="lbl big" id="sum"></span>
     <span class="right"><button class="btn primary" id="bRen" style="display:none" title="Renames the ticked files to the suggested name - in the same folder">Rename to the rule</button><button class="btn" id="bUndo" style="display:none">Undo last rename</button><button class="btn" id="bCsv">Export (CSV)</button><button class="btn" id="bFix">Fix names in Bulk Files</button></span>
+  </div>
+  <div class="step bar" id="bulk" style="display:none">
+    <span class="lbl"><b id="nT">0</b> ticked &middot; Revision</span><input type="text" id="bkRev" style="width:60px;margin:0 4px 6px 0" placeholder="C02">
+    <button class="btn small" id="bkSet" title="Give every ticked file this revision">Set</button>
+    <button class="btn small" id="bkUp" title="C01 -> C02, P03 -> P04">Revision +1</button>
+    <button class="btn small" id="bkMidR" title="The revision in the MIDP">Use MIDP revision</button>
+    <button class="btn small" id="bkMidN" title="The drawing number as it is in the MIDP">Use MIDP number</button>
+    <button class="btn small" id="bkOwn" title="Back to the name it has now">Reset</button>
+    <span class="lbl muted">&middot;</span><button class="btn small" id="bkAll">Tick all shown</button><button class="btn small" id="bkNone">Untick all</button>
+    <span class="lbl muted">Shift+click a tick box = tick a range</span>
   </div>
   <div id="res"></div>
 </div>
@@ -111,30 +123,109 @@ function run() {
   var only = LT.trim($("only").value.toLowerCase()).split(/[\s,;.]+/); if (!only[0]) only = [];
   var files = []; scan(folder, $("subs").checked, only, files);
   var r = rule(), bad = 0;
-  for (var i = 0; i < files.length; i++) { files[i].probs = checkName(files[i].stem, r); if (files[i].probs.length) { bad++; files[i].fix = LT.nameFix(files[i].stem, r); files[i].tick = !!files[i].fix; } }
-  results = files;
+  REF = buildRef(); showMatch();
+  for (var i = 0; i < files.length; i++) { var f = files[i]; f.probs = checkName(f.stem, r); propose(f, r); if (f.probs.length) bad++; }
+  results = files; lastT = -1;
   $("sum").innerHTML = files.length ? (bad ? '<span class="bad">&#10006; ' + bad + " of " + files.length + " names have problems</span>" : '<span class="ok">&#10004; All ' + files.length + " names follow the rule</span>") : "No files found.";
   render();
 }
+/* ---------- the corrected name: number part (base) + revision, each can be edited; a match in the MIDP is used first ---------- */
+/* ---------- where the right numbers come from: the MIDP, one of My sets, or an Excel / CSV list (store.match = { kind, id, path }) ---------- */
+var REF = null;
+function U(x) { return LT.trim(x || "").toUpperCase(); }
+function reg() { try { return LT.register(); } catch (e) { return null; } }
+function matchOf() { return store.match || { kind: "midp" }; }
+function refShort() { var m = matchOf(); return m.kind == "set" ? "set" : m.kind == "list" ? "list" : m.kind == "none" ? "" : "MIDP"; }
+function refLabel() { var m = matchOf(), R; if (m.kind == "none") return "the naming rule only";
+  if (m.kind == "set") { R = reg(); var ss = R ? R.sets() : []; for (var i = 0; i < ss.length; i++) if (ss[i].id == m.id) return "My set: " + ss[i].name; return "My set (not found)"; }
+  if (m.kind == "list") return "List: " + (m.path ? fso.GetFileName(m.path) : "?"); return "MIDP"; }
+function isNo(v) { v = LT.trim(v); return /\d/.test(v) && /[-_]/.test(v) && !/\s/.test(v); }
+function readTable(p) { var L = LT.readList(p, ""), c = LT.listColumns(L, {}, true), t = L.table, iN = L.head.indexOf(c.name), iR = c.rev ? L.head.indexOf(c.rev) : -1, o = [], w = 0, r, col;
+  for (r = 0; r < Math.min(t.length, 300); r++) w = Math.max(w, (t[r] || []).length);
+  var score = function (col, test) { var n = 0, all = 0; for (var r2 = 0; r2 < Math.min(t.length, 300); r2++) { var v = LT.cell(t[r2] || [], col); if (!v) continue; all++; if (test(v)) n++; } return all ? n / all : 0; };
+  if (iN < 0 || score(iN, isNo) < 0.5) { var bN = -1, sN = 0; for (col = 0; col < w; col++) { var x = score(col, isNo); if (x > sN) { sN = x; bN = col; } } if (bN >= 0) iN = bN; }
+  if (iR < 0) { var bR = -1, sR = 0.5; for (col = 0; col < w; col++) { if (col == iN) continue; var y = score(col, function (v) { return REV.test(U(v)); }); if (y >= sR) { sR = y; bR = col; } } iR = bR; }
+  for (r = 0; r < t.length; r++) { var v = LT.cell(t[r] || [], iN); if (!v || !isNo(v)) continue; var sp = LT.trSplit(v.replace(/\.[a-z0-9]{2,4}$/i, "")); o.push({ base: U(sp.base), rev: U(iR >= 0 ? LT.cell(t[r], iR) : sp.rev) }); }
+  return o; }
+/* { M: { BASE: { base, rev } }, num: { "10100": BASE or "" when not unique } } */
+function buildRef() {
+  var m = matchOf(), rows = [], R, i;
+  if (m.kind == "none") return null;
+  if (m.kind == "list") { if (!m.path || !fso.FileExists(m.path)) return null; try { rows = readTable(m.path); } catch (e) { alert("Couldn't read the list: " + (e.message || e)); return null; } }
+  else { R = reg(); if (!R) return null; var keys = [];
+    if (m.kind == "set") { var ss = R.sets(); for (i = 0; i < ss.length; i++) if (ss[i].id == m.id) keys = ss[i].keys.slice(0); }
+    else { var l = R.list(); for (i = 0; i < l.length; i++) if (l[i].inMidp) keys.push(l[i].key); }
+    for (i = 0; i < keys.length; i++) { var d = R.find(keys[i]); if (d) rows.push({ base: U(LT.trSplit(d.number).base || d.number), rev: U(d.rev) }); } }
+  var o = { M: {}, num: {}, n: 0 };
+  for (i = 0; i < rows.length; i++) { var b = rows[i].base; if (!b) continue; if (!o.M[b]) o.n++; if (!o.M[b] || rows[i].rev) o.M[b] = rows[i];
+    var ns = b.split(/[-_ .]+/); for (var j = 0; j < ns.length; j++) if (/^\d{3,}$/.test(ns[j])) { var k = ns[j].replace(/^0+/, ""); o.num[k] = o.num[k] === undefined || o.num[k] == b ? b : ""; } }
+  return o;
+}
+function refFind(stem, r) {
+  if (!REF) return null; var s = U(stem).replace(/-+$/, ""), M = REF.M;
+  if (M[s]) return M[s]; var sp = U(LT.trSplit(s).base); if (M[sp]) return M[sp];
+  var p = s.split(/[-_ .]+/), q = p.slice(0); while (q.length > 2) { q.pop(); var a = q.join("-"), b2 = q.join(r.sep); if (M[a]) return M[a]; if (M[b2]) return M[b2]; }
+  for (var i = p.length - 1; i >= 0; i--) if (/^\d{3,}$/.test(p[i])) { var k = REF.num[p[i].replace(/^0+/, "")]; if (k) return M[k]; }
+  return null;
+}
+function showMatch() { var m = matchOf(); $("bMatch").innerHTML = esc(refLabel()) + " &#9662;";
+  $("matchInfo").innerHTML = m.kind == "none" ? "" : REF ? REF.n + " drawing(s)" : m.kind == "list" ? "pick the list" : "no Drawing Register yet";
+  var sh = refShort(), lab = { bkMidR: "Use " + sh + " revision", bkMidN: "Use " + sh + " number" }; for (var k in lab) { $(k).innerHTML = lab[k]; $(k).style.display = sh ? "" : "none"; } }
+function setMatch(m) { store.match = m; save(); REF = buildRef(); showMatch(); if (results) run(); }
+$("bMatch").onclick = function (e) { var R = reg(), ss = R ? R.sets() : [], cur = matchOf(), rc = this.getBoundingClientRect(), m = [];
+  m.push({ label: "The MIDP (Drawing Register)", on: cur.kind == "midp", fn: function () { setMatch({ kind: "midp" }); } }, "-");
+  for (var i = 0; i < ss.length; i++) (function (S) { m.push({ label: "My set: " + esc(S.name) + ' <span class="muted">' + S.keys.length + "</span>", on: cur.kind == "set" && cur.id == S.id, fn: function () { setMatch({ kind: "set", id: S.id }); } }); })(ss[i]);
+  if (!ss.length) m.push({ label: '<span class="muted">No My sets yet (Drawing Register &gt; My sets)</span>', fn: function () { } });
+  m.push("-", { label: "An Excel / CSV list...", on: cur.kind == "list", fn: function () { LT.pickFile(function (p) { setMatch({ kind: "list", path: p }); }); } },
+    { label: "Nothing - the naming rule only", on: cur.kind == "none", fn: function () { setMatch({ kind: "none" }); } });
+  LT.menu(rc.left, rc.bottom + 2, m); (e || window.event).cancelBubble = true; };
+function hasRev(r) { return r.parts.length && r.parts[r.parts.length - 1].kind == "rev"; }
+function padRev(v) { v = LT.trim(v || "").toUpperCase(); var m = /^([A-Z]{1,2})(\d)$/.exec(v); return m ? m[1] + "0" + m[2] : v; }
+function splitName(stem, r) {   // "base" + sep + "rev" as the rule sees it
+  var b = stem.split(r.sep); if (hasRev(r) && b.length == r.parts.length) return { base: b.slice(0, -1).join(r.sep), rev: b[b.length - 1] };
+  var t = LT.trSplit(stem); return { base: t.base, rev: t.rev };
+}
+function propose(f, r) {
+  var own = splitName(f.stem, r), fx = f.probs.length ? LT.nameFix(f.stem, r) : null, m = null;
+  f.oBase = own.base; f.oRev = own.rev; f.fix = fx; f.src = ""; f.mid = null;
+  m = refFind(f.stem, r); if (m) f.mid = { base: m.base, rev: m.rev || "" };
+  var fs = fx ? splitName(fx, r) : null, fb = LT.trim(fs ? fs.base : own.base).toUpperCase();
+  if (f.mid && fb != f.mid.base && fb.replace(/[\s_.]+/g, r.sep) != f.mid.base) f.probs.push("Number isn't as in the " + refShort() + " (" + f.mid.base + ")");
+  if (f.mid && f.probs.length) { f.base = f.mid.base; f.rev = padRev((fs && fs.rev) || own.rev) || f.mid.rev; f.src = "ref"; }
+  else if (fs) { f.base = fs.base; f.rev = fs.rev; f.src = "rule"; }
+  else { f.base = own.base; f.rev = own.rev; }
+  f.tick = !!f.src && target(f) != f.name;
+}
+function target(f) { var r = rule(), b = LT.trim(f.base), v = LT.trim(f.rev).toUpperCase(); return b + (v ? r.sep + v : "") + f.name.substring(f.stem.length); }
+function warnOf(f) { if (target(f) == f.name) return ""; var stem = target(f); stem = stem.substring(0, stem.length - (f.name.length - f.stem.length)); var p = checkName(stem, rule()); return p.length ? "&#9888; " + esc(p.join(" · ")) : ""; }
+function revUp(v) { v = LT.trim(v || "").toUpperCase(); var m = /^([A-Z]*)(\d+)$/.exec(v); if (m) { var n = "" + (+m[2] + 1); while (n.length < m[2].length) n = "0" + n; return m[1] + n; } if (/^[A-Y]$/.test(v)) return String.fromCharCode(v.charCodeAt(0) + 1); return v; }
+function fixCell(i, f) {
+  var ext = f.name.substring(f.stem.length), mr = f.mid && f.mid.rev && f.mid.rev != LT.trim(f.rev).toUpperCase() ? ' <a href="#" class="mr" data-mr="' + i + '" title="Use the revision in the ' + refShort() + '">' + refShort() + " rev " + esc(f.mid.rev) + "</a>" : "";
+  return '<div class="fx' + (f.tick ? " on" : "") + '" data-x="' + i + '"><input type="checkbox" data-t="' + i + '"' + (f.tick ? " checked" : "") + ' style="height:auto">' +
+    '<input type="text" class="cb" data-b="' + i + '" value="' + esc(f.base) + '" size="' + Math.max(12, f.base.length + 2) + '">' + '<span class="sp">' + esc(rule().sep) + "</span>" +
+    '<input type="text" class="cr" data-r="' + i + '" value="' + esc(f.rev) + '" placeholder="rev">' + '<span class="muted">' + esc(ext) + "</span>" +
+    (f.src ? ' <span class="src s' + f.src + '">' + (f.src == "ref" ? "from " + refShort() : "rule") + "</span>" : f.probs.length ? ' <span class="muted">edit by hand</span>' : "") + mr +
+    '<div class="wn bad" data-w="' + i + '">' + warnOf(f) + "</div></div>";
+}
 function render() {
   if (!results) { $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick a folder and click <b>Check names</b>.<br>Change the rule with <b>&#9998; Change the rule</b> (or Rule &#9662; &gt; Set up from an example name).</div>'; return; }
-  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th>' + LT.dwgHead() + '<th>Result</th><th>What\'s wrong</th><th title="The name it should have - tick the ones to rename">Rename to</th></tr>'], n = 0, nf = 0;
+  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th><th data-wide="1" title="The name it should have - edit the number and the revision, tick the ones to rename">Rename to (edit the number or the revision)</th>' + LT.dwgHead() + '<th>Result</th><th>What\'s wrong</th></tr>'], n = 0, nf = 0;
   for (var i = 0; i < results.length; i++) { var f = results[i]; if (!all && !f.probs.length) continue; n++;
-    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + "</td>" + LT.dwgCells(f.rel.split("\\").pop()) + '<td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted">' + esc(f.probs.join(" · ")) + "</td><td>" + (f.fix ? '<label class="fx"><input type="checkbox" data-t="' + i + '"' + (f.tick ? " checked" : "") + ' style="height:auto"> <b>' + esc(f.fix) + "</b>" + esc(f.name.substring(f.stem.length)) + "</label>" : f.probs.length ? '<span class="muted">by hand</span>' : "") + "</td></tr>"); if (f.fix && f.tick) nf++; }
+    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + "</td><td>" + fixCell(i, f) + "</td>" + LT.dwgCells(f.rel.split("\\").pop()) + '<td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted">' + esc(f.probs.join(" · ")) + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = n ? h.join("") : '<div class="ok big" style="padding:24px">&#10004; Nothing wrong.</div>';
-  $("bRen").style.display = nf ? "" : "none"; $("bRen").innerHTML = "Rename to the rule (" + nf + ")";
+  $("bulk").style.display = n ? "" : "none"; counts();
   $("bUndo").style.display = store.undo && store.undo.length ? "" : "none";
 }
 /* rename the ticked files to the suggested names (same folder); remembered so it can be undone */
 function renameAll() {
-  var todo = []; for (var i = 0; i < results.length; i++) if (results[i].fix && results[i].tick) todo.push(results[i]);
-  if (!todo.length) return;
-  if (!confirm("Rename " + todo.length + " file(s) to the rule?\n\n" + todo.slice(0, 8).map(function (f) { return f.name + "  \u2192  " + f.fix + f.name.substring(f.stem.length); }).join("\n") + (todo.length > 8 ? "\n..." : "") + "\n\nYou can undo it afterwards.")) return;
+  var todo = ticked(), nw = 0; if (!todo.length) return;
+  for (var j = 0; j < todo.length; j++) if (!LT.trim(todo[j].base)) { alert(todo[j].name + ": the new name is empty."); return; } else if (warnOf(todo[j])) nw++;
+  if (!confirm("Rename " + todo.length + " file(s)?\n\n" + todo.slice(0, 8).map(function (f) { return f.name + "  \u2192  " + target(f) + (warnOf(f) ? "   \u26a0 not the rule" : ""); }).join("\n") + (todo.length > 8 ? "\n..." : "") + (nw ? "\n\n\u26a0 " + nw + " new name(s) still don't follow the rule." : "") + "\n\nYou can undo it afterwards.")) return;
   var undo = [], skip = [];
-  for (var k = 0; k < todo.length; k++) { var f = todo[k], to = fso.GetParentFolderName(f.full) + "\\" + f.fix + f.name.substring(f.stem.length);
-    if (fso.FileExists(to)) { skip.push(f.name + " (" + fso.GetFileName(to) + " is already there)"); continue; }
-    try { fso.MoveFile(f.full, to); undo.push([to, f.full]); } catch (e) { skip.push(f.name + " (open in another program?)"); } }
+  for (var k = 0; k < todo.length; k++) { var f = todo[k], to = fso.GetParentFolderName(f.full) + "\\" + target(f), caseOnly = to.toLowerCase() == f.full.toLowerCase();
+    if (fso.FileExists(to) && !caseOnly) { skip.push(f.name + " (" + fso.GetFileName(to) + " is already there)"); continue; }
+    try { if (caseOnly) { var tmp = f.full + ".ltren"; fso.MoveFile(f.full, tmp); fso.MoveFile(tmp, to); } else fso.MoveFile(f.full, to); undo.push([to, f.full]); } catch (e) { skip.push(f.name + " (open in another program?)"); } }
   store.undo = undo; save(); run();
   LT.toast(undo.length + " file(s) renamed"); if (skip.length) alert("Not renamed (" + skip.length + "):\n" + skip.slice(0, 12).join("\n"));
 }
@@ -145,7 +236,34 @@ function undoRename() {
   store.undo = []; save(); if (results) run(); else render(); LT.toast(back + " name(s) put back");
 }
 $("bRen").onclick = renameAll; $("bUndo").onclick = undoRename;
-$("res").onclick = function (e) { var t = e.target || e.srcElement, k = t.getAttribute && t.getAttribute("data-t"); if (k == null) return; results[+k].tick = t.checked; var n = 0; for (var i = 0; i < results.length; i++) if (results[i].fix && results[i].tick) n++; $("bRen").style.display = n ? "" : "none"; $("bRen").innerHTML = "Rename to the rule (" + n + ")"; };
+/* ticks + edits change only the row (no redraw) */
+var lastT = -1;
+function shown(f) { return $("show").value == "all" || f.probs.length; }
+function ticked() { var o = []; if (results) for (var i = 0; i < results.length; i++) if (results[i].tick && shown(results[i]) && target(results[i]) != results[i].name) o.push(results[i]); return o; }
+function counts() { var n = 0; if (results) for (var i = 0; i < results.length; i++) if (results[i].tick && shown(results[i])) n++; var t = ticked().length;
+  $("nT").innerHTML = n; $("bRen").style.display = t ? "" : "none"; $("bRen").innerHTML = "Rename (" + t + ")"; }
+function row(i) { var f = results[i], x = document.querySelector ? document.querySelector('[data-x="' + i + '"]') : null; if (!x) return;
+  var q = function (s) { return x.querySelector(s); }; q('[data-t]').checked = !!f.tick; x.className = "fx" + (f.tick ? " on" : "");
+  if (q('[data-b]').value != f.base) q('[data-b]').value = f.base; if (q('[data-r]').value != f.rev) q('[data-r]').value = f.rev;
+  q('[data-w]').innerHTML = warnOf(f); var a = q('[data-mr]'); if (a) a.style.display = f.mid && f.mid.rev != LT.trim(f.rev).toUpperCase() ? "" : "none"; }
+function setTick(i, on) { results[i].tick = on; row(i); }
+$("res").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, k = t.getAttribute && t.getAttribute("data-t"), mr = t.getAttribute && t.getAttribute("data-mr");
+  if (mr != null) { var f = results[+mr]; f.rev = f.mid.rev; f.tick = true; row(+mr); counts(); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }
+  if (k == null) return; k = +k;
+  if (e.shiftKey && lastT >= 0) { var a = Math.min(lastT, k), b = Math.max(lastT, k); for (var i = a; i <= b; i++) if (shown(results[i])) setTick(i, t.checked); } else setTick(k, t.checked);
+  lastT = k; counts(); };
+$("res").onkeyup = $("res").onchange = function (e) { e = e || window.event; var t = e.target || e.srcElement, b = t.getAttribute && t.getAttribute("data-b"), r = t.getAttribute && t.getAttribute("data-r"); if (b == null && r == null) return;
+  var i = +(b != null ? b : r), f = results[i]; if (b != null) f.base = t.value; else f.rev = t.value.toUpperCase();
+  if (e.type == "change" && r != null) { f.rev = padRev(f.rev); t.value = f.rev; }
+  f.tick = target(f) != f.name; row(i); counts(); };
+function bulk(fn) { if (!results) return; var n = 0; for (var i = 0; i < results.length; i++) { var f = results[i]; if (!f.tick || !shown(f)) continue; if (fn(f) !== false) n++; row(i); } counts(); return n; }
+$("bkSet").onclick = function () { var v = padRev($("bkRev").value); if (!v) { alert("Type the revision first (e.g. C02)."); return; } var n = bulk(function (f) { f.rev = v; }); LT.toast(n + " set to " + v); };
+$("bkUp").onclick = function () { bulk(function (f) { var v = revUp(f.rev || f.oRev); if (!v) return false; f.rev = v; }); };
+$("bkMidR").onclick = function () { var miss = 0; bulk(function (f) { if (!f.mid || !f.mid.rev) { miss++; return false; } f.rev = f.mid.rev; }); if (miss) LT.toast(miss + " ticked file(s) have no " + refShort() + " revision"); };
+$("bkMidN").onclick = function () { var miss = 0; bulk(function (f) { if (!f.mid) { miss++; return false; } f.base = f.mid.base; }); if (miss) LT.toast(miss + " ticked file(s) aren't in the " + refShort()); };
+$("bkOwn").onclick = function () { bulk(function (f) { f.base = f.oBase; f.rev = f.oRev; }); };
+$("bkAll").onclick = function () { if (!results) return; for (var i = 0; i < results.length; i++) if (shown(results[i])) setTick(i, true); counts(); };
+$("bkNone").onclick = function () { if (!results) return; for (var i = 0; i < results.length; i++) setTick(i, false); counts(); };
 function exportCsv() { if (!results) { alert("Run a check first."); return; } var t = [["File", "Result", "What's wrong"]]; for (var i = 0; i < results.length; i++) t.push([results[i].rel, results[i].probs.length ? "Wrong" : "OK", results[i].probs.join(" / ")]);
   var f = LT.exportsDir() + "\\NamingCheck_" + LT.stamp() + ".csv"; LT.writeCsv(f, t); LT.open(f); }
 
@@ -165,10 +283,10 @@ $("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder to c
 $("bRun").onclick = run; $("show").onchange = render; $("bCsv").onclick = exportCsv;
 $("bFix").onclick = function () { if (folder && LT.main()) LT.main().send("files", "open-folder", folder); else alert("Pick the folder first."); };
 $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-f"); if (tr) try { LT.showInFolder(results[+tr.getAttribute("data-f")].full); } catch (x) { } };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", ".pt{background:{chip}}", "#ruleBox{background:{bg}}", ".fx{cursor:pointer;display:block;min-width:220px;word-break:break-all}.fx b{color:{ok}}"]); }
-window.ltTheme = look; window.ltReload = function () { load(); fillPick(); };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", ".pt{background:{chip}}", "#ruleBox{background:{bg}}", ".fx{white-space:nowrap;min-width:300px}.fx input[type=text]{height:24px;font-family:Consolas,monospace;margin:0 2px}.fx .cr{width:52px}.fx .sp{font-weight:bold}.fx.on .cb,.fx.on .cr{border-color:{accent};background:{accSoft}}", ".src{font-size:11px;padding:1px 6px;border-radius:{rc}px;background:{chip}}.sref{background:{accSoft};color:{accent};font-weight:bold}.mr{margin-left:6px;font-size:12px}.wn{white-space:normal;font-size:12px}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); fillPick(); REF = buildRef(); showMatch(); };
 window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { folder = value; store.folder = value; save(); $("folderLbl").innerHTML = esc(value); run(); } };
-look(); load(); fillPick(); $("folderLbl").innerHTML = folder ? esc(folder) : '<span class="muted">not picked</span>'; render(); LT.tabKeys();
+look(); load(); fillPick(); REF = buildRef(); showMatch(); $("folderLbl").innerHTML = folder ? esc(folder) : '<span class="muted">not picked</span>'; render(); LT.tabKeys();
 </script>
 </body>
 </html>

@@ -741,8 +741,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.43";
+  L.VERSION = "2026.11.44";
   L.WHATS_NEW = [
+    { v: "2026.11.44", items: [
+      "Folder Check > Names: Correct names from \u25be the MIDP, one of My sets, or an Excel / CSV list - a wrong name gets the right number from there",
+      "Names: edit the number and the revision on each row (single), or Set / Revision +1 / Use MIDP revision for all ticked rows (bulk); Shift+click ticks a range"] },
     { v: "2026.11.43", items: [
       "Fixed: the \"trIssued\" script error in the Drawing Register. If the revision helper file doesn't load, the Toolbox now reads it by itself (or tells you which file is missing)"] },
     { v: "2026.11.42", items: [

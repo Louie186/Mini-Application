@@ -741,8 +741,10 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.44";
+  L.VERSION = "2026.11.45";
   L.WHATS_NEW = [
+    { v: "2026.11.45", items: [
+      "Folder Check > Names: one line per file - the Rename to boxes, MIDP / set / list tag and revision link sit on one line; What's wrong shows in full when you point at it; \u26a0 (point at it) = the new name still breaks the rule"] },
     { v: "2026.11.44", items: [
       "Folder Check > Names: Correct names from \u25be the MIDP, one of My sets, or an Excel / CSV list - a wrong name gets the right number from there",
       "Names: edit the number and the revision on each row (single), or Set / Revision +1 / Use MIDP revision for all ticked rows (bulk); Shift+click ticks a range"] },

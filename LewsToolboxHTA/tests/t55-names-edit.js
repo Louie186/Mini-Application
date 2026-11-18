@@ -15,7 +15,7 @@ module.exports = async ({ page, out }) => {
   const c = page.frame({ url: /check\.html/ }); await c.evaluate(() => setView('naming')); await page.waitForTimeout(600);
   const nm = page.frame({ url: /naming\.html/ }); await nm.evaluate(() => { window.confirm = () => true; window.alert = m => { window.__al = m; }; });
   await nm.evaluate(() => ltReceive('open-folder', 'C:\\Ren')); await page.waitForTimeout(150);
-  ok(await nm.evaluate(() => { const x = document.querySelector('[data-x="0"]'); return x && x.querySelector('[data-b]').value == 'PRJ-KEO-T1-ZZ-DR-A-10100' && x.querySelector('[data-r]').value == 'C01' && /from MIDP/.test(x.innerText) && /MIDP rev C03/.test(x.innerText) && x.querySelector('[data-t]').checked; }),
+  ok(await nm.evaluate(() => { const x = document.querySelector('[data-x="0"]'); return x && x.querySelector('[data-b]').value == 'PRJ-KEO-T1-ZZ-DR-A-10100' && x.querySelector('[data-r]').value == 'C01' && x.querySelector('.sref').innerText == 'MIDP' && /MIDP rev C03/.test(x.innerText) && x.querySelector('[data-t]').checked; }),
     'single: the wrong name gets the MIDP number, its own revision, ticked; a "MIDP rev C03" link');
   // single edit: click the MIDP revision, no redraw
   await nm.evaluate(() => { window.__tbl = document.querySelector('#res table'); });
@@ -46,7 +46,8 @@ module.exports = async ({ page, out }) => {
   ok(await nm.evaluate(() => /My set: Batch 1/.test($('bMatch').innerText) && /1 drawing/.test($('matchInfo').innerText) && !results[0].mid && results[1].mid && results[1].mid.rev == 'C02' && /Use set revision/.test($('bkMidR').innerText)), 'My set as the source: only its drawings match; buttons say "set"');
   // source = an Excel / CSV list I give
   await nm.evaluate(() => { const p = 'C:\\Lists\\Names.csv', fs = window.top.__mockFs || window.__mockFs; fs.files[p.toLowerCase()] = { path: p, text: 'Drawing No,Title,Revision\nPRJ-KEO-T1-ZZ-DR-A-10100,Plan,C07\n', time: Date.now() }; fs.dirs['c:\\lists'] = 'C:\\Lists'; setMatch({ kind: 'list', path: p }); });
-  ok(await nm.evaluate(() => { const x = document.querySelector('[data-x="0"]'); return /List: Names.csv/.test($('bMatch').innerText) && x.querySelector('[data-b]').value == 'PRJ-KEO-T1-ZZ-DR-A-10100' && /from list/.test(x.innerText) && /list rev C07/.test(x.innerText) && /Number isn't as in the list/.test($('res').innerText); }),
+  ok(await nm.evaluate(() => { const x = document.querySelector('[data-x="0"]'); return /List: Names.csv/.test($('bMatch').innerText) && x.querySelector('[data-b]').value == 'PRJ-KEO-T1-ZZ-DR-A-10100' && x.querySelector('.sref').innerText == 'list' && /list rev C07/.test(x.innerText) && /Number isn't as in the list/.test($('res').innerText); }),
     'Excel/CSV list as the source: the wrong name gets the list number, "list rev C07"');
   await page.screenshot({ path: out + '/names_list.png' });
+  ok(await nm.evaluate(() => [...document.querySelectorAll('.fx')].every(x => x.offsetHeight < 34) && [...document.querySelectorAll('#res tr[data-f]')].every(r => r.offsetHeight < 44)), 'every row is one line');
 };

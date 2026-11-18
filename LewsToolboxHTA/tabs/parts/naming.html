@@ -190,7 +190,7 @@ function propose(f, r) {
   f.oBase = own.base; f.oRev = own.rev; f.fix = fx; f.src = ""; f.mid = null;
   m = refFind(f.stem, r); if (m) f.mid = { base: m.base, rev: m.rev || "" };
   var fs = fx ? splitName(fx, r) : null, fb = LT.trim(fs ? fs.base : own.base).toUpperCase();
-  if (f.mid && fb != f.mid.base && fb.replace(/[\s_.]+/g, r.sep) != f.mid.base) f.probs.push("Number isn't as in the " + refShort() + " (" + f.mid.base + ")");
+  if (f.mid && fb != f.mid.base && fb.replace(/[\s_.]+/g, r.sep) != f.mid.base) f.probs.unshift("Number isn't as in the " + refShort() + " (" + f.mid.base + ")");
   if (f.mid && f.probs.length) { f.base = f.mid.base; f.rev = padRev((fs && fs.rev) || own.rev) || f.mid.rev; f.src = "ref"; }
   else if (fs) { f.base = fs.base; f.rev = fs.rev; f.src = "rule"; }
   else { f.base = own.base; f.rev = own.rev; }
@@ -199,22 +199,29 @@ function propose(f, r) {
 function target(f) { var r = rule(), b = LT.trim(f.base), v = LT.trim(f.rev).toUpperCase(); return b + (v ? r.sep + v : "") + f.name.substring(f.stem.length); }
 function warnOf(f) { if (target(f) == f.name) return ""; var stem = target(f); stem = stem.substring(0, stem.length - (f.name.length - f.stem.length)); var p = checkName(stem, rule()); return p.length ? "&#9888; " + esc(p.join(" · ")) : ""; }
 function revUp(v) { v = LT.trim(v || "").toUpperCase(); var m = /^([A-Z]*)(\d+)$/.exec(v); if (m) { var n = "" + (+m[2] + 1); while (n.length < m[2].length) n = "0" + n; return m[1] + n; } if (/^[A-Y]$/.test(v)) return String.fromCharCode(v.charCodeAt(0) + 1); return v; }
+/* one line per row: the number box is as wide as the longest number shown (same for every row) */
+var BW = 24;
+function fixW() { return BW * 8 + 16; }
+function cellW() { return 22 + fixW() + 12 + 58 + 40 + 46 + 78 + 22; }
+function wnSet(el, f) { var w = warnOf(f).replace(/^&#9888; /, ""); el.style.visibility = w ? "visible" : "hidden"; el.title = w ? "Still not the rule: " + w.replace(/&quot;/g, '"').replace(/&amp;/g, "&") : ""; }
 function fixCell(i, f) {
   var ext = f.name.substring(f.stem.length), mr = f.mid && f.mid.rev && f.mid.rev != LT.trim(f.rev).toUpperCase() ? ' <a href="#" class="mr" data-mr="' + i + '" title="Use the revision in the ' + refShort() + '">' + refShort() + " rev " + esc(f.mid.rev) + "</a>" : "";
   return '<div class="fx' + (f.tick ? " on" : "") + '" data-x="' + i + '"><input type="checkbox" data-t="' + i + '"' + (f.tick ? " checked" : "") + ' style="height:auto">' +
-    '<input type="text" class="cb" data-b="' + i + '" value="' + esc(f.base) + '" size="' + Math.max(12, f.base.length + 2) + '">' + '<span class="sp">' + esc(rule().sep) + "</span>" +
+    '<input type="text" class="cb" data-b="' + i + '" value="' + esc(f.base) + '" style="width:' + fixW() + 'px">' + '<span class="sp">' + esc(rule().sep) + "</span>" +
     '<input type="text" class="cr" data-r="' + i + '" value="' + esc(f.rev) + '" placeholder="rev">' + '<span class="muted">' + esc(ext) + "</span>" +
-    (f.src ? ' <span class="src s' + f.src + '">' + (f.src == "ref" ? "from " + refShort() : "rule") + "</span>" : f.probs.length ? ' <span class="muted">edit by hand</span>' : "") + mr +
-    '<div class="wn bad" data-w="' + i + '">' + warnOf(f) + "</div></div>";
+    (f.src ? '<span class="src s' + f.src + '" title="' + (f.src == "ref" ? "The number comes from the " + esc(refLabel()) : "Fixed to the naming rule") + '">' + (f.src == "ref" ? refShort() : "rule") + "</span>" : f.probs.length ? '<span class="src hand" title="No match - type the right number">by hand</span>' : "") + mr +
+    '<span class="wn bad" data-w="' + i + '">&#9888;</span></div>';
 }
 function render() {
   if (!results) { $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick a folder and click <b>Check names</b>.<br>Change the rule with <b>&#9998; Change the rule</b> (or Rule &#9662; &gt; Set up from an example name).</div>'; return; }
-  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th><th data-wide="1" title="The name it should have - edit the number and the revision, tick the ones to rename">Rename to (edit the number or the revision)</th>' + LT.dwgHead() + '<th>Result</th><th>What\'s wrong</th></tr>'], n = 0, nf = 0;
+  BW = 14; for (var b = 0; b < results.length; b++) if (($("show").value == "all" || results[b].probs.length) && results[b].base.length > BW) BW = Math.min(60, results[b].base.length);
+  var all = $("show").value == "all", h = ['<table class="grid"><tr><th>File</th><th data-wide="1" style="min-width:' + cellW() + 'px" title="The name it should have - edit the number and the revision, tick the ones to rename">Rename to (edit the number or the revision)</th>' + LT.dwgHead() + '<th>Result</th><th>What\'s wrong</th></tr>'], n = 0, nf = 0;
   for (var i = 0; i < results.length; i++) { var f = results[i]; if (!all && !f.probs.length) continue; n++;
-    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + "</td><td>" + fixCell(i, f) + "</td>" + LT.dwgCells(f.rel.split("\\").pop()) + '<td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted">' + esc(f.probs.join(" · ")) + "</td></tr>"); }
+    h.push('<tr data-f="' + i + '"><td class="ex">' + esc(f.rel) + "</td><td>" + fixCell(i, f) + "</td>" + LT.dwgCells(f.rel.split("\\").pop()) + '<td class="' + (f.probs.length ? "bad" : "ok") + '" style="font-weight:bold;white-space:nowrap">' + (f.probs.length ? "&#10006; Wrong" : "&#10004; OK") + '</td><td class="muted why" title="' + esc(f.probs.join("\n")) + '">' + esc(f.probs.join(" · ")) + "</td></tr>"); }
   h.push("</table>");
   $("res").innerHTML = n ? h.join("") : '<div class="ok big" style="padding:24px">&#10004; Nothing wrong.</div>';
   $("bulk").style.display = n ? "" : "none"; counts();
+  var ws = $("res").getElementsByTagName("span"); for (var w = 0; w < ws.length; w++) if (ws[w].getAttribute("data-w") != null) wnSet(ws[w], results[+ws[w].getAttribute("data-w")]);
   $("bUndo").style.display = store.undo && store.undo.length ? "" : "none";
 }
 /* rename the ticked files to the suggested names (same folder); remembered so it can be undone */
@@ -245,7 +252,7 @@ function counts() { var n = 0; if (results) for (var i = 0; i < results.length; 
 function row(i) { var f = results[i], x = document.querySelector ? document.querySelector('[data-x="' + i + '"]') : null; if (!x) return;
   var q = function (s) { return x.querySelector(s); }; q('[data-t]').checked = !!f.tick; x.className = "fx" + (f.tick ? " on" : "");
   if (q('[data-b]').value != f.base) q('[data-b]').value = f.base; if (q('[data-r]').value != f.rev) q('[data-r]').value = f.rev;
-  q('[data-w]').innerHTML = warnOf(f); var a = q('[data-mr]'); if (a) a.style.display = f.mid && f.mid.rev != LT.trim(f.rev).toUpperCase() ? "" : "none"; }
+  wnSet(q('[data-w]'), f); var a = q('[data-mr]'); if (a) a.style.display = f.mid && f.mid.rev != LT.trim(f.rev).toUpperCase() ? "" : "none"; }
 function setTick(i, on) { results[i].tick = on; row(i); }
 $("res").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, k = t.getAttribute && t.getAttribute("data-t"), mr = t.getAttribute && t.getAttribute("data-mr");
   if (mr != null) { var f = results[+mr]; f.rev = f.mid.rev; f.tick = true; row(+mr); counts(); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }
@@ -283,7 +290,7 @@ $("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder to c
 $("bRun").onclick = run; $("show").onchange = render; $("bCsv").onclick = exportCsv;
 $("bFix").onclick = function () { if (folder && LT.main()) LT.main().send("files", "open-folder", folder); else alert("Pick the folder first."); };
 $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-f"); if (tr) try { LT.showInFolder(results[+tr.getAttribute("data-f")].full); } catch (x) { } };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", ".pt{background:{chip}}", "#ruleBox{background:{bg}}", ".fx{white-space:nowrap;min-width:300px}.fx input[type=text]{height:24px;font-family:Consolas,monospace;margin:0 2px}.fx .cr{width:52px}.fx .sp{font-weight:bold}.fx.on .cb,.fx.on .cr{border-color:{accent};background:{accSoft}}", ".src{font-size:11px;padding:1px 6px;border-radius:{rc}px;background:{chip}}.sref{background:{accSoft};color:{accent};font-weight:bold}.mr{margin-left:6px;font-size:12px}.wn{white-space:normal;font-size:12px}"]); }
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", ".pt{background:{chip}}", "#ruleBox{background:{bg}}", ".fx{white-space:nowrap;overflow:hidden}.fx input,.fx span,.fx a{vertical-align:middle}.fx input[type=text]{height:24px;font-family:Consolas,monospace;margin:0 2px;padding:0 6px}.fx .cr{width:52px}.fx .sp{font-weight:bold}.fx.on .cb,.fx.on .cr{border-color:{accent};background:{accSoft}}", ".src{font-size:11px;padding:1px 6px;border-radius:{rc}px;background:{chip}}.sref{background:{accSoft};color:{accent};font-weight:bold}.src{margin-left:6px;white-space:nowrap}.mr{margin-left:6px;font-size:12px;white-space:nowrap}.wn{margin-left:6px;cursor:help;font-weight:bold}", "#res td{white-space:nowrap}#res td.why{overflow:hidden;text-overflow:ellipsis;max-width:520px}"]); }
 window.ltTheme = look; window.ltReload = function () { load(); fillPick(); REF = buildRef(); showMatch(); };
 window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { folder = value; store.folder = value; save(); $("folderLbl").innerHTML = esc(value); run(); } };
 look(); load(); fillPick(); REF = buildRef(); showMatch(); $("folderLbl").innerHTML = folder ? esc(folder) : '<span class="muted">not picked</span>'; render(); LT.tabKeys();

@@ -461,6 +461,7 @@ For drawings someone sends you **to check**: the folder's own contents become yo
    - **Single edit:** each row has a **number box** and a **revision box** – type in them (`c4` → `C04`), or click **MIDP rev C03** to take that revision. Editing ticks the row
    - **Bulk edit** (ticked rows): type a revision → **Set**, **Revision +1** (C01 → C02), **Use MIDP / set / list revision**, **Use … number**, **Reset**, **Tick all shown / Untick all**. **Shift+click** a tick box ticks a range
    - **Rename (N)** shows the new names first and warns about any that still break the rule. Nothing redraws while you edit
+   - **One line per file**: point at **⚠** to see why a new name still breaks the rule, and at **What's wrong** to read it in full
 
 ### Compare
 

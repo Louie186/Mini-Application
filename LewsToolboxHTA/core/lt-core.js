@@ -685,6 +685,33 @@ var LT = (function () {
       } };
   };
 
+  /* ---------- work outline: what to adjust, as a numbered list (1. / a. / i.) ----------
+     Typed one point per line; Tab (or 2 spaces) = one level in. Numbers typed in front (1. a. i. - *) are tidied away - the outline numbers itself.
+     L.outline(text) -> [{ lv, label, text }] · L.outlineHtml(text) -> the list for the Toolbox */
+  var ROM = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"];
+  L.outline = function (text) {
+    var ls = ("" + (text || "")).replace(/\r/g, "").split("\n"), o = [], cnt = [0, 0, 0, 0, 0], prev = -1;
+    for (var i = 0; i < ls.length; i++) { var raw = ls[i]; if (!L.trim(raw)) continue;
+      var lead = /^[\t ]*/.exec(raw)[0], lv = 0; for (var k = 0; k < lead.length; k++) lv += lead.charAt(k) == "\t" ? 2 : 1; lv = Math.floor(lv / 2);
+      var t = L.trim(raw), m = /^(\d+[.)]|[a-z][.)]|[ivx]+[.)]|[-\u2022*\u2013])\s+/i.exec(t);
+      if (m) { var mk = m[1].replace(/[.)]$/, "").toLowerCase(); t = t.substring(m[0].length);
+        if (!lead.length) { if (/^\d+$/.test(mk)) lv = 0; else if (/^[ivx]+$/.test(mk) && (mk.length > 1 || prev >= 1)) lv = 2; else if (/^[a-z]$/.test(mk)) lv = 1; else if (prev >= 0) lv = Math.min(prev + 1, 3); } }
+      if (lv > prev + 1) lv = prev + 1; if (lv > 4) lv = 4;
+      cnt[lv]++; for (var z = lv + 1; z < cnt.length; z++) cnt[z] = 0; prev = lv;
+      var n = cnt[lv], label = lv == 0 ? n + "." : lv == 1 ? String.fromCharCode(96 + ((n - 1) % 26) + 1) + "." : lv == 2 ? (ROM[n - 1] || n) + "." : "\u2013";
+      o.push({ lv: lv, label: label, text: t }); }
+    return o;
+  };
+  L.outlineHtml = function (text) { var a = L.outline(text); if (!a.length) return "";
+    var h = '<div class="oline">'; for (var i = 0; i < a.length; i++) h += '<div style="padding-left:' + (a[i].lv * 22) + 'px"><span class="olb">' + a[i].label + "</span> " + L.esc(a[i].text) + "</div>"; return h + "</div>"; };
+  /* Tab in an outline box: one level in; Shift+Tab: one level out (the lines the cursor or selection is on) */
+  L.outlineKeys = function (ta, after) {
+    ta.onkeydown = function (e) { e = e || window.event; if (e.keyCode != 9) return; var v = ta.value, s0 = ta.selectionStart, s1 = ta.selectionEnd;
+      if (s0 == null) return; var a = v.lastIndexOf("\n", s0 - 1) + 1, b = v.indexOf("\n", s1 > s0 ? s1 - 1 : s1); if (b < 0) b = v.length;
+      var block = v.substring(a, b), out = block.split("\n").map(function (l) { return e.shiftKey ? l.replace(/^(\t| {1,2})/, "") : "\t" + l; }).join("\n");
+      ta.value = v.substring(0, a) + out + v.substring(b); ta.selectionStart = a; ta.selectionEnd = a + out.length; if (e.preventDefault) e.preventDefault(); e.returnValue = false; if (after) after(); return false; };
+  };
+
   /* ---------- live lists: a task (Tasks or Delegate) linked to one of My sets follows the set ----------
      L.listSync(task, setId, make) - drawings added to the set become new items (x.listNew = date), items whose drawing left the set
      are flagged (x.listGone = date, never deleted), and come back if it returns. make(d) builds a new item from { number, title }.
@@ -714,8 +741,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.39";
+  L.VERSION = "2026.11.40";
   L.WHATS_NEW = [
+    { v: "2026.11.40", items: [
+      "<b>Work outline</b>: in the task window (Delegate and Tasks) write what they need to adjust &ndash; one point per line, <b>Tab</b> = one level in &ndash; it numbers itself (1. a. i.) and goes in the <b>task pack</b>, the <b>Excel task sheet</b> (Guide sheet) and the <b>Team Board</b>",
+      "<b>Delegate: collapsible tasks</b> &ndash; &#9662; / &#9656; on each task (remembered), Collapse all / Expand all" ] },
     { v: "2026.11.39", items: [
       "<b>Folder Check, simpler</b>: five views &ndash; <b>Contents</b>, <b>Checklist</b>, <b>Revisions</b> (new), <b>Find</b>, <b>Review</b> &ndash; and <b>Tools &#9662;</b> for Submission check, Names, Compare and Superseded",
       "<b>Revisions</b> (new): a folder or a list against the <b>MIDP</b> or a <b>LOD list</b> &ndash; same / older / newer, with Tower &middot; Typology &middot; Model; only one set if you like; Export CSV",

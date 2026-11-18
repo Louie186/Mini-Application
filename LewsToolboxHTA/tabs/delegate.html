@@ -71,6 +71,7 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
     <span class="lbl">Person:</span><select id="person" style="width:160px;margin:0 8px 6px 0"></select>
     <input type="text" id="search" placeholder="Search" style="width:170px;margin:0 8px 6px 0">
     <label class="lbl"><input type="checkbox" id="hideDone" checked style="height:auto"> Hide completed</label>
+    <button class="btn small" id="bColAll" title="Show only the tasks">&#9656; Collapse all</button><button class="btn small" id="bExpAll" title="Show every item">&#9662; Expand all</button>
     <label class="lbl" title="Items new in their set (NEW) and items taken out of it (removed)"><input type="checkbox" id="showLC" style="height:auto"> Show list changes</label>
     <span class="lbl muted" id="hint"></span>
   </div>
@@ -95,6 +96,9 @@ table.cal td .n{font-weight:bold;font-size:.9em;margin-bottom:2px}
     <div class="fld"><label>Status (when there are no items)</label><select id="eStat"><option>Not started</option><option>In progress</option><option>Completed</option></select></div>
   </div>
   <div class="fld"><label>Notes</label><input type="text" id="eNotes"></div>
+  <div class="fld"><label>Work outline &ndash; what they need to adjust (goes in the task pack, the Excel sheet and the Team Board)</label>
+    <div class="row2"><div class="fld"><textarea id="eOutline" spellcheck="false" placeholder="RCP printing with FF&amp;E stamp&#10;&#9;Make sure the decorative lights are tagged and with dimension&#10;&#9;No clouds&#10;FF&amp;E printing with FF&amp;E stamp&#10;&#9;Update the legend:&#10;&#9;&#9;Furniture seating and beds: 62004"></textarea><div class="muted small">One point per line &middot; <b>Tab</b> = one level in, <b>Shift+Tab</b> = out &middot; it numbers itself (1. a. i.)</div></div>
+    <div class="fld"><div id="eOutPrev" class="olprev"></div></div></div></div>
   <div class="fld"><label>Checklist items (optional) &ndash; empty Assigned to / Due = same as the task</label>
     <table class="grid" id="items"></table>
     <button class="btn small" id="eAddRow" style="margin-top:6px">+ Item</button>
@@ -462,9 +466,9 @@ function list(tasks) {
     if (!match(t, who, words)) continue;
     var whole = !who || has(t.who, who);
     rowMap.push({ t: t, s: null });
-    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td class="ck">' + (t.fromWeb ? "" : '<input type="checkbox" style="height:auto" data-ckt="' + esc(t.code) + '"' + (t.subs.length ? (allSel(t) ? " checked" : "") : (SEL[t.code] ? " checked" : "")) + ' title="' + (t.subs.length ? "Tick all its items" : "Tick this task") + '">') + "</td><td>" + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + (t.subs.length ? ' <span class="nums" data-nums="' + esc(t.code) + '" title="' + (t.hideNums ? "Show" : "Hide") + ' the item numbers">' + (t.hideNums ? "#" : "#&#824;") + "</span>" : "") + "</td><td>" + esc(t.title) + (t.setId ? (function () { var x = LT.listSet(t.setId); return ' <span class="lset" title="Follows My set - change the set in the Drawing Register and this follows">&#128279; ' + esc(x ? x.S.name : "set deleted") + "</span>"; })() : "") + outChip(t) + "</td>" + (dw ? "<td></td>" : "") + "<td>" + esc(t.group) + '</td><td class="asg" data-asg="' + esc(t.code) + '" title="Click to assign">' + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
+    h.push('<tr class="task" data-r="' + (rowMap.length - 1) + '"><td class="ck">' + (t.fromWeb ? "" : '<input type="checkbox" style="height:auto" data-ckt="' + esc(t.code) + '"' + (t.subs.length ? (allSel(t) ? " checked" : "") : (SEL[t.code] ? " checked" : "")) + ' title="' + (t.subs.length ? "Tick all its items" : "Tick this task") + '">') + "</td><td>" + (t.subs.length ? '<span class="tog" data-tog="' + esc(t.code) + '" title="' + (t.collapsed ? "Show" : "Hide") + ' its items">' + (t.collapsed ? "&#9656;" : "&#9662;") + "</span>" : '<span class="tog0"></span>') + (t.fromWeb ? "&#127760; " : "") + esc(t.code) + (t.subs.length ? ' <span class="nums" data-nums="' + esc(t.code) + '" title="' + (t.hideNums ? "Show" : "Hide") + ' the item numbers">' + (t.hideNums ? "#" : "#&#824;") + "</span>" : "") + "</td><td>" + esc(t.title) + (t.collapsed && t.subs.length ? ' <span class="lset">' + live(t).length + " items</span>" : "") + (t.outline && LT.trim(t.outline) ? ' <span class="olc" data-olc="' + esc(t.code) + '" title="' + esc(LT.outline(t.outline).map(function (o) { return new Array(o.lv * 3 + 1).join(" ") + o.label + " " + o.text; }).join("\n")) + '">&#128203; outline</span>' : "") + (t.setId ? (function () { var x = LT.listSet(t.setId); return ' <span class="lset" title="Follows My set - change the set in the Drawing Register and this follows">&#128279; ' + esc(x ? x.S.name : "set deleted") + "</span>"; })() : "") + outChip(t) + "</td>" + (dw ? "<td></td>" : "") + "<td>" + esc(t.group) + '</td><td class="asg" data-asg="' + esc(t.code) + '" title="Click to assign">' + esc(t.who) + "</td>" + dueCell(t.due, st) + stCell(st) + "<td>" + Math.round(progress(t) * 100) + '%</td><td class="muted">' + esc(t.notes) + '</td><td class="muted">' + esc(t.updated || "") + "</td></tr>");
     for (var j = 0; j < t.subs.length; j++) {
-      var s = t.subs[j]; if (!whole && !has(s.who, who)) continue; if (s.listGone && !LT.listShow()) continue;
+      var s = t.subs[j]; if (t.collapsed && !words.length) break; if (!whole && !has(s.who, who)) continue; if (s.listGone && !LT.listShow()) continue;
       rowMap.push({ t: t, s: s });
       h.push('<tr data-r="' + (rowMap.length - 1) + '"' + (s.listGone ? ' data-gone="1"' : "") + (s.status == "Completed" ? ' class="muted' + (SEL[s.code] ? " sel" : "") + '"' : SEL[s.code] ? ' class="sel"' : "") + '><td class="ck"><input type="checkbox" style="height:auto" data-cks="' + esc(s.code) + '"' + (SEL[s.code] ? " checked" : "") + "></td><td>" + (t.hideNums ? "" : esc(s.code)) + '</td><td class="it" title="' + esc(s.title) + '"><span class="one">&#8627; ' + (LT.listShow() && s.listNew ? '<span class="lnew">NEW</span>' : "") + (s.listGone ? '<span class="lgn" title="Taken out of the set - right-click the task: Accept list changes">removed</span>' : "") + esc(s.title) + "</span>" + outChip(s) + "</td>" + (dw ? '<td class="dwi">' + (itemInfo(s) || "") + "</td>" : "") + '<td></td><td class="asg" data-asg="' + esc(s.code) + '" title="Click to assign (to every ticked item, when this one is ticked)">' + (s.who ? esc(s.who) : (t.who ? '<span class="muted">(' + esc(t.who) + ")</span>" : "")) + "</td>" + dueCell(s.due || t.due, s.status) + stCell(s.status) + '<td></td><td class="muted">' + esc(s.notes) + '</td><td class="muted">' + esc(s.updated || "") + "</td></tr>");
     }
@@ -585,7 +589,7 @@ function fromLog(L, under) {
   for (var d = 0; d < data.tasks.length; d++) if (data.tasks[d].log && data.tasks[d].log == L.code) { view = "list"; render(); openSend(data.tasks[d]); return data.tasks[d]; }
   if (under) return fromLogUnder(L, under);
   var g = groupOf(L.who), st = stampNow() + " · me";
-  var t = { id: LT.uid("t"), code: nextCode(), hideNums: !!L.hideNums, setId: L.midp && L.midp.set ? L.midp.set : "", log: L.code, title: L.title, group: g ? g.name : "", project: L.project || data.project, who: L.who, due: L.due || "", status: "Not started", notes: L.notes || "",
+  var t = { id: LT.uid("t"), code: nextCode(), outline: L.outline || "", hideNums: !!L.hideNums, setId: L.midp && L.midp.set ? L.midp.set : "", log: L.code, title: L.title, group: g ? g.name : "", project: L.project || data.project, who: L.who, due: L.due || "", status: "Not started", notes: L.notes || "",
     refs: copy(L.refs || []), created: LT.today(), updated: st, history: [st + "  From Tasks " + L.code + (g ? "  (group " + g.name + ", lead " + g.lead + ")" : "")], subs: [] };
   for (var i = 0; i < (L.subs || []).length; i++) { var x = L.subs[i];
     t.subs.push({ id: LT.uid("s"), code: t.code + "." + (i + 1), title: x.title, who: x.who || "", due: x.due || "", status: x.status == "Done" ? "Completed" : "Not started", notes: "", refs: copy(x.refs || []), updated: "", dwg: x.dwg || "" }); if (x.listGone) t.subs[t.subs.length - 1].listGone = x.listGone; }
@@ -762,11 +766,12 @@ function edit(t) {
   editing = t; var w = t || { code: "", title: "", group: "", project: data.project, who: $("person").value, due: "", status: "Not started", notes: "", subs: [] };
   $("dTitle").innerHTML = t ? "Edit " + esc(t.code) : "New task";
   $("eCode").value = t ? w.code : ""; $("eTitle").value = w.title; $("eGroup").value = w.group || ""; $("eProj").value = w.project || ""; $("eWho").value = w.who || "";
-  $("eDue").value = dmy(w.due); $("eStat").value = w.status; $("eNotes").value = w.notes || "";
+  $("eDue").value = dmy(w.due); $("eStat").value = w.status; $("eNotes").value = w.notes || ""; $("eOutline").value = w.outline || ""; outPrev();
   var h = itemsHead(); for (var i = 0; i < w.subs.length; i++) h += itemRow(w.subs[i]);
   $("items").innerHTML = h; $("eDel").style.display = t ? "" : "none";
   $("dlg").style.display = "block"; $("eTitle").focus();
 }
+function outPrev() { var h = LT.outlineHtml($("eOutline").value); $("eOutPrev").innerHTML = h || '<span class="muted">The numbered outline shows here.</span>'; }
 function addItemRows(list) { var tb = $("items"); for (var i = 0; i < list.length; i++) tb.insertAdjacentHTML("beforeend", itemRow(list[i])); }
 function saveEdit() {
   var title = LT.trim($("eTitle").value), code = LT.trim($("eCode").value);
@@ -787,7 +792,7 @@ function saveEdit() {
   if (bad.length) { alert("These dates aren't clear - use dd/mm/yyyy:\n" + bad.join("\n")); return; }
   var t = editing ? copy(editing) : { id: LT.uid("t"), created: LT.today(), history: [] };
   t.code = code || (editing ? editing.code : nextCode()); t.title = title; t.group = LT.trim($("eGroup").value); t.project = LT.trim($("eProj").value); t.who = LT.trim($("eWho").value);
-  t.due = due; t.notes = LT.trim($("eNotes").value);
+  t.due = due; t.notes = LT.trim($("eNotes").value); t.outline = $("eOutline").value.replace(/\s+$/, "");
   var keep = []; for (var k = 0; k < subs.length; k++) if (subs[k].code && subs[k].code.indexOf(t.code + ".") == 0) keep.push(subs[k]);
   t.subs = keep; for (var n = 0; n < subs.length; n++) if (!(subs[n].code && subs[n].code.indexOf(t.code + ".") == 0)) { subs[n].code = nextSub(t); t.subs.push(subs[n]); }
   t.subs.sort(function (a, b) { return subs.indexOf(a) - subs.indexOf(b); });
@@ -968,6 +973,13 @@ function buildPlan(path, tasks, project, by, label, exportId, team) {
       "•  New task:  use an empty NEW block at the bottom (already grouped with + / −).  Type the task name next to NEW and its items in the rows under it.",
       "   Need more?  Copy a whole NEW block (task row + its rows) and paste it below.  Or type NEW in the ID of any new row.", "", "Red text = overdue.   Green text = completed.", "", "Made with Lew's Toolbox — Delegate."];
     for (var q = 0; q < guide.length; q++) g.Cells(q + 2, 1).Value = guide[q];
+    /* the work outline of each task (what to adjust) - here, not on the Tasks sheet, so replies read the same as before */
+    var gr = guide.length + 4, anyOl = false;
+    for (var ot = 0; ot < tasks.length; ot++) { var ol = LT.outline(tasks[ot].outline); if (!ol.length) continue;
+      if (!anyOl) { g.Cells(gr, 1).Value = "WORK OUTLINE - what to adjust"; g.Cells(gr, 1).Font.Bold = true; g.Cells(gr, 1).Font.Size = 13; g.Cells(gr, 1).Font.Color = C.white; g.Cells(gr, 1).Interior.Color = C.title; gr += 2; anyOl = true; }
+      g.Cells(gr, 1).Value = tasks[ot].code + "  " + tasks[ot].title; g.Cells(gr, 1).Font.Bold = true; gr++;
+      for (var oi = 0; oi < ol.length; oi++) { g.Cells(gr, 1).Value = new Array(ol[oi].lv * 6 + 3).join(" ") + ol[oi].label + "  " + ol[oi].text; gr++; } gr++; }
+    if (anyOl) ws.Range("A3").Value = ws.Range("A3").Value + "   (Work outline: see the Guide sheet)";
     // hidden: where this file came from (same as the web app)
     meta.Range("A1").Value = "lt-planner"; meta.Range("B1").Value = 2; meta.Range("A2").Value = "toolbox"; meta.Range("A3").Value = exportId;
     meta.Range("A4").Value = "'" + new Date().toISOString(); meta.Range("A5").Value = project;
@@ -1010,7 +1022,7 @@ function buildPack(path, tasks, project, by, label, person, exportId, team, copi
     for (var j = 0; j < t.subs.length; j++) { var sj = t.subs[j]; if (sj.listGone) continue; var pr = packRefs(sj.refs, copied), inf = packInfo(sj);
       if (inf.no) pr = pr.filter(function (r) { return !(r.k == "drawing" && ("" + sj.title).toUpperCase().indexOf(inf.no.toUpperCase()) >= 0); });   // the drawing is already the item's title: not again under it
       subs.push({ code: sj.code, title: sj.title, who: sj.who || "", due: sj.due || t.due || "", status: sj.status, notes: sj.notes || "", refs: pr, isNew: !!sj.isNew || (!!sj.listNew && LT.listShow()), outs: outLines(sj), info: inf.text, infoH: inf.link, dno: inf.no || "", tower: inf.tower || "", model: inf.model || "" }); }
-    list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", subs: subs, refs: packRefs(t.refs, copied).concat(t.boardRefs || []), isNew: !!t.isNew, outs: outLines(t) }); }
+    list.push({ code: t.code, group: t.group || "", title: t.title, due: t.due || "", status: t.status, notes: t.notes || "", outline: LT.outline(t.outline), subs: subs, refs: packRefs(t.refs, copied).concat(t.boardRefs || []), isNew: !!t.isNew, outs: outLines(t) }); }
   var pack = { id: exportId, projectId: "toolbox", project: project, by: by, at: LT.today(), label: label, person: person, MARK: MARK, tasks: list, team: team || [] };
   if (extra) for (var xk in extra) if (extra.hasOwnProperty(xk)) pack[xk] = extra[xk];
   var src = runtime(); src = src.substring(src.indexOf("{") + 1, src.lastIndexOf("}"));
@@ -1293,7 +1305,7 @@ function copyWeb() {
 }
 
 /* ---------- events ---------- */
-function look() { LT.applyLook([".dlist td.ck,.dlist th.ck{width:26px;padding-right:2px}.dlist td.it{white-space:nowrap}.dlist td.it .one{display:inline-block;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.dlist td.dwi{white-space:nowrap;font-size:.88em;color:{muted}}.dlist td.dwi .mlk{color:{accent};cursor:pointer;text-decoration:underline}#send .lk{cursor:pointer;text-decoration:underline}#taskList label{display:block;padding:2px 0}.dlist .lnew,.dlist .lgn{display:inline-block;font-size:.72em;font-weight:bold;padding:0 5px;margin-right:5px;border-radius:{rc}px;background:{okSoft};color:{ok}}.dlist .lgn{background:{badSoft};color:{bad}}.dlist tr[data-gone] td{opacity:.55}.dlist tr[data-gone] .one{text-decoration:line-through}.dlist .lset{font-size:.8em;color:{muted};margin-left:6px;font-weight:normal}.dlist tr.sel td{background:{accSoft}!important}.dlist tr[data-r]{cursor:default}.dlist td.asg{cursor:pointer}.dlist td.asg:hover{color:{accent};text-decoration:underline}.nums{cursor:pointer;color:{muted};font-size:.85em;margin-left:4px}.nums:hover{color:{accent}}#selBar{white-space:nowrap;overflow:hidden;background:{accSoft};border-bottom:1px solid {line}}", "#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
+function look() { LT.applyLook([".dlist td.ck,.dlist th.ck{width:26px;padding-right:2px}.dlist td.it{white-space:nowrap}.dlist td.it .one{display:inline-block;max-width:62vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}.dlist td.dwi{white-space:nowrap;font-size:.88em;color:{muted}}.dlist td.dwi .mlk{color:{accent};cursor:pointer;text-decoration:underline}#send .lk{cursor:pointer;text-decoration:underline}#taskList label{display:block;padding:2px 0}.dlist .tog{display:inline-block;width:16px;cursor:pointer;color:{accent}}.dlist .tog0{display:inline-block;width:16px}.dlist .olc{font-size:.8em;margin-left:6px;cursor:pointer;color:{accent};font-weight:normal}#eOutline{height:132px;font-family:{mono};font-size:.95em;tab-size:4}.olprev{height:132px;overflow:auto;padding:6px 10px;border:1px dashed {line};border-radius:{r}px;font-size:.92em;line-height:1.5}.olb{color:{accent};font-weight:bold;display:inline-block;min-width:18px}.dlist .lnew,.dlist .lgn{display:inline-block;font-size:.72em;font-weight:bold;padding:0 5px;margin-right:5px;border-radius:{rc}px;background:{okSoft};color:{ok}}.dlist .lgn{background:{badSoft};color:{bad}}.dlist tr[data-gone] td{opacity:.55}.dlist tr[data-gone] .one{text-decoration:line-through}.dlist .lset{font-size:.8em;color:{muted};margin-left:6px;font-weight:normal}.dlist tr.sel td{background:{accSoft}!important}.dlist tr[data-r]{cursor:default}.dlist td.asg{cursor:pointer}.dlist td.asg:hover{color:{accent};text-decoration:underline}.nums{cursor:pointer;color:{muted};font-size:.85em;margin-left:4px}.nums:hover{color:{accent}}#selBar{white-space:nowrap;overflow:hidden;background:{accSoft};border-bottom:1px solid {line}}", "#oDrop{border:2px dashed {line};border-radius:14px;padding:16px;text-align:center;margin:4px 0}#oDrop.over{border-color:{accent};background:{accSoft}}.og{margin-top:10px}.ogh{font-weight:600;margin-bottom:2px}.oi{padding:3px 0 3px 22px;display:flex;align-items:center}.oi .mlk{margin-right:6px}.ox{margin-left:auto;cursor:pointer;color:{muted};padding:0 6px}.ox:hover{color:{bad}}.och{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{accSoft};color:{text};cursor:pointer;margin-left:4px}.obk{display:inline-block;font-size:.8em;font-weight:600;padding:0 7px;border-radius:99px;background:{chip};color:{warn};margin-left:4px}","tr.task td{background:{chip}}", ".chp{background:{bg};border:{bw}px solid {line};border-left:3px solid {bad};border-radius:{r}px}", "#items th{padding:3px}",
   ".col{background:{panel};border:{bw}px solid {line};border-radius:{r2}px}.col.over{border-color:{accent};background:{hover}}",
   ".dc{background:{bg};border:{bw}px solid {line};border-radius:{r}px}.dc:hover{border-color:{accent}}",
   ".pb{background:{chip};border-radius:3px}.pb i{background:{accent}}",
@@ -1335,6 +1347,8 @@ $("main").onclick = function (e) { var el0 = e ? e.target : window.event.srcElem
   if (cks) { if (el0.checked) SEL[cks] = 1; else delete SEL[cks]; lastPick = +rr0.getAttribute("data-r"); paintSel(); return; }
   if (ckt) { var tt = findTask(ckt), on = el0.checked; if (!tt.subs.length) { if (on) SEL[tt.code] = 1; else delete SEL[tt.code]; } else for (var si = 0; si < tt.subs.length; si++) { if (on && tt.subs[si].status != "Completed") SEL[tt.subs[si].code] = 1; else delete SEL[tt.subs[si].code]; } paintSel(); return; }
   var ag = el0 && LT.up(el0, "data-asg"); if (ag && !ev0.ctrlKey && !ev0.shiftKey) { var code = ag.getAttribute("data-asg"); if (!SEL[code]) pickRow(+rr0.getAttribute("data-r"), false, false); var r0 = ag.getBoundingClientRect(); whoMenu(r0.left, r0.bottom); return; }
+  var tg = el0 && LT.up(el0, "data-tog"); if (tg) { var tc = findTask(tg.getAttribute("data-tog")); tc.collapsed = !tc.collapsed; save(); render(); return; }
+  var oc = el0 && LT.up(el0, "data-olc"); if (oc) { edit(findTask(oc.getAttribute("data-olc"))); try { $("eOutline").focus(); } catch (x) { } return; }
   if (nm) { var tn = findTask(nm.getAttribute("data-nums")); tn.hideNums = !tn.hideNums; save(); render(); LT.toast(tn.hideNums ? "Item numbers hidden for " + tn.code : "Item numbers shown for " + tn.code); return; }
   if (el0 && /\b(och|obk)\b/.test(el0.className || "")) { var rr = LT.up(el0, "data-r"); if (rr) { var mm = rowMap[+rr.getAttribute("data-r")]; if (mm && mm.t && !mm.t.fromWeb) { openOut(mm.t, mm.s); return; } } }
   var bp = LT.up(el0, "data-bpub"), bo = LT.up(el0, "data-bopen"), bs = LT.up(el0, "data-bset");
@@ -1363,6 +1377,9 @@ document.onkeydown = function (e) { e = e || window.event; if (e.keyCode == 27) 
 
 /* called by the main window */
 window.ltTheme = function () { look(); try { var w = $("wlFrame") || $("plFrame"); if (w) w.contentWindow.ltTheme(); } catch (e) { } if (view != "workload" && view != "planner") render(); };
+$("eOutline").onkeyup = outPrev; LT.outlineKeys($("eOutline"), outPrev);
+$("bColAll").onclick = function () { for (var i = 0; i < data.tasks.length; i++) if (data.tasks[i].subs.length) data.tasks[i].collapsed = true; save(); render(); };
+$("bExpAll").onclick = function () { for (var i = 0; i < data.tasks.length; i++) delete data.tasks[i].collapsed; save(); render(); };
 $("showLC").onclick = function () { var st = LT.settings(); st.showListChanges = this.checked; LT.saveSettings(st); render(); };
 window.ltReload = function () { load(); syncLists(); render(); };
 window.ltReceive = function (what, value) {

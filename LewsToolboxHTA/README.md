@@ -222,6 +222,19 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - `TR-…` folder (in the Transmittal tab's folder): the **transmittal sheet**, their **task pack(s)** and their **reference copies** (`References\…`, so the pack's links work there too). Drawings in the references are listed on the sheet
 - Purpose **For action**; notes name the tasks (`T001`, `TL-001`). It's in the Transmittal log, the Delegate task's history and in Tasks
 
+**Collapsible tasks:** **▾ / ▸** in front of a task's ID folds its items away (remembered; a folded task says *N items*) · **▸ Collapse all / ▾ Expand all** in the filter bar.
+
+**📋 Work outline** (task window, under Notes – in Tasks too, and it comes along when you delegate): what they need to adjust, e.g.
+```
+RCP printing with FF&E stamp
+	Make sure the decorative lights are tagged and with dimension
+	No clouds
+FF&E printing with FF&E stamp
+	Update the legend:
+		Furniture seating and Beds: 62004
+```
+One point per line; **Tab** = one level in, **Shift+Tab** = out (or paste a list that already has 1. a. i.) – it **numbers itself** (1. / a. / i.) with a preview beside it. It goes in the **HTML task pack** (under the task, can be folded), the **Excel task sheet** (on the Guide sheet – the Tasks sheet reads the same, so replies work as before) and the **Team Board**. The list shows **📋 outline** on the task (hover = the outline, click = edit).
+
 **Assign many at once** (Tasks view) – selecting works like My sets: **click a row** = it's highlighted (a task row = its open items), **Ctrl + click** = one more, **Shift + click** = a range; nothing is redrawn and the list doesn't move. Then **click an Assigned to cell** for a menu of people – or tick items – or a task's box = all its open items, or the box in the heading = everything shown – and the bar above the list sets **Assign to** (the people of your groups, or someone else…), **Status** and **Due** for all of them; the task's history notes it. Items are **one line each** (the full title on hover); drawings show **Tower · Typology · Model** in their own column. The **#** next to a task's ID (or right-click) **hides / shows its item numbers**.
 
 **Views:** **Tasks** (progress, late in red) · **▦ Board** · **📅 Calendar** · **👥 Team & groups** · **📊 Workload** · **🌐 Lew's Tracker** (read-only, when linked)

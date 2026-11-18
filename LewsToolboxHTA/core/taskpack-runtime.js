@@ -89,6 +89,7 @@
       'select.who{margin-top:3px;font-size:13px;padding:2px 6px;border-radius:6px;max-width:200px}small.who{opacity:.8}' +
       '.it .nm{display:flex;flex-wrap:wrap;align-items:center;gap:0 8px}.it .nm>span.tt{flex:1 1 320px;min-width:0;font-size:14px;line-height:1.35;overflow-wrap:anywhere}.it .nm small{margin-left:0}' +
       '.it .nm small.inf{white-space:nowrap;font-size:12.5px;color:var(--muted)}.it .nm small.inf a{color:#2f6fed;text-decoration:none}.it .nm .refs{margin-top:0}.it .nm em,.it .nm .outs{flex-basis:100%}.it .nm select.who{margin-top:0}' +
+      '.olw{padding:6px 12px 8px;border-bottom:1px solid var(--line);background:#fffdf5}.olt{border:0;background:none;padding:2px 0;font-size:13.5px;color:var(--acc)}.olx{font-size:14px;line-height:1.55;margin-top:2px}.olx b{color:var(--acc);display:inline-block;min-width:20px}' +
       'input.pick{width:auto;margin:0 2px 0 0;cursor:pointer}.picks{position:sticky;top:0;z-index:5;background:#fff8e6;border:1px solid #f0d98c;border-radius:10px;padding:6px 12px;margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px}.picks select{font:inherit;padding:3px 8px;border-radius:6px}';
     document.head.appendChild(css);
     document.addEventListener('change', function (e) { var w = e.target.getAttribute && e.target.getAttribute('data-who'); if (w) { setItem(w, 'who', e.target.value); save(); }
@@ -145,6 +146,9 @@
       return true;
     }
     /* sort the items of each task: as sent, by drawing number, model or tower (nothing is hidden) */
+    /* the work outline of a task (what to adjust): numbered 1. a. i., can be folded away */
+    function outlineHtml(t) { var o = t.outline || []; if (!o.length) return ''; var k = 'ol:' + t.code, shut = OPEN[k];
+      return '<div class="olw"><button class="olt" data-olt="' + esc(t.code) + '">' + (shut ? '\u25b8' : '\u25be') + ' \ud83d\udccb Work outline</button>' + (shut ? '' : '<div class="olx">' + o.map(function (x) { return '<div style="padding-left:' + (x.lv * 22) + 'px"><b>' + esc(x.label) + '</b> ' + esc(x.text) + '</div>'; }).join('') + '</div>') + '</div>'; }
     function sortLines(ls) { var k = S.sort || ''; if (!k) return ls;
       var key = function (l) { var b = l.base && l.base !== l.t ? l.base : {}, no = b.dno || (l.n ? l.n.title : b.title) || ''; return k === 'dno' ? [no, ''] : [b[k] || '\uffff', no]; };   // empty values last
       return ls.map(function (l, i) { return { l: l, i: i, k: key(l) }; }).sort(function (a, b) { return a.k[0].localeCompare(b.k[0], undefined, { numeric: true }) || a.k[1].localeCompare(b.k[1], undefined, { numeric: true }) || a.i - b.i; }).map(function (x) { return x.l; }); }
@@ -169,7 +173,7 @@
         var tlate = t.due && t.due < TODAY && dn < mine.length;
         h += '<div class="card"><div class="ch"><span class="code">' + esc(t.code) + '</span><b>' + esc(t.title) + '</b>' + (t.isNew ? '<span class="tag">NEW</span>' : '') + (t.group ? '<span class="grp">' + esc(t.group) + '</span>' : '') +
           '<span class="cnt">' + dn + '/' + mine.length + '</span><span class="due' + (tlate ? ' late' : '') + '">' + (t.due ? (tlate ? 'overdue ' : 'due ') + esc(fmt(t.due)) : '') + '</span></div>' +
-          (t.notes ? '<div class="lew">\ud83d\udcdd ' + esc(t.notes) + '</div>' : '') + (t.refs && t.refs.length ? '<div class="lew">' + refsHtml(t.refs) + '</div>' : '') + ls.map(itemHtml).join('') +
+          (t.notes ? '<div class="lew">\ud83d\udcdd ' + esc(t.notes) + '</div>' : '') + outlineHtml(t) + (t.refs && t.refs.length ? '<div class="lew">' + refsHtml(t.refs) + '</div>' : '') + ls.map(itemHtml).join('') +
           '<div class="add"><input data-addin="' + esc(t.code) + '" placeholder="+ add an item\u2026"><button data-add="' + esc(t.code) + '">Add</button></div></div>';
       });
       S.newTasks.forEach(function (nt) {
@@ -235,6 +239,7 @@
       else if (a('data-outopen')) { var k1 = 'o' + a('data-outopen'); OPEN[k1] = !OPEN[k1]; render(); var to = document.querySelector('[data-out="' + a('data-outopen') + '"]'); if (to) { to.focus(); to.setSelectionRange(to.value.length, to.value.length); } }
       else if (a('data-noteopen')) { var k0 = a('data-noteopen'); OPEN[k0] = !OPEN[k0]; render(); var ta = document.querySelector('[data-note="' + k0 + '"]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }
       else if (a('data-panel')) { S.panel = S.panel === a('data-panel') ? '' : a('data-panel'); save(); render(); var fi = document.getElementById(S.panel === 'task' ? 'ntT' : 'msg'); if (fi) fi.focus(); }
+      else if (a('data-olt')) { var ko = 'ol:' + a('data-olt'); OPEN[ko] = !OPEN[ko]; render(); }
       else if (a('data-pickgo')) { var pw = document.getElementById('pickWho').value; if (!pw) { document.getElementById('pickWho').focus(); return; } Object.keys(PICK).forEach(function (c) { if (PICK[c]) setItem(c, 'who', pw); }); PICK = {}; save(); render(); }
       else if (a('data-pickclr')) { PICK = {}; render(); }
       else if (a('data-f')) { S.filter = a('data-f'); save(); render(); }

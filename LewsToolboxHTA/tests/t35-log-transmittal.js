@@ -6,7 +6,7 @@ module.exports = async ({ page, out }) => {
     window.__add = add; ['A-101-P02.pdf', 'A-101-P02.dwg', 'A-102-P01.pdf'].forEach(n => add('C:\\Issue\\' + n, 'X')); add('C:\\Other\\A-101-P02.pdf', 'DUP');
     var s = LT.settings(); s.askLog = true; LT.saveSettings(s);
     const wsh = new ActiveXObject('WScript.Shell'), run = wsh.Run; window.__runs = [];
-    wsh.Run = function (cmd, a, b) { window.__runs.push(cmd); var m = /-DestinationPath '([^']+)'/.exec(cmd); if (m) add(m[1].replace(/''/g, "'"), 'ZIP'); return run.call(this, cmd, a, b); };
+    wsh.Run = function (cmd, a, b) { window.__runs.push(cmd); var m = /ZipFile\]::Open\('([^']+)'/.exec(cmd); if (m) { var lm = /Get-Content -LiteralPath '([^']+)'/.exec(cmd), lf = lm && window.__mockFs.files[lm[1].replace(/''/g, "'").toLowerCase()]; window.__zipList = lf ? lf.text : ''; add(m[1].replace(/''/g, "'"), 'ZIP'); } return run.call(this, cmd, a, b); };
     LT.wsh = wsh; });
   // an export asks
   await page.evaluate(() => { LT.writeCsv('C:\\Exports\\Drawing list.csv', [['a']]); LT.logOut({ source: 'Drawing Register list', file: 'C:\\Exports\\Drawing list.csv', items: [
@@ -20,8 +20,8 @@ module.exports = async ({ page, out }) => {
   const s = await page.evaluate(() => LT.trLoad());
   const t = s.log[s.log.length - 1];
   ok(t.no == 'TR-001' && t.package == 'zip' && t.items.map(x => x.number).join() == 'A-101,A-101 (again),Drawing list' && t.source == 'Drawing Register list', 'logged as TR-001: only the ticked items, package zip, the source noted');
-  const cmd = await page.evaluate(() => window.__runs.filter(c => /Compress-Archive/.test(c)).pop());
-  ok(/Get-Content -LiteralPath '.*_zip-list\.txt'/.test(cmd) && /TR-001_Client_.*\.zip/.test(cmd), 'the zip is made from a list of the files where they are (no copies)');
+  const cmd = await page.evaluate(() => window.__runs.filter(c => /ZipFile\]::Open/.test(c)).pop());
+  ok(/Get-Content -LiteralPath '.*\.zip\.list\.txt'/.test(cmd) && !/ExecutionPolicy/.test(cmd) && /TR-001_Client_.*\.zip/.test(cmd), 'the zip is made from a list of the files where they are (no copies)');
   const files = await F();
   ok(files.some(p => /\\TR-001\\TR-001_Client_.*\.zip$/.test(p)) && !files.some(p => /\\TR-001\\A-101-P02\.pdf$/.test(p)), 'TR-001 folder: the sheet + the zip, no loose copies (nothing doubled)');
   ok(/same name as another went in once/.test(JSON.stringify(await page.evaluate(() => window.__lastAlert || ''))) || true, '(the 2nd A-101-P02.pdf goes in once)');

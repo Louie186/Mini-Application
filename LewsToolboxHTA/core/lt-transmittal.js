@@ -80,13 +80,11 @@
       var addSrc = function (p) { if (!p) return; var n = fso.GetFileName(p).toLowerCase(); if (seen[n]) { skipped++; return; } if (!fso.FileExists(p) && !fso.FolderExists(p)) { errs.push(fso.GetFileName(p) + ": not found"); return; } seen[n] = 1; src.push(p); };
       for (var k2 = 0; k2 < t.items.length; k2++) for (var f2 = 0; f2 < (t.items[k2].files || []).length; f2++) addSrc(t.items[k2].files[f2]);
       for (var x2 = 0; x2 < (opts.zipExtra || []).length; x2++) addSrc(opts.zipExtra[x2]);
-      var zip = dir + "\\" + t.no + "_" + L.safeName(t.to || "Transmittal").replace(/ /g, "_") + "_" + L.today() + ".zip", lst = dir + "\\_zip-list.txt";
+      var zip = dir + "\\" + t.no + "_" + L.safeName(t.to || "Transmittal").replace(/ /g, "_") + "_" + L.today() + ".zip";
       try { if (fso.FileExists(zip)) fso.DeleteFile(zip, true); } catch (e) { }
-      L.writeUtf8(lst, src.join("\r\n"), true);   // the list in a file: no limit on how many files
-      L.wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$l = Get-Content -LiteralPath \'' + lst.replace(/'/g, "''") + '\' -Encoding UTF8 | Where-Object { $_ }; Compress-Archive -LiteralPath $l -DestinationPath \'' + zip.replace(/'/g, "''") + '\' -Force"', 0, true);
-      try { fso.DeleteFile(lst, true); } catch (e) { }
+      L.zipFiles(src, zip);
       if (fso.FileExists(zip)) { t.zip = zip; t.zipCount = src.length; copied = src.length - 1; if (skipped) errs.push(skipped + " file(s) with the same name as another went in once"); }
-      else errs.push("The zip couldn't be made (needs Windows PowerShell 5) - the sheet is in " + dir);
+      else errs.push("The zip couldn't be made (needs Windows PowerShell) - the sheet is in " + dir);
     }
     t.file = made; t.dir = dir; s.log.push(t); s.next++; if (t.project) s.project = t.project; L.trSave(s);
     return { no: t.no, dir: dir, file: made, copied: copied, errors: errs, zip: t.zip || "" };

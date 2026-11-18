@@ -13,7 +13,7 @@ module.exports = async ({ page, out }) => {
     ['A-101-P02.pdf', 'A-101-P02.dwg', 'A-102-P01.pdf', 'A-103-C01.pdf', 'A-104-P01.pdf'].forEach(n => add('C:\\Issue\\' + n, 'X'));
     LT.saveJson(LT.dataPath('transmittals.json'), { next: 2, prefix: 'TR-', project: 'Tower 1', log: [{ no: 'TR-001', date: LT.today(), to: 'Client', purpose: 'For information', items: [{ number: 'A-101', rev: 'P01' }, { number: 'A-102', rev: 'P01' }, { number: 'A-104', rev: 'P02' }] }, { no: 'TR-001b', date: LT.today(), to: 'MEP', items: [{ number: 'A-103', rev: 'C01' }] }] });
     var s = LT.settings(); s.askLog = false; LT.saveSettings(s);
-    const wsh = new ActiveXObject('WScript.Shell'), run = wsh.Run; wsh.Run = function (cmd, a, b) { var m = /-DestinationPath '([^']+)'/.exec(cmd); if (m) add(m[1].replace(/''/g, "'"), 'ZIP'); return run.call(this, cmd, a, b); }; LT.wsh = wsh; });
+    const wsh = new ActiveXObject('WScript.Shell'), run = wsh.Run; wsh.Run = function (cmd, a, b) { var m = /ZipFile\]::Open\('([^']+)'/.exec(cmd); if (m) { var lm = /Get-Content -LiteralPath '([^']+)'/.exec(cmd), lf = lm && window.__mockFs.files[lm[1].replace(/''/g, "'").toLowerCase()]; window.__zipList = lf ? lf.text : ''; add(m[1].replace(/''/g, "'"), 'ZIP'); } return run.call(this, cmd, a, b); }; LT.wsh = wsh; });
 
   // ---------- rename to the rule ----------
   ok(await page.evaluate(() => { const r = LT.nameRule(); return LT.nameFix('prj_keo_t1_zz_dr_a_101_p1', r) == 'PRJ-KEO-T1-ZZ-DR-A-00101-P01' && LT.nameFix('PRJ KEO T1 ZZ DR A 10102 P01', r) == 'PRJ-KEO-T1-ZZ-DR-A-10102-P01' && LT.nameFix('Notes from Sam', r) == null && LT.nameFix('PRJ-KEO-T1-ZZ-DR-A-10104-P02', r) == null; }),

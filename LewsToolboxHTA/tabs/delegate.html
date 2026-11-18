@@ -1240,7 +1240,7 @@ function boardCopy(r, dir, used, warn) {
   try { LT.mkdirs(dir);
     if (isDir) fso.CopyFolder(r.value, to, true);
     else { var same0 = false; try { var a = fso.GetFile(r.value), c = fso.GetFile(to); same0 = +a.Size == +c.Size && +new Date(a.DateLastModified) == +new Date(c.DateLastModified); } catch (x) { } if (!same0) fso.CopyFile(r.value, to, true);
-      if (/\.zip$/i.test(nm)) { var ud = dir + "\\" + nm.replace(/\.zip$/i, ""); if (!fso.FolderExists(ud)) LT.wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Expand-Archive -LiteralPath \'' + to.replace(/'/g, "''") + "' -DestinationPath '" + ud.replace(/'/g, "''") + '\' -Force"', 0, true); } }
+      if (/\.zip$/i.test(nm)) { var ud = dir + "\\" + nm.replace(/\.zip$/i, ""); if (!fso.FolderExists(ud)) LT.unzip(to, ud); } }
   } catch (e) { warn.push(nm + " (" + (e.message || e) + ")"); return ""; }
   return nm;
 }

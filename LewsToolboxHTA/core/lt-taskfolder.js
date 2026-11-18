@@ -63,7 +63,7 @@
   L.clipPaths = function () {
     var lst = L.env("%TEMP%") + "\\lt-clipp-" + new Date().getTime() + ".txt", q = function (x) { return x.replace(/'/g, "''"); }, paths = [];
     var ps = "Add-Type -AssemblyName System.Windows.Forms; $f=[Windows.Forms.Clipboard]::GetFileDropList(); if($f.Count){[IO.File]::WriteAllLines('" + q(lst) + "',[string[]]$f,[Text.Encoding]::Unicode)}";
-    L.wsh.Run('powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -Command "' + ps.replace(/"/g, '\\"') + '"', 0, true);
+    L.ps(ps, true);
     if (fso.FileExists(lst)) { try { var t = fso.OpenTextFile(lst, 1, false, -1); paths = (t.AtEndOfStream ? "" : t.ReadAll()).split(/\r?\n/); t.Close(); fso.DeleteFile(lst); } catch (e) { } }
     var o = []; for (var i = 0; i < paths.length; i++) if (L.trim(paths[i])) o.push(L.trim(paths[i])); return o;
   };
@@ -76,7 +76,7 @@
     var ps = "Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $f=[Windows.Forms.Clipboard]::GetFileDropList(); " +
       "if($f.Count){[IO.File]::WriteAllLines('" + q(lst) + "',[string[]]$f,[Text.Encoding]::Unicode)} " +
       "else{$i=[Windows.Forms.Clipboard]::GetImage(); if($i){$i.Save('" + q(to) + "',[Drawing.Imaging.ImageFormat]::Png)}}";
-    L.wsh.Run('powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -Command "' + ps.replace(/"/g, '\\"') + '"', 0, true);
+    L.ps(ps, true);
     if (fso.FileExists(to)) return { kind: "image", added: [nm], errors: [] };
     if (fso.FileExists(lst)) {
       var paths = []; try { var t = fso.OpenTextFile(lst, 1, false, -1); paths = (t.AtEndOfStream ? "" : t.ReadAll()).split(/\r?\n/); t.Close(); fso.DeleteFile(lst); } catch (e) { }
@@ -138,9 +138,7 @@
     var extra = ["Task Summary.pdf", "Task Summary.html", "Notes.txt"]; for (var i = 0; i < extra.length; i++) if (fso.FileExists(md + "\\" + extra[i])) parts.push(md + "\\" + extra[i]);
     var zip = dir + "\\" + L.safeName((t.code ? t.code + " " : "") + t.title) + " - close-out " + L.today() + ".zip";
     try { if (fso.FileExists(zip)) fso.DeleteFile(zip, true); } catch (e) { throw new Error("The old close-out zip is open somewhere - close it and try again."); }
-    var q = function (x) { return "'" + x.replace(/'/g, "''") + "'"; }, list = []; for (var k = 0; k < parts.length; k++) list.push(q(parts[k]));
-    L.wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command "Compress-Archive -LiteralPath ' + list.join(",").replace(/"/g, '\\"') + " -DestinationPath " + q(zip) + ' -Force"', 0, true);
-    if (!fso.FileExists(zip)) throw new Error("The zip couldn't be made (needs Windows PowerShell 5 - standard on Windows 10 / 11).");
+    if (!L.zipFiles(parts, zip)) throw new Error("The zip couldn't be made (needs Windows PowerShell - standard on Windows 10 / 11).");
     return { zip: zip, pdf: r.pdf, parts: parts.length };
   };
 

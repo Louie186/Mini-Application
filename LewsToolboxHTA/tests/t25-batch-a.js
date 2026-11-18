@@ -5,7 +5,7 @@ module.exports = async ({ page, out }) => {
   await page.evaluate(() => { const fs = window.__mockFs, add = (p, t) => { fs.files[p.toLowerCase()] = { path: p, text: t, time: Date.now() }; let d = p.substring(0, p.lastIndexOf('\\')); while (d) { fs.dirs[d.toLowerCase()] = d; d = d.substring(0, d.lastIndexOf('\\')); } };
     window.__add = add; fs.dirs['c:\\jobs'] = 'C:\\Jobs';
     const wsh = new ActiveXObject('WScript.Shell'), run = wsh.Run; window.__runs = [];
-    wsh.Run = function (cmd, a, b) { window.__runs.push(cmd); var m = /-DestinationPath '([^']+)'/.exec(cmd); if (m) add(m[1].replace(/''/g, "'"), 'ZIP'); return run.call(this, cmd, a, b); };
+    wsh.Run = function (cmd, a, b) { window.__runs.push(cmd); var m = /ZipFile\]::Open\('([^']+)'/.exec(cmd); if (m) { var lm = /Get-Content -LiteralPath '([^']+)'/.exec(cmd), lf = lm && window.__mockFs.files[lm[1].replace(/''/g, "'").toLowerCase()]; window.__zipList = lf ? lf.text : ''; add(m[1].replace(/''/g, "'"), 'ZIP'); } return run.call(this, cmd, a, b); };
     var orig = window.ActiveXObject; window.ActiveXObject = function (n) { return /WScript\.Shell/i.test(n) ? wsh : new orig(n); };
     document.querySelectorAll('iframe').forEach(f => { try { f.contentWindow.ActiveXObject = window.ActiveXObject; } catch (e) { } }); });
   // What's new
@@ -49,9 +49,9 @@ module.exports = async ({ page, out }) => {
   const D = 'C:\\Jobs\\TL-001 Coordination round';
   await page.evaluate(D => window.__add(D + '\\Output\\Clash report.pdf', 'PDF'), D);
   await t.click('#tfClose2'); await page.waitForTimeout(100);
-  const files = await F(), cmd = await page.evaluate(() => window.__runs.filter(c => /Compress-Archive/.test(c)).pop() || '');
+  const files = await F(), cmd = await page.evaluate(() => window.__runs.filter(c => /ZipFile\]::Open/.test(c)).pop() || ''), zl = await page.evaluate(() => window.__zipList || '');
   ok(files.includes(D + '\\TL-001 Coordination round - close-out ' + await t.evaluate(() => LT.today()) + '.zip'), 'close-out pack: <code title> - close-out <date>.zip in the task folder');
-  ok(/Compress-Archive -LiteralPath '.*\\Output','.*Task Summary\.html','.*Notes\.txt'/.test(cmd), 'zips Output + summary (HTML, and the PDF when there is one) + notes');
+  ok(/\\Output\r\n.*Task Summary\.html\r\n.*Notes\.txt/.test(zl) && !/ExecutionPolicy/.test(cmd), 'zips Output + summary (HTML, and the PDF when there is one) + notes');
   await t.click('#tfClose'); await page.waitForTimeout(100);
   const sum = await page.evaluate(D => window.__mockFs.files[(D + '\\Reference\\Backup and Ref\\Task Summary.html').toLowerCase()].text, D);
   ok(/<h2>Timeline<\/h2>/.test(sum) && /Close-out pack made/.test(sum), 'summary has the Timeline');

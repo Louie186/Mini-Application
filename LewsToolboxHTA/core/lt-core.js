@@ -26,6 +26,20 @@ var LT = (function () {
     return d;
   };
   L.env = function (s) { return wsh.ExpandEnvironmentStrings(s); };
+  /* run a short PowerShell command, hidden (window style 0), and wait. Plain -Command: no execution-policy switch is needed */
+  L.ps = function (cmd, sta) { return L.wsh.Run('powershell.exe -NoProfile ' + (sta ? "-STA " : "") + '-Command "' + cmd.replace(/"/g, '\\"') + '"', 0, true); };
+  function psq(x) { return "'" + ("" + x).replace(/'/g, "''") + "'"; }
+  /* zip files and folders (a folder goes in with its name) - .NET's own zip, no extra modules. The list goes in a text file: no limit on how many */
+  L.zipFiles = function (paths, zip) {
+    var lst = zip + ".list.txt"; L.writeUtf8(lst, paths.join("\r\n"), true);
+    L.ps("$l = Get-Content -LiteralPath " + psq(lst) + " -Encoding UTF8 | Where-Object { $_ }; Add-Type -AssemblyName System.IO.Compression.FileSystem; " +
+      "$z = [IO.Compression.ZipFile]::Open(" + psq(zip) + ", 'Create'); foreach ($p in $l) { if (Test-Path -LiteralPath $p -PathType Container) { $b = Split-Path -Parent $p; " +
+      "Get-ChildItem -LiteralPath $p -Recurse -File | ForEach-Object { [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z, $_.FullName, $_.FullName.Substring($b.Length + 1)) } } " +
+      "else { [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($z, $p, (Split-Path -Leaf $p)) } }; $z.Dispose()");
+    try { fso.DeleteFile(lst, true); } catch (e) { }
+    return fso.FileExists(zip);
+  };
+  L.unzip = function (zip, dir) { L.ps("Add-Type -AssemblyName System.IO.Compression.FileSystem; [IO.Compression.ZipFile]::ExtractToDirectory(" + psq(zip) + ", " + psq(dir) + ")"); return fso.FolderExists(dir); };
   L.settingsFile = function () { return L.env("%APPDATA%") + "\\LewsToolbox\\settings-hta.json"; };
 
   /* ---------- files ---------- */
@@ -741,8 +755,10 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.45";
+  L.VERSION = "2026.11.46";
   L.WHATS_NEW = [
+    { v: "2026.11.46", items: [
+      "Fixed: \"couldn't load lt-transmittal.js - Permission denied\". Antivirus was most likely blocking it: zips are now made with Windows' own .NET zip (no execution-policy switch, no hidden-window switch), and the message tells you where to allow the file if it's still blocked"] },
     { v: "2026.11.45", items: [
       "Folder Check > Names: one line per file - the Rename to boxes, MIDP / set / list tag and revision link sit on one line; What's wrong shows in full when you point at it; \u26a0 (point at it) = the new name still breaks the rule"] },
     { v: "2026.11.44", items: [
@@ -1152,7 +1168,8 @@ var LT = (function () {
     if (trTried) return; trTried = true;
     var p = L.appDir() + "\\core\\lt-transmittal.js";
     try { new Function("LT", L.readText(p))(L); }
-    catch (e) { try { alert("Lew's Toolbox couldn't load " + p + "\n\nPlease replace the whole LewsToolboxHTA folder from the latest zip (not single files).\n\n" + (e.message || e)); } catch (x) { } }
+    catch (e) { var m = "" + (e.message || e), blocked = /denied|access/i.test(m) && fso.FileExists(p);
+      try { alert("Lew's Toolbox couldn't load " + p + "\n\n" + (blocked ? "The file is there but Windows won't let it be read - most likely your antivirus (Windows Security or your company's) blocked it.\n\nOpen Windows Security > Virus & threat protection > Protection history, look for lt-transmittal.js, and Allow / Restore it - or ask IT to allow the LewsToolboxHTA folder." : "Please replace the whole LewsToolboxHTA folder from the latest zip (not single files).") + "\n\n(" + m + ")"); } catch (x) { } }
   }
   for (var ti = 0; ti < TRN.length; ti++) (function (nm) {
     var stub = function () { trLoadNow(); if (L[nm] === stub) throw new Error("core\\lt-transmittal.js is missing (" + nm + ")"); return L[nm].apply(L, arguments); };

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Folder Groups</title>
+<meta name="lt-desc" content="What a folder holds, grouped by Tower, Typology and Model (from the MIDP). Click the arrow to open a group and see its drawings.">
+<!--
+  Lew's Toolbox - (a view inside the Folder Check tab) Groups: every drawing in a folder once, grouped by Tower > Typology > Model
+  as the Drawing Register (MIDP) knows them. Groups fold open / shut in place (no redraw). Settings: groups.json { folder, subs, by }
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+#res{flex:1 1 auto;overflow:auto;min-height:0;padding:0 14px 14px}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:460px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#gt{border-collapse:collapse;width:100%}
+#gt td{padding:5px 8px;white-space:nowrap;vertical-align:middle}
+#gt tr.g{cursor:pointer}
+#gt tr.g td.gl{font-weight:bold}
+.ar{display:inline-block;width:18px;text-align:center;font-size:11px}
+.kind{font-size:11px;letter-spacing:.04em;margin-right:2px}
+.cnt{font-size:12px;margin-left:8px}
+.code{font-family:Consolas,'Lucida Console',monospace}
+.ty{display:inline-block;padding:0 6px;margin-right:3px;font-size:11px;font-weight:bold}
+.ttl{white-space:normal!important;max-width:520px}
+</style>
+<script src="../../core/lt-core.js"></script>
+<script src="../../core/lt-transmittal.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><button class="btn primary" id="bFolder">&#128194; Folder...</button><span class="path big" id="folderLbl"></span>
+    <label class="lbl"><input type="checkbox" id="subs" checked style="height:auto"> include subfolders</label>
+    <button class="btn small" id="bRescan">&#8635; Read again</button>
+  </div>
+  <div class="step bar">
+    <span class="num">2</span><span class="lbl">Group by:</span>
+    <select id="by" style="width:230px;height:26px;margin:0 8px 6px 0">
+      <option value="tower,typo,model">Tower &rsaquo; Typology &rsaquo; Model</option>
+      <option value="tower,model">Tower &rsaquo; Model</option>
+      <option value="typo,model">Typology &rsaquo; Model</option>
+      <option value="model">Model</option>
+      <option value="tower">Tower</option>
+    </select>
+    <button class="btn small" id="bOpen">&#9662; Open all</button><button class="btn small" id="bShut">&#9656; Close all</button>
+    <input type="text" id="q" placeholder="Search drawings" style="width:170px;margin:0 8px 6px 0">
+    <span class="lbl big" id="sum"></span>
+  </div>
+  <div id="res"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg, DW = [], OPEN = {};
+var LEVEL = { tower: ["Tower", "no tower"], typo: ["Typology", "no typology"], model: ["Model", "no model"] };
+function FILE() { return LT.dataPath("groups.json"); }
+function load() { cfg = LT.readJson(FILE(), null) || {}; if (cfg.subs == null) cfg.subs = true; cfg.by = cfg.by || "tower,typo,model"; }
+function save() { try { LT.saveJson(FILE(), cfg); } catch (e) { } }
+function paths() { $("folderLbl").innerHTML = cfg.folder ? esc(cfg.folder) : '<span class="muted">not picked</span>'; $("subs").checked = cfg.subs; $("by").value = cfg.by; }
+function U(x) { return LT.trim(x || "").toUpperCase(); }
+
+/* ---------- read the folder: every drawing once (its revisions, file types, files) ---------- */
+function scan(dir, deep, out) {
+  try { var fo = fso.GetFolder(dir), e = new Enumerator(fo.Files);
+    for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name; if (f.Attributes & 6 || /^~\$|^thumbs\.db$|^desktop\.ini$/i.test(n)) continue; out.push({ full: "" + f.Path, name: n }); }
+    if (deep) { var d = new Enumerator(fo.SubFolders); for (; !d.atEnd(); d.moveNext()) { var sf = d.item(); if (!(sf.Attributes & 6)) scan("" + sf.Path, true, out); } }
+  } catch (x) { }
+}
+function run() {
+  if (!cfg.folder || !fso.FolderExists(cfg.folder)) { DW = []; draw(); return; }
+  var files = []; scan(cfg.folder, cfg.subs, files);
+  var R = null; try { R = LT.register(); } catch (e) { }
+  var by = {}; DW = [];
+  for (var i = 0; i < files.length; i++) { var f = files[i], k = f.name.lastIndexOf("."), stem = k > 0 ? f.name.substring(0, k) : f.name, ext = k > 0 ? f.name.substring(k + 1).toLowerCase() : "", sp = LT.trSplit(stem), key = U(sp.base);
+    var d = by[key]; if (!d) { d = by[key] = { base: sp.base, revs: [], types: [], files: [], hit: null }; DW.push(d); try { d.hit = R ? R.find(stem) : null; } catch (e) { } }
+    if (sp.rev && d.revs.indexOf(sp.rev) < 0) d.revs.push(sp.rev); if (ext && d.types.indexOf(ext) < 0) d.types.push(ext); d.files.push(f.full); }
+  for (var j = 0; j < DW.length; j++) { var x = DW[j], h = x.hit && x.hit.inMidp ? x.hit : null; x.revs.sort(LT.revCmp);
+    x.no = h ? h.number : x.base; x.title = h ? h.title : ""; x.tower = h ? U(h.tower) : ""; x.typo = h ? U(h.typo) : ""; x.model = h ? U(h.model) : ""; x.inMidp = !!h; }
+  DW.sort(function (a, b) { return a.no < b.no ? -1 : a.no > b.no ? 1 : 0; });
+  draw();
+}
+
+/* ---------- the groups: one row per group (arrow + count), the drawings under the last level ---------- */
+function natCmp(a, b) { var ea = a.charAt(0) == "\u0001", eb = b.charAt(0) == "\u0001"; if (ea != eb) return ea ? 1 : -1;   // "no tower" etc. last
+  var x = a.replace(/\d+/g, function (n) { return ("0000000000" + n).slice(-10); }), y = b.replace(/\d+/g, function (n) { return ("0000000000" + n).slice(-10); }); return x < y ? -1 : x > y ? 1 : 0; }
+function tree(list, levels) {
+  var root = { kids: {}, order: [], items: [] };
+  for (var i = 0; i < list.length; i++) { var d = list[i], node = root;
+    if (!d.inMidp) { var nm = "\u0002"; if (!root.kids[nm]) { root.kids[nm] = { label: "Not in the MIDP", kind: "", kids: {}, order: [], items: [], miss: 1 }; } root.kids[nm].items.push(d); continue; }
+    for (var l = 0; l < levels.length; l++) { var v = d[levels[l]], k = v ? v : "\u0001" + levels[l];
+      if (!node.kids[k]) { node.kids[k] = { label: v || "(" + LEVEL[levels[l]][1] + ")", kind: LEVEL[levels[l]][0], kids: {}, order: [], items: [] }; node.order.push(k); }
+      node = node.kids[k]; }
+    node.items.push(d); }
+  var srt = function (n) { n.order.sort(natCmp); for (var i2 = 0; i2 < n.order.length; i2++) srt(n.kids[n.order[i2]]); };
+  srt(root); if (root.kids["\u0002"]) root.order.push("\u0002");
+  return root;
+}
+function countIn(n) { var c = n.items.length; for (var i = 0; i < n.order.length; i++) c += countIn(n.kids[n.order[i]]); return c; }
+function draw() {
+  var q = U($("q").value), levels = cfg.by.split(","), list = [];
+  if (!cfg.folder) { $("res").innerHTML = '<div class="muted" style="padding:24px;line-height:1.8">Pick a folder: every drawing in it is grouped by <b>Tower &rsaquo; Typology &rsaquo; Model</b> from the MIDP (Drawing Register).<br>Click a group\'s arrow to see its drawings.</div>'; $("sum").innerHTML = ""; return; }
+  for (var i = 0; i < DW.length; i++) { var d = DW[i]; if (q && (U(d.no) + " " + U(d.title) + " " + d.tower + " " + d.typo + " " + d.model).indexOf(q) < 0) continue; list.push(d); }
+  var root = tree(list, levels), h = ['<table id="gt" class="grid nonum">'], gid = 0, nIn = 0, ON = {};
+  for (var c = 0; c < list.length; c++) if (list[c].inMidp) nIn++;
+  var allOpen = function (ids) { for (var a = 0; a < ids.length; a++) if (!ON[ids[a]]) return false; return true; };
+  var plural = function (lv, n) { var w = LEVEL[lv] ? LEVEL[lv][0].toLowerCase() : ""; return n == 1 ? w : lv == "typo" ? "typologies" : w + "s"; };
+  /* ids: the group rows above (g1 g4 ...) - lp: their keys, so an open group stays open after Read again / a search */
+  var walk = function (node, depth, ids, lp) {
+    for (var i2 = 0; i2 < node.order.length; i2++) { var k = node.order[i2], g = node.kids[k], id = "g" + (++gid), key = gkey(lp, k), n = countIn(g), nx = levels[depth + 1];
+      ON[id] = q ? true : !!OPEN[key];
+      h.push('<tr class="g lv' + depth + (g.miss ? " miss" : "") + '" data-g="' + id + '" data-k="' + esc(key) + '" data-a="' + ids.join(" ") + '"' + (allOpen(ids) ? "" : ' style="display:none"') + '><td class="gl" colspan="4" style="padding-left:' + (8 + depth * 22) + 'px"><span class="ar">' + (ON[id] ? "&#9660;" : "&#9654;") + "</span>" +
+        (g.kind ? '<span class="kind muted">' + g.kind + "</span> " : "") + '<span class="' + (g.kind == "Model" ? "code" : "") + '">' + esc(g.label) + "</span> " + '<span class="cnt muted">' + n + " drawing" + (n == 1 ? "" : "s") + "</span> " +
+        (g.order.length ? '<span class="cnt muted">&middot; ' + g.order.length + " " + plural(nx, g.order.length) + "</span>" : "") + "</td></tr>");
+      var path = ids.concat([id]); walk(g, depth + 1, path, lp.concat([k]));
+      for (var j = 0; j < g.items.length; j++) { var d = g.items[j];
+        h.push('<tr class="d" data-a="' + path.join(" ") + '" data-f="' + DW.indexOf(d) + '"' + (allOpen(path) ? "" : ' style="display:none"') + '><td class="code" style="padding-left:' + (30 + (depth + 1) * 22) + 'px">' + esc(d.no) + '</td><td class="ttl">' + esc(d.title) + '</td><td class="code">' + esc(d.revs.join(", ")) + "</td><td>" + tys(d.types) + "</td></tr>"); } }
+  };
+  walk(root, 0, [], []);
+  h.push("</table>");
+  $("res").innerHTML = list.length ? h.join("") : '<div class="muted" style="padding:24px">' + (DW.length ? "Nothing matches the search." : "No files in this folder.") + "</div>";
+  $("sum").innerHTML = DW.length ? DW.length + " drawing(s) &middot; " + nIn + " in the MIDP" + (DW.length - nIn ? ' &middot; <span class="warn">' + (DW.length - nIn) + " not in the MIDP</span>" : "") : "";
+}
+/* a group's lasting key: the labels down to it */
+function gkey(lp, k) { return cfg.by + ":" + lp.concat([k]).join("/"); }
+function tys(t) { var h = ""; for (var i = 0; i < t.length; i++) h += '<span class="ty">' + esc(t[i]) + "</span>"; return h; }
+
+/* open / shut a group in place: rows show when every group above them is open */
+function setOpen(tr, on) { OPEN[tr.getAttribute("data-k")] = on; tr.getElementsByTagName("span")[0].innerHTML = on ? "&#9660;" : "&#9654;"; }
+function refresh() {
+  var rows = $("gt") ? $("gt").rows : [], open = {};
+  for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute("data-g")) open[rows[i].getAttribute("data-g")] = !!OPEN[rows[i].getAttribute("data-k")] || !!U($("q").value);
+  for (var j = 0; j < rows.length; j++) { var a = rows[j].getAttribute("data-a"), ids = a ? a.split(" ") : [], vis = true; for (var k = 0; k < ids.length; k++) if (!open[ids[k]]) { vis = false; break; } rows[j].style.display = vis ? "" : "none"; }
+}
+$("res").onclick = function (e) { var tr = LT.up((e || window.event).target || (e || window.event).srcElement, "data-g"); if (!tr) return; setOpen(tr, !OPEN[tr.getAttribute("data-k")]); refresh(); };
+$("res").ondblclick = function (e) { var tr = LT.up((e || window.event).target || (e || window.event).srcElement, "data-f"); if (tr) try { LT.showInFolder(DW[+tr.getAttribute("data-f")].files[0]); } catch (x) { } };
+function all(on) { var rows = $("gt") ? $("gt").rows : []; for (var i = 0; i < rows.length; i++) if (rows[i].getAttribute("data-g")) setOpen(rows[i], on); refresh(); }
+$("bOpen").onclick = function () { all(true); }; $("bShut").onclick = function () { all(false); };
+$("q").onkeyup = draw;
+$("by").onchange = function () { cfg.by = this.value; save(); draw(); };
+$("subs").onclick = function () { cfg.subs = this.checked; save(); run(); };
+$("bRescan").onclick = run;
+$("bFolder").onclick = function () { var f = LT.pickFolder("Pick the folder to group"); if (f) { cfg.folder = f; save(); paths(); LT.folderPicked(f); run(); } };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#gt tr.lv0 td{background:{accSoft}}#gt tr.lv1 td{background:{panel}}#gt tr.g:hover td{color:{accent}}#gt tr.miss td{background:{warnSoft}}", ".ar{color:{accent}}", ".ty{background:{chip};border-radius:{rc}px}", "#gt td{border-bottom:1px solid {line}}"]); }
+window.ltTheme = look; window.ltReload = function () { load(); paths(); run(); };
+window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { cfg.folder = value; save(); paths(); run(); } };
+window.ltGroups = { run: run, draw: draw };   // (tests)
+look(); load(); paths(); run(); LT.tabKeys();
+</script>
+</body>
+</html>

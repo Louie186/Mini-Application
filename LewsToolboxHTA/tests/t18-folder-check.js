@@ -8,7 +8,7 @@ module.exports = async ({ page, out }) => {
   await page.click('.nb[data-k="check"]'); await page.waitForTimeout(500); await page.mouse.move(900, 600);
   const k = page.frame({ url: /check\.html/ });
   ok(await page.evaluate(() => /Folder Check/.test(document.querySelector('.nb[data-k="check"]').innerText)), 'the tab is called Folder Check');
-  ok(await k.evaluate(() => document.querySelectorAll('#fcv [data-fv]').length == 5 && /Contents\s*Checklist\s*Revisions\s*Find\s*Review/.test($('fcv').innerText) && /Tools/.test($('fcv').innerText)), 'five views: Contents, Checklist, Revisions, Find, Review + Tools');
+  ok(await k.evaluate(() => document.querySelectorAll('#fcv [data-fv]').length == 6 && /Contents\s*Groups\s*Checklist\s*Revisions\s*Find\s*Review/.test($('fcv').innerText) && /Tools/.test($('fcv').innerText)), 'six views: Contents, Groups, Checklist, Revisions, Find, Review + Tools');
   ok(await k.evaluate(() => cfg.view == 'contents'), 'it opens on Contents');
   await k.evaluate(() => setView('sub'));   // the classic Submission check is under Tools
   await k.evaluate(() => { top.__nextFolder = 'C:\\Sub1'; }); await k.click('#bFolder');

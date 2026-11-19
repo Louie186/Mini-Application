@@ -39,7 +39,7 @@ The side menu follows the way the work flows: **WORK** (log it → hand it out �
 | Project Diary | One record of everything – files, tasks, hand-outs, transmittals, replies. Search in plain words, add notes, export a PDF |
 | **DRAWINGS** | |
 | Drawing Register | Load each new MIDP: new / removed / retitled drawings, every drawing's Tower / Typology / Model, Status, My sets, List lookup, filters |
-| Folder Check | **Check all** · Submission check · Contents & checklist · Review · Names · Compare · **Find drawings** · **Superseded** |
+| Folder Check | **Check all** · Submission check · Contents & checklist · **Groups** (Tower › Typology › Model) · Review · Names · Compare · **Find drawings** · **Superseded** |
 | **FILES** | |
 | Smart Inbox | Drop a pile of files: each one shows where it goes, wrong names are fixed, old revisions move to Superseded · preview, one button, Undo |
 | Bulk Files | Rename / copy / move with preview, Excel, multi-select, lock and Undo |
@@ -449,6 +449,14 @@ For drawings someone sends you **to check**: the folder's own contents become yo
 - **↻ Read again** – files that arrived since show **NEW**; a marked file that's no longer there stays listed (*not in the folder now*)
 - Remembered: stop any time, carry on later – **Recent ▾** lists every review with its progress. A folder picked in another Folder Check view is *offered* (**Review this folder**), not started by itself
 - **Report ▾**: copy as text for email / Teams (Not OK, Comments, Still to check) · **HTML report** (saved in the reviewed folder as `_Review <date>.html`, with links to the drawings) · Excel (CSV) · mark everything shown as Checked · start again
+
+### Groups
+
+- **What a folder holds, grouped** by the drawing details from the MIDP: **Tower › Typology › Model** (or Tower › Model, Typology › Model, Model, Tower)
+- Each group shows how many drawings (and typologies / models) it holds
+- Click a group (the **▶ arrow**) to open it – the drawings under it show their **revisions** and **file types**. Click again to close. Nothing redraws
+- **Open all / Close all**, **Search drawings** (opens the groups that match). Open groups stay open after **Read again**
+- Drawings not in the MIDP are in their own group at the end. Double-click a drawing = show it in its folder
 
 ### Names
 

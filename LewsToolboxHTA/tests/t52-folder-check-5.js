@@ -10,7 +10,7 @@ module.exports = async ({ page, out }) => {
     LT.writeText('C:\\Lists\\LOD.csv', 'Drawing,Rev\r\nT1-ZZ-DR-A-10101,P03\r\nT1-ZZ-DR-A-10102,P02\r\nT1-ZZ-DR-A-10103,P03\r\n'); });
   await page.click('.nb[data-k="check"]'); await page.waitForTimeout(600); await page.mouse.move(900, 600);
   const k = page.frame({ url: /check\.html/ });
-  ok(await k.evaluate(() => /Contents\s*Checklist\s*Revisions\s*Find\s*Review/.test($('fcv').innerText) && cfg.view == 'contents'), 'Folder Check: Contents · Checklist · Revisions · Find · Review (opens on Contents)');
+  ok(await k.evaluate(() => /Contents\s*Groups\s*Checklist\s*Revisions\s*Find\s*Review/.test($('fcv').innerText) && cfg.view == 'contents'), 'Folder Check: Contents · Groups · Checklist · Revisions · Find · Review (opens on Contents)');
   await k.click('#fcTools'); await page.waitForTimeout(100);
   ok(/Submission check[\s\S]*Names[\s\S]*Compare[\s\S]*Superseded/.test(await k.evaluate(() => document.getElementById('menu').innerText)), 'Tools ▾: Submission check, Names, Compare, Superseded');
   await k.evaluate(() => { var m = document.querySelectorAll('#menu .mi'); for (var i = 0; i < m.length; i++) if (/^Names/.test(m[i].innerText)) m[i].click(); }); await page.waitForTimeout(400);

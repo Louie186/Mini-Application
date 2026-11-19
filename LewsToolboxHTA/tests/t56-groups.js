@@ -1,0 +1,44 @@
+// Folder Check > Groups: a folder's drawings grouped Tower > Typology > Model (from the MIDP), arrows open / close in place
+module.exports = async ({ page, out }) => {
+  const ok = (c, w) => console.log((c ? 'PASS ' : 'FAIL ') + w);
+  await page.evaluate(() => {
+    const add = (p, t) => { const fs = window.__mockFs; fs.files[p.toLowerCase()] = { path: p, text: t, time: Date.now() }; let d = p.substring(0, p.lastIndexOf('\\')); while (d) { fs.dirs[d.toLowerCase()] = d; d = d.substring(0, d.lastIndexOf('\\')); } };
+    LT.saveJson(LT.dataPath('register.json'), { current: 'p1', projects: [{ id: 'p1', name: 'Akala' }] });
+    const D = {}, mk = (n, tw, ty, md, t) => { const k = '5013-KEO-' + tw + '-ZZ-PLN-INT-' + n; D[k] = { num: k, title: t, rev: 'T1', inMidp: true, tower: tw, typo: ty, model: md }; };
+    mk('10100', 'T1', '1BRA', 'INT-21000', 'UNIT 1BR TYPE A - PLAN'); mk('10101', 'T1', '1BRA', 'INT-21000', 'UNIT 1BR TYPE A - ELEVATIONS');
+    mk('10110', 'T1', '1BRB', 'INT-21001', 'UNIT 1BR TYPE B - PLAN'); mk('20100', 'T2', '2BRC', 'INT-22000', 'UNIT 2BR TYPE C - PLAN');
+    LT.saveJson(LT.registerFile('p1'), { name: 'Akala', drawings: D, sets: [] });
+    ['5013-KEO-T1-ZZ-PLN-INT-10100-T1.pdf', '5013-KEO-T1-ZZ-PLN-INT-10100-T1.dwg', '5013-KEO-T1-ZZ-PLN-INT-10101-T2.pdf', '5013-KEO-T1-ZZ-PLN-INT-10110-T1.pdf', 'Sub\\5013-KEO-T2-ZZ-PLN-INT-20100-T1.pdf', 'Notes from Sam.pdf'].forEach(n => add('C:\\Grp\\' + n, 'X'));
+  });
+  await page.click('.nb[data-k="check"]'); await page.waitForTimeout(500);
+  const c = page.frame({ url: /check\.html/ });
+  ok(await c.evaluate(() => !!document.querySelector('#fcv [data-fv="groups"]')), 'Folder Check has a Groups button');
+  await c.evaluate(() => setView('groups')); await page.waitForTimeout(600);
+  const g = page.frame({ url: /groups\.html/ });
+  await g.evaluate(() => ltReceive('open-folder', 'C:\\Grp')); await page.waitForTimeout(150);
+  const vis = () => g.evaluate(() => [...document.querySelectorAll('#gt tr')].filter(r => r.style.display != 'none').map(r => r.innerText.replace(/[\u25b6\u25bc]/g, '').replace(/\s+/g, ' ').trim()));
+  let v = await vis();
+  ok(v.length == 3 && /Tower T1 3 drawings · 2 typologies/.test(v[0]) && /Tower T2 1 drawing/.test(v[1]) && /Not in the MIDP 1 drawing/.test(v[2]), 'closed: Tower T1 / T2 / Not in the MIDP with counts: ' + v.join(' | '));
+  ok(/5 drawing\(s\) · 4 in the MIDP · 1 not in the MIDP/.test(await g.evaluate(() => $('sum').innerText)), 'summary');
+  await g.evaluate(() => { window.__t = document.getElementById('gt'); });
+  await g.click('#gt tr[data-g="g1"]'); v = await vis();
+  ok(v.length == 5 && /Typology 1BRA 2 drawings · 1 model/.test(v[1]) && /Typology 1BRB/.test(v[2]) && await g.evaluate(() => document.getElementById('gt') === window.__t), 'arrow opens T1 in place (no redraw): its typologies');
+  await g.click('#gt tr[data-g="g2"]'); await g.click('#gt tr[data-g="g3"]'); v = await vis();
+  ok(v.some(t => /^5013-KEO-T1-ZZ-PLN-INT-10100 UNIT 1BR TYPE A - PLAN T1 pdf ?dwg$/.test(t)) && v.some(t => /10101 .* T2 pdf/.test(t)), 'Model INT-21000 opened: its drawings with revisions and file types');
+  await g.click('#gt tr[data-g="g1"]'); v = await vis();
+  ok(v.length == 3, 'closing T1 hides everything under it');
+  await g.click('#gt tr[data-g="g1"]'); v = await vis();
+  ok(v.length == 8, 'opening T1 again remembers what was open under it');
+  await g.evaluate(() => ltGroups.run()); v = await vis();
+  ok(v.length == 8, 'Read again keeps the open groups');
+  await g.selectOption('#by', 'model'); v = await vis();
+  ok(/Model INT-21000 2 drawings/.test(v[0]) && /Model INT-21001/.test(v[1]) && /Model INT-22000/.test(v[2]), 'Group by Model');
+  await g.click('#bOpen'); v = await vis();
+  ok(v.length == 9, 'Open all: ' + v.length);
+  await g.fill('#q', '1bra'); await g.evaluate(() => ltGroups.draw()); v = await vis();
+  ok(v.length == 3 && /INT-21000/.test(v[0]), 'search: only matching drawings, groups opened');
+  await g.fill('#q', ''); await g.selectOption('#by', 'tower,typo,model'); await g.click('#bShut');
+  ok((await vis()).length == 3, 'Close all');
+  await g.click('#gt tr[data-g="g1"]'); await g.click('#gt tr[data-g="g2"]'); await g.click('#gt tr[data-g="g3"]');
+  await page.screenshot({ path: out + '/groups.png' });
+};

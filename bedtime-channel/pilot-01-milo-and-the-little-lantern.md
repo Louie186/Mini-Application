@@ -53,7 +53,7 @@ Now your eyes are getting heavy, too, little one. Your blanket is warm. The moon
 
 Goodnight. `[long pause]`
 
-*(about 380 words)*
+*(about 310 words, about 3.5 minutes read slowly)*
 
 ---
 

@@ -45,6 +45,19 @@ def voice_style(spec):
 VOICE = voice_style(args.voice)
 
 
+def shift_pitch(x, semitones):
+    """Raise or lower one phrase by some semitones, keeping the voice's natural tone (for sing-song melody)."""
+    tmp_in = os.path.join(args.out, "_phrase_in.wav")
+    tmp_out = os.path.join(args.out, "_phrase_out.wav")
+    sf.write(tmp_in, x, SR)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", tmp_in, "-af",
+                    f"rubberband=pitch={2 ** (semitones / 12):.5f}:formant=preserved:pitchq=quality", tmp_out], check=True)
+    y, _ = sf.read(tmp_out, dtype="float32")
+    os.remove(tmp_in)
+    os.remove(tmp_out)
+    return y
+
+
 def trim(x, keep=0.08):
     """Cut the very quiet start and end of a clip, keep a short breath."""
     idx = np.where(np.abs(x) > 0.004)[0]
@@ -64,6 +77,8 @@ for seg in SEGMENTS:
     audio, rate = tts.create(text, voice=VOICE, speed=args.speed * mult, lang="en-us")
     assert rate == SR, rate
     audio = trim(np.asarray(audio, dtype=np.float32))
+    if len(seg) > 4 and seg[4]:  # optional per-line melody: semitones up (+) or down (-)
+        audio = shift_pitch(audio, seg[4])
     fade = int(0.015 * SR)
     audio[:fade] *= np.linspace(0, 1, fade)
     audio[-fade:] *= np.linspace(1, 0, fade)

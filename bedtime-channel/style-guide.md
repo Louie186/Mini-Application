@@ -37,4 +37,10 @@ Read this before writing or voicing any story.
 - v3: santa and puck blend, brighter, faster. (Sent with A/B/C voice options.)
 - Sing-song test: rejected. Do not repeat this style.
 - v4: back to the v3 story text, calmer and more jolly (santa-heavy blend, slower).
-- v5: slower (about 124 words per minute), emotion per line based on the action, "Once upon a time" opening, reading script in `scripts/ella-river-walk-v5.md`. Waiting for feedback; the owner may record it in their own voice.
+- v5: slower (about 124 words per minute), emotion per line based on the action, "Once upon a time" opening, reading script in `scripts/ella-river-walk-v5.md`. Feedback: script OK, voice not friendly or emotional enough. Owner does not want to record their own voice.
+- v6: new free emotional voice (Chatterbox) with an emotion level per line, copying the tone of a short synthetic male reference clip (Kokoro santa/puck blend), then slowed 10% (`stretch_voice.py --tempo 0.9`). Waiting for feedback.
+
+## Current best voice route (v6)
+- `make_voice_emotion.py --story story_ella_v6 --ref ref_voice.wav` (runs in its own Python environment with Chatterbox).
+- Emotion per line: 0.55 calm, 0.6 warm, 0.7 cheerful, 0.85 playful, 0.95 excited. Steadiness 0.3 to 0.45.
+- Chatterbox adds an inaudible AI watermark. Keep it on.

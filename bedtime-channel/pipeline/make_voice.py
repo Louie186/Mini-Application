@@ -21,6 +21,7 @@ ap.add_argument("--speed", type=float, default=0.85)  # below 1 = slower, calmer
 ap.add_argument("--lead", type=float, default=3.5)  # seconds of quiet before the voice starts
 ap.add_argument("--story", default="story_pilot01")  # which story file to read
 ap.add_argument("--pitch", type=float, default=0.0)  # semitones; negative = deeper voice, same speed
+ap.add_argument("--bright", action="store_true")  # small treble lift: sounds smilier and clearer
 args = ap.parse_args()
 SEGMENTS = importlib.import_module(args.story).SEGMENTS
 os.makedirs(args.out, exist_ok=True)
@@ -77,12 +78,17 @@ voice = np.concatenate(pieces)
 voice = voice / max(1e-6, np.max(np.abs(voice))) * 0.9
 out_wav = os.path.join(args.out, "narration.wav")
 sf.write(out_wav, voice, SR)
+filters = []
 if args.pitch:
     r = 2 ** (args.pitch / 12)
+    filters += [f"asetrate={SR * r:.0f}", f"aresample={SR}", f"atempo={1 / r:.5f}"]
+if args.bright:
+    filters += ["equalizer=f=3200:t=q:w=1.2:g=3.5", "equalizer=f=170:t=q:w=1:g=-2.5"]
+if filters:
     tmp = os.path.join(args.out, "narration_raw.wav")
     os.replace(out_wav, tmp)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", tmp, "-af",
-                    f"asetrate={SR * r:.0f},aresample={SR},atempo={1 / r:.5f},alimiter=limit=0.9", out_wav], check=True)
+                    ",".join(filters + ["alimiter=limit=0.9"]), out_wav], check=True)
 with open(os.path.join(args.out, "timeline.json"), "w") as f:
     json.dump({"voice": args.voice, "speed": args.speed, "pitch": args.pitch, "total_voice_seconds": round(len(voice) / SR, 2), "segments": timeline}, f, indent=1)
 print("narration length:", round(len(voice) / SR, 1), "seconds")

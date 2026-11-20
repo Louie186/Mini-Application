@@ -8,8 +8,8 @@ TITLE = "Little Ella's River Walk"
 SUBTITLE = "A happy short story"
 
 SEGMENTS = [
-    (1, "Little Ella the elephant walked with Mama and Papa. Stomp! Stomp! Stomp!", 0.5, 1.0),
-    (2, "Down to the sparkling river they went!", 0.45, 0.9),
-    (3, "Slurp! Splash! Ooh, the water was cool and yummy!", 0.5, 1.06),
-    (4, "Then, trunks swinging, off they went again... on their happy, happy journey!", 0.8, 0.94),
+    (1, "Little Ella the elephant walked with Mama and Papa. Stomp! Stomp! Stomp!", 0.4, 1.08),
+    (2, "Down to the sparkling river they went!", 0.35, 1.0),
+    (3, "Slurp! Splash! Ooh, the water was cool and yummy!", 0.4, 1.12),
+    (4, "Then, trunks swinging, off they went again, on their happy, happy journey. Hooray!", 0.8, 1.04),
 ]

@@ -4,14 +4,14 @@ Usage:
   python make_voice.py --models <folder with kokoro-v1.0.onnx and voices-v1.0.bin> --out <work folder>
 """
 import argparse
+import importlib
 import json
 import os
+import subprocess
 
 import numpy as np
 import soundfile as sf
 from kokoro_onnx import Kokoro
-
-from story_pilot01 import SEGMENTS
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--models", required=True)
@@ -19,7 +19,10 @@ ap.add_argument("--out", required=True)
 ap.add_argument("--voice", default="am_michael")  # calm US male. Try bm_george for a deeper British voice.
 ap.add_argument("--speed", type=float, default=0.85)  # below 1 = slower, calmer
 ap.add_argument("--lead", type=float, default=3.5)  # seconds of quiet before the voice starts
+ap.add_argument("--story", default="story_pilot01")  # which story file to read
+ap.add_argument("--pitch", type=float, default=0.0)  # semitones; negative = deeper voice, same speed
 args = ap.parse_args()
+SEGMENTS = importlib.import_module(args.story).SEGMENTS
 os.makedirs(args.out, exist_ok=True)
 
 tts = Kokoro(os.path.join(args.models, "kokoro-v1.0.onnx"), os.path.join(args.models, "voices-v1.0.bin"))
@@ -55,7 +58,14 @@ for scene, text, pause in SEGMENTS:
 
 voice = np.concatenate(pieces)
 voice = voice / max(1e-6, np.max(np.abs(voice))) * 0.9
-sf.write(os.path.join(args.out, "narration.wav"), voice, SR)
+out_wav = os.path.join(args.out, "narration.wav")
+sf.write(out_wav, voice, SR)
+if args.pitch:
+    r = 2 ** (args.pitch / 12)
+    tmp = os.path.join(args.out, "narration_raw.wav")
+    os.replace(out_wav, tmp)
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", tmp, "-af",
+                    f"asetrate={SR * r:.0f},aresample={SR},atempo={1 / r:.5f},alimiter=limit=0.9", out_wav], check=True)
 with open(os.path.join(args.out, "timeline.json"), "w") as f:
-    json.dump({"voice": args.voice, "speed": args.speed, "total_voice_seconds": round(len(voice) / SR, 2), "segments": timeline}, f, indent=1)
+    json.dump({"voice": args.voice, "speed": args.speed, "pitch": args.pitch, "total_voice_seconds": round(len(voice) / SR, 2), "segments": timeline}, f, indent=1)
 print("narration length:", round(len(voice) / SR, 1), "seconds")

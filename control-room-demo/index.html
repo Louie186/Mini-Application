@@ -1,0 +1,699 @@
+<title>BIM Control Room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Layout: full-height stage. 3D office on the left, team cards + approvals + activity log in a right column. Stacks on phones. */
+:root {
+  --bg: #f1eee8;
+  --panel: #faf8f4;
+  --fg: #24211c;
+  --muted: #6b665d;
+  --line: #ddd7ca;
+  --blue: #2f5bd6;
+  --violet: #7c4dff;
+  --teal: #0b8a96;
+  --work: #2f5bd6;
+  --ok: #2b8a3e;
+  --bad: #d63a2f;
+  --warn: #b86e00;
+  --scene-bg: #e7e2d6;
+  --floor: #d5ceBF;
+  --grid: #c3bba9;
+  --wall: #efe9dc;
+  --desk: #bfae8f;
+  --prop: #f7f4ee;
+  --font-head: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14161b; --panel: #1c1f26; --fg: #ece8df; --muted: #9d988c; --line: #2f333c;
+    --blue: #7b9bff; --violet: #a78bff; --teal: #3cc4d1; --work: #7b9bff;
+    --ok: #5fd07a; --bad: #ff7a70; --warn: #f2b04a;
+    --scene-bg: #101218; --floor: #2a2c33; --grid: #3a3d46; --wall: #22252d; --desk: #4b4438; --prop: #dcd9d2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14161b; --panel: #1c1f26; --fg: #ece8df; --muted: #9d988c; --line: #2f333c;
+  --blue: #7b9bff; --violet: #a78bff; --teal: #3cc4d1; --work: #7b9bff;
+  --ok: #5fd07a; --bad: #ff7a70; --warn: #f2b04a;
+  --scene-bg: #101218; --floor: #2a2c33; --grid: #3a3d46; --wall: #22252d; --desk: #4b4438; --prop: #dcd9d2;
+  color-scheme: dark;
+}
+
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font-body); }
+* { box-sizing: border-box; }
+button, select { font: inherit; color: inherit; }
+.app { height: 100%; min-height: 560px; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+
+header {
+  display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between;
+  padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+h1 { margin: 0; font: 700 18px/1.2 var(--font-head); letter-spacing: .01em; }
+.badge { font: 500 11px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .08em; padding: 5px 8px; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.controls label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+select, button.btn { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+button.btn:hover, select:hover { border-color: var(--muted); }
+button.primary { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
+:root[data-theme="dark"] button.primary { color: #0d1020; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #0d1020; } }
+:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+
+.stage { display: grid; grid-template-columns: minmax(0, 1fr) 350px; min-height: 0; }
+.view { position: relative; min-height: 0; min-width: 0; background: var(--scene-bg); }
+canvas#c { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+canvas#c:active { cursor: grabbing; }
+.hud {
+  position: absolute; top: 10px; left: 10px; right: 10px; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none;
+}
+.chip { background: color-mix(in srgb, var(--panel) 90%, transparent); border: 1px solid var(--line); border-radius: 6px; padding: 5px 9px; display: flex; gap: 8px; align-items: baseline; }
+.chip span { font: 500 10px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.chip b { font: 700 16px/1 var(--font-head); font-variant-numeric: tabular-nums; }
+.chip.ok b { color: var(--ok); } .chip.bad b { color: var(--bad); } .chip.warn b { color: var(--warn); }
+.hint { position: absolute; left: 12px; bottom: 10px; margin: 0; font: 400 11px/1.3 var(--font-mono); color: var(--muted); background: color-mix(in srgb, var(--panel) 85%, transparent); padding: 4px 8px; border-radius: 4px; pointer-events: none; }
+#fallback { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; margin: 0; color: var(--muted); }
+
+aside {
+  min-height: 0; overflow-y: auto; background: var(--panel); border-left: 1px solid var(--line);
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) 18px max(16px, env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column; gap: 18px;
+}
+h2 { margin: 0 0 8px; font: 500 11px/1 var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.cards { display: grid; gap: 8px; }
+.card {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; text-align: left; width: 100%;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; cursor: pointer;
+}
+.card[aria-pressed="true"] { border-color: var(--accent, var(--blue)); box-shadow: 0 0 0 1px var(--accent, var(--blue)) inset; }
+.card .num { grid-row: 1 / span 3; font: 700 30px/1 var(--font-head); color: var(--accent, var(--blue)); font-variant-numeric: tabular-nums; }
+.card .who b { font: 700 15px/1.2 var(--font-head); } .card .who i { font-style: normal; color: var(--muted); margin-left: 6px; font-size: 12px; }
+.pill { font: 500 11px/1 var(--font-mono); padding: 4px 7px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; }
+.pill[data-s="idle"], .pill[data-s="standby"] { color: var(--muted); }
+.pill[data-s="working"] { color: var(--work); }
+.pill[data-s="waiting"] { color: var(--warn); }
+.pill[data-s="done"] { color: var(--ok); }
+.card .task { grid-column: 2 / span 2; color: var(--fg); font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }
+.bar { grid-column: 2 / span 2; height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bar > span { display: block; height: 100%; width: 0; background: var(--accent, var(--blue)); transition: width .25s; }
+
+#approve { border: 1px solid var(--warn); border-radius: 8px; padding: 12px; display: grid; gap: 8px; background: color-mix(in srgb, var(--warn) 8%, var(--panel)); }
+#approve b { font: 700 14px/1.3 var(--font-head); }
+#approve p { margin: 0; color: var(--muted); font-size: 12.5px; }
+#approve button { justify-self: start; }
+
+.detail dl { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 6px 10px; margin: 0; font-size: 12.5px; }
+.detail dt { color: var(--muted); } .detail dd { margin: 0; overflow-wrap: anywhere; }
+.detail ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font: 400 11.5px/1.3 var(--font-mono); }
+.detail h3 { margin: 0 0 10px; font: 700 15px/1.2 var(--font-head); }
+
+#log { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font: 400 11.5px/1.4 var(--font-mono); max-height: 230px; overflow-y: auto; }
+#log li { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 8px; }
+#log time { color: var(--muted); }
+#log .bad { color: var(--bad); } #log .ok { color: var(--ok); } #log .warn { color: var(--warn); }
+
+@media (max-width: 860px) {
+  .stage { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 52%) minmax(0, 1fr); }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  .chip b { font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .bar > span { transition: none; } }
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand"><h1>BIM Control Room</h1><span class="badge">Demo data</span></div>
+    <div class="controls">
+      <label for="speed">Speed
+        <select id="speed"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select>
+      </label>
+      <button class="btn" id="btnView" type="button">Reset view</button>
+      <button class="btn primary" id="btnRestart" type="button">Restart demo</button>
+    </div>
+  </header>
+  <div class="stage">
+    <div class="view" id="view">
+      <canvas id="c" role="img" aria-label="3D office with three robot staff: Lew the manager, Carl the analyzer and Louie the filer, moving drawing sheets from Incoming to Submission"></canvas>
+      <div class="hud" id="hud">
+        <div class="chip"><span>Submitted</span><b id="nSub">0</b></div>
+        <div class="chip ok"><span>Passed</span><b id="nPass">0</b></div>
+        <div class="chip bad"><span>Failed</span><b id="nFail">0</b></div>
+        <div class="chip warn"><span>Unsure</span><b id="nUns">0</b></div>
+        <div class="chip"><span>Log rows</span><b id="nLog">0</b></div>
+      </div>
+      <p class="hint">Drag to orbit · scroll or pinch to zoom · click a robot</p>
+      <p id="fallback" hidden>The 3D view could not start in this browser. The team cards and activity log still run the demo.</p>
+    </div>
+    <aside>
+      <section>
+        <h2>The team</h2>
+        <div class="cards" id="cards"></div>
+      </section>
+      <section id="approve" hidden>
+        <b id="apTitle"></b>
+        <p id="apBody"></p>
+        <button class="btn primary" id="apBtn" type="button">Approve</button>
+      </section>
+      <section class="detail" id="detail"></section>
+      <section>
+        <h2>Activity</h2>
+        <ol id="log"></ol>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var reduce = false;
+  try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+  function tok(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function lerp(a, b, k) { return a + (b - a) * k; }
+  function ease(k) { return k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; }
+
+  /* ---------- demo data (all invented, for illustration only) ---------- */
+  var SHEETS = [
+    { id: 'ARC-A-101', title: 'Ground Floor Plan' },
+    { id: 'ARC-A-102', title: 'First Floor Plan' },
+    { id: 'ARC-A-103', title: 'Roof Plan' },
+    { id: 'ARC-A-201', title: 'North Elevation' },
+    { id: 'ARC-A-202', title: 'South Elevation' },
+    { id: 'ARC-A-203', title: 'East Elevation', fileTitle: 'East Elevtion', outcome: 'failName' },
+    { id: 'ARC-A-204', title: 'West Elevation' },
+    { id: 'ARC-A-301', title: 'Section A-A' },
+    { id: 'ARC-A-302', title: 'Section B-B', outcome: 'unsure' },
+    { id: 'ARC-A-401', title: 'Stair Core Details', outcome: 'failRev' },
+    { id: 'ARC-A-402', title: 'Door Schedule' },
+    { id: 'ARC-A-501', title: 'Ceiling Plan Level 1' }
+  ];
+  var AGENTS = {
+    lew:   { key: 'lew',   num: '01', name: 'Lew',   role: 'Manager',  tokName: '--blue',   pos: [0, 0, -3],
+             files: ['wiki/checklists/standard.md', 'wiki/clients/client-a.md', 'wiki/lessons.md'] },
+    carl:  { key: 'carl',  num: '02', name: 'Carl',  role: 'Analyzer', tokName: '--violet', pos: [-3, 0, 2],
+             files: ['wiki/checklists/standard.md', 'wiki/clients/client-a.md', 'scripts/match_list.py'] },
+    louie: { key: 'louie', num: '03', name: 'Louie', role: 'Filer',    tokName: '--teal',   pos: [3, 0, 2],
+             files: ['wiki/naming-rules.md', 'log.xlsx', 'raw/history notes'] }
+  };
+  var ORDER = ['lew', 'carl', 'louie'];
+  var STATUS = {
+    idle:    { label: 'Idle',            tok: '--muted' },
+    standby: { label: 'Standing by',     tok: '--muted' },
+    working: { label: 'Working',         tok: '--work' },
+    waiting: { label: 'Needs your OK',   tok: '--warn' },
+    done:    { label: 'Done',            tok: '--ok' }
+  };
+  ORDER.forEach(function (k) {
+    var a = AGENTS[k]; a.status = 'idle'; a.task = 'Waiting for a submission.'; a.step = '—'; a.last = '—'; a.progress = null; a.phase = Math.random() * 6;
+  });
+
+  var counts = { sub: 0, pass: 0, fail: 0, uns: 0, log: 0 };
+  var speed = 1, runId = 0, selected = 'carl', startTime = Date.now();
+
+  /* ---------- UI (cards, detail, log, hud) ---------- */
+  var cardsEl = $('cards');
+  ORDER.forEach(function (k) {
+    var a = AGENTS[k];
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'card'; b.dataset.agent = k; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<span class="num"></span><span class="who"><b></b><i></i></span><span class="pill"></span><span class="task"></span><span class="bar"><span></span></span>';
+    b.querySelector('.num').textContent = a.num;
+    b.querySelector('b').textContent = a.name;
+    b.querySelector('i').textContent = a.role;
+    b.addEventListener('click', function () { selectAgent(k, true); });
+    cardsEl.appendChild(b);
+    a.card = b;
+  });
+  function refreshCardColors() { ORDER.forEach(function (k) { AGENTS[k].card.style.setProperty('--accent', tok(AGENTS[k].tokName)); }); }
+
+  function renderUI() {
+    ORDER.forEach(function (k) {
+      var a = AGENTS[k], c = a.card, st = STATUS[a.status];
+      var p = c.querySelector('.pill'); p.textContent = st.label; p.dataset.s = a.status;
+      c.querySelector('.task').textContent = a.task;
+      c.querySelector('.bar > span').style.width = a.progress ? Math.round(100 * a.progress.done / a.progress.total) + '%' : '0%';
+      c.setAttribute('aria-pressed', String(k === selected));
+    });
+    var s = AGENTS[selected], d = $('detail');
+    d.innerHTML = '';
+    var h = document.createElement('h3'); h.textContent = s.num + ' · ' + s.name + ', ' + s.role; d.appendChild(h);
+    var dl = document.createElement('dl');
+    function row(t, v) { var dt = document.createElement('dt'); dt.textContent = t; var dd = document.createElement('dd'); if (typeof v === 'string') dd.textContent = v; else dd.appendChild(v); dl.appendChild(dt); dl.appendChild(dd); }
+    row('Right now', s.task);
+    row('Step', s.step);
+    row('Progress', s.progress ? s.progress.done + ' of ' + s.progress.total + ' ' + s.progress.unit : '—');
+    row('Last result', s.last);
+    var ul = document.createElement('ul'); s.files.forEach(function (f) { var li = document.createElement('li'); li.textContent = f; ul.appendChild(li); });
+    row('Brain files (example)', ul);
+    d.appendChild(dl);
+    $('nSub').textContent = counts.sub; $('nPass').textContent = counts.pass; $('nFail').textContent = counts.fail; $('nUns').textContent = counts.uns; $('nLog').textContent = counts.log;
+    holos.forEach(function (h2) { h2.draw(); });
+  }
+  function setAgent(k, patch) { Object.assign(AGENTS[k], patch); renderUI(); }
+  function log(who, text, cls) {
+    var li = document.createElement('li'), t = document.createElement('time'), s = document.createElement('span');
+    var sec = Math.floor((Date.now() - startTime) / 1000);
+    t.textContent = ('0' + Math.floor(sec / 60)).slice(-2) + ':' + ('0' + (sec % 60)).slice(-2);
+    s.textContent = who + ': ' + text; if (cls) s.className = cls;
+    li.appendChild(t); li.appendChild(s);
+    var ol = $('log'); ol.appendChild(li); ol.scrollTop = ol.scrollHeight;
+  }
+
+  /* ---------- 3D scene ---------- */
+  var THREE = window.THREE, ok3d = !!(THREE && THREE.OrbitControls), renderer, scene, camera, controls, clock;
+  var holos = [], signs = [], billboards = [], robots = {}, sheets = [], tweens = [], pickables = [], themeMats = {}, themeCols = { warn: '#b86e00', ok: '#2b8a3e' }, gridHelper;
+  var camTween = null;
+
+  function canvasTex(w, h) {
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var t = new THREE.CanvasTexture(c); t.anisotropy = 4;
+    return { c: c, ctx: c.getContext('2d'), t: t };
+  }
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  function wrapText(ctx, text, x, y, maxW, lh, maxLines) {
+    var words = text.split(' '), line = '', n = 0;
+    for (var i = 0; i < words.length; i++) {
+      var test = line ? line + ' ' + words[i] : words[i];
+      if (ctx.measureText(test).width > maxW && line) {
+        n++; if (n >= maxLines) { ctx.fillText(line + '…', x, y); return; }
+        ctx.fillText(line, x, y); y += lh; line = words[i];
+      } else line = test;
+    }
+    ctx.fillText(line, x, y);
+  }
+  function box(w, h, d, mat) { var m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.castShadow = true; m.receiveShadow = true; return m; }
+
+  function makeSign(text, w, h) {
+    var ct = canvasTex(512, Math.round(512 * h / w));
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: ct.t, transparent: true, depthWrite: false }));
+    var o = { mesh: m, draw: function () {
+      var c = ct.ctx, W = ct.c.width, H = ct.c.height;
+      c.clearRect(0, 0, W, H); c.fillStyle = tok('--panel'); c.globalAlpha = .94; roundRect(c, 4, 4, W - 8, H - 8, 18); c.fill(); c.globalAlpha = 1;
+      c.strokeStyle = tok('--line'); c.lineWidth = 3; c.stroke();
+      c.fillStyle = tok('--fg'); c.font = '600 ' + Math.round(H * .42) + 'px "Space Grotesk", sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(text, W / 2, H / 2 + 2); ct.t.needsUpdate = true;
+    } };
+    signs.push(o); billboards.push(m); return m;
+  }
+
+  function makeHolo(a) {
+    var ct = canvasTex(640, 400);
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 2.0), new THREE.MeshBasicMaterial({ map: ct.t, transparent: true, depthWrite: false }));
+    m.userData.agent = a.key;
+    var o = { mesh: m, draw: function () {
+      var c = ct.ctx, W = 640, H = 400, col = tok(a.tokName), st = STATUS[a.status];
+      c.clearRect(0, 0, W, H);
+      c.globalAlpha = .95; c.fillStyle = tok('--panel'); roundRect(c, 6, 6, W - 12, H - 12, 26); c.fill(); c.globalAlpha = 1;
+      c.lineWidth = 6; c.strokeStyle = col; c.stroke();
+      c.textBaseline = 'alphabetic'; c.textAlign = 'left';
+      c.fillStyle = col; c.font = '700 120px "Space Grotesk", sans-serif'; c.fillText(a.num, 34, 140);
+      c.fillStyle = tok('--fg'); c.font = '700 54px "Space Grotesk", sans-serif'; c.fillText(a.name, 190, 94);
+      c.fillStyle = tok('--muted'); c.font = '500 28px "IBM Plex Mono", monospace'; c.fillText(a.role.toUpperCase(), 190, 132);
+      var pc = tok(st.tok); c.font = '500 28px "IBM Plex Mono", monospace';
+      var tw = c.measureText(st.label).width + 44;
+      c.strokeStyle = pc; c.lineWidth = 3; roundRect(c, W - tw - 30, 40, tw, 48, 24); c.stroke();
+      c.fillStyle = pc; c.beginPath(); c.arc(W - tw - 30 + 22, 64, 7, 0, 6.3); c.fill(); c.fillText(st.label, W - tw - 30 + 36, 74);
+      c.fillStyle = tok('--fg'); c.font = '500 33px "Inter", sans-serif';
+      wrapText(c, a.task, 34, 214, W - 68, 42, 3);
+      var bx = 34, by = H - 56, bw = W - 68;
+      c.fillStyle = tok('--line'); roundRect(c, bx, by, bw, 16, 8); c.fill();
+      if (a.progress) { c.fillStyle = col; roundRect(c, bx, by, Math.max(16, bw * a.progress.done / a.progress.total), 16, 8); c.fill(); }
+      ct.t.needsUpdate = true;
+    } };
+    holos.push(o); billboards.push(m); return m;
+  }
+
+  function makeRobot(a) {
+    var col = new THREE.Color(tok(a.tokName));
+    var g = new THREE.Group(), rig = new THREE.Group(); g.add(rig);
+    var bodyM = new THREE.MeshStandardMaterial({ color: tok('--prop'), roughness: .55, metalness: .1 });
+    var darkM = new THREE.MeshStandardMaterial({ color: 0x23262d, roughness: .4 });
+    var accM = new THREE.MeshStandardMaterial({ color: col, roughness: .45, emissive: col, emissiveIntensity: .18 });
+    var eyeM = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: col, emissiveIntensity: 1.3 });
+    themeMats.prop = themeMats.prop || []; themeMats.prop.push(bodyM);
+    var base = box(.95, .18, .95, accM); base.geometry = new THREE.CylinderGeometry(.48, .55, .18, 28); base.position.y = .09; rig.add(base);
+    var torso = box(.86, .9, .62, bodyM); torso.position.y = .68; rig.add(torso);
+    var panel = box(.5, .3, .04, accM); panel.position.set(0, .74, .32); rig.add(panel);
+    var head = new THREE.Group(); head.position.y = 1.48; rig.add(head);
+    var skull = box(.82, .6, .64, bodyM); head.add(skull);
+    var face = box(.64, .34, .04, darkM); face.position.set(0, 0, .33); head.add(face);
+    var eyeL = box(.14, .14, .04, eyeM); eyeL.position.set(-.15, .02, .36); head.add(eyeL);
+    var eyeR = eyeL.clone(); eyeR.position.x = .15; head.add(eyeR);
+    var ant = box(.05, .3, .05, darkM); ant.position.y = .45; head.add(ant);
+    var tip = new THREE.Mesh(new THREE.SphereGeometry(.08, 16, 12), accM); tip.position.y = .64; head.add(tip);
+    function arm(x) {
+      var p = new THREE.Group(); p.position.set(x, 1.05, 0);
+      var u = box(.18, .7, .18, bodyM); u.position.y = -.35; p.add(u);
+      var h = new THREE.Mesh(new THREE.SphereGeometry(.12, 14, 10), accM); h.position.y = -.74; h.castShadow = true; p.add(h);
+      rig.add(p); return p;
+    }
+    var armL = arm(-.56), armR = arm(.56);
+    var ringM = new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: .1, side: THREE.DoubleSide });
+    var ring = new THREE.Mesh(new THREE.RingGeometry(.75, 1.0, 48), ringM); ring.rotation.x = -Math.PI / 2; ring.position.y = .02; g.add(ring);
+    g.position.set(a.pos[0], 0, a.pos[2] - 1.05);
+    g.traverse(function (o) { if (o.isMesh) { o.userData.agent = a.key; pickables.push(o); } });
+    scene.add(g);
+    robots[a.key] = { g: g, rig: rig, head: head, armL: armL, armR: armR, eyeM: eyeM, ringM: ringM, col: col };
+  }
+
+  function makeDesk(x, z, w, accTok) {
+    var deskM = new THREE.MeshStandardMaterial({ color: tok('--desk'), roughness: .7 });
+    themeMats.desk = themeMats.desk || []; themeMats.desk.push(deskM);
+    var g = new THREE.Group(), top = box(w, .12, 1.1, deskM); top.position.y = .9; g.add(top);
+    [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(function (s) { var l = box(.1, .84, .1, deskM); l.position.set(s[0] * (w / 2 - .12), .42, s[1] * .45); g.add(l); });
+    var front = box(w - .3, .5, .04, deskM); front.position.set(0, .6, .5); g.add(front);
+    var pad = box(.55, .03, .38, new THREE.MeshStandardMaterial({ color: tok(accTok), emissive: tok(accTok), emissiveIntensity: .35 })); pad.position.set(-.7, .975, .15); g.add(pad);
+    g.position.set(x, 0, z); scene.add(g);
+  }
+
+  var SH_W = .9, SH_D = .64;
+  function makeSheet(i, d) {
+    var ct = canvasTex(192, 136), edge = new THREE.MeshStandardMaterial({ color: 0xe9e5db, roughness: .8 });
+    var top = new THREE.MeshStandardMaterial({ map: ct.t, roughness: .8 });
+    var m = new THREE.Mesh(new THREE.BoxGeometry(SH_W, .025, SH_D), [edge, edge, top, edge, edge, edge]);
+    m.castShadow = true; m.receiveShadow = true;
+    var s = { i: i, id: d.id, title: d.title, def: d, mesh: m, status: 'new' };
+    s.draw = function () {
+      var c = ct.ctx, W = 192, H = 136;
+      c.fillStyle = '#fbfaf7'; c.fillRect(0, 0, W, H);
+      c.strokeStyle = '#8a8579'; c.lineWidth = 2; c.strokeRect(6, 6, W - 12, H - 12);
+      c.lineWidth = 1.5; c.strokeStyle = '#a59f92';
+      c.strokeRect(22 + (i % 3) * 6, 22, 70 + (i % 4) * 8, 46); c.strokeRect(108, 22 + (i % 2) * 8, 54, 30);
+      c.beginPath(); c.moveTo(22, 82); c.lineTo(150, 82); c.moveTo(22, 92); c.lineTo(110, 92); c.stroke();
+      c.strokeStyle = '#8a8579'; c.strokeRect(112, 100, 68, 26);
+      c.fillStyle = '#24211c'; c.font = '700 15px "IBM Plex Mono", monospace'; c.textBaseline = 'alphabetic'; c.fillText(d.id.replace('ARC-', ''), 120, 118);
+      var colr = { pass: '#2b8a3e', fail: '#d63a2f', unsure: '#e0900a' }[s.status];
+      if (colr) { c.fillStyle = colr; c.fillRect(6, 6, W - 12, 12); }
+      ct.t.needsUpdate = true;
+    };
+    s.setStatus = function (st) { s.status = st; s.draw(); };
+    s.draw(); scene.add(m); return s;
+  }
+
+  function buildScene() {
+    var cv = $('c');
+    renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(42, 1, .1, 120);
+    controls = new THREE.OrbitControls(camera, cv);
+    controls.enableDamping = true; controls.dampingFactor = .08; controls.maxPolarAngle = Math.PI * .47; controls.minDistance = 4; controls.maxDistance = 40;
+    controls.addEventListener('start', function () { camTween = null; });
+    clock = new THREE.Clock();
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x8d8576, .85));
+    var sun = new THREE.DirectionalLight(0xffffff, .75); sun.position.set(7, 14, 9); sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048); var sc = sun.shadow.camera; sc.left = -16; sc.right = 16; sc.top = 14; sc.bottom = -12; sc.near = 1; sc.far = 40;
+    scene.add(sun); themeMats.sun = sun;
+
+    var floorM = new THREE.MeshStandardMaterial({ color: tok('--floor'), roughness: .95 }); themeMats.floor = floorM;
+    var floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 30), floorM); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+    gridHelper = new THREE.GridHelper(40, 40, tok('--grid'), tok('--grid')); gridHelper.position.y = .005; scene.add(gridHelper);
+    var wallM = new THREE.MeshStandardMaterial({ color: tok('--wall'), roughness: .9 }); themeMats.wall = wallM;
+    var wall = new THREE.Mesh(new THREE.PlaneGeometry(40, 9), wallM); wall.position.set(0, 4.5, -8.5); wall.receiveShadow = true; scene.add(wall);
+
+    var title = makeSign('CONTROL ROOM', 4.4, 0.95); title.position.set(0, 6.6, -8.4); billboards.splice(billboards.indexOf(title), 1);
+    scene.add(title);
+
+    var flowM = new THREE.MeshBasicMaterial({ color: tok('--muted'), transparent: true, opacity: .35 }); themeMats.flow = flowM;
+    var flow = new THREE.Mesh(new THREE.PlaneGeometry(16, .12), flowM); flow.rotation.x = -Math.PI / 2; flow.position.set(0, .012, 3.55); scene.add(flow);
+
+    makeDesk(0, -3, 2.6, '--blue'); makeDesk(-3, 2, 2.4, '--violet'); makeDesk(3, 2, 2.4, '--teal');
+
+    var inM = new THREE.MeshStandardMaterial({ color: tok('--desk'), roughness: .7 }); themeMats.desk.push(inM);
+    var inT = box(1.5, .5, 1.1, inM); inT.position.set(-7.5, .25, 2.2); scene.add(inT);
+    var sIn = makeSign('INCOMING', 2.4, .6); sIn.position.set(-7.5, 1.9, 2.2); scene.add(sIn);
+
+    var shM = new THREE.MeshStandardMaterial({ color: tok('--desk'), roughness: .7 }); themeMats.desk.push(shM);
+    [-1.1, 1.1].forEach(function (x) { var p = box(.08, 2.4, 1.6, shM); p.position.set(7.5 + x, 1.2, 2.2); scene.add(p); });
+    [.5, 1.2, 1.9].forEach(function (y) { var b = box(2.2, .06, 1.6, shM); b.position.set(7.5, y, 2.2); scene.add(b); });
+    var sSub = makeSign('SUBMISSION', 2.6, .6); sSub.position.set(7.5, 3.1, 2.2); scene.add(sSub);
+
+    var binM = new THREE.MeshStandardMaterial({ color: tok('--bad'), roughness: .8 }); themeMats.bin = binM;
+    var bb = box(1.5, .08, 1.1, binM); bb.position.set(-3, .06, 6.2); scene.add(bb);
+    [[0, .55, 1.5, .08], [0, -.55, 1.5, .08]].forEach(function (s) { var w = box(s[2], .35, s[3], binM); w.position.set(-3 + s[0], .2, 6.2 + s[1]); scene.add(w); });
+    [-.75, .75].forEach(function (x) { var w = box(.08, .35, 1.1, binM); w.position.set(-3 + x, .2, 6.2); scene.add(w); });
+    var sBin = makeSign('FAILED / HELD', 2.4, .6); sBin.position.set(-3, 1.3, 6.2); scene.add(sBin);
+
+    ORDER.forEach(function (k) {
+      var a = AGENTS[k]; makeRobot(a);
+      var h = makeHolo(a); h.position.set(a.pos[0], 3.75, a.pos[2] - 1.05); scene.add(h); pickables.push(h);
+    });
+
+    SHEETS.forEach(function (d, i) { sheets.push(makeSheet(i, d)); });
+    resetSheets();
+    applyTheme(); resize(); homeView(true);
+    new ResizeObserver(resize).observe($('view'));
+    attachPicking(cv);
+    renderer.setAnimationLoop(frame);
+  }
+
+  function redrawAll() { holos.forEach(function (h) { h.draw(); }); signs.forEach(function (h) { h.draw(); }); }
+  function applyTheme() {
+    if (!ok3d || !scene) return;
+    var bg = new THREE.Color(tok('--scene-bg'));
+    scene.background = bg;
+    themeMats.floor.color.set(tok('--floor')); themeMats.wall.color.set(tok('--wall'));
+    themeMats.desk.forEach(function (m) { m.color.set(tok('--desk')); });
+    themeMats.prop.forEach(function (m) { m.color.set(tok('--prop')); });
+    themeMats.bin.color.set(tok('--bad')); themeMats.flow.color.set(tok('--muted'));
+    scene.remove(gridHelper); gridHelper.geometry.dispose(); gridHelper.material.dispose();
+    gridHelper = new THREE.GridHelper(40, 40, tok('--grid'), tok('--grid')); gridHelper.position.y = .005; scene.add(gridHelper);
+    themeMats.sun.intensity = (bg.r + bg.g + bg.b) < 1 ? .5 : .75;
+    themeCols.warn = tok('--warn'); themeCols.ok = tok('--ok');
+    refreshCardColors();
+    ORDER.forEach(function (k) { var col = new THREE.Color(tok(AGENTS[k].tokName)); robots[k].col.copy(col); robots[k].ringM.color.copy(col); });
+    redrawAll();
+  }
+  try {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    (mq.addEventListener ? mq.addEventListener.bind(mq, 'change') : mq.addListener.bind(mq))(applyTheme);
+    new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  } catch (e) {}
+
+  function resize() {
+    if (!ok3d) return;
+    var v = $('view'), w = v.clientWidth, h = v.clientHeight; if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  }
+  function homeView(instant) {
+    var asp = camera.aspect || 1.4, s = Math.min(2.5, Math.max(1, 1.5 / asp));
+    flyTo(new THREE.Vector3(0, 9 * s, 15.5 * s), new THREE.Vector3(0, 1, 1), instant);
+  }
+  function flyTo(pos, target, instant) {
+    if (instant || reduce) { camera.position.copy(pos); controls.target.copy(target); controls.update(); camTween = null; return; }
+    camTween = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos, t1: target, start: clock.getElapsedTime(), dur: 1.1 };
+  }
+  function focusAgent(k) {
+    var a = AGENTS[k], tgt = new THREE.Vector3(a.pos[0], 1.5, a.pos[2] - 1.05);
+    flyTo(new THREE.Vector3(a.pos[0] + 2.5, 4.2, a.pos[2] + 6.2), tgt);
+  }
+  function selectAgent(k, fly) { selected = k; renderUI(); if (fly && ok3d) focusAgent(k); }
+
+  function attachPicking(cv) {
+    var down = null, ray = new THREE.Raycaster(), v2 = new THREE.Vector2();
+    cv.addEventListener('pointerdown', function (e) { down = { x: e.clientX, y: e.clientY }; });
+    cv.addEventListener('pointerup', function (e) {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) { down = null; return; }
+      down = null;
+      var r = cv.getBoundingClientRect(); v2.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+      ray.setFromCamera(v2, camera);
+      var hit = ray.intersectObjects(pickables, false)[0];
+      if (hit && hit.object.userData.agent) selectAgent(hit.object.userData.agent, true);
+    });
+  }
+
+  /* ---------- animation loop ---------- */
+  var EYE = { working: null, waiting: 'warn', done: 'ok', idle: null, standby: null };
+  function frame() {
+    var t = clock.getElapsedTime();
+    for (var i = tweens.length - 1; i >= 0; i--) {
+      var tw = tweens[i], k = Math.min(1, (t - tw.t0) / tw.dur); tw.upd(ease(k));
+      if (k >= 1) { tweens.splice(i, 1); tw.res(); }
+    }
+    if (camTween) {
+      var c = camTween, k2 = Math.min(1, (t - c.start) / c.dur), e = ease(k2);
+      camera.position.lerpVectors(c.p0, c.p1, e); controls.target.lerpVectors(c.t0, c.t1, e);
+      if (k2 >= 1) camTween = null;
+    }
+    controls.update();
+    ORDER.forEach(function (key) {
+      var a = AGENTS[key], r = robots[key], w = a.status === 'working', wt = a.status === 'waiting';
+      var calm = reduce ? 0 : 1;
+      r.rig.position.y = calm * (Math.sin(t * 1.6 + a.phase) * .03 + (w ? Math.sin(t * 7) * .012 : 0));
+      r.head.rotation.y = calm * Math.sin(t * .7 + a.phase) * .15;
+      r.head.rotation.x = lerp(r.head.rotation.x, w ? .18 : 0, .1);
+      var tl = w ? -1.15 + calm * Math.sin(t * 8 + 1) * .25 : 0, tr = w ? -1.15 + calm * Math.sin(t * 8) * .25 : 0;
+      r.armL.rotation.x = lerp(r.armL.rotation.x, tl, .12);
+      r.armR.rotation.x = lerp(r.armR.rotation.x, tr, .12);
+      r.armR.rotation.z = lerp(r.armR.rotation.z, wt ? 2.5 + calm * Math.sin(t * 5) * .25 : 0, .12);
+      var et = EYE[a.status]; r.eyeM.emissive.set(et ? themeCols[et] : '#' + r.col.getHexString());
+      r.ringM.opacity = w ? .55 + calm * Math.sin(t * 5) * .15 : wt ? .5 : a.status === 'done' ? .3 : .1;
+      r.ringM.color.set(wt ? themeCols.warn : a.status === 'done' ? themeCols.ok : '#' + r.col.getHexString());
+    });
+    for (var b = 0; b < billboards.length; b++) {
+      var m = billboards[b]; m.rotation.y = Math.atan2(camera.position.x - m.position.x, camera.position.z - m.position.z);
+    }
+    renderer.render(scene, camera);
+  }
+
+  function tween(dur, upd) {
+    return new Promise(function (res) {
+      if (!ok3d) { res(); return; }
+      tweens.push({ t0: clock.getElapsedTime(), dur: reduce ? .15 : Math.max(.05, dur / speed), upd: upd, res: res });
+    });
+  }
+  function wait(ms) {
+    var id = runId;
+    return new Promise(function (res, rej) { setTimeout(function () { id === runId ? res() : rej('stale'); }, ms / speed); });
+  }
+
+  /* ---------- sheet positions ---------- */
+  var P = {
+    incoming: function (i) { return { x: -7.5, y: .54 + (SHEETS.length - i) * .03, z: 2.2 }; },
+    carlHover: { x: -3, y: 2.1, z: 2.9 },
+    louieHover: { x: 3, y: 2.1, z: 2.9 },
+    outbox: function (k) { return { x: -2.1, y: 1.0 + k * .03, z: 2.1 }; },
+    failed: function (k) { return { x: -3 + (k % 2 ? .2 : -.2), y: .16 + k * .03, z: 6.2 + (k % 3 - 1) * .12 }; },
+    shelf: function (k) { var lv = [.56, 1.26, 1.96][Math.floor(k / 4) % 3], j = k % 4; return { x: 7.5 + (j % 2 ? .5 : -.5), y: lv + .04, z: 2.2 + (j < 2 ? -.36 : .36) }; }
+  };
+  function moveSheet(s, to, dur, arc, rotY) {
+    var from = s.mesh.position.clone(), r0 = s.mesh.rotation.y;
+    return tween(dur, function (k) {
+      s.mesh.position.set(lerp(from.x, to.x, k), lerp(from.y, to.y, k) + Math.sin(Math.PI * k) * (arc || 0), lerp(from.z, to.z, k));
+      if (rotY !== undefined) s.mesh.rotation.y = lerp(r0, rotY, k);
+    });
+  }
+  function resetSheets() {
+    sheets.forEach(function (s, i) { var p = P.incoming(i); s.mesh.position.set(p.x, p.y, p.z); s.mesh.rotation.set(0, 0, 0); s.setStatus('new'); });
+  }
+
+  /* ---------- approvals ---------- */
+  var approveRes = null;
+  function askApproval(title, body, btn) {
+    $('apTitle').textContent = title; $('apBody').textContent = body; $('apBtn').textContent = btn; $('approve').hidden = false;
+    return new Promise(function (res) { approveRes = res; });
+  }
+  $('apBtn').addEventListener('click', function () { $('approve').hidden = true; var r = approveRes; approveRes = null; if (r) r(); });
+
+  /* ---------- the demo run ---------- */
+  function resetAll() {
+    runId++; tweens.length = 0; approveRes = null; $('approve').hidden = true; $('log').innerHTML = '';
+    counts = { sub: 0, pass: 0, fail: 0, uns: 0, log: 0 }; startTime = Date.now();
+    ORDER.forEach(function (k) { Object.assign(AGENTS[k], { status: 'idle', task: 'Waiting for a submission.', step: '—', last: '—', progress: null }); });
+    if (ok3d) resetSheets();
+    renderUI();
+  }
+
+  async function demo() {
+    resetAll();
+    var failedK = 0, outK = 0, passList = [];
+    await wait(900);
+    counts.sub = SHEETS.length;
+    log('Incoming', 'Submission SUB-014 arrived: 12 PDFs and list.xlsx');
+    setAgent('lew', { status: 'working', task: 'New submission SUB-014. Reading the drawing list and loading the checklists.', step: '1 of 5 · Intake', progress: { done: 0, total: 1, unit: 'steps' } });
+    await wait(1600);
+    log('Lew', 'Loaded standard checklist and Client A extras from the brain');
+    setAgent('lew', { task: 'Handed the submission to Carl. Watching the check.', step: '2 of 5 · Check', last: 'Intake complete', progress: { done: 1, total: 5, unit: 'steps' } });
+    setAgent('carl', { status: 'working', task: 'Matching file names, titles and count to list.xlsx.', step: 'Exact checks', progress: { done: 0, total: 12, unit: 'files' } });
+    log('Carl', 'Reading list.xlsx: 12 rows');
+    await wait(900);
+    log('Carl', 'Count check: 12 files found, 12 on the list', 'ok');
+    for (var i = 0; i < SHEETS.length; i++) {
+      await wait(260);
+      setAgent('carl', { progress: { done: i + 1, total: 12, unit: 'files' } });
+      if (SHEETS[i].outcome === 'failName') {
+        log('Carl', SHEETS[i].id + ' file name says "' + SHEETS[i].fileTitle + '", list says "' + SHEETS[i].title + '"', 'bad');
+        counts.fail++; sheets[i].setStatus('fail'); renderUI();
+        await moveSheet(sheets[i], P.failed(failedK++), .9, 1.4, .3);
+      }
+    }
+    log('Carl', 'Exact checks done: 11 of 12 match', 'warn');
+    setAgent('carl', { task: 'Looking at each sheet against the checklist: title block, scale, views.', step: 'Sheet checks', progress: { done: 0, total: 11, unit: 'sheets' } });
+    var done = 0;
+    for (var j = 0; j < SHEETS.length; j++) {
+      var d = SHEETS[j]; if (d.outcome === 'failName') continue;
+      setAgent('carl', { task: 'Checking ' + d.id + ' ' + d.title + '.' });
+      await moveSheet(sheets[j], P.carlHover, .55, .5, 0);
+      await wait(520);
+      done++;
+      if (d.outcome === 'failRev') {
+        sheets[j].setStatus('fail'); counts.fail++;
+        log('Carl', d.id + ' title block has no revision', 'bad');
+        setAgent('carl', { progress: { done: done, total: 11, unit: 'sheets' }, last: d.id + ' failed: revision missing' });
+        await moveSheet(sheets[j], P.failed(failedK++), .8, 1.2, -.25);
+      } else if (d.outcome === 'unsure') {
+        sheets[j].setStatus('unsure'); counts.uns++;
+        log('Carl', d.id + ' section tag looks partly hidden. Unsure, held for you', 'warn');
+        setAgent('carl', { progress: { done: done, total: 11, unit: 'sheets' }, last: d.id + ' unsure: section tag partly hidden' });
+        await moveSheet(sheets[j], P.failed(failedK++), .8, 1.2, .2);
+      } else {
+        sheets[j].setStatus('pass'); counts.pass++; passList.push(j);
+        setAgent('carl', { progress: { done: done, total: 11, unit: 'sheets' }, last: d.id + ' passed' });
+        await moveSheet(sheets[j], P.outbox(outK++), .6, .5, 0);
+      }
+      renderUI();
+    }
+    log('Carl', 'Report ready: 9 pass, 2 fail, 1 unsure');
+    setAgent('carl', { status: 'done', task: 'Report ready: 9 pass, 2 fail, 1 unsure.', step: 'Finished', last: '9 pass · 2 fail · 1 unsure', progress: { done: 11, total: 11, unit: 'sheets' } });
+    setAgent('lew', { status: 'waiting', task: 'Carl\'s report is ready. Waiting for your OK to file the 9 passed sheets.', step: '3 of 5 · Your approval', progress: { done: 2, total: 5, unit: 'steps' } });
+    await askApproval('Approve filing?', 'Lew has the report: 9 pass, 2 fail, 1 unsure. Louie will file the 9 passed drawings and log all 12.', 'Approve and file');
+    log('You', 'Approved filing of 9 drawings');
+    setAgent('lew', { status: 'standby', task: 'Approved. Louie is filing.', step: '4 of 5 · Filing', progress: { done: 3, total: 5, unit: 'steps' } });
+    setAgent('louie', { status: 'working', task: 'Filing passed drawings to the submission folder.', step: 'Filing', progress: { done: 0, total: 9, unit: 'files' } });
+    for (var m = 0; m < passList.length; m++) {
+      var s = sheets[passList[m]];
+      setAgent('louie', { task: 'Filing ' + s.id + ' ' + s.title + '.' });
+      await moveSheet(s, P.louieHover, .55, .6, 0);
+      await wait(280);
+      await moveSheet(s, P.shelf(m), .7, .9, 0);
+      counts.log++;
+      log('Louie', s.id + ' filed to submission folder, log row added', 'ok');
+      setAgent('louie', { progress: { done: m + 1, total: 9, unit: 'files' }, last: s.id + ' filed' });
+    }
+    await wait(600);
+    counts.log += 3;
+    log('Louie', 'Logged the 3 not submitted: 2 failed, 1 held. History note saved to the brain');
+    setAgent('louie', { status: 'done', task: '9 filed, 3 not submitted. log.xlsx has 12 new rows.', step: 'Finished', last: '9 filed · 12 log rows', progress: { done: 9, total: 9, unit: 'files' } });
+    setAgent('lew', { status: 'working', task: 'Reading the history to spot patterns for the brain.', step: '5 of 5 · Learning', progress: { done: 4, total: 5, unit: 'steps' } });
+    await wait(1800);
+    log('Lew', 'Proposed rule: check file name spelling against the list before opening sheets');
+    setAgent('lew', { status: 'waiting', task: 'Proposed a new brain rule from today\'s failed file name. Waiting for your OK.', step: '5 of 5 · Learning', last: 'Run complete: 9 filed, 2 failed, 1 held' });
+    await askApproval('Save a new brain rule?', 'Lew suggests: "Check file name spelling against the list before opening any sheet." It would be saved to wiki/lessons.md.', 'Save rule');
+    log('You', 'Approved the new rule');
+    log('Lew', 'Saved to wiki/lessons.md. Run complete', 'ok');
+    setAgent('lew', { status: 'done', task: 'Run complete. Rule saved to the brain.', step: 'Finished', progress: { done: 5, total: 5, unit: 'steps' } });
+    setAgent('carl', { status: 'idle' }); setAgent('louie', { status: 'idle' });
+  }
+  function startDemo() { demo().catch(function (e) { if (e !== 'stale') console.error(e); }); }
+
+  /* ---------- wiring ---------- */
+  $('speed').addEventListener('change', function (e) { speed = parseFloat(e.target.value) || 1; });
+  $('btnRestart').addEventListener('click', startDemo);
+  $('btnView').addEventListener('click', function () { if (ok3d) homeView(false); });
+  refreshCardColors(); renderUI();
+  if (ok3d) {
+    try { buildScene(); } catch (e) { ok3d = false; console.error(e); }
+  }
+  if (!ok3d) {
+    $('fallback').hidden = false;
+    SHEETS.forEach(function (d) { sheets.push({ id: d.id, title: d.title, setStatus: function () {}, mesh: { position: { clone: function () { return { x: 0, y: 0, z: 0 }; }, set: function () {} }, rotation: { y: 0 } } }); });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { renderUI(); if (ok3d) { redrawAll(); sheets.forEach(function (s) { s.draw(); }); } });
+  startDemo();
+})();
+</script>

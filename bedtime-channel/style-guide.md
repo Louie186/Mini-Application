@@ -12,6 +12,12 @@ Read this before writing or voicing any story.
 - Medium-low pitch. Too low sounded sad (v2). Lift brightness instead of dropping pitch.
 - Natural storytelling pace. Not rushed, not slow and sleepy for daytime stories.
 
+## Feeling follows the action
+- Tell it like a father to a real child sitting beside him, not a performance.
+- Each line's feeling matches what the characters are doing: proud while walking, playful while stomping, curious then excited at the river, a happy sigh after drinking, warm and joyful at the end.
+- Slow pace, about 120 to 130 words per minute, with real pauses between moments.
+- Every script gets delivery notes, so the owner can also read it aloud.
+
 ## Do not
 - **Do not use the "preschool teacher / sing-song / Ms Rachel" style.** No "Can you say…?" questions to the viewer, no pauses for the child to answer, no exaggerated melody.
 - Do not imitate or name any real presenter or brand.
@@ -30,4 +36,5 @@ Read this before writing or voicing any story.
 - v2: onyx and puck blend, lowered more. Feedback: sounds sad.
 - v3: santa and puck blend, brighter, faster. (Sent with A/B/C voice options.)
 - Sing-song test: rejected. Do not repeat this style.
-- v4: back to the v3 story text, calmer and more jolly (santa-heavy blend, slower). Waiting for feedback.
+- v4: back to the v3 story text, calmer and more jolly (santa-heavy blend, slower).
+- v5: slower (about 124 words per minute), emotion per line based on the action, "Once upon a time" opening, reading script in `scripts/ella-river-walk-v5.md`. Waiting for feedback; the owner may record it in their own voice.

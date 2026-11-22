@@ -106,6 +106,16 @@ Purpose: make Revit-standard DWGs match the DiRoots result (pictures embedded, n
 - Output: <out>\<Model>\PDF and \DWG. DWG: merged views, AutoCAD 2018 format. PDF: one file per sheet.
 - Tested only against a fake Revit (logic); NOT yet in real Revit. Next: user tests on the dummy model, then add the multi-model loop (open cloud models by IDs, all worksets, links loaded).
 
+## Multi-model design (agreed)
+- User gives ONLY drawing numbers (LOD). No Model column needed.
+- Registers (built by a "Register models" Dynamo script, refreshed by every export run):
+  - ModelRegister.csv: Model name, Region, ProjectGUID, ModelGUID (cloud location).
+  - SheetRegister.csv: Revit sheet number (sequence) -> Model, plus sheet name and revision.
+- Lookup: LOD number -> sequence (7th field) -> SheetRegister -> Model -> ModelRegister -> cloud IDs.
+  - Same sequence in two models = AMBIGUOUS, flagged, not guessed. Unknown number = flagged (re-run register).
+- Open: ModelPathUtils.ConvertCloudGUIDsToCloudPath(region, projectGuid, modelGuid); OpenOptions with DetachAndPreserveWorksets + OpenAllWorksets; check links loaded (reload if not); export; close WITHOUT saving.
+- No sync needed: detached + read-only use; nothing goes back to ACC; no locks or borrowed elements. Prints show the LAST SYNCED cloud version, so the team must sync before the print run (agree a cut-off time).
+
 ## Logging and submission
 - Logger updates a master register (new / changed / unchanged per sheet).
 - Submission folder built by the agent if Claude Code is on the PC; otherwise copied by hand. User approves before anything goes out.

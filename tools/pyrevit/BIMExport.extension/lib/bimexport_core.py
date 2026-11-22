@@ -137,13 +137,41 @@ def csv_line(values):
     return u','.join(u'"%s"' % text(v).replace(u'"', u'""') for v in values)
 
 
-def append_csv(path, header, rows):
+def _append(path, header, rows):
     new = not os.path.exists(path)
     with io.open(path, 'a', encoding='utf-8-sig' if new else 'utf-8') as f:
         if new:
             f.write(csv_line(header) + u'\n')
         for r in rows:
             f.write(csv_line(r) + u'\n')
+
+
+def usable_log_path(path):
+    """The log path, or a new dated one if the file is locked (e.g. open in Excel)."""
+    try:
+        with io.open(path, 'a', encoding='utf-8'):
+            pass
+        return path
+    except Exception:
+        base, ext = os.path.splitext(path)
+        return u'%s_%s%s' % (base, datetime.datetime.now().strftime('%Y%m%d_%H%M%S'), ext)
+
+
+def append_csv(path, header, rows):
+    """Append rows. Never stops the run: if the file is locked, writes a dated copy.
+    Returns the path actually written."""
+    try:
+        _append(path, header, rows)
+        return path
+    except Exception:
+        alt = usable_log_path(path)
+        if alt == path:
+            alt = os.path.splitext(path)[0] + u'_%d.csv' % int(time.time())
+        try:
+            _append(alt, header, rows)
+        except Exception:
+            pass
+        return alt
 
 
 def write_csv(path, header, rows):

@@ -99,6 +99,11 @@ def main():
     lod_rows, lod_path, do_export, out_root, models, run_cad = picked
 
     log_path = os.path.join(out_root, 'SheetExport_log.csv')
+    wanted = log_path
+    log_path = core.usable_log_path(log_path)
+    if log_path != wanted:
+        forms.alert('SheetExport_log.csv is open in another program (Excel?).\n\n'
+                    'This run will write to:\n%s' % log_path)
     reg = core.load_register()
     matched_all = set()
     totals = {'ok': 0, 'failed': 0, 'would': 0}

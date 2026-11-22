@@ -169,8 +169,146 @@ def pick_sheets(models, cache):
     return picked
 
 
+def export_models(next_rec, n_total, job, settings, reg, cache, log_path, pb_title):
+    """Export model after model, as long as next_rec() gives one. Returns (lines, totals, matched)."""
+    do_export, out_root = job['do_export'], job['out_root']
+    picked = dict((g, set(v)) for g, v in job['picked'].items()) if job.get('picked') is not None else None
+    lod_rows = job.get('lod_rows')
+    totals = {'ok': 0, 'failed': 0, 'would': 0}
+    lines, matched_all = [], set()
+    opened_before = set(KEPT.keys())
+    done = 0
+    with core.QuietRevit(uiapp):
+        with forms.ProgressBar(title=pb_title, cancellable=True) as pb:
+            while True:
+                if pb.cancelled:
+                    lines.append('Cancelled by user (models not started are left for other windows / next run).')
+                    break
+                pb.update_progress(done, max(n_total, done + 1))
+                rec = next_rec()
+                if rec is None:
+                    break
+                done += 1
+                label = core.register_label(rec)
+                guid = rec['ModelGUID'].lower()
+                log = []
+                t0 = time.time()
+
+                def work(doc):
+                    entry = core.read_sheet_list(doc, settings.get('naming_rule') or '{DrawingNumber}')
+                    cache[guid] = entry
+                    try:
+                        core.save_sheet_entry(guid, entry)
+                    except Exception:
+                        pass
+                    links = core.check_links(doc)
+                    res = core.export_model(doc, lod_rows, out_root, settings, do_export, log,
+                                            picked=picked.get(guid) if picked is not None else None)
+                    return res, links, core.model_name(doc)
+
+                try:
+                    res, note, err = run_on_model(rec, settings, reg, work)
+                except Exception as e:
+                    res, note, err = None, None, core.text(e)
+                if res is None:
+                    lines.append('FAILED %s: %s' % (label, err))
+                    log.append([core.now(), 'OPEN', label, '', '', '', '', '', 'FAILED', '', err])
+                else:
+                    (matched, counts, notes, raw_dir), links, mname = res
+                    matched_all |= matched
+                    for k in totals:
+                        totals[k] += counts[k]
+                    extra = ([note] if note else []) + links + notes
+                    for n in extra:
+                        log.append([core.now(), 'INFO', mname, '', '', '', '', '', 'NOTE', '', n])
+                    total = time.time() - t0
+                    osecs = OPEN_SECS.get(guid)
+                    lines.append('%s: %d drawing(s), %s  |  %s%s' % (
+                        mname, len(matched),
+                        ('%d file(s) exported, %d failed' % (counts['ok'], counts['failed'])) if do_export
+                        else ('%d file(s) would export' % counts['would']),
+                        ('open %.0fs + export %.0fs' % (osecs, max(0, total - osecs))
+                         if (osecs is not None and guid not in opened_before)
+                         else 'export %.0fs (model was already open)' % total),
+                        ('  [%s]' % '; '.join(extra)) if extra else ''))
+                core.append_csv(log_path, core.LOG_HEADER, log)
+                if job.get('_on_done'):
+                    job['_on_done'](guid)
+    core.save_register(reg)
+    return lines, totals, matched_all
+
+
+def report(title, started, lines, totals, do_export, missing, cad_msg, log_path):
+    output.print_md('## %s' % title)
+    output.print_md('Time: %.1f min' % ((time.time() - started) / 60.0))
+    for l in lines:
+        output.print_md('- ' + l)
+    output.print_md('**Files %s: %d%s**' % (
+        'exported' if do_export else 'that would export',
+        totals['ok'] if do_export else totals['would'],
+        (', failed: %d' % totals['failed']) if do_export else ''))
+    if missing:
+        output.print_md('**LOD numbers not found in the chosen models: %d**' % len(missing))
+        for m in missing[:30]:
+            output.print_md('  - ' + m)
+    if cad_msg:
+        output.print_md('**Logos:** ' + cad_msg)
+    output.print_md('Log: `%s`' % log_path)
+
+
+def run_queue(qd, job, settings, reg, cache, window_name):
+    """Work on a shared export until no model is left. Any number of Revit windows can do this."""
+    models = dict((m['ModelGUID'].lower(), m) for m in job['models'])
+    for k in ('naming_rule', 'dwg_setup', 'pdf_setup', '_formats'):
+        if k in job:
+            settings[k] = job[k]
+    log_path = core.usable_log_path(os.path.join(job['out_root'], 'SheetExport_log.csv'))
+    job['_on_done'] = lambda g: core.queue_done(qd, g)
+    claimed = []
+
+    def next_rec():
+        g = core.queue_claim(qd, prefer=tuple(KEPT.keys()))
+        if g is None:
+            return None
+        claimed.append(g)
+        return models.get(g)
+
+    started = time.time()
+    left = len([x for x in os.listdir(qd) if x.endswith('.todo')])
+    lines, totals, _ = export_models(next_rec, left, job, settings, reg, cache, log_path,
+                                     '%s: exporting (shared with other Revit windows)' % window_name)
+    for g in list(KEPT.keys()):                 # kept models another window took: close ours
+        close_model(KEPT.pop(g)[0])
+    cad_msg = ''
+    if core.queue_finished(qd):
+        if job.get('run_cad') and core.queue_claim_logos(qd):
+            jobs = core.find_raw_dwgs(job['out_root'])
+            cad_msg = core.start_img2ole(jobs, job['out_root'], settings) if jobs else 'No DWG files to process.'
+        lines.append('All models of the shared export are finished.')
+    else:
+        lines.append('Other Revit window(s) are still working. The last one to finish starts the logo step.')
+    report('Sheet Export - %s (%d model(s) done here)' % (window_name, len(claimed)), started, lines,
+           totals, job['do_export'], [], cad_msg, log_path)
+
+
 def main():
     settings = core.load_settings()
+    reg = core.load_register()
+    cache = core.load_sheet_cache()
+
+    # another Revit window already started a shared export?
+    active = core.queue_active()
+    if active:
+        qd, job, left = active
+        choice = forms.CommandSwitchWindow.show(
+            ['Join the running export (%d model(s) left)' % left, 'Start a new export'],
+            message='An export is running in another Revit window.')
+        if not choice:
+            return
+        if choice.startswith('Join'):
+            run_queue(qd, job, settings, reg, cache, 'Helper window')
+            return
+
     what = forms.CommandSwitchWindow.show([TICK, LOD, ALL], message='What do you want to export?')
     if not what:
         return
@@ -203,7 +341,6 @@ def main():
     settings['_formats'] = {'pdf': 'Y' if 'PDF' in fmt else 'N', 'dwg': 'Y' if 'DWG' in fmt else 'N'}
 
     picked = None
-    cache = core.load_sheet_cache()
     if what == TICK:
         missing = [m for m in models if m['ModelGUID'].lower() not in cache]
         to_scan = missing
@@ -216,7 +353,7 @@ def main():
             if how.startswith('Refresh'):
                 to_scan = models
         elif not forms.alert('%d model(s) have no saved sheet list yet.\n\nRead them now? '
-                             'Each opens once in the background (detached), then closes. '
+                             'Each opens once in the background (detached). '
                              'Next time this is instant.' % len(missing), yes=True, no=True):
             return
         if to_scan:
@@ -232,7 +369,6 @@ def main():
             if guid not in picked:
                 close_model(KEPT.pop(guid)[0])
 
-
     out_root = forms.pick_folder(title='Output folder for the exports')
     if not out_root:
         return
@@ -243,84 +379,58 @@ def main():
         run_cad = forms.alert('After exporting, start AutoCAD to embed the logos?\n\n'
                               '(You can also do it later with the "Embed Logos" button.)', yes=True, no=True)
 
-    n_sheets = sum(len(v) for v in picked.values()) if picked else None
     instant = (what == TICK and not do_export)
-    if not forms.alert('%s\n\nModels: %d\nDrawings: %s\nFormats: %s\nOutput: %s\nLogos: %s\n\n%s' % (
+    share = False
+    if do_export and lod_rows is None and len(models) > 1:
+        share = forms.alert('Share this export with other Revit windows?\n\n'
+                            'Yes: open another Revit window, click Export Sheets there and choose '
+                            '"Join". Each window takes the next model, so it finishes faster.\n'
+                            '(64 GB memory: 2-3 windows are fine.)', yes=True, no=True)
+
+    n_sheets = sum(len(v) for v in picked.values()) if picked else None
+    if not forms.alert('%s\n\nModels: %d\nDrawings: %s\nFormats: %s\nOutput: %s\nLogos: %s\nShared: %s\n\n%s' % (
             'EXPORT' if do_export else 'DRY RUN', len(models),
             n_sheets if n_sheets is not None else ('%d from LOD' % len(lod_rows) if lod_rows else 'all'),
-            fmt, out_root, 'yes' if run_cad else 'no',
+            fmt, out_root, 'yes' if run_cad else 'no', 'yes' if share else 'no',
             'Instant - no model is opened.' if instant else 'Revit will be busy until it finishes. Continue?'),
             yes=True, no=True):
         return
     core.save_settings(settings)
-
     core.ensure_dir(out_root)
+
+    job = {'out_root': out_root, 'do_export': do_export, 'run_cad': run_cad, 'models': models,
+           'picked': dict((g, sorted(v)) for g, v in picked.items()) if picked else None,
+           'lod_rows': lod_rows, 'naming_rule': settings.get('naming_rule'),
+           'dwg_setup': settings.get('dwg_setup'), 'pdf_setup': settings.get('pdf_setup'),
+           '_formats': settings['_formats']}
+
+    if share:
+        qd = core.queue_create(out_root, job, [m['ModelGUID'].lower() for m in models])
+        run_queue(qd, job, settings, reg, cache, 'Main window')
+        return
+
     log_path = core.usable_log_path(os.path.join(out_root, 'SheetExport_log.csv'))
     if not log_path.endswith('SheetExport_log.csv'):
         forms.alert('SheetExport_log.csv is open in another program (Excel?).\n\nThis run writes to:\n%s' % log_path)
-
-    totals = {'ok': 0, 'failed': 0, 'would': 0}
-    lines, matched_all = [], set()
     started = time.time()
 
     if instant:
-        log = []
+        log, lines, totals = [], [], {'ok': 0, 'failed': 0, 'would': 0}
         for rec in models:
-            entry = cache.get(rec['ModelGUID'].lower(), {})
-            n = core.plan_from_cache(entry, picked.get(rec['ModelGUID'].lower(), set()), out_root, settings, log)
+            g = rec['ModelGUID'].lower()
+            entry = cache.get(g, {})
+            n = core.plan_from_cache(entry, picked.get(g, set()), out_root, settings, log)
             totals['would'] += n
             lines.append('%s: %d drawing(s), %d file(s) would export (sheet list saved %s)' % (
-                entry.get('model', '?'), len(picked.get(rec['ModelGUID'].lower(), [])), n, entry.get('updated', '?')))
+                entry.get('model', '?'), len(picked.get(g, [])), n, entry.get('updated', '?')))
         core.append_csv(log_path, core.LOG_HEADER, log)
+        matched_all = set()
     else:
-        opened_before = set(KEPT.keys())
-        with core.QuietRevit(uiapp):
-            with forms.ProgressBar(title='Exporting {value} of {max_value} models', cancellable=True) as pb:
-                for i, rec in enumerate(models):
-                    if pb.cancelled:
-                        lines.append('Cancelled by user.')
-                        break
-                    pb.update_progress(i, len(models))
-                    label = core.register_label(rec)
-                    guid = rec['ModelGUID'].lower()
-                    log = []
-                    t0 = time.time()
-
-                    def work(doc):
-                        cache[guid] = core.read_sheet_list(doc, settings.get('naming_rule') or '{DrawingNumber}')
-                        links = core.check_links(doc)
-                        res = core.export_model(doc, lod_rows, out_root, settings, do_export, log,
-                                                picked=picked.get(guid) if picked else None)
-                        return res, links, core.model_name(doc)
-
-                    try:
-                        res, note, err = run_on_model(rec, settings, reg, work)
-                    except Exception as e:
-                        res, note, err = None, None, core.text(e)
-                    if res is None:
-                        lines.append('FAILED %s: %s' % (label, err))
-                        log.append([core.now(), 'OPEN', label, '', '', '', '', '', 'FAILED', '', err])
-                    else:
-                        (matched, counts, notes, raw_dir), links, mname = res
-                        matched_all |= matched
-                        for k in totals:
-                            totals[k] += counts[k]
-                        extra = ([note] if note else []) + links + notes
-                        for n in extra:
-                            log.append([core.now(), 'INFO', mname, '', '', '', '', '', 'NOTE', '', n])
-                        total = time.time() - t0
-                        osecs = OPEN_SECS.get(guid)
-                        lines.append('%s: %d drawing(s), %s  |  %s%s' % (
-                            mname, len(matched),
-                            ('%d file(s) exported, %d failed' % (counts['ok'], counts['failed'])) if do_export
-                            else ('%d file(s) would export' % counts['would']),
-                            ('open %.0fs + export %.0fs' % (osecs, max(0, total - osecs)) if (osecs is not None and guid not in opened_before)
-                             else 'export %.0fs (model was already open)' % total),
-                            ('  [%s]' % '; '.join(extra)) if extra else ''))
-                    core.append_csv(log_path, core.LOG_HEADER, log)
-                pb.update_progress(len(models), len(models))
-        core.save_register(reg)
-        core.save_sheet_cache(cache)
+        queue = list(models)
+        queue.sort(key=lambda m: m['ModelGUID'].lower() not in KEPT)       # already-open models first
+        lines, totals, matched_all = export_models(lambda: queue.pop(0) if queue else None, len(queue),
+                                                   job, settings, reg, cache, log_path,
+                                                   'Exporting {value} of {max_value} models')
 
     missing = []
     if lod_rows is not None:
@@ -334,22 +444,8 @@ def main():
     if run_cad:
         jobs = core.find_raw_dwgs(out_root)
         cad_msg = core.start_img2ole(jobs, out_root, settings) if jobs else 'No DWG files to process.'
-
-    output.print_md('## Sheet Export - %s' % ('EXPORT' if do_export else 'DRY RUN'))
-    output.print_md('Time: %.1f min' % ((time.time() - started) / 60.0))
-    for l in lines:
-        output.print_md('- ' + l)
-    output.print_md('**Files %s: %d%s**' % (
-        'exported' if do_export else 'that would export',
-        totals['ok'] if do_export else totals['would'],
-        (', failed: %d' % totals['failed']) if do_export else ''))
-    if missing:
-        output.print_md('**LOD numbers not found in the chosen models: %d**' % len(missing))
-        for m in missing[:30]:
-            output.print_md('  - ' + m)
-    if cad_msg:
-        output.print_md('**Logos:** ' + cad_msg)
-    output.print_md('Log: `%s`' % log_path)
+    report('Sheet Export - %s' % ('EXPORT' if do_export else 'DRY RUN'), started, lines, totals,
+           do_export, missing, cad_msg, log_path)
 
 
 try:

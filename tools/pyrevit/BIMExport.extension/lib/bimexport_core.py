@@ -523,18 +523,44 @@ def make_name(doc, sheet, rule, row, model):
 SHEET_CACHE_FILE = os.path.join(SETTINGS_DIR, 'SheetCache.json')
 
 
+SHEET_DIR = os.path.join(SETTINGS_DIR, 'sheets')      # one file per model: safe with several Revit windows
+
+
 def load_sheet_cache():
-    try:
+    c = {}
+    try:                                                    # older single-file cache
         with io.open(SHEET_CACHE_FILE, 'r', encoding='utf-8') as f:
-            return json.loads(f.read())
+            c.update(json.loads(f.read()))
     except Exception:
-        return {}
+        pass
+    if os.path.isdir(SHEET_DIR):
+        for fn in os.listdir(SHEET_DIR):
+            if fn.lower().endswith('.json'):
+                try:
+                    with io.open(os.path.join(SHEET_DIR, fn), 'r', encoding='utf-8') as f:
+                        c[fn[:-5].lower()] = json.loads(f.read())
+                except Exception:
+                    pass
+    return c
+
+
+def save_sheet_entry(guid, entry):
+    ensure_dir(SHEET_DIR)
+    tmp = os.path.join(SHEET_DIR, guid.lower() + '.tmp')
+    dst = os.path.join(SHEET_DIR, guid.lower() + '.json')
+    with io.open(tmp, 'w', encoding='utf-8') as f:
+        f.write(text(json.dumps(entry, indent=1)))
+    if os.path.exists(dst):
+        os.remove(dst)
+    os.rename(tmp, dst)
 
 
 def save_sheet_cache(c):
-    ensure_dir(SETTINGS_DIR)
-    with io.open(SHEET_CACHE_FILE, 'w', encoding='utf-8') as f:
-        f.write(text(json.dumps(c, indent=1)))
+    for guid, entry in c.items():
+        try:
+            save_sheet_entry(guid, entry)
+        except Exception:
+            pass
 
 
 def rule_params(rule):
@@ -733,6 +759,104 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None)
             log.append([now(), mode, model, listed, sheet.Name, rev, fmt, target, status,
                         u'%.1f' % (time.time() - t0), u'; '.join([n for n in note + [extra] if n])])
     return matched, counts, notes, raw_dir
+
+
+# ------------------------------------------------- shared queue (N windows) --
+QUEUE_POINTER = os.path.join(SETTINGS_DIR, 'active_queue.txt')
+
+
+def _pid():
+    try:
+        return os.getpid()
+    except Exception:
+        import System
+        return System.Diagnostics.Process.GetCurrentProcess().Id
+
+
+def queue_create(out_root, job, guids, first=None):
+    """One file per model in <out_root>\\_queue. Claiming = renaming the file (atomic)."""
+    qd = os.path.join(out_root, '_queue')
+    ensure_dir(qd)
+    for fn in os.listdir(qd):
+        try:
+            os.remove(os.path.join(qd, fn))
+        except Exception:
+            pass
+    with io.open(os.path.join(qd, 'job.json'), 'w', encoding='utf-8') as f:
+        f.write(text(json.dumps(job, indent=1)))
+    for g in guids:
+        io.open(os.path.join(qd, g + '.todo'), 'w').close()
+    if job.get('run_cad'):
+        io.open(os.path.join(qd, 'logos.pending'), 'w').close()
+    ensure_dir(SETTINGS_DIR)
+    with io.open(QUEUE_POINTER, 'w', encoding='utf-8') as f:
+        f.write(text(qd))
+    return qd
+
+
+def queue_active():
+    """(queue folder, job, models left) of a running shared export, or None."""
+    try:
+        with io.open(QUEUE_POINTER, 'r', encoding='utf-8') as f:
+            qd = f.read().strip()
+        left = [x for x in os.listdir(qd) if x.endswith('.todo')]
+        if not left:
+            return None
+        with io.open(os.path.join(qd, 'job.json'), 'r', encoding='utf-8') as f:
+            return qd, json.loads(f.read()), len(left)
+    except Exception:
+        return None
+
+
+def queue_claim(qd, prefer=()):
+    """Take the next model nobody has started. Returns its GUID or None."""
+    try:
+        todo = [x[:-5] for x in os.listdir(qd) if x.endswith('.todo')]
+    except Exception:
+        return None
+    todo.sort(key=lambda g: (g not in prefer, g))
+    for g in todo:
+        try:
+            os.rename(os.path.join(qd, g + '.todo'), os.path.join(qd, '%s.taken_%s' % (g, _pid())))
+            return g
+        except Exception:
+            continue                      # another window was faster
+    return None
+
+
+def queue_done(qd, guid):
+    for fn in os.listdir(qd):
+        if fn.startswith(guid + '.taken_'):
+            try:
+                os.rename(os.path.join(qd, fn), os.path.join(qd, guid + '.done'))
+            except Exception:
+                pass
+
+
+def queue_release(qd, guid):
+    """Give a model back (e.g. this window was cancelled before starting it)."""
+    for fn in os.listdir(qd):
+        if fn.startswith(guid + '.taken_'):
+            try:
+                os.rename(os.path.join(qd, fn), os.path.join(qd, guid + '.todo'))
+            except Exception:
+                pass
+
+
+def queue_finished(qd):
+    try:
+        return not any(x.endswith('.todo') or '.taken_' in x for x in os.listdir(qd))
+    except Exception:
+        return False
+
+
+def queue_claim_logos(qd):
+    """Only one window starts AutoCAD."""
+    try:
+        os.rename(os.path.join(qd, 'logos.pending'), os.path.join(qd, 'logos.started'))
+        return True
+    except Exception:
+        return False
 
 
 # --------------------------------------------------------------- AutoCAD --

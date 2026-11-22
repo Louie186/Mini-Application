@@ -45,6 +45,18 @@ You never open a model yourself.
 3. It checks that IMG2OLE and AutoCAD can be found, and lets you point to them if not
 4. It starts AutoCAD on every `<model>\_DWG_raw\*.dwg` and writes the finished files to `<model>\DWG\`
 
+### Faster: several Revit windows share one export
+
+1. Start the export in Revit window 1 as usual, and answer **Yes** to "Share this export with other Revit windows?"
+2. Open a **second Revit** (and a third, if you like) with any file
+3. There, click **Export Sheets** → **Join the running export**
+4. Each window takes the next model nobody has started, so no model is done twice
+5. Each window shows its own report. The **last window to finish** starts AutoCAD for the logos (once)
+
+- 64 GB memory: 2–3 windows are fine
+- Cancel in one window: models it hasn't started stay in the queue for the others
+- The queue lives in `<Output folder>\_queue\`
+
 ### Opening models
 
 - **Workshared models open detached** (all worksets), so they never touch your own local copy or the central model

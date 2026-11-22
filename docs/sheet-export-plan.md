@@ -100,6 +100,12 @@ Purpose: make Revit-standard DWGs match the DiRoots result (pictures embedded, n
 - Dry run is plain AutoLISP, so it also runs headless in AutoCAD Core Console (AI team route).
 - NOT TESTED YET (written without AutoCAD). Next: user runs README Test 1 and Test 2 on the dummy model export.
 
+## Revit export: build status
+- First version: `tools/revit-export/` (SheetExport.dyn + SheetExport.py Python node, DrawingList_template.csv, README.md).
+- Scope now: the OPEN model only. Reads CSV list (SheetNumber, SheetName, Model, PDF, DWG), exports listed sheets, token naming rule ({SheetNumber} {SheetName} {Revision} {Model} {Date} {P:param} {Project:param}), dry-run switch, CSV log.
+- Output: <out>\<Model>\PDF and \DWG. DWG: merged views, AutoCAD 2018 format. PDF: one file per sheet.
+- Tested only against a fake Revit (logic); NOT yet in real Revit. Next: user tests on the dummy model, then add the multi-model loop (open cloud models by IDs, all worksets, links loaded).
+
 ## Logging and submission
 - Logger updates a master register (new / changed / unchanged per sheet).
 - Submission folder built by the agent if Claude Code is on the PC; otherwise copied by hand. User approves before anything goes out.

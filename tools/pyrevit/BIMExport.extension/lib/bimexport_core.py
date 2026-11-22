@@ -391,13 +391,15 @@ def open_cloud_model(app, rec, preferred_region):
         except Exception as e:
             msg = text(e)
         low = msg.lower()
-        if 'central' in low or 'workshar' in low:
+        if 'detach' in low or 'workshar' in low or ('central' in low and 'missing' not in low):
             # 2) not workshared: there is no central model to detach from
             try:
                 return _open(app, path, OpenOptions()), reg, \
                     u'Model is not workshared - opened directly (closed without saving)'
             except Exception as e2:
                 msg = text(e2)
+        if 'central model is missing' in low:
+            msg = u'not found in this region'
         errors.append(u'%s: %s' % (reg, msg))
     return None, None, u' | '.join(errors)
 

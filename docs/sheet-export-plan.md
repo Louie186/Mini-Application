@@ -63,7 +63,9 @@ Reviewer runs in either route: Claude agent (Claude Code on the PC) or office Co
   - Option C: keep the image linked and package DWG + image together (eTransmit).
   - Never overwrites the originals: writes fixed copies to a "processed" folder and logs every file (fixed / no logo found / failed).
 - Test first on one DWG before any batch run.
-- OPEN: full AutoCAD or LT? Is a vector logo available? Does the client accept an OLE logo?
+- DECISIONS: user has AutoCAD (confirm full, not LT). No vector logo available. Client accepts an embedded (OLE) logo. So Option B is the route; Option C is the fallback.
+- Idea to make B practical: build the embedded logo ONCE as a template block (e.g. copied from one DiRoots-exported DWG, or pasted as OLE by hand and saved as a block), then the script inserts that block in every DWG at the old image position/scale and removes the linked image. Needs a one-DWG feasibility test (block with OLE inserts, survives save, opens without the image file).
+- OPEN: confirm full AutoCAD version; test the template-block idea.
 
 ## Logging and submission
 - Logger updates a master register (new / changed / unchanged per sheet).

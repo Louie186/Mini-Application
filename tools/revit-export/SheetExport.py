@@ -304,7 +304,8 @@ def main():
         sheets.setdefault(s.SheetNumber.strip().lower(), s)
 
     mine = [r for r in rows if model_matches(r.get("model", ""))]
-    other = len(rows) - len(mine)
+    others = [r for r in rows if not model_matches(r.get("model", ""))]
+    other = len(others)
 
     pdf_dir = os.path.join(OUT_DIR, clean(MODEL), "PDF")
     dwg_dir = os.path.join(OUT_DIR, clean(MODEL), "DWG")
@@ -320,9 +321,18 @@ def main():
     seen = set()
     counts = {"ok": 0, "failed": 0, "notfound": 0, "would": 0, "othermodel": 0}
 
+    # rows meant for other models: log them so nothing disappears silently
+    for r in others:
+        listed = (r.get("drawingnumber") or r.get("sheetnumber") or "").strip()
+        log.append([now(), MODE, MODEL, listed, r.get("sheetname", ""), "", "", "", "OTHER_MODEL", "",
+                    "List says model '%s' - this model is '%s'" % (r.get("model", ""), MODEL)])
+
+    blank = 0
     for r in mine:
         listed = (r.get("drawingnumber") or r.get("sheetnumber") or "").strip()
         if not listed:
+            if any(v for v in r.values()):
+                blank += 1
             continue
         if listed.lower() in seen:
             log.append([now(), MODE, MODEL, listed, r.get("sheetname", ""), "", "", "", "SKIPPED", "", "Listed twice"])
@@ -406,6 +416,16 @@ def main():
                "Not found in model: %d" % counts["notfound"]]
     if counts["othermodel"]:
         summary.append("Not in this model (list has no Model column): %d" % counts["othermodel"])
+    if blank:
+        summary.append("Rows with no drawing number (skipped): %d" % blank)
+    if not seen:
+        listed_models = sorted(set(r.get("model", "") for r in rows if r.get("model", "")))
+        summary += ["",
+                    "NOTHING MATCHED. Please check:",
+                    "- This model's name is: '%s'" % MODEL,
+                    "- Model names in your list: %s" % (", ".join("'%s'" % m for m in listed_models[:5]) or "(none)"),
+                    "- Columns found in your list: %s" % ", ".join(sorted(rows[0].keys())),
+                    "- Rows read from the list: %d" % len(rows)]
     if DO_EXPORT:
         summary += ["Files exported: %d" % counts["ok"], "Files failed: %d" % counts["failed"]]
     else:

@@ -1,5 +1,5 @@
 {
-  "Uuid": "e257766f-54c8-4846-97f0-5f73a5345009",
+  "Uuid": "67f6c8f5-dccd-4e07-a34f-8ed528670912",
   "IsCustomNode": false,
   "Description": "Exports the sheets listed in a CSV drawing list from the open Revit model to PDF/DWG.",
   "Name": "SheetExport",
@@ -11,12 +11,12 @@
   "Nodes": [
     {
       "ConcreteType": "CoreNodeModels.Input.Filename, CoreNodeModels",
-      "Id": "0de659276eb9419d9dc9251ca2691272",
+      "Id": "b2cbc7a7113c487fb1ab6fda9699823a",
       "NodeType": "ExtensionNode",
       "Inputs": [],
       "Outputs": [
         {
-          "Id": "dc0d153d692a4513912e6124fb18921d",
+          "Id": "a68053d3cb71424c8509a1b5a17c1ede",
           "Name": "",
           "Description": "File Path",
           "UsingDefaultValue": false,
@@ -32,12 +32,12 @@
     },
     {
       "ConcreteType": "CoreNodeModels.Input.Directory, CoreNodeModels",
-      "Id": "3198a79c49f64f7eb8de307abde4ce5a",
+      "Id": "173d59b0fac3493ca94b8291b6e4ebc5",
       "NodeType": "ExtensionNode",
       "Inputs": [],
       "Outputs": [
         {
-          "Id": "56422b5f0e2342b19cb2a70e8e1a2aaa",
+          "Id": "02f5b0aabe3d49ac8447b6667c3c5d10",
           "Name": "",
           "Description": "Directory Path",
           "UsingDefaultValue": false,
@@ -53,12 +53,12 @@
     },
     {
       "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
-      "Id": "63d9b1bfb1214f46b7e3a51dba632bb9",
+      "Id": "f9f9290ed7fd486ca06e9017c2e7ac01",
       "NodeType": "StringInputNode",
       "Inputs": [],
       "Outputs": [
         {
-          "Id": "614f0f7aa84346758579caaaf1935f42",
+          "Id": "0869e1bd082541b3a1756ee24f620bd6",
           "Name": "",
           "Description": "Creates a string.",
           "UsingDefaultValue": false,
@@ -73,12 +73,12 @@
     },
     {
       "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
-      "Id": "2bbef6a2117e4201a5ad08cfad7ce136",
+      "Id": "7440ffee8551465a84835fe50a752359",
       "NodeType": "StringInputNode",
       "Inputs": [],
       "Outputs": [
         {
-          "Id": "f478139d88a647749c254edbb360782b",
+          "Id": "680c488f09274e26a5af8f8a4799e9bf",
           "Name": "",
           "Description": "Creates a string.",
           "UsingDefaultValue": false,
@@ -93,12 +93,12 @@
     },
     {
       "ConcreteType": "CoreNodeModels.Input.StringInput, CoreNodeModels",
-      "Id": "573b8033fd8d405a87d299c3e22df7e6",
+      "Id": "5a70beec03e947b391711328e122b40e",
       "NodeType": "StringInputNode",
       "Inputs": [],
       "Outputs": [
         {
-          "Id": "03c1963466eb46bc98199cd1c64e5617",
+          "Id": "3cfc75c95c6f454f8ae48f3289829586",
           "Name": "",
           "Description": "Creates a string.",
           "UsingDefaultValue": false,
@@ -113,12 +113,12 @@
     },
     {
       "ConcreteType": "CoreNodeModels.Input.BoolSelector, CoreNodeModels",
-      "Id": "caf0376f446242f29db1db019bdf28c7",
+      "Id": "ba7a6f4233214d449f20340e7cdcc853",
       "NodeType": "BooleanInputNode",
       "Inputs": [],
       "Outputs": [
         {
-          "Id": "1a0044c2c1014b49bd70d9fedf0e0369",
+          "Id": "5afb705667164269824877a0453ed710",
           "Name": "",
           "Description": "Enables selection between True and False",
           "UsingDefaultValue": false,
@@ -133,15 +133,15 @@
     },
     {
       "ConcreteType": "PythonNodeModels.PythonNode, PythonNodeModels",
-      "Code": "# =============================================================================\n# SheetExport.py  -  Dynamo Python Script node for Revit 2025 (CPython3 engine)\n# -----------------------------------------------------------------------------\n# Exports ONLY the sheets listed in a drawing list (CSV) from the OPEN model,\n# to PDF and/or DWG, with your own file-naming rule. Writes a CSV log.\n#\n# Node inputs (in this order):\n#   IN[0]  Drawing list (.csv)         File Path node\n#   IN[1]  Output folder               Directory Path node\n#   IN[2]  Naming rule                 String, e.g. {SheetNumber}_{SheetName}\n#   IN[3]  DWG export setup name       String, blank = Revit default\n#   IN[4]  PDF export setup name       String, blank = Revit default\n#   IN[5]  Export?                     Boolean: False = DRY RUN, True = export\n#\n# Drawing list columns (first row = headers, any order, not case-sensitive).\n# Your LOD can be used directly (save it as CSV UTF-8):\n#   Drawing Number  e.g. 5013-KEO-T1-ZZ-PLN-INT-10100-T1   (or SheetNumber)\n#                   The Revit sheet is found by: full number, else the 7th\n#                   field (sequence, 10100), else the second-to-last field.\n#   SheetName/Title (optional - warns if it differs from Revit)\n#   Model           (optional - rows for other models are ignored)\n#   Revision        (optional - else the last field of the drawing number)\n#   PDF, DWG        (optional - Y/N; a missing column means Y)\n#\n# Naming rule tokens:\n#   {DrawingNumber}   full number from the list (e.g. 5013-KEO-...-10100-T1)\n#   {ListRevision}    revision from the list\n#   {SheetNumber} {SheetName} {Revision} {Model} {Date}   (from Revit)\n#   {P:Any Sheet Parameter}      e.g. {P:Drawing Status}\n#   {Project:Any Project Info}   e.g. {Project:Project Number}\n# A warning is logged when the list revision and the Revit revision differ.\n#\n# Output:  <Output folder>\\<Model>\\PDF\\  and  <Output folder>\\<Model>\\DWG\\\n# Log:     <Output folder>\\SheetExport_log.csv\n# =============================================================================\n\nimport clr\nimport os\nimport re\nimport csv\nimport time\nimport datetime\n\nclr.AddReference('RevitAPI')\nfrom Autodesk.Revit.DB import (FilteredElementCollector, ViewSheet, ElementId,\n                               BuiltInParameter, PDFExportOptions,\n                               DWGExportOptions, ExportPDFSettings)\nimport Autodesk.Revit.DB as DB\n\nclr.AddReference('RevitServices')\nfrom RevitServices.Persistence import DocumentManager\nfrom RevitServices.Transactions import TransactionManager\n\nfrom System.Collections.Generic import List\n\ndoc = DocumentManager.Instance.CurrentDBDocument\n\n\n# ---------------------------------------------------------------- inputs --\ndef arg(i, default):\n    try:\n        v = IN[i]\n    except IndexError:\n        return default\n    if v is None:\n        return default\n    if isinstance(v, str) and v.strip() == \"\":\n        return default\n    return v\n\n\nLIST_PATH = arg(0, None)\nOUT_DIR = arg(1, None)\nNAMING = arg(2, \"{DrawingNumber}\")\nDWG_SETUP = str(arg(3, \"\")).strip()\nPDF_SETUP = str(arg(4, \"\")).strip()\nDO_EXPORT = bool(arg(5, False))\nMODE = \"EXPORT\" if DO_EXPORT else \"DRYRUN\"\n\nMODEL = re.sub(r'\\.rvt$', '', doc.Title, flags=re.I)\ntry:                                     # local copies are titled \"<Model>_<username>\"\n    _user = doc.Application.Username or \"\"\n    if _user and MODEL.lower().endswith(\"_\" + _user.lower()):\n        MODEL = MODEL[:-(len(_user) + 1)]\nexcept Exception:\n    pass\n\nLOG_HEADER = [\"Timestamp\", \"Mode\", \"Model\", \"ListedNumber\", \"SheetName\",\n              \"Revision\", \"Format\", \"File\", \"Status\", \"Seconds\", \"Note\"]\n\n\n# --------------------------------------------------------------- helpers --\ndef now():\n    return datetime.datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\")\n\n\ndef key(s):\n    return (s or \"\").strip().lower().replace(\" \", \"\").replace(\"_\", \"\")\n\n\ndef yes(v):\n    return (v or \"\").strip().lower() in (\"y\", \"yes\", \"1\", \"true\", \"x\")\n\n\ndef clean(name):\n    name = re.sub(r'[\\\\/:*?\"<>|]', '-', name)\n    name = re.sub(r'\\s+', ' ', name)\n    name = re.sub(r'([-_.])\\1+', r'\\1', name)        # \"--\" left by an empty token -> \"-\"\n    name = re.sub(r'\\s*([-_])\\s*([-_])\\s*', r'\\1', name)\n    return name.strip(' -_.')\n\n\n# other column names people use, mapped to the names this script needs\nALIASES = {\n    \"drawingnumber\": \"drawingnumber\", \"drawingno\": \"drawingnumber\", \"drawingno.\": \"drawingnumber\",\n    \"dwgno\": \"drawingnumber\", \"dwgno.\": \"drawingnumber\", \"documentnumber\": \"drawingnumber\",\n    \"documentno\": \"drawingnumber\", \"docno\": \"drawingnumber\", \"docno.\": \"drawingnumber\",\n    \"sheetno\": \"sheetnumber\", \"sheetno.\": \"sheetnumber\",\n    \"title\": \"sheetname\", \"drawingtitle\": \"sheetname\", \"drawingname\": \"sheetname\",\n    \"modelname\": \"model\", \"revitmodel\": \"model\",\n    \"rev\": \"revision\", \"rev.\": \"revision\",\n}\n\n\ndef read_list(path):\n    data = None\n    for enc in (\"utf-8-sig\", \"mbcs\", \"cp1252\"):\n        try:\n            with open(path, newline='', encoding=enc) as f:\n                data = f.read()\n            break\n        except (UnicodeDecodeError, LookupError):\n            continue\n    if data is None:\n        raise Exception(\"Cannot read the drawing list (save it as CSV UTF-8).\")\n    first = data.splitlines()[0] if data else \"\"\n    delim = ';' if first.count(';') > first.count(',') else ','\n    rows = []\n    for r in csv.DictReader(data.splitlines(), delimiter=delim):\n        row = {}\n        for k, v in r.items():\n            if k:\n                kk = key(k)\n                row[ALIASES.get(kk, kk)] = (v or \"\").strip()\n        rows.append(row)\n    return rows\n\n\ndef lod_parts(number):\n    \"\"\"5013-KEO-T1-ZZ-PLN-INT-10100-T1 -> ['5013','KEO',...,'10100','T1']\"\"\"\n    return [p.strip() for p in (number or \"\").split(\"-\")]\n\n\ndef find_sheet(row, sheets):\n    \"\"\"Return (sheet, matched_on). Tries SheetNumber, then the full LOD number,\n    then the sequence (7th field), then the second-to-last field.\"\"\"\n    cands = []\n    if row.get(\"sheetnumber\"):\n        cands.append(row[\"sheetnumber\"])\n    dn = row.get(\"drawingnumber\", \"\")\n    if dn:\n        parts = lod_parts(dn)\n        cands.append(dn)\n        if len(parts) >= 7:\n            cands.append(parts[6])\n        if len(parts) >= 2:\n            cands.append(parts[-2])\n    for c in cands:\n        s = sheets.get(c.strip().lower())\n        if s is not None:\n            return s, c\n    return None, (cands[0] if cands else \"\")\n\n\ndef list_revision(row):\n    \"\"\"Revision from a Revision column, else the last field of the LOD number.\"\"\"\n    if row.get(\"revision\"):\n        return row[\"revision\"]\n    parts = lod_parts(row.get(\"drawingnumber\", \"\"))\n    return parts[-1] if len(parts) >= 8 else \"\"\n\n\ndef model_matches(cell):\n    if not cell:\n        return True\n    m = re.sub(r'\\.rvt$', '', cell.strip(), flags=re.I).lower()\n    t = MODEL.lower()\n    return t == m or t.startswith(m + \"_\")      # local copies get \"_username\"\n\n\ndef param_text(el, name):\n    p = el.LookupParameter(name)\n    if p is None:\n        return None\n    return p.AsString() or p.AsValueString() or \"\"\n\n\ndef make_name(sheet, rule, row):\n    rev = sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION)\n    vals = {\n        \"sheetnumber\": sheet.SheetNumber,\n        \"sheetname\": sheet.Name,\n        \"revision\": (rev.AsString() if rev else \"\") or \"\",\n        \"model\": MODEL,\n        \"date\": datetime.date.today().strftime(\"%Y%m%d\"),\n        # from the drawing list / LOD row\n        \"drawingnumber\": row.get(\"drawingnumber\") or sheet.SheetNumber,\n        \"listrevision\": list_revision(row),\n    }\n    missing = []\n\n    def rep(m):\n        token = m.group(1).strip()\n        k = key(token)\n        if k in vals:\n            return vals[k]\n        low = token.lower()\n        if low.startswith(\"p:\"):\n            v = param_text(sheet, token[2:].strip())\n        elif low.startswith(\"project:\"):\n            v = param_text(doc.ProjectInformation, token[8:].strip())\n        else:\n            v = None\n        if v is None:\n            missing.append(token)\n            return \"\"\n        return v\n\n    return clean(re.sub(r'\\{([^}]+)\\}', rep, rule)), missing\n\n\ndef write_log(rows):\n    path = os.path.join(OUT_DIR, \"SheetExport_log.csv\")\n    new = not os.path.exists(path)\n    with open(path, \"a\", newline=\"\", encoding=\"utf-8-sig\" if new else \"utf-8\") as f:\n        w = csv.writer(f)\n        if new:\n            w.writerow(LOG_HEADER)\n        for r in rows:\n            w.writerow(r)\n\n\ndef pdf_base_options(notes):\n    opts = None\n    if PDF_SETUP:\n        for s in FilteredElementCollector(doc).OfClass(ExportPDFSettings):\n            if s.Name == PDF_SETUP:\n                opts = s.GetOptions()\n                break\n        if opts is None:\n            notes.append(\"PDF setup '%s' not found - Revit defaults used\" % PDF_SETUP)\n    if opts is None:\n        opts = PDFExportOptions()\n        for prop, val in ((\"HideCropBoundaries\", True), (\"HideScopeBoxes\", True),\n                          (\"HideReferencePlane\", True), (\"HideUnreferencedViewTags\", True)):\n            try:\n                setattr(opts, prop, val)\n            except Exception:\n                pass\n    opts.Combine = True          # one call = one sheet = one file with our name\n    return opts\n\n\ndef dwg_options(notes):\n    opts = None\n    if DWG_SETUP:\n        opts = DWGExportOptions.GetPredefinedOptions(doc, DWG_SETUP)\n        if opts is None:\n            notes.append(\"DWG setup '%s' not found - Revit defaults used\" % DWG_SETUP)\n    if opts is None:\n        opts = DWGExportOptions()\n    opts.MergedViews = True      # one DWG per sheet, views not as separate xrefs\n    try:\n        opts.FileVersion = DB.ACADVersion.R2018\n    except Exception:\n        pass\n    return opts\n\n\ndef remove_if_exists(p):\n    if os.path.exists(p):\n        os.remove(p)\n\n\n# ------------------------------------------------------------------ main --\ndef main():\n    if doc.IsFamilyDocument:\n        return [\"Open a project model, not a family.\"]\n    if not LIST_PATH or not os.path.isfile(str(LIST_PATH)):\n        return [\"IN[0]: pick the drawing list CSV.\"]\n    if not OUT_DIR:\n        return [\"IN[1]: pick the output folder.\"]\n    if not os.path.isdir(OUT_DIR):\n        os.makedirs(OUT_DIR)\n\n    notes = []\n    rows = read_list(str(LIST_PATH))\n    if not rows or (\"sheetnumber\" not in rows[0] and \"drawingnumber\" not in rows[0]):\n        return [\"Drawing list needs a 'SheetNumber' or 'Drawing Number' column.\"]\n    has_model_col = \"model\" in rows[0]\n\n    sheets = {}\n    for s in FilteredElementCollector(doc).OfClass(ViewSheet):\n        sheets.setdefault(s.SheetNumber.strip().lower(), s)\n\n    mine = [r for r in rows if model_matches(r.get(\"model\", \"\"))]\n    other = len(rows) - len(mine)\n\n    pdf_dir = os.path.join(OUT_DIR, clean(MODEL), \"PDF\")\n    dwg_dir = os.path.join(OUT_DIR, clean(MODEL), \"DWG\")\n    pdf_opts = pdf_base_options(notes) if DO_EXPORT else None\n    dwg_opts = dwg_options(notes) if DO_EXPORT else None\n    if DO_EXPORT:\n        for d in (pdf_dir, dwg_dir):\n            if not os.path.isdir(d):\n                os.makedirs(d)\n        TransactionManager.Instance.ForceCloseTransaction()   # export must run outside a transaction\n\n    log = []\n    seen = set()\n    counts = {\"ok\": 0, \"failed\": 0, \"notfound\": 0, \"would\": 0, \"othermodel\": 0}\n\n    for r in mine:\n        listed = (r.get(\"drawingnumber\") or r.get(\"sheetnumber\") or \"\").strip()\n        if not listed:\n            continue\n        if listed.lower() in seen:\n            log.append([now(), MODE, MODEL, listed, r.get(\"sheetname\", \"\"), \"\", \"\", \"\", \"SKIPPED\", \"\", \"Listed twice\"])\n            continue\n        seen.add(listed.lower())\n\n        sheet, matched = find_sheet(r, sheets)\n        if sheet is None:\n            if has_model_col:\n                counts[\"notfound\"] += 1\n                log.append([now(), MODE, MODEL, listed, r.get(\"sheetname\", \"\"), \"\", \"\", \"\", \"NOT_FOUND\", \"\",\n                            \"Sheet '%s' not in this model\" % matched])\n            else:\n                counts[\"othermodel\"] += 1\n                log.append([now(), MODE, MODEL, listed, r.get(\"sheetname\", \"\"), \"\", \"\", \"\", \"NOT_IN_THIS_MODEL\", \"\",\n                            \"No Model column - probably in another model\"])\n            continue\n        num = listed\n\n        note = []\n        if sheet.IsPlaceholder:\n            log.append([now(), MODE, MODEL, num, sheet.Name, \"\", \"\", \"\", \"SKIPPED\", \"\", \"Placeholder sheet - nothing to print\"])\n            continue\n        listed_name = r.get(\"sheetname\", \"\")\n        if listed_name and listed_name.strip().lower() != sheet.Name.strip().lower():\n            note.append(\"Name differs from list: '%s'\" % listed_name)\n\n        name, missing = make_name(sheet, NAMING, r)\n        if missing:\n            note.append(\"Unknown token(s): \" + \", \".join(missing))\n        if not name:\n            name = clean(sheet.SheetNumber)\n            note.append(\"Naming rule gave an empty name - used sheet number\")\n        rev = sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION)\n        rev = (rev.AsString() if rev else \"\") or \"\"\n        lrev = list_revision(r)\n        if lrev and rev and lrev.strip().lower() != rev.strip().lower():\n            note.append(\"Revision differs: list %s, Revit %s\" % (lrev, rev))\n        elif lrev and not rev:\n            note.append(\"List has revision %s, Revit sheet has none\" % lrev)\n\n        formats = []\n        if \"pdf\" not in r or yes(r.get(\"pdf\")):\n            formats.append(\"PDF\")\n        if \"dwg\" not in r or yes(r.get(\"dwg\")):\n            formats.append(\"DWG\")\n\n        for fmt in formats:\n            folder = pdf_dir if fmt == \"PDF\" else dwg_dir\n            target = os.path.join(folder, name + \".\" + fmt.lower())\n            if not DO_EXPORT:\n                counts[\"would\"] += 1\n                log.append([now(), MODE, MODEL, num, sheet.Name, rev, fmt, target, \"WOULD_EXPORT\", \"\", \"; \".join(note)])\n                continue\n            t0 = time.time()\n            status, extra = \"FAILED\", \"\"\n            try:\n                remove_if_exists(target)\n                ids = List[ElementId]([sheet.Id])\n                if fmt == \"PDF\":\n                    pdf_opts.FileName = name\n                    doc.Export(folder, ids, pdf_opts)\n                else:\n                    doc.Export(folder, name, ids, dwg_opts)\n                if os.path.exists(target):\n                    status = \"OK\"\n                else:\n                    extra = \"Revit reported no file\"\n            except Exception as e:\n                extra = str(e)\n            secs = \"%.1f\" % (time.time() - t0)\n            counts[\"ok\" if status == \"OK\" else \"failed\"] += 1\n            log.append([now(), MODE, MODEL, num, sheet.Name, rev, fmt, target, status, secs,\n                        \"; \".join([n for n in note + [extra] if n])])\n\n    write_log(log)\n\n    summary = [\"Model: \" + MODEL,\n               \"Mode: \" + (\"EXPORT\" if DO_EXPORT else \"DRY RUN (nothing exported)\"),\n               \"Sheets listed for this model: %d (other models ignored: %d)\" % (len(seen), other),\n               \"Not found in model: %d\" % counts[\"notfound\"]]\n    if counts[\"othermodel\"]:\n        summary.append(\"Not in this model (list has no Model column): %d\" % counts[\"othermodel\"])\n    if DO_EXPORT:\n        summary += [\"Files exported: %d\" % counts[\"ok\"], \"Files failed: %d\" % counts[\"failed\"]]\n    else:\n        summary += [\"Files that would be exported: %d\" % counts[\"would\"]]\n    summary += notes\n    summary.append(\"Log: \" + os.path.join(OUT_DIR, \"SheetExport_log.csv\"))\n    return summary\n\n\ntry:\n    OUT = main()\nexcept Exception as e:\n    import traceback\n    OUT = [\"ERROR: \" + str(e), traceback.format_exc()]\n\nOUT = [\"Sheet Export ran at \" + now()] + OUT\n\n# Show the result in a Revit pop-up so it is obvious the script ran.\ntry:\n    clr.AddReference('RevitAPIUI')\n    from Autodesk.Revit.UI import TaskDialog\n    TaskDialog.Show(\"Sheet Export\", \"\\n\".join(OUT[:12]))\nexcept Exception:\n    pass\n",
+      "Code": "# =============================================================================\n# SheetExport.py  -  Dynamo Python Script node for Revit 2025 (CPython3 engine)\n# -----------------------------------------------------------------------------\n# Exports ONLY the sheets listed in a drawing list (CSV) from the OPEN model,\n# to PDF and/or DWG, with your own file-naming rule. Writes a CSV log.\n#\n# Node inputs (in this order):\n#   IN[0]  Drawing list (.csv)         File Path node\n#   IN[1]  Output folder               Directory Path node\n#   IN[2]  Naming rule                 String, e.g. {SheetNumber}_{SheetName}\n#   IN[3]  DWG export setup name       String, blank = Revit default\n#   IN[4]  PDF export setup name       String, blank = Revit default\n#   IN[5]  Export?                     Boolean: False = DRY RUN, True = export\n#\n# Drawing list columns (first row = headers, any order, not case-sensitive).\n# Your LOD can be used directly (save it as CSV UTF-8):\n#   Drawing Number  e.g. 5013-KEO-T1-ZZ-PLN-INT-10100-T1   (or SheetNumber)\n#                   The Revit sheet is found by: full number, else the 7th\n#                   field (sequence, 10100), else the second-to-last field.\n#   SheetName/Title (optional - warns if it differs from Revit)\n#   Model           (optional - rows for other models are ignored)\n#   Revision        (optional - else the last field of the drawing number)\n#   PDF, DWG        (optional - Y/N; a missing column means Y)\n#\n# Naming rule tokens:\n#   {DrawingNumber}   full number from the list (e.g. 5013-KEO-...-10100-T1)\n#   {ListRevision}    revision from the list\n#   {SheetNumber} {SheetName} {Revision} {Model} {Date}   (from Revit)\n#   {P:Any Sheet Parameter}      e.g. {P:Drawing Status}\n#   {Project:Any Project Info}   e.g. {Project:Project Number}\n# A warning is logged when the list revision and the Revit revision differ.\n#\n# Output:  <Output folder>\\<Model>\\PDF\\  and  <Output folder>\\<Model>\\DWG\\\n# Log:     <Output folder>\\SheetExport_log.csv\n# =============================================================================\n\nimport clr\nimport os\nimport re\nimport csv\nimport time\nimport datetime\n\nclr.AddReference('RevitAPI')\nfrom Autodesk.Revit.DB import (FilteredElementCollector, ViewSheet, ElementId,\n                               BuiltInParameter, PDFExportOptions,\n                               DWGExportOptions, ExportPDFSettings)\nimport Autodesk.Revit.DB as DB\n\nclr.AddReference('RevitServices')\nfrom RevitServices.Persistence import DocumentManager\nfrom RevitServices.Transactions import TransactionManager\n\nfrom System.Collections.Generic import List\n\ndoc = DocumentManager.Instance.CurrentDBDocument\n\n\n# ---------------------------------------------------------------- inputs --\ndef arg(i, default):\n    try:\n        v = IN[i]\n    except IndexError:\n        return default\n    if v is None:\n        return default\n    if isinstance(v, str) and v.strip() == \"\":\n        return default\n    return v\n\n\nLIST_PATH = arg(0, None)\nOUT_DIR = arg(1, None)\nNAMING = arg(2, \"{DrawingNumber}\")\nDWG_SETUP = str(arg(3, \"\")).strip()\nPDF_SETUP = str(arg(4, \"\")).strip()\nDO_EXPORT = bool(arg(5, False))\nMODE = \"EXPORT\" if DO_EXPORT else \"DRYRUN\"\n\nMODEL = re.sub(r'\\.rvt$', '', doc.Title, flags=re.I)\ntry:                                     # local copies are titled \"<Model>_<username>\"\n    _user = doc.Application.Username or \"\"\n    if _user and MODEL.lower().endswith(\"_\" + _user.lower()):\n        MODEL = MODEL[:-(len(_user) + 1)]\nexcept Exception:\n    pass\n\nLOG_HEADER = [\"Timestamp\", \"Mode\", \"Model\", \"ListedNumber\", \"SheetName\",\n              \"Revision\", \"Format\", \"File\", \"Status\", \"Seconds\", \"Note\"]\n\n\n# --------------------------------------------------------------- helpers --\ndef now():\n    return datetime.datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\")\n\n\ndef key(s):\n    return (s or \"\").strip().lower().replace(\" \", \"\").replace(\"_\", \"\")\n\n\ndef yes(v):\n    return (v or \"\").strip().lower() in (\"y\", \"yes\", \"1\", \"true\", \"x\")\n\n\ndef clean(name):\n    name = re.sub(r'[\\\\/:*?\"<>|]', '-', name)\n    name = re.sub(r'\\s+', ' ', name)\n    name = re.sub(r'([-_.])\\1+', r'\\1', name)        # \"--\" left by an empty token -> \"-\"\n    name = re.sub(r'\\s*([-_])\\s*([-_])\\s*', r'\\1', name)\n    return name.strip(' -_.')\n\n\n# other column names people use, mapped to the names this script needs\nALIASES = {\n    \"drawingnumber\": \"drawingnumber\", \"drawingno\": \"drawingnumber\", \"drawingno.\": \"drawingnumber\",\n    \"dwgno\": \"drawingnumber\", \"dwgno.\": \"drawingnumber\", \"documentnumber\": \"drawingnumber\",\n    \"documentno\": \"drawingnumber\", \"docno\": \"drawingnumber\", \"docno.\": \"drawingnumber\",\n    \"sheetno\": \"sheetnumber\", \"sheetno.\": \"sheetnumber\",\n    \"title\": \"sheetname\", \"drawingtitle\": \"sheetname\", \"drawingname\": \"sheetname\",\n    \"modelname\": \"model\", \"revitmodel\": \"model\",\n    \"rev\": \"revision\", \"rev.\": \"revision\",\n}\n\n\ndef read_list(path):\n    data = None\n    for enc in (\"utf-8-sig\", \"mbcs\", \"cp1252\"):\n        try:\n            with open(path, newline='', encoding=enc) as f:\n                data = f.read()\n            break\n        except (UnicodeDecodeError, LookupError):\n            continue\n    if data is None:\n        raise Exception(\"Cannot read the drawing list (save it as CSV UTF-8).\")\n    first = data.splitlines()[0] if data else \"\"\n    delim = ';' if first.count(';') > first.count(',') else ','\n    rows = []\n    for r in csv.DictReader(data.splitlines(), delimiter=delim):\n        row = {}\n        for k, v in r.items():\n            if k:\n                kk = key(k)\n                row[ALIASES.get(kk, kk)] = (v or \"\").strip()\n        rows.append(row)\n    return rows\n\n\ndef lod_parts(number):\n    \"\"\"5013-KEO-T1-ZZ-PLN-INT-10100-T1 -> ['5013','KEO',...,'10100','T1']\"\"\"\n    return [p.strip() for p in (number or \"\").split(\"-\")]\n\n\ndef find_sheet(row, sheets):\n    \"\"\"Return (sheet, matched_on). Tries SheetNumber, then the full LOD number,\n    then the sequence (7th field), then the second-to-last field.\"\"\"\n    cands = []\n    if row.get(\"sheetnumber\"):\n        cands.append(row[\"sheetnumber\"])\n    dn = row.get(\"drawingnumber\", \"\")\n    if dn:\n        parts = lod_parts(dn)\n        cands.append(dn)\n        if len(parts) >= 7:\n            cands.append(parts[6])\n        if len(parts) >= 2:\n            cands.append(parts[-2])\n    for c in cands:\n        s = sheets.get(c.strip().lower())\n        if s is not None:\n            return s, c\n    return None, (cands[0] if cands else \"\")\n\n\ndef list_revision(row):\n    \"\"\"Revision from a Revision column, else the last field of the LOD number.\"\"\"\n    if row.get(\"revision\"):\n        return row[\"revision\"]\n    parts = lod_parts(row.get(\"drawingnumber\", \"\"))\n    return parts[-1] if len(parts) >= 8 else \"\"\n\n\ndef model_matches(cell):\n    if not cell:\n        return True\n    m = re.sub(r'\\.rvt$', '', cell.strip(), flags=re.I).lower()\n    t = MODEL.lower()\n    return t == m or t.startswith(m + \"_\")      # local copies get \"_username\"\n\n\ndef param_text(el, name):\n    p = el.LookupParameter(name)\n    if p is None:\n        return None\n    return p.AsString() or p.AsValueString() or \"\"\n\n\ndef make_name(sheet, rule, row):\n    rev = sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION)\n    vals = {\n        \"sheetnumber\": sheet.SheetNumber,\n        \"sheetname\": sheet.Name,\n        \"revision\": (rev.AsString() if rev else \"\") or \"\",\n        \"model\": MODEL,\n        \"date\": datetime.date.today().strftime(\"%Y%m%d\"),\n        # from the drawing list / LOD row\n        \"drawingnumber\": row.get(\"drawingnumber\") or sheet.SheetNumber,\n        \"listrevision\": list_revision(row),\n    }\n    missing = []\n\n    def rep(m):\n        token = m.group(1).strip()\n        k = key(token)\n        if k in vals:\n            return vals[k]\n        low = token.lower()\n        if low.startswith(\"p:\"):\n            v = param_text(sheet, token[2:].strip())\n        elif low.startswith(\"project:\"):\n            v = param_text(doc.ProjectInformation, token[8:].strip())\n        else:\n            v = None\n        if v is None:\n            missing.append(token)\n            return \"\"\n        return v\n\n    return clean(re.sub(r'\\{([^}]+)\\}', rep, rule)), missing\n\n\ndef write_log(rows):\n    path = os.path.join(OUT_DIR, \"SheetExport_log.csv\")\n    new = not os.path.exists(path)\n    with open(path, \"a\", newline=\"\", encoding=\"utf-8-sig\" if new else \"utf-8\") as f:\n        w = csv.writer(f)\n        if new:\n            w.writerow(LOG_HEADER)\n        for r in rows:\n            w.writerow(r)\n\n\ndef pdf_base_options(notes):\n    opts = None\n    if PDF_SETUP:\n        for s in FilteredElementCollector(doc).OfClass(ExportPDFSettings):\n            if s.Name == PDF_SETUP:\n                opts = s.GetOptions()\n                break\n        if opts is None:\n            notes.append(\"PDF setup '%s' not found - Revit defaults used\" % PDF_SETUP)\n    if opts is None:\n        opts = PDFExportOptions()\n        for prop, val in ((\"HideCropBoundaries\", True), (\"HideScopeBoxes\", True),\n                          (\"HideReferencePlane\", True), (\"HideUnreferencedViewTags\", True)):\n            try:\n                setattr(opts, prop, val)\n            except Exception:\n                pass\n    opts.Combine = True          # one call = one sheet = one file with our name\n    return opts\n\n\ndef dwg_options(notes):\n    opts = None\n    if DWG_SETUP:\n        opts = DWGExportOptions.GetPredefinedOptions(doc, DWG_SETUP)\n        if opts is None:\n            notes.append(\"DWG setup '%s' not found - Revit defaults used\" % DWG_SETUP)\n    if opts is None:\n        opts = DWGExportOptions()\n    opts.MergedViews = True      # one DWG per sheet, views not as separate xrefs\n    try:\n        opts.FileVersion = DB.ACADVersion.R2018\n    except Exception:\n        pass\n    return opts\n\n\ndef remove_if_exists(p):\n    if os.path.exists(p):\n        os.remove(p)\n\n\n# ------------------------------------------------------------------ main --\ndef main():\n    if doc.IsFamilyDocument:\n        return [\"Open a project model, not a family.\"]\n    if not LIST_PATH or not os.path.isfile(str(LIST_PATH)):\n        return [\"IN[0]: pick the drawing list CSV.\"]\n    if not OUT_DIR:\n        return [\"IN[1]: pick the output folder.\"]\n    if not os.path.isdir(OUT_DIR):\n        os.makedirs(OUT_DIR)\n\n    notes = []\n    rows = read_list(str(LIST_PATH))\n    if not rows or (\"sheetnumber\" not in rows[0] and \"drawingnumber\" not in rows[0]):\n        return [\"Drawing list needs a 'SheetNumber' or 'Drawing Number' column.\"]\n    has_model_col = \"model\" in rows[0]\n\n    sheets = {}\n    for s in FilteredElementCollector(doc).OfClass(ViewSheet):\n        sheets.setdefault(s.SheetNumber.strip().lower(), s)\n\n    mine = [r for r in rows if model_matches(r.get(\"model\", \"\"))]\n    others = [r for r in rows if not model_matches(r.get(\"model\", \"\"))]\n    other = len(others)\n\n    pdf_dir = os.path.join(OUT_DIR, clean(MODEL), \"PDF\")\n    dwg_dir = os.path.join(OUT_DIR, clean(MODEL), \"DWG\")\n    pdf_opts = pdf_base_options(notes) if DO_EXPORT else None\n    dwg_opts = dwg_options(notes) if DO_EXPORT else None\n    if DO_EXPORT:\n        for d in (pdf_dir, dwg_dir):\n            if not os.path.isdir(d):\n                os.makedirs(d)\n        TransactionManager.Instance.ForceCloseTransaction()   # export must run outside a transaction\n\n    log = []\n    seen = set()\n    counts = {\"ok\": 0, \"failed\": 0, \"notfound\": 0, \"would\": 0, \"othermodel\": 0}\n\n    # rows meant for other models: log them so nothing disappears silently\n    for r in others:\n        listed = (r.get(\"drawingnumber\") or r.get(\"sheetnumber\") or \"\").strip()\n        log.append([now(), MODE, MODEL, listed, r.get(\"sheetname\", \"\"), \"\", \"\", \"\", \"OTHER_MODEL\", \"\",\n                    \"List says model '%s' - this model is '%s'\" % (r.get(\"model\", \"\"), MODEL)])\n\n    blank = 0\n    for r in mine:\n        listed = (r.get(\"drawingnumber\") or r.get(\"sheetnumber\") or \"\").strip()\n        if not listed:\n            if any(v for v in r.values()):\n                blank += 1\n            continue\n        if listed.lower() in seen:\n            log.append([now(), MODE, MODEL, listed, r.get(\"sheetname\", \"\"), \"\", \"\", \"\", \"SKIPPED\", \"\", \"Listed twice\"])\n            continue\n        seen.add(listed.lower())\n\n        sheet, matched = find_sheet(r, sheets)\n        if sheet is None:\n            if has_model_col:\n                counts[\"notfound\"] += 1\n                log.append([now(), MODE, MODEL, listed, r.get(\"sheetname\", \"\"), \"\", \"\", \"\", \"NOT_FOUND\", \"\",\n                            \"Sheet '%s' not in this model\" % matched])\n            else:\n                counts[\"othermodel\"] += 1\n                log.append([now(), MODE, MODEL, listed, r.get(\"sheetname\", \"\"), \"\", \"\", \"\", \"NOT_IN_THIS_MODEL\", \"\",\n                            \"No Model column - probably in another model\"])\n            continue\n        num = listed\n\n        note = []\n        if sheet.IsPlaceholder:\n            log.append([now(), MODE, MODEL, num, sheet.Name, \"\", \"\", \"\", \"SKIPPED\", \"\", \"Placeholder sheet - nothing to print\"])\n            continue\n        listed_name = r.get(\"sheetname\", \"\")\n        if listed_name and listed_name.strip().lower() != sheet.Name.strip().lower():\n            note.append(\"Name differs from list: '%s'\" % listed_name)\n\n        name, missing = make_name(sheet, NAMING, r)\n        if missing:\n            note.append(\"Unknown token(s): \" + \", \".join(missing))\n        if not name:\n            name = clean(sheet.SheetNumber)\n            note.append(\"Naming rule gave an empty name - used sheet number\")\n        rev = sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION)\n        rev = (rev.AsString() if rev else \"\") or \"\"\n        lrev = list_revision(r)\n        if lrev and rev and lrev.strip().lower() != rev.strip().lower():\n            note.append(\"Revision differs: list %s, Revit %s\" % (lrev, rev))\n        elif lrev and not rev:\n            note.append(\"List has revision %s, Revit sheet has none\" % lrev)\n\n        formats = []\n        if \"pdf\" not in r or yes(r.get(\"pdf\")):\n            formats.append(\"PDF\")\n        if \"dwg\" not in r or yes(r.get(\"dwg\")):\n            formats.append(\"DWG\")\n\n        for fmt in formats:\n            folder = pdf_dir if fmt == \"PDF\" else dwg_dir\n            target = os.path.join(folder, name + \".\" + fmt.lower())\n            if not DO_EXPORT:\n                counts[\"would\"] += 1\n                log.append([now(), MODE, MODEL, num, sheet.Name, rev, fmt, target, \"WOULD_EXPORT\", \"\", \"; \".join(note)])\n                continue\n            t0 = time.time()\n            status, extra = \"FAILED\", \"\"\n            try:\n                remove_if_exists(target)\n                ids = List[ElementId]([sheet.Id])\n                if fmt == \"PDF\":\n                    pdf_opts.FileName = name\n                    doc.Export(folder, ids, pdf_opts)\n                else:\n                    doc.Export(folder, name, ids, dwg_opts)\n                if os.path.exists(target):\n                    status = \"OK\"\n                else:\n                    extra = \"Revit reported no file\"\n            except Exception as e:\n                extra = str(e)\n            secs = \"%.1f\" % (time.time() - t0)\n            counts[\"ok\" if status == \"OK\" else \"failed\"] += 1\n            log.append([now(), MODE, MODEL, num, sheet.Name, rev, fmt, target, status, secs,\n                        \"; \".join([n for n in note + [extra] if n])])\n\n    write_log(log)\n\n    summary = [\"Model: \" + MODEL,\n               \"Mode: \" + (\"EXPORT\" if DO_EXPORT else \"DRY RUN (nothing exported)\"),\n               \"Sheets listed for this model: %d (other models ignored: %d)\" % (len(seen), other),\n               \"Not found in model: %d\" % counts[\"notfound\"]]\n    if counts[\"othermodel\"]:\n        summary.append(\"Not in this model (list has no Model column): %d\" % counts[\"othermodel\"])\n    if blank:\n        summary.append(\"Rows with no drawing number (skipped): %d\" % blank)\n    if not seen:\n        listed_models = sorted(set(r.get(\"model\", \"\") for r in rows if r.get(\"model\", \"\")))\n        summary += [\"\",\n                    \"NOTHING MATCHED. Please check:\",\n                    \"- This model's name is: '%s'\" % MODEL,\n                    \"- Model names in your list: %s\" % (\", \".join(\"'%s'\" % m for m in listed_models[:5]) or \"(none)\"),\n                    \"- Columns found in your list: %s\" % \", \".join(sorted(rows[0].keys())),\n                    \"- Rows read from the list: %d\" % len(rows)]\n    if DO_EXPORT:\n        summary += [\"Files exported: %d\" % counts[\"ok\"], \"Files failed: %d\" % counts[\"failed\"]]\n    else:\n        summary += [\"Files that would be exported: %d\" % counts[\"would\"]]\n    summary += notes\n    summary.append(\"Log: \" + os.path.join(OUT_DIR, \"SheetExport_log.csv\"))\n    return summary\n\n\ntry:\n    OUT = main()\nexcept Exception as e:\n    import traceback\n    OUT = [\"ERROR: \" + str(e), traceback.format_exc()]\n\nOUT = [\"Sheet Export ran at \" + now()] + OUT\n\n# Show the result in a Revit pop-up so it is obvious the script ran.\ntry:\n    clr.AddReference('RevitAPIUI')\n    from Autodesk.Revit.UI import TaskDialog\n    TaskDialog.Show(\"Sheet Export\", \"\\n\".join(OUT[:12]))\nexcept Exception:\n    pass\n",
       "Engine": "CPython3",
       "EngineName": "CPython3",
       "VariableInputPorts": true,
-      "Id": "45971f9431214e968979ffa652e8e46a",
+      "Id": "af1cb111ce2344699cb018a449a5377c",
       "NodeType": "PythonScriptNode",
       "Inputs": [
         {
-          "Id": "65b798d992c5474bb812b9e8218113f5",
+          "Id": "a25506c675e645629b43c88d80aa0f19",
           "Name": "IN[0]",
           "Description": "Input #0",
           "UsingDefaultValue": false,
@@ -150,7 +150,7 @@
           "KeepListStructure": false
         },
         {
-          "Id": "19f6a8849d584d0fbe6f33fb2f1780e4",
+          "Id": "bddff2bb701847e19da2c86fd46c2e8e",
           "Name": "IN[1]",
           "Description": "Input #1",
           "UsingDefaultValue": false,
@@ -159,7 +159,7 @@
           "KeepListStructure": false
         },
         {
-          "Id": "1c0d89343ce3487f9388bc759cc1a911",
+          "Id": "0885b44ef06b49999f743b9901311f61",
           "Name": "IN[2]",
           "Description": "Input #2",
           "UsingDefaultValue": false,
@@ -168,7 +168,7 @@
           "KeepListStructure": false
         },
         {
-          "Id": "636db11d39274063971d33bac529d20b",
+          "Id": "2cd0a20e725c420385bbe797b3b39d1d",
           "Name": "IN[3]",
           "Description": "Input #3",
           "UsingDefaultValue": false,
@@ -177,7 +177,7 @@
           "KeepListStructure": false
         },
         {
-          "Id": "6916062ed9f245ca9ca2312835c2c227",
+          "Id": "cd426f3f6c0b4799928c9eec23a7a08e",
           "Name": "IN[4]",
           "Description": "Input #4",
           "UsingDefaultValue": false,
@@ -186,7 +186,7 @@
           "KeepListStructure": false
         },
         {
-          "Id": "aa4d33e807d14e40bab9bb3999e5b04b",
+          "Id": "2c1109d48771423e84f2f6a9a4d7b930",
           "Name": "IN[5]",
           "Description": "Input #5",
           "UsingDefaultValue": false,
@@ -197,7 +197,7 @@
       ],
       "Outputs": [
         {
-          "Id": "201a68eb65374fb9befb276e9da3df35",
+          "Id": "b9d852fc8e9c46ddaf5b1874a44e9862",
           "Name": "OUT",
           "Description": "Result of the python script",
           "UsingDefaultValue": false,
@@ -212,39 +212,39 @@
   ],
   "Connectors": [
     {
-      "Start": "dc0d153d692a4513912e6124fb18921d",
-      "End": "65b798d992c5474bb812b9e8218113f5",
-      "Id": "0435de0138f040db900571b0528b43dd",
+      "Start": "a68053d3cb71424c8509a1b5a17c1ede",
+      "End": "a25506c675e645629b43c88d80aa0f19",
+      "Id": "1e505b0647994d98a68c59440df363a7",
       "IsHidden": "False"
     },
     {
-      "Start": "56422b5f0e2342b19cb2a70e8e1a2aaa",
-      "End": "19f6a8849d584d0fbe6f33fb2f1780e4",
-      "Id": "75ddddff2e054db5b229dbb4ae72a66f",
+      "Start": "02f5b0aabe3d49ac8447b6667c3c5d10",
+      "End": "bddff2bb701847e19da2c86fd46c2e8e",
+      "Id": "041abb282ab04e1eb3140bc345b2504c",
       "IsHidden": "False"
     },
     {
-      "Start": "614f0f7aa84346758579caaaf1935f42",
-      "End": "1c0d89343ce3487f9388bc759cc1a911",
-      "Id": "49c5b7a98da64c91832782ba089571d1",
+      "Start": "0869e1bd082541b3a1756ee24f620bd6",
+      "End": "0885b44ef06b49999f743b9901311f61",
+      "Id": "d9215a49b66d469697dd4aa82c4f462d",
       "IsHidden": "False"
     },
     {
-      "Start": "f478139d88a647749c254edbb360782b",
-      "End": "636db11d39274063971d33bac529d20b",
-      "Id": "266e9fa3e25544d59cda0fa77e4bfda6",
+      "Start": "680c488f09274e26a5af8f8a4799e9bf",
+      "End": "2cd0a20e725c420385bbe797b3b39d1d",
+      "Id": "99d16c70f64041dc8a2193674ec54eb8",
       "IsHidden": "False"
     },
     {
-      "Start": "03c1963466eb46bc98199cd1c64e5617",
-      "End": "6916062ed9f245ca9ca2312835c2c227",
-      "Id": "4d480793e4524fc885d50899bf7b2d4a",
+      "Start": "3cfc75c95c6f454f8ae48f3289829586",
+      "End": "cd426f3f6c0b4799928c9eec23a7a08e",
+      "Id": "6dd4f80502fb4f34a26494fc9bd0e6bc",
       "IsHidden": "False"
     },
     {
-      "Start": "1a0044c2c1014b49bd70d9fedf0e0369",
-      "End": "aa4d33e807d14e40bab9bb3999e5b04b",
-      "Id": "38d8c20af6084922b62436502f8f0688",
+      "Start": "5afb705667164269824877a0453ed710",
+      "End": "2c1109d48771423e84f2f6a9a4d7b930",
+      "Id": "353957786b2543efbb912a90c3984849",
       "IsHidden": "False"
     }
   ],
@@ -275,7 +275,7 @@
     "ConnectorPins": [],
     "NodeViews": [
       {
-        "Id": "0de659276eb9419d9dc9251ca2691272",
+        "Id": "b2cbc7a7113c487fb1ab6fda9699823a",
         "Name": "Drawing list (.csv)",
         "IsSetAsInput": true,
         "IsSetAsOutput": false,
@@ -285,7 +285,7 @@
         "Y": 0.0
       },
       {
-        "Id": "3198a79c49f64f7eb8de307abde4ce5a",
+        "Id": "173d59b0fac3493ca94b8291b6e4ebc5",
         "Name": "Output folder",
         "IsSetAsInput": true,
         "IsSetAsOutput": false,
@@ -295,7 +295,7 @@
         "Y": 160.0
       },
       {
-        "Id": "63d9b1bfb1214f46b7e3a51dba632bb9",
+        "Id": "f9f9290ed7fd486ca06e9017c2e7ac01",
         "Name": "Naming rule",
         "IsSetAsInput": true,
         "IsSetAsOutput": false,
@@ -305,7 +305,7 @@
         "Y": 320.0
       },
       {
-        "Id": "2bbef6a2117e4201a5ad08cfad7ce136",
+        "Id": "7440ffee8551465a84835fe50a752359",
         "Name": "DWG export setup (blank = default)",
         "IsSetAsInput": true,
         "IsSetAsOutput": false,
@@ -315,7 +315,7 @@
         "Y": 480.0
       },
       {
-        "Id": "573b8033fd8d405a87d299c3e22df7e6",
+        "Id": "5a70beec03e947b391711328e122b40e",
         "Name": "PDF export setup (blank = default)",
         "IsSetAsInput": true,
         "IsSetAsOutput": false,
@@ -325,7 +325,7 @@
         "Y": 640.0
       },
       {
-        "Id": "caf0376f446242f29db1db019bdf28c7",
+        "Id": "ba7a6f4233214d449f20340e7cdcc853",
         "Name": "Export? (False = dry run)",
         "IsSetAsInput": true,
         "IsSetAsOutput": false,
@@ -335,7 +335,7 @@
         "Y": 800.0
       },
       {
-        "Id": "45971f9431214e968979ffa652e8e46a",
+        "Id": "af1cb111ce2344699cb018a449a5377c",
         "Name": "Sheet Export",
         "IsSetAsInput": false,
         "IsSetAsOutput": true,

@@ -66,6 +66,13 @@ Reviewer runs in either route: Claude agent (Claude Code on the PC) or office Co
 - DECISIONS: user has AutoCAD (confirm full, not LT). No vector logo available. Client accepts an embedded (OLE) logo. So Option B is the route; Option C is the fallback.
 - Idea to make B practical: build the embedded logo ONCE as a template block (e.g. copied from one DiRoots-exported DWG, or pasted as OLE by hand and saved as a block), then the script inserts that block in every DWG at the old image position/scale and removes the linked image. Needs a one-DWG feasibility test (block with OLE inserts, survives save, opens without the image file).
 - CONFIRMED: user has full AutoCAD (not LT).
+- SAMPLE FILE FINDINGS (user's Revit-standard DWG "10100.dwg" vs DiRoots DWG "...10101-T1.dwg"; note they are different sheets):
+  - Standard export: DWG file format AC1027 (AutoCAD 2013). Picture logos are NOT inside the DWG: it only holds image references, and Revit writes the pictures as 4 separate PNG files next to it, named like `<project>-21000-<ImageName>-<number>.png` (AKALALOGO, KEO-Logo-Sample, IssuedforTender, Picture1). No picture data found inside the DWG.
+  - DiRoots export: DWG file format AC1032 (AutoCAD 2018). Picture data IS inside the DWG: found the IssuedforTender picture (1059x596, re-encoded as PNG, not a byte copy of Revit's PNG) and bitmap headers for AKALALOGO (1141x218) and KEO-Logo (428x171). Picture1 (273x93) not found (may not be on that sheet).
+  - So DiRoots does embed the pictures. Whether AutoCAD holds them as OLE objects was not confirmed (user can check in AutoCAD: select the logo and look at its object type, or run LIST).
+  - Standard export file name is only the sheet number (10100.dwg): our script must apply the naming template itself.
+  - Revit's DWG export setup has a file-format version; set it to 2018 so both routes match.
+  - Method: custom reader of the DWG sections, run on the uploaded zip (client files are not committed to the repo).
 - OPEN: test the template-block idea on one DWG.
 
 ## Logging and submission

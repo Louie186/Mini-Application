@@ -32,56 +32,85 @@ class SheetItem(forms.TemplateListItem):
 
 
 # ------------------------------------------------------------ model access --
-def run_on_model(rec, settings, reg, fn):
-    """Open the model (detached if workshared), call fn(doc), close without saving.
-    A model already open in THIS Revit is used as it is and left open.
-    Returns (result, note, error)."""
+KEPT = {}            # models read for their sheet list and kept open for the export: guid -> (doc, note)
+OPEN_SECS = {}       # guid -> seconds it took to open
+
+
+def open_model(rec, settings, reg):
+    """Returns (doc, close_after, note, error)."""
     guid = rec['ModelGUID'].lower()
+    if guid in KEPT:
+        doc, note = KEPT.pop(guid)
+        return doc, True, note, None
     doc = core.find_open_doc(app, guid)
-    opened_here, note, region = False, None, None
+    if doc is not None:
+        return doc, False, 'Already open in this Revit - exported from your open copy (including unsynced changes)', None
+    t0 = time.time()
+    doc, region, err = core.open_cloud_model(app, rec, settings.get('region'))
+    OPEN_SECS[guid] = time.time() - t0
     if doc is None:
-        doc, region, err = core.open_cloud_model(app, rec, settings.get('region'))
-        if doc is None:
-            return None, None, err
-        opened_here, note = True, err
-    else:
-        note = 'Already open in this Revit - exported from your open copy (including unsynced changes)'
+        return None, False, None, err
+    r = reg.setdefault(guid, dict(rec))
+    r['Name'] = core.model_name(doc)
+    r['LastSeen'] = core.now()
+    if region:
+        r['Region'] = region
+        if settings.get('region') != region:
+            settings['region'] = region          # learn the ACC region: next models try it first
+            core.save_settings(settings)
+    return doc, True, err, None
+
+
+def close_model(doc):
     try:
-        r = reg.setdefault(guid, dict(rec))
-        r['Name'] = core.model_name(doc)
-        r['LastSeen'] = core.now()
-        if region:
-            r['Region'] = region
-            if settings.get('region') != region:
-                settings['region'] = region          # learn the ACC region: next models try it first
-                core.save_settings(settings)
+        doc.Close(False)                     # never save, never sync
+    except Exception:
+        pass
+
+
+def close_kept():
+    for guid in list(KEPT.keys()):
+        close_model(KEPT.pop(guid)[0])
+
+
+def run_on_model(rec, settings, reg, fn):
+    """Open (detached if workshared), call fn(doc), close without saving.
+    Returns (result, note, error)."""
+    doc, close_after, note, err = open_model(rec, settings, reg)
+    if doc is None:
+        return None, None, err
+    try:
         return fn(doc), note, None
     finally:
-        if opened_here:
-            try:
-                doc.Close(False)                     # never save, never sync
-            except Exception:
-                pass
+        if close_after:
+            close_model(doc)
 
 
-def scan_models(models, settings, reg, cache):
-    """Open each model once to save its sheet list."""
+def scan_models(models, settings, reg, cache, keep):
+    """Open each model to save its sheet list. keep=True leaves them open for the export
+    (each model is then opened only ONCE in this run)."""
     rule = settings.get('naming_rule') or '{DrawingNumber}'
     failed = []
     with core.QuietRevit(uiapp):
-        with forms.ProgressBar(title='Reading sheet lists: {value} of {max_value} models', cancellable=True) as pb:
+        with forms.ProgressBar(title='Opening models to read sheet lists: {value} of {max_value}',
+                               cancellable=True) as pb:
             for i, rec in enumerate(models):
                 if pb.cancelled:
                     break
                 pb.update_progress(i, len(models))
-                try:
-                    res, note, err = run_on_model(rec, settings, reg, lambda d: core.read_sheet_list(d, rule))
-                except Exception as e:
-                    res, err = None, core.text(e)
-                if res is None:
+                guid = rec['ModelGUID'].lower()
+                doc, close_after, note, err = open_model(rec, settings, reg)
+                if doc is None:
                     failed.append('%s: %s' % (core.register_label(rec), err))
-                else:
-                    cache[rec['ModelGUID'].lower()] = res
+                    continue
+                try:
+                    cache[guid] = core.read_sheet_list(doc, rule)
+                except Exception as e:
+                    failed.append('%s: %s' % (core.register_label(rec), core.text(e)))
+                if close_after and keep:
+                    KEPT[guid] = (doc, note)
+                elif close_after:
+                    close_model(doc)
     core.save_sheet_cache(cache)
     core.save_register(reg)
     return failed
@@ -94,7 +123,12 @@ def pick_models(settings):
         forms.alert('No cloud models found on this PC.\n\nThe list is built from Revit\'s cloud cache: '
                     'any ACC model you have opened in Revit %s on this PC appears here.' % app.VersionNumber)
         return None, None
-    labels = dict((core.register_label(r), r) for r in reg.values())
+    labels = {}
+    for r in reg.values():
+        lab = core.register_label(r)
+        if lab in labels:                       # two models with the same name: add a short ID
+            lab = u'%s   (%s)' % (lab, r['ModelGUID'][:8])
+        labels[lab] = r
     chosen = forms.SelectFromList.show(sorted(labels.keys()), title='1. Tick the models',
                                        multiselect=True, button_name='Next')
     if not chosen:
@@ -157,6 +191,17 @@ def main():
     if not models:
         return
 
+    mode = forms.CommandSwitchWindow.show(
+        ['Dry run (check only, export nothing)', 'Export'], message='Mode')
+    if not mode:
+        return
+    do_export = mode == 'Export'
+
+    fmt = forms.CommandSwitchWindow.show(['PDF + DWG', 'PDF only', 'DWG only'], message='Formats')
+    if not fmt:
+        return
+    settings['_formats'] = {'pdf': 'Y' if 'PDF' in fmt else 'N', 'dwg': 'Y' if 'DWG' in fmt else 'N'}
+
     picked = None
     cache = core.load_sheet_cache()
     if what == TICK:
@@ -175,24 +220,18 @@ def main():
                              'Next time this is instant.' % len(missing), yes=True, no=True):
             return
         if to_scan:
-            failed = scan_models(to_scan, settings, reg, cache)
+            keep = do_export and len(to_scan) <= int(settings.get('keep_open_max', 6))
+            failed = scan_models(to_scan, settings, reg, cache, keep)
             if failed:
                 forms.alert('Could not read these models:\n\n' + '\n'.join(failed))
         picked = pick_sheets(models, cache)
         if not picked:
             return
         models = [m for m in models if m['ModelGUID'].lower() in picked]
+        for guid in list(KEPT.keys()):          # close kept models that have no ticked drawings
+            if guid not in picked:
+                close_model(KEPT.pop(guid)[0])
 
-    mode = forms.CommandSwitchWindow.show(
-        ['Dry run (check only, export nothing)', 'Export'], message='Mode')
-    if not mode:
-        return
-    do_export = mode == 'Export'
-
-    fmt = forms.CommandSwitchWindow.show(['PDF + DWG', 'PDF only', 'DWG only'], message='Formats')
-    if not fmt:
-        return
-    settings['_formats'] = {'pdf': 'Y' if 'PDF' in fmt else 'N', 'dwg': 'Y' if 'DWG' in fmt else 'N'}
 
     out_root = forms.pick_folder(title='Output folder for the exports')
     if not out_root:
@@ -215,6 +254,7 @@ def main():
         return
     core.save_settings(settings)
 
+    core.ensure_dir(out_root)
     log_path = core.usable_log_path(os.path.join(out_root, 'SheetExport_log.csv'))
     if not log_path.endswith('SheetExport_log.csv'):
         forms.alert('SheetExport_log.csv is open in another program (Excel?).\n\nThis run writes to:\n%s' % log_path)
@@ -233,6 +273,7 @@ def main():
                 entry.get('model', '?'), len(picked.get(rec['ModelGUID'].lower(), [])), n, entry.get('updated', '?')))
         core.append_csv(log_path, core.LOG_HEADER, log)
     else:
+        opened_before = set(KEPT.keys())
         with core.QuietRevit(uiapp):
             with forms.ProgressBar(title='Exporting {value} of {max_value} models', cancellable=True) as pb:
                 for i, rec in enumerate(models):
@@ -267,11 +308,15 @@ def main():
                         extra = ([note] if note else []) + links + notes
                         for n in extra:
                             log.append([core.now(), 'INFO', mname, '', '', '', '', '', 'NOTE', '', n])
-                        lines.append('%s: %d drawing(s), %s, %.0fs%s' % (
+                        total = time.time() - t0
+                        osecs = OPEN_SECS.get(guid)
+                        lines.append('%s: %d drawing(s), %s  |  %s%s' % (
                             mname, len(matched),
                             ('%d file(s) exported, %d failed' % (counts['ok'], counts['failed'])) if do_export
                             else ('%d file(s) would export' % counts['would']),
-                            time.time() - t0, ('  [%s]' % '; '.join(extra)) if extra else ''))
+                            ('open %.0fs + export %.0fs' % (osecs, max(0, total - osecs)) if (osecs is not None and guid not in opened_before)
+                             else 'export %.0fs (model was already open)' % total),
+                            ('  [%s]' % '; '.join(extra)) if extra else ''))
                     core.append_csv(log_path, core.LOG_HEADER, log)
                 pb.update_progress(len(models), len(models))
         core.save_register(reg)
@@ -307,4 +352,7 @@ def main():
     output.print_md('Log: `%s`' % log_path)
 
 
-main()
+try:
+    main()
+finally:
+    close_kept()

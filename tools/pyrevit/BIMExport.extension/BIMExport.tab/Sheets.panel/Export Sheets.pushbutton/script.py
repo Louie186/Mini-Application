@@ -134,6 +134,9 @@ def main():
                     open_note = err
                     r = reg.get(rec['ModelGUID'].lower(), rec)
                     r['Region'] = region
+                    if region and settings.get('region') != region:
+                        settings['region'] = region          # learn the ACC region: next models try it first
+                        core.save_settings(settings)
                 try:
                     name = core.model_name(doc)
                     r = reg.setdefault(rec['ModelGUID'].lower(), dict(rec))

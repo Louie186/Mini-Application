@@ -79,6 +79,21 @@ Reviewer runs in either route: Claude agent (Claude Code on the PC) or office Co
   - Method: custom reader of the DWG sections, run on the uploaded zip (client files are not committed to the repo).
 - OPEN: test the template-block idea on one DWG.
 
+## AutoCAD image-to-OLE script: build requirements (agreed with user)
+Purpose: make Revit-standard DWGs match the DiRoots result (pictures embedded, no separate PNG files needed).
+- Detect every raster IMAGE in the DWG, anywhere: model space, every paper-space layout, and inside every block definition including nested blocks. Not limited to the title block, and not tied to one title block design.
+- For each image, read its position, size (width and height), rotation, layer, draw order and the PNG file it points to (path from the image definition; Revit writes the PNGs next to the DWG).
+- Replace it with an embedded OLE picture (static, enhanced metafile, high-quality plot, like DiRoots) at the same position, size, rotation, layer and draw order. Position and size come from the image itself, so different title blocks and sizes (A0, A1, ...) work without hard-coded numbers.
+- Then remove the old image and its definition, and purge so no link to the PNG remains. Check afterwards: XREF/IMAGE manager lists no images.
+- If a block definition is edited, every instance gets the change; handle each unique image once.
+- Cases the script cannot do safely (clipped images, mirrored or skewed images, missing PNG file): do not guess; leave the file untouched for that image and log it.
+- Multiple files: input is a folder or a list of DWGs; output goes to a "processed" folder; originals are never overwritten; one CSV log (file, images found, replaced, skipped, reason, time).
+- DRY-RUN mode (default for the first run): report what would change per file (image count, positions, sizes, PNG found or missing) and change nothing. The AI team's dry run uses this mode.
+- Run model: full AutoCAD opening each DWG and running a script. OLE creation may not work in the headless core console, so do not assume it does.
+- Research task for the build session: find a method that works in AutoCAD to create the OLE from the PNG (candidates: scripted clipboard paste of the picture; .NET plug-in; copying OLE objects from a prepared template). Prove it on ONE sample DWG before writing the batch part. If no method works, fall back to Option C (keep link and package files together) and tell the user.
+- Acceptance tests (sample files from the user): standard DWG after processing shows OLE objects for all pictures, XREF shows none, file opens on a PC without the PNG files, logos sit in the same place and size as the DiRoots version.
+- Cannot be tested in the cloud container (no AutoCAD): user runs each test on their PC and reports back.
+
 ## Logging and submission
 - Logger updates a master register (new / changed / unchanged per sheet).
 - Submission folder built by the agent if Claude Code is on the PC; otherwise copied by hand. User approves before anything goes out.

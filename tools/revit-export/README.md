@@ -14,15 +14,19 @@ Exports **only the sheets on your drawing list** from the **open** model to PDF 
 | `DrawingList_template.csv` | Example drawing list. Copy it and fill in your own sheets |
 | `build_dyn.py` | Only for updating the graph from the code. You don't need it |
 
-## 1. Make your drawing list
+## 1. Make your drawing list (your LOD works directly)
 
-- Open `DrawingList_template.csv` in Excel
-- One row per sheet:
-  - **SheetNumber** (required): must match Revit exactly
-  - **SheetName** (optional): only used to warn you if Revit's name is different
-  - **Model** (optional): the Revit model name. Rows for other models are ignored. Blank = any model
-  - **PDF**, **DWG**: `Y` or `N`
-- Save as **CSV UTF-8** (File → Save As → "CSV UTF-8 (Comma delimited)")
+- **Easiest:** take your LOD in Excel and **Save As → CSV UTF-8**
+- Columns it understands (any order, spelling is flexible):
+  - **Drawing Number** (or "Drawing No.", "Doc No."), e.g. `5013-KEO-T1-ZZ-PLN-INT-10100-T1`
+    - The tool finds the Revit sheet by the **sequence** (7th part, `10100`)
+    - It also accepts a plain **SheetNumber** column
+  - **Title** / **SheetName** (optional): warns if Revit's name is different
+  - **Model** (optional but recommended): rows for other models are ignored
+  - **Rev** (optional): otherwise taken from the last part of the drawing number (`T1`)
+  - **PDF**, **DWG** (optional): `Y` or `N`. A missing column means both
+- Extra columns in your LOD are simply ignored
+- See `DrawingList_template.csv` for an example
 
 ## 2. Run it on your dummy model
 
@@ -33,7 +37,7 @@ Exports **only the sheets on your drawing list** from the **open** model to PDF 
 5. Fill in the inputs on the left:
    - **Drawing list**: browse to your CSV
    - **Output folder**: browse to an empty test folder
-   - **Naming rule**: e.g. `{SheetNumber}_{SheetName}` (see below)
+   - **Naming rule**: leave `{DrawingNumber}` to use the full LOD number (see below)
    - **DWG export setup**: name of a saved setup in Revit, or leave blank
    - **PDF export setup**: name of a saved setup in Revit, or leave blank
    - **Export?**: leave **False** for the first run
@@ -47,7 +51,9 @@ Exports **only the sheets on your drawing list** from the **open** model to PDF 
 
 | Token | Gives |
 |---|---|
-| `{SheetNumber}` | A-101 |
+| `{DrawingNumber}` | Full number from your LOD: 5013-KEO-T1-ZZ-PLN-INT-10100-T1 **(default)** |
+| `{ListRevision}` | Revision from your LOD |
+| `{SheetNumber}` | Revit sheet number: 10100 |
 | `{SheetName}` | Ground Floor Plan |
 | `{Revision}` | Current revision of the sheet |
 | `{Model}` | Model name |
@@ -66,6 +72,8 @@ Example: `{Project:Project Number}-{SheetNumber}-{Revision}` gives `5013-A-101-T
 - Skips sheets listed twice, and says so
 - Logs sheets that are on the list but not in the model (`NOT_FOUND`)
 - Warns if a sheet name on the list differs from Revit
+- Warns if the LOD revision differs from the Revit sheet's current revision
+- Without a Model column, rows from other models are logged as `NOT_IN_THIS_MODEL` (not an error)
 - Skips placeholder sheets
 - DWG: one file per sheet (views are not split into separate xrefs), AutoCAD 2018 format
 - Overwrites old files with the same name

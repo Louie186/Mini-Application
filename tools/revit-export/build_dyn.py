@@ -41,7 +41,7 @@ inputs = [
                "C:\\BIMTools\\Exports", "Directory Path",
                {"HintPath": "C:\\BIMTools\\Exports"}),
     input_node("CoreNodeModels.Input.StringInput, CoreNodeModels", "StringInputNode",
-               "{SheetNumber}_{SheetName}", "Creates a string."),
+               "{DrawingNumber}", "Creates a string."),
     input_node("CoreNodeModels.Input.StringInput, CoreNodeModels", "StringInputNode",
                "", "Creates a string."),
     input_node("CoreNodeModels.Input.StringInput, CoreNodeModels", "StringInputNode",

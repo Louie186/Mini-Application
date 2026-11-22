@@ -12,16 +12,23 @@
 #   IN[4]  PDF export setup name       String, blank = Revit default
 #   IN[5]  Export?                     Boolean: False = DRY RUN, True = export
 #
-# Drawing list columns (first row = headers, any order, not case-sensitive):
-#   SheetNumber  (required)
-#   SheetName    (optional - only used to warn if it differs from Revit)
-#   Model        (optional - rows for other models are ignored; blank = any)
-#   PDF, DWG     (optional - Y/N; a missing column means Y)
+# Drawing list columns (first row = headers, any order, not case-sensitive).
+# Your LOD can be used directly (save it as CSV UTF-8):
+#   Drawing Number  e.g. 5013-KEO-T1-ZZ-PLN-INT-10100-T1   (or SheetNumber)
+#                   The Revit sheet is found by: full number, else the 7th
+#                   field (sequence, 10100), else the second-to-last field.
+#   SheetName/Title (optional - warns if it differs from Revit)
+#   Model           (optional - rows for other models are ignored)
+#   Revision        (optional - else the last field of the drawing number)
+#   PDF, DWG        (optional - Y/N; a missing column means Y)
 #
 # Naming rule tokens:
-#   {SheetNumber} {SheetName} {Revision} {Model} {Date}
+#   {DrawingNumber}   full number from the list (e.g. 5013-KEO-...-10100-T1)
+#   {ListRevision}    revision from the list
+#   {SheetNumber} {SheetName} {Revision} {Model} {Date}   (from Revit)
 #   {P:Any Sheet Parameter}      e.g. {P:Drawing Status}
 #   {Project:Any Project Info}   e.g. {Project:Project Number}
+# A warning is logged when the list revision and the Revit revision differ.
 #
 # Output:  <Output folder>\<Model>\PDF\  and  <Output folder>\<Model>\DWG\
 # Log:     <Output folder>\SheetExport_log.csv
@@ -64,7 +71,7 @@ def arg(i, default):
 
 LIST_PATH = arg(0, None)
 OUT_DIR = arg(1, None)
-NAMING = arg(2, "{SheetNumber}_{SheetName}")
+NAMING = arg(2, "{DrawingNumber}")
 DWG_SETUP = str(arg(3, "")).strip()
 PDF_SETUP = str(arg(4, "")).strip()
 DO_EXPORT = bool(arg(5, False))
@@ -78,7 +85,7 @@ try:                                     # local copies are titled "<Model>_<use
 except Exception:
     pass
 
-LOG_HEADER = ["Timestamp", "Mode", "Model", "SheetNumber", "SheetName",
+LOG_HEADER = ["Timestamp", "Mode", "Model", "ListedNumber", "SheetName",
               "Revision", "Format", "File", "Status", "Seconds", "Note"]
 
 
@@ -103,6 +110,18 @@ def clean(name):
     return name.strip(' -_.')
 
 
+# other column names people use, mapped to the names this script needs
+ALIASES = {
+    "drawingnumber": "drawingnumber", "drawingno": "drawingnumber", "drawingno.": "drawingnumber",
+    "dwgno": "drawingnumber", "dwgno.": "drawingnumber", "documentnumber": "drawingnumber",
+    "documentno": "drawingnumber", "docno": "drawingnumber", "docno.": "drawingnumber",
+    "sheetno": "sheetnumber", "sheetno.": "sheetnumber",
+    "title": "sheetname", "drawingtitle": "sheetname", "drawingname": "sheetname",
+    "modelname": "model", "revitmodel": "model",
+    "rev": "revision", "rev.": "revision",
+}
+
+
 def read_list(path):
     data = None
     for enc in ("utf-8-sig", "mbcs", "cp1252"):
@@ -118,8 +137,47 @@ def read_list(path):
     delim = ';' if first.count(';') > first.count(',') else ','
     rows = []
     for r in csv.DictReader(data.splitlines(), delimiter=delim):
-        rows.append({key(k): (v or "").strip() for k, v in r.items() if k})
+        row = {}
+        for k, v in r.items():
+            if k:
+                kk = key(k)
+                row[ALIASES.get(kk, kk)] = (v or "").strip()
+        rows.append(row)
     return rows
+
+
+def lod_parts(number):
+    """5013-KEO-T1-ZZ-PLN-INT-10100-T1 -> ['5013','KEO',...,'10100','T1']"""
+    return [p.strip() for p in (number or "").split("-")]
+
+
+def find_sheet(row, sheets):
+    """Return (sheet, matched_on). Tries SheetNumber, then the full LOD number,
+    then the sequence (7th field), then the second-to-last field."""
+    cands = []
+    if row.get("sheetnumber"):
+        cands.append(row["sheetnumber"])
+    dn = row.get("drawingnumber", "")
+    if dn:
+        parts = lod_parts(dn)
+        cands.append(dn)
+        if len(parts) >= 7:
+            cands.append(parts[6])
+        if len(parts) >= 2:
+            cands.append(parts[-2])
+    for c in cands:
+        s = sheets.get(c.strip().lower())
+        if s is not None:
+            return s, c
+    return None, (cands[0] if cands else "")
+
+
+def list_revision(row):
+    """Revision from a Revision column, else the last field of the LOD number."""
+    if row.get("revision"):
+        return row["revision"]
+    parts = lod_parts(row.get("drawingnumber", ""))
+    return parts[-1] if len(parts) >= 8 else ""
 
 
 def model_matches(cell):
@@ -137,7 +195,7 @@ def param_text(el, name):
     return p.AsString() or p.AsValueString() or ""
 
 
-def make_name(sheet, rule):
+def make_name(sheet, rule, row):
     rev = sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION)
     vals = {
         "sheetnumber": sheet.SheetNumber,
@@ -145,6 +203,9 @@ def make_name(sheet, rule):
         "revision": (rev.AsString() if rev else "") or "",
         "model": MODEL,
         "date": datetime.date.today().strftime("%Y%m%d"),
+        # from the drawing list / LOD row
+        "drawingnumber": row.get("drawingnumber") or sheet.SheetNumber,
+        "listrevision": list_revision(row),
     }
     missing = []
 
@@ -234,8 +295,9 @@ def main():
 
     notes = []
     rows = read_list(str(LIST_PATH))
-    if not rows or "sheetnumber" not in rows[0]:
-        return ["Drawing list needs a 'SheetNumber' column."]
+    if not rows or ("sheetnumber" not in rows[0] and "drawingnumber" not in rows[0]):
+        return ["Drawing list needs a 'SheetNumber' or 'Drawing Number' column."]
+    has_model_col = "model" in rows[0]
 
     sheets = {}
     for s in FilteredElementCollector(doc).OfClass(ViewSheet):
@@ -256,22 +318,29 @@ def main():
 
     log = []
     seen = set()
-    counts = {"ok": 0, "failed": 0, "notfound": 0, "would": 0}
+    counts = {"ok": 0, "failed": 0, "notfound": 0, "would": 0, "othermodel": 0}
 
     for r in mine:
-        num = r.get("sheetnumber", "").strip()
-        if not num:
+        listed = (r.get("drawingnumber") or r.get("sheetnumber") or "").strip()
+        if not listed:
             continue
-        if num.lower() in seen:
-            log.append([now(), MODE, MODEL, num, r.get("sheetname", ""), "", "", "", "SKIPPED", "", "Listed twice"])
+        if listed.lower() in seen:
+            log.append([now(), MODE, MODEL, listed, r.get("sheetname", ""), "", "", "", "SKIPPED", "", "Listed twice"])
             continue
-        seen.add(num.lower())
+        seen.add(listed.lower())
 
-        sheet = sheets.get(num.lower())
+        sheet, matched = find_sheet(r, sheets)
         if sheet is None:
-            counts["notfound"] += 1
-            log.append([now(), MODE, MODEL, num, r.get("sheetname", ""), "", "", "", "NOT_FOUND", "", "Sheet not in this model"])
+            if has_model_col:
+                counts["notfound"] += 1
+                log.append([now(), MODE, MODEL, listed, r.get("sheetname", ""), "", "", "", "NOT_FOUND", "",
+                            "Sheet '%s' not in this model" % matched])
+            else:
+                counts["othermodel"] += 1
+                log.append([now(), MODE, MODEL, listed, r.get("sheetname", ""), "", "", "", "NOT_IN_THIS_MODEL", "",
+                            "No Model column - probably in another model"])
             continue
+        num = listed
 
         note = []
         if sheet.IsPlaceholder:
@@ -281,7 +350,7 @@ def main():
         if listed_name and listed_name.strip().lower() != sheet.Name.strip().lower():
             note.append("Name differs from list: '%s'" % listed_name)
 
-        name, missing = make_name(sheet, NAMING)
+        name, missing = make_name(sheet, NAMING, r)
         if missing:
             note.append("Unknown token(s): " + ", ".join(missing))
         if not name:
@@ -289,6 +358,11 @@ def main():
             note.append("Naming rule gave an empty name - used sheet number")
         rev = sheet.get_Parameter(BuiltInParameter.SHEET_CURRENT_REVISION)
         rev = (rev.AsString() if rev else "") or ""
+        lrev = list_revision(r)
+        if lrev and rev and lrev.strip().lower() != rev.strip().lower():
+            note.append("Revision differs: list %s, Revit %s" % (lrev, rev))
+        elif lrev and not rev:
+            note.append("List has revision %s, Revit sheet has none" % lrev)
 
         formats = []
         if "pdf" not in r or yes(r.get("pdf")):
@@ -330,6 +404,8 @@ def main():
                "Mode: " + ("EXPORT" if DO_EXPORT else "DRY RUN (nothing exported)"),
                "Sheets listed for this model: %d (other models ignored: %d)" % (len(seen), other),
                "Not found in model: %d" % counts["notfound"]]
+    if counts["othermodel"]:
+        summary.append("Not in this model (list has no Model column): %d" % counts["othermodel"])
     if DO_EXPORT:
         summary += ["Files exported: %d" % counts["ok"], "Files failed: %d" % counts["failed"]]
     else:

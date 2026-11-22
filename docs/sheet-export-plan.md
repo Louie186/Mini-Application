@@ -94,6 +94,12 @@ Purpose: make Revit-standard DWGs match the DiRoots result (pictures embedded, n
 - Acceptance tests (sample files from the user): standard DWG after processing shows OLE objects for all pictures, XREF shows none, file opens on a PC without the PNG files, logos sit in the same place and size as the DiRoots version.
 - Cannot be tested in the cloud container (no AutoCAD): user runs each test on their PC and reports back.
 
+### Build status
+- First version written: `tools/img2ole/` (IMG2OLE.lsp, IMG2OLE_clip.ps1, Invoke-Img2OleDryRun.ps1, README.md).
+- Method chosen: picture put on the clipboard as an Enhanced Metafile by a PowerShell helper, pasted once per picture file with PASTECLIP, then copied into each owner block/space and fitted to the old picture's corner, size and rotation.
+- Dry run is plain AutoLISP, so it also runs headless in AutoCAD Core Console (AI team route).
+- NOT TESTED YET (written without AutoCAD). Next: user runs README Test 1 and Test 2 on the dummy model export.
+
 ## Logging and submission
 - Logger updates a master register (new / changed / unchanged per sheet).
 - Submission folder built by the agent if Claude Code is on the PC; otherwise copied by hand. User approves before anything goes out.

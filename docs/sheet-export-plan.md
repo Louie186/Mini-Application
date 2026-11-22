@@ -116,6 +116,8 @@ Purpose: make Revit-standard DWGs match the DiRoots result (pictures embedded, n
 - Open: ModelPathUtils.ConvertCloudGUIDsToCloudPath(region, projectGuid, modelGuid); OpenOptions with DetachAndPreserveWorksets + OpenAllWorksets; check links loaded (reload if not); export; close WITHOUT saving.
 - No sync needed: detached + read-only use; nothing goes back to ACC; no locks or borrowed elements. Prints show the LAST SYNCED cloud version, so the team must sync before the print run (agree a cut-off time).
 
+- DECIDED: do NOT open models through Desktop Connector. User test: it downloads the file, opens detached, and all links are lost. Keep the cloud-ID route (detached, links resolved from ACC, checked and reloaded by the tool).
+
 ## Logging and submission
 - Logger updates a master register (new / changed / unchanged per sheet).
 - Submission folder built by the agent if Claude Code is on the PC; otherwise copied by hand. User approves before anything goes out.

@@ -8,6 +8,7 @@ from __future__ import print_function
 
 __title__ = 'Export\nSheets'
 __author__ = 'BIM Export'
+__context__ = 'zero-doc'                # button works even with no model open (it opens models itself)
 
 import os
 import io

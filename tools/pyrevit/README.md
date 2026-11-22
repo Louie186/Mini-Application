@@ -24,26 +24,21 @@ You never open a model yourself.
 
 ## Use it
 
-**Export Sheets** button:
+Click **BIMExport → Export Sheets**. One window opens:
 
-1. **What to export:** pick **Tick sheets from the models** (recommended)
-   - Or "Sheets from my LOD (CSV)", or "All sheets"
-2. **Tick the models**
-3. **Sheet lists:**
-   - First time: each model opens **once** in the background (detached) to read its sheets, then closes
-   - Next time: **instant** (uses the saved list), or choose **Refresh** if sheets changed
-4. **Tick the drawings.** Switch model with the drop-down at the top, or use "* All chosen models". The search box filters the list
-5. **Mode:** Dry run (instant, opens nothing) or Export
-6. **Formats:** PDF + DWG, PDF only, or DWG only
-7. **Output folder**
-8. **Logos:** Yes starts AutoCAD after the export
+| Panel | What you do |
+|---|---|
+| **1 Models** | Tick 5–10 models. **Load drawings** reads each new model once (opens it in the background, detached), then it's instant next time. Tick "Refresh lists" if sheets changed |
+| **2 Drawings** | A tree per model: **model → browser folders → drawings**. Pick the **Browser** (sheet browser organization) next to each model. Tick a folder to tick everything in it. Search box, Tick all, Clear, Expand, Collapse. **Tick from LOD...** ticks the drawings listed in a CSV |
+| **3 Settings** | **Output:** folder, one folder per model, PDF/DWG, file name rule. **PDF:** colours, raster quality, hide crop/scope/ref planes/unreferenced tags, or a saved setup name. **CAD:** DWG version, layer standard, one DWG per sheet, shared coordinates, or a saved setup name. **Run:** embed logos, share with other Revit windows |
 
-**Embed Logos** button (run or re-run the logo step any time):
+Then **Dry run** (instant, nothing opened) or **Export**.
 
-1. Pick the export output folder
-2. It shows the result of the last logo run (OK / PARTIAL / FAILED per drawing)
-3. It checks that IMG2OLE and AutoCAD can be found, and lets you point to them if not
-4. It starts AutoCAD on every `<model>\_DWG_raw\*.dwg` and writes the finished files to `<model>\DWG\`
+While exporting, the progress bar shows e.g. `Model 2 of 5 · Tower-ARC · DWG 3 of 12 (10102)`, with **Cancel**.
+
+Settings are saved for next time. Before exporting, the tool warns you if two drawings would get the same file name.
+
+**Embed Logos** button: run or re-run the logo step on an export folder any time, and see the last result per drawing.
 
 ### Faster: several Revit windows share one export
 

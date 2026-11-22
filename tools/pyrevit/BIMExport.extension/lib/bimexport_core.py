@@ -594,7 +594,42 @@ def read_sheet_list(doc, rule):
         v = _param(doc.ProjectInformation, n)
         if v is not None:
             project[n] = v
-    return {'model': model_name(doc), 'updated': now(), 'rule': rule, 'sheets': sheets, 'project': project}
+    orgs, current = read_browser_orgs(doc), u''
+    try:
+        current = DB.BrowserOrganization.GetCurrentBrowserOrganizationForSheets(doc).Name
+    except Exception:
+        pass
+    return {'model': model_name(doc), 'updated': now(), 'rule': rule, 'sheets': sheets, 'project': project,
+            'orgs': orgs, 'current_org': current}
+
+
+def read_browser_orgs(doc):
+    """{organization name: {sheet number: [folder, subfolder, ...]}} for every sheet browser organization."""
+    out = {}
+    try:
+        sheet_type = DB.BrowserOrganizationType.Sheets
+        sheets = [s for s in FilteredElementCollector(doc).OfClass(ViewSheet) if not s.IsPlaceholder]
+        for org in FilteredElementCollector(doc).OfClass(DB.BrowserOrganization):
+            try:
+                if org.Type != sheet_type:
+                    continue
+                m = {}
+                for s in sheets:
+                    try:
+                        if hasattr(org, 'AreFiltersSatisfied') and not org.AreFiltersSatisfied(s.Id):
+                            continue
+                    except Exception:
+                        pass
+                    try:
+                        m[s.SheetNumber] = [text(i.Name) for i in org.GetFolderItems(s.Id)]
+                    except Exception:
+                        m[s.SheetNumber] = []
+                out[text(org.Name)] = m
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return out
 
 
 def plan_from_cache(entry, numbers, out_root, settings, log):
@@ -602,7 +637,7 @@ def plan_from_cache(entry, numbers, out_root, settings, log):
     model = entry.get('model', u'?')
     rule = settings.get('naming_rule') or u'{DrawingNumber}'
     fmts = settings.get('_formats') or {'pdf': u'Y', 'dwg': u'Y'}
-    mdir = os.path.join(out_root, clean(model))
+    mdir = model_folder(out_root, model, settings)
     n = 0
     for e in entry.get('sheets', []):
         if e['number'].strip().lower() not in numbers:
@@ -623,43 +658,91 @@ def plan_from_cache(entry, numbers, out_root, settings, log):
     return n
 
 
-def pdf_options(doc, setup, notes):
-    opts = None
-    if setup:
+PDF_DEFAULTS = {'setup': '', 'colors': 'Color', 'raster_quality': 'High', 'always_raster': False,
+                'hide_crop': True, 'hide_scope': True, 'hide_ref_planes': True, 'hide_unref_tags': True}
+DWG_DEFAULTS = {'setup': '', 'version': '2018', 'layers': 'AIA', 'merged_views': True, 'shared_coords': False}
+PDF_COLORS = {'Color': 'Color', 'Grayscale': 'GrayScale', 'Black lines': 'BlackLine'}
+DWG_LAYERS = ['AIA', 'ISO13567', 'CP83', 'BS1192']
+
+
+def _set(obj, prop, val, notes=None):
+    try:
+        setattr(obj, prop, val)
+    except Exception as e:
+        if notes is not None:
+            notes.append(u'%s not set (%s)' % (prop, text(e)))
+
+
+def _enum(enum_type, name):
+    try:
+        return getattr(enum_type, name)
+    except Exception:
+        return None
+
+
+def pdf_settings(settings):
+    ps = dict(PDF_DEFAULTS)
+    ps.update(settings.get('pdf') or {})
+    if not ps.get('setup') and settings.get('pdf_setup'):
+        ps['setup'] = settings['pdf_setup']
+    return ps
+
+
+def dwg_settings(settings):
+    ds = dict(DWG_DEFAULTS)
+    ds.update(settings.get('dwg') or {})
+    if not ds.get('setup') and settings.get('dwg_setup'):
+        ds['setup'] = settings['dwg_setup']
+    return ds
+
+
+def pdf_options(doc, settings, notes):
+    ps = pdf_settings(settings)
+    if ps.get('setup'):
         for s in FilteredElementCollector(doc).OfClass(ExportPDFSettings):
-            if s.Name == setup:
+            if s.Name == ps['setup']:
                 opts = s.GetOptions()
-                break
-        if opts is None:
-            notes.append(u"PDF setup '%s' not found in this model - Revit defaults used" % setup)
-    if opts is None:
-        opts = PDFExportOptions()
-        for prop in ('HideCropBoundaries', 'HideScopeBoxes', 'HideReferencePlane', 'HideUnreferencedViewTags'):
-            try:
-                setattr(opts, prop, True)
-            except Exception:
-                pass
+                opts.Combine = True
+                return opts
+        notes.append(u"PDF setup '%s' not found in this model - tool settings used" % ps['setup'])
+    opts = PDFExportOptions()
+    cd = _enum(getattr(DB, 'ColorDepthType', None), PDF_COLORS.get(ps['colors'], 'Color'))
+    if cd is not None:
+        _set(opts, 'ColorDepth', cd, notes)
+    rq = _enum(getattr(DB, 'RasterQualityType', None), ps['raster_quality'])
+    if rq is not None:
+        _set(opts, 'RasterQuality', rq, notes)
+    _set(opts, 'AlwaysUseRaster', bool(ps['always_raster']))
+    _set(opts, 'HideCropBoundaries', bool(ps['hide_crop']))
+    _set(opts, 'HideScopeBoxes', bool(ps['hide_scope']))
+    _set(opts, 'HideReferencePlane', bool(ps['hide_ref_planes']))
+    _set(opts, 'HideUnreferencedViewTags', bool(ps['hide_unref_tags']))
     opts.Combine = True
     return opts
 
 
-def dwg_options(doc, setup, notes):
-    opts = None
-    if setup:
-        opts = DWGExportOptions.GetPredefinedOptions(doc, setup)
-        if opts is None:
-            notes.append(u"DWG setup '%s' not found in this model - Revit defaults used" % setup)
-    if opts is None:
-        opts = DWGExportOptions()
-    opts.MergedViews = True
-    try:
-        opts.FileVersion = DB.ACADVersion.R2018
-    except Exception:
-        pass
+def dwg_options(doc, settings, notes):
+    ds = dwg_settings(settings)
+    if ds.get('setup'):
+        opts = DWGExportOptions.GetPredefinedOptions(doc, ds['setup'])
+        if opts is not None:
+            return opts
+        notes.append(u"DWG setup '%s' not found in this model - tool settings used" % ds['setup'])
+    opts = DWGExportOptions()
+    v = _enum(DB.ACADVersion, 'R' + text(ds['version']))
+    if v is not None:
+        _set(opts, 'FileVersion', v, notes)
+    _set(opts, 'LayerMapping', ds['layers'], notes)
+    _set(opts, 'MergedViews', bool(ds['merged_views']))
+    _set(opts, 'SharedCoords', bool(ds['shared_coords']))
     return opts
 
 
-def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None):
+def model_folder(out_root, model, settings):
+    return os.path.join(out_root, clean(model)) if settings.get('per_model_folder', True) else out_root
+
+
+def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None, progress=None):
     """Export: picked sheet numbers (set, lower case), else LOD sheets found in this
     model, else all sheets (lod_rows None).
     Returns (matched listed numbers, counts, model notes, dwg_raw_folder)."""
@@ -689,7 +772,7 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None)
                     jobs.append((row, sheets[c]))
                     break
 
-    mdir = os.path.join(out_root, clean(model))
+    mdir = model_folder(out_root, model, settings)
     pdf_dir = os.path.join(mdir, 'PDF')
     raw_dir = os.path.join(mdir, '_DWG_raw')
     counts = {'ok': 0, 'failed': 0, 'would': 0}
@@ -700,11 +783,11 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None)
     if do_export:
         ensure_dir(pdf_dir)
         ensure_dir(raw_dir)
-        pdf_opts = pdf_options(doc, settings.get('pdf_setup'), notes)
-        dwg_opts = dwg_options(doc, settings.get('dwg_setup'), notes)
+        pdf_opts = pdf_options(doc, settings, notes)
+        dwg_opts = dwg_options(doc, settings, notes)
 
     matched = set()
-    for row, sheet in jobs:
+    for job_i, (row, sheet) in enumerate(jobs):
         listed = row['_listed']
         matched.add(listed.lower())
         note = []
@@ -738,6 +821,11 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None)
                 log.append([now(), mode, model, listed, sheet.Name, rev, fmt, target, u'WOULD_EXPORT', u'',
                             u'; '.join(note)])
                 continue
+            if progress:
+                try:
+                    progress(job_i + 1, len(jobs), fmt, sheet.SheetNumber)
+                except Exception:
+                    pass
             t0 = time.time()
             status, extra = u'FAILED', u''
             try:
@@ -890,6 +978,11 @@ def find_raw_dwgs(out_root):
     jobs = []
     if not os.path.isdir(out_root):
         return jobs
+    top = os.path.join(out_root, '_DWG_raw')             # "one folder per model" switched off
+    if os.path.isdir(top):
+        for f in sorted(os.listdir(top)):
+            if f.lower().endswith('.dwg'):
+                jobs.append((os.path.join(top, f), os.path.join(out_root, 'DWG')))
     for m in sorted(os.listdir(out_root)):
         raw = os.path.join(out_root, m, '_DWG_raw')
         if os.path.isdir(raw):

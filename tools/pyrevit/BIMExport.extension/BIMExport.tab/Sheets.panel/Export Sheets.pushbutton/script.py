@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Export sheets from ACC models to PDF + DWG, then embed the logos in AutoCAD.
+"""BIM Export: tick ACC models and drawings in one window, set PDF / CAD options, export.
 
-Recommended flow: tick models -> tick sheets (grouped by model) -> Dry run or Export.
-Workshared models open DETACHED (all worksets) - never your own local copy.
-Every model is closed without saving.
+Workshared models open DETACHED (all worksets, links checked) and close without saving.
+Drawing lists are saved per model, so the window is instant after the first read.
 """
 from __future__ import print_function
 
@@ -21,14 +20,6 @@ import bimexport_core as core
 uiapp = __revit__                       # noqa: F821  (provided by pyRevit)
 app = uiapp.Application
 output = script.get_output()
-
-TICK, LOD, ALL = 'Tick sheets from the models (recommended)', 'Sheets from my LOD (CSV)', 'All sheets in the chosen models'
-
-
-class SheetItem(forms.TemplateListItem):
-    @property
-    def name(self):
-        return self.item['label']
 
 
 # ------------------------------------------------------------ model access --
@@ -98,6 +89,11 @@ def scan_models(models, settings, reg, cache, keep):
                 if pb.cancelled:
                     break
                 pb.update_progress(i, len(models))
+                try:
+                    pb.title = u'Reading drawings: model %d of %d  \u00b7  %s  \u00b7  opening...' % (
+                        i + 1, len(models), rec.get('Name') or core.register_label(rec))
+                except Exception:
+                    pass
                 guid = rec['ModelGUID'].lower()
                 doc, close_after, note, err = open_model(rec, settings, reg)
                 if doc is None:
@@ -116,57 +112,407 @@ def scan_models(models, settings, reg, cache, keep):
     return failed
 
 
-# ----------------------------------------------------------------- windows --
-def pick_models(settings):
-    reg = core.refresh_register(app.VersionNumber)
-    if not reg:
-        forms.alert('No cloud models found on this PC.\n\nThe list is built from Revit\'s cloud cache: '
-                    'any ACC model you have opened in Revit %s on this PC appears here.' % app.VersionNumber)
-        return None, None
-    labels = {}
-    for r in reg.values():
-        lab = core.register_label(r)
-        if lab in labels:                       # two models with the same name: add a short ID
-            lab = u'%s   (%s)' % (lab, r['ModelGUID'][:8])
-        labels[lab] = r
-    chosen = forms.SelectFromList.show(sorted(labels.keys()), title='1. Tick the models',
-                                       multiselect=True, button_name='Next')
-    if not chosen:
-        return None, None
-    return [labels[c] for c in chosen], reg
+# ------------------------------------------------------------------ window --
+from System.Windows import Thickness, FontWeights, VerticalAlignment
+from System.Windows.Controls import (CheckBox, TreeViewItem, StackPanel, TextBlock, ComboBox,
+                                     Orientation)
+from System.Windows.Media import BrushConverter
+
+_BC = BrushConverter()
+MUTED = _BC.ConvertFromString('#6B7785')
+ACCENT = _BC.ConvertFromString('#1F5FA8')
+NO_GROUPING = u'(no grouping)'
+XAML = os.path.join(os.path.dirname(__file__), 'ExportWindow.xaml')
 
 
-def pick_sheets(models, cache):
-    """Sheet picker grouped by model. Returns {modelGUID: set(sheet numbers, lower case)}."""
-    groups, everything = {}, []
-    for rec in models:
-        entry = cache.get(rec['ModelGUID'].lower())
-        if not entry:
-            continue
-        mname = entry.get('model') or core.register_label(rec)
-        items = []
-        for e in entry.get('sheets', []):
-            it = SheetItem({'guid': rec['ModelGUID'].lower(), 'number': e['number'],
-                            'label': u'%s   %s   [%s]      — %s' % (e['number'], e['name'],
-                                                                         e.get('rev') or '-', mname)})
-            items.append(it)
-        groups[mname] = items
-        everything.extend(items)
-    if not everything:
-        forms.alert('No sheets found in the chosen models.')
-        return None
-    groups['* All chosen models'] = everything
-    chosen = forms.SelectFromList.show(groups, title='2. Tick the drawings (switch model at the top)',
-                                       group_selector_title='Model:', multiselect=True,
-                                       button_name='Use these drawings',
-                                       default_group='* All chosen models')
-    if not chosen:
-        return None
-    picked = {}
-    for c in chosen:
-        it = getattr(c, 'item', c)
-        picked.setdefault(it['guid'], set()).add(it['number'].strip().lower())
-    return picked
+def needs_scan(entry):
+    return not entry or 'orgs' not in entry
+
+
+class ExportWindow(forms.WPFWindow):
+    """Main window: 1 Models, 2 Drawings (tree), 3 Settings. Sets self.action and closes."""
+
+    def __init__(self, state, settings, reg, cache):
+        forms.WPFWindow.__init__(self, XAML)
+        self.state, self.settings, self.reg, self.cache = state, settings, reg, cache
+        self.action = None
+        self._leaf = []          # (checkbox, key)
+        self._groups = []        # (checkbox, [keys])
+        self._fill_settings()
+        self._fill_models()
+        self._build_tree()
+        self.header_info.Text = u'Revit %s\n%d ACC models on this PC  ·  region %s' % (
+            app.VersionNumber, len(reg), settings.get('region') or '?')
+        self._update_status()
+
+    # ---------------------------------------------------------- settings --
+    def _combo(self, cb, items, value):
+        cb.Items.Clear()
+        for i in items:
+            cb.Items.Add(i)
+        cb.SelectedItem = value if value in items else items[0]
+
+    def _fill_settings(self):
+        s = self.settings
+        ps, ds = core.pdf_settings(s), core.dwg_settings(s)
+        fm = s.get('_formats') or {'pdf': 'Y', 'dwg': 'Y'}
+        self.out_tb.Text = s.get('last_output') or ''
+        self.per_model_cb.IsChecked = bool(s.get('per_model_folder', True))
+        self.pdf_cb.IsChecked = core.yes(fm.get('pdf'))
+        self.dwg_cb.IsChecked = core.yes(fm.get('dwg'))
+        self.naming_tb.Text = s.get('naming_rule') or '{SheetNumber}_{SheetName}'
+        self._combo(self.pdf_colors_cb, ['Color', 'Grayscale', 'Black lines'], ps['colors'])
+        self._combo(self.pdf_raster_cb, ['Low', 'Medium', 'High', 'Presentation'], ps['raster_quality'])
+        self.pdf_always_raster_cb.IsChecked = bool(ps['always_raster'])
+        self.pdf_hide_crop_cb.IsChecked = bool(ps['hide_crop'])
+        self.pdf_hide_scope_cb.IsChecked = bool(ps['hide_scope'])
+        self.pdf_hide_ref_cb.IsChecked = bool(ps['hide_ref_planes'])
+        self.pdf_hide_tags_cb.IsChecked = bool(ps['hide_unref_tags'])
+        self.pdf_setup_tb.Text = ps.get('setup') or ''
+        self._combo(self.dwg_version_cb, ['2018', '2013', '2010'], core.text(ds['version']))
+        self._combo(self.dwg_layers_cb, core.DWG_LAYERS, ds['layers'])
+        self.dwg_merged_cb.IsChecked = bool(ds['merged_views'])
+        self.dwg_shared_cb.IsChecked = bool(ds['shared_coords'])
+        self.dwg_setup_tb.Text = ds.get('setup') or ''
+        self.embed_cb.IsChecked = bool(s.get('embed', True))
+        self.share_cb.IsChecked = bool(s.get('share', False))
+        self.model_search.Text = self.state.get('model_filter', '')
+        self.sheet_search.Text = self.state.get('sheet_filter', '')
+
+    def _read_settings(self):
+        s = self.settings
+        s['last_output'] = self.out_tb.Text.strip()
+        s['per_model_folder'] = bool(self.per_model_cb.IsChecked)
+        s['_formats'] = {'pdf': 'Y' if self.pdf_cb.IsChecked else 'N', 'dwg': 'Y' if self.dwg_cb.IsChecked else 'N'}
+        s['naming_rule'] = self.naming_tb.Text.strip() or '{SheetNumber}'
+        s['pdf'] = {'setup': self.pdf_setup_tb.Text.strip(), 'colors': self.pdf_colors_cb.SelectedItem,
+                    'raster_quality': self.pdf_raster_cb.SelectedItem,
+                    'always_raster': bool(self.pdf_always_raster_cb.IsChecked),
+                    'hide_crop': bool(self.pdf_hide_crop_cb.IsChecked),
+                    'hide_scope': bool(self.pdf_hide_scope_cb.IsChecked),
+                    'hide_ref_planes': bool(self.pdf_hide_ref_cb.IsChecked),
+                    'hide_unref_tags': bool(self.pdf_hide_tags_cb.IsChecked)}
+        s['dwg'] = {'setup': self.dwg_setup_tb.Text.strip(), 'version': self.dwg_version_cb.SelectedItem,
+                    'layers': self.dwg_layers_cb.SelectedItem, 'merged_views': bool(self.dwg_merged_cb.IsChecked),
+                    'shared_coords': bool(self.dwg_shared_cb.IsChecked)}
+        s['embed'] = bool(self.embed_cb.IsChecked)
+        s['share'] = bool(self.share_cb.IsChecked)
+        s.pop('pdf_setup', None)
+        s.pop('dwg_setup', None)
+        self.state['model_filter'] = self.model_search.Text
+        self.state['sheet_filter'] = self.sheet_search.Text
+
+    # ------------------------------------------------------------ models --
+    def _fill_models(self):
+        flt = (self.model_search.Text or '').strip().lower()
+        self.models_lb.Items.Clear()
+        recs = sorted(self.reg.values(), key=lambda r: core.register_label(r).lower())
+        for r in recs:
+            label = core.register_label(r)
+            if flt and flt not in label.lower():
+                continue
+            g = r['ModelGUID'].lower()
+            cb = CheckBox()
+            cb.Content = label
+            cb.Tag = g
+            cb.IsChecked = g in self.state['checked_models']
+            cb.ToolTip = u'Sheet list saved: %s' % (self.cache.get(g, {}).get('updated') or 'not yet')
+            cb.Click += self._on_model_click
+            self.models_lb.Items.Add(cb)
+        self._update_model_info()
+
+    def _on_model_click(self, sender, args):
+        if sender.IsChecked:
+            self.state['checked_models'].add(sender.Tag)
+        else:
+            self.state['checked_models'].discard(sender.Tag)
+        self._update_model_info()
+
+    def _update_model_info(self):
+        n = len(self.state['checked_models'])
+        new = len([g for g in self.state['checked_models'] if needs_scan(self.cache.get(g))])
+        txt = u'%d model(s) ticked' % n
+        if new:
+            txt += u'  ·  %d need reading once (they open in the background)' % new
+        if n > 10:
+            txt += u'\nMore than 10: tick "Share with other Revit windows" (Run tab).'
+        self.model_info_tb.Text = txt
+
+    def on_model_search(self, sender, args):
+        self._fill_models()
+
+    def on_load(self, sender, args):
+        self._read_settings()
+        checked = list(self.state['checked_models'])
+        if not checked:
+            forms.alert('Tick at least one model first.')
+            return
+        if self.refresh_cb.IsChecked:
+            to_scan = checked
+        else:
+            to_scan = [g for g in checked if needs_scan(self.cache.get(g))]
+        if to_scan:
+            if not forms.alert('Read the drawings of %d model(s)?\n\nEach opens in the background (detached), '
+                               'then its list is saved. Next time it is instant.' % len(to_scan), yes=True, no=True):
+                return
+            self.action = ('scan', to_scan)
+            self.Close()
+            return
+        self.state['loaded'] = checked
+        self._build_tree()
+        self._update_status()
+
+    # ------------------------------------------------------------ drawings --
+    def _keys_of(self, guid, sheets):
+        return [(guid, e['number'].strip().lower()) for e in sheets]
+
+    def _group_checkbox(self, text, keys, bold=False):
+        cb = CheckBox()
+        tb = TextBlock()
+        tb.Text = text
+        if bold:
+            tb.FontWeight = FontWeights.SemiBold
+        cb.Content = tb
+        cb.Tag = keys
+        cb.Click += self._on_group_click
+        cb.VerticalAlignment = VerticalAlignment.Center
+        self._groups.append((cb, keys))
+        return cb
+
+    def _build_tree(self):
+        tv = self.sheets_tv
+        tv.Items.Clear()
+        self._leaf, self._groups = [], []
+        flt = (self.sheet_search.Text or '').strip().lower()
+        for guid in self.state.get('loaded', []):
+            entry = self.cache.get(guid)
+            if not entry:
+                continue
+            orgs = entry.get('orgs') or {}
+            names = sorted(orgs.keys()) + [NO_GROUPING]
+            org = self.state['org'].get(guid) or entry.get('current_org') or names[0]
+            if org not in names:
+                org = names[0]
+            sheets = [e for e in entry.get('sheets', [])
+                      if not flt or flt in (u'%s %s' % (e['number'], e['name'])).lower()]
+            if org != NO_GROUPING:
+                sheets = [e for e in sheets if e['number'] in orgs.get(org, {})] or sheets
+
+            head = StackPanel()
+            head.Orientation = Orientation.Horizontal
+            mcb = self._group_checkbox(u'%s   (%d)' % (entry.get('model', '?'), len(sheets)),
+                                       self._keys_of(guid, sheets), bold=True)
+            head.Children.Add(mcb)
+            lab = TextBlock()
+            lab.Text = u'      Browser:  '
+            lab.Foreground = MUTED
+            lab.VerticalAlignment = VerticalAlignment.Center
+            head.Children.Add(lab)
+            combo = ComboBox()
+            combo.MinWidth = 170
+            for n in names:
+                combo.Items.Add(n)
+            combo.SelectedItem = org
+            combo.SelectionChanged += self._org_handler(guid)
+            head.Children.Add(combo)
+            upd = TextBlock()
+            upd.Text = u'      saved %s' % entry.get('updated', '?')
+            upd.Foreground = MUTED
+            upd.VerticalAlignment = VerticalAlignment.Center
+            head.Children.Add(upd)
+
+            mitem = TreeViewItem()
+            mitem.Header = head
+            mitem.IsExpanded = True
+            mitem.Margin = Thickness(0, 2, 0, 6)
+            tv.Items.Add(mitem)
+
+            folders = {}
+            members = {}
+            for e in sheets:
+                path = tuple(orgs.get(org, {}).get(e['number'], [])) if org != NO_GROUPING else ()
+                key = (guid, e['number'].strip().lower())
+                parent = mitem
+                for depth in range(1, len(path) + 1):
+                    sub = path[:depth]
+                    members.setdefault(sub, []).append(key)
+                    if sub not in folders:
+                        fitem = TreeViewItem()
+                        fitem.IsExpanded = True
+                        folders[sub] = (fitem, parent)
+                        parent.Items.Add(fitem)
+                    parent = folders[sub][0]
+                leaf = CheckBox()
+                leaf.Content = u'%s     %s     [%s]' % (e['number'], e['name'], e.get('rev') or '-')
+                leaf.Tag = key
+                leaf.Click += self._on_leaf_click
+                self._leaf.append((leaf, key))
+                litem = TreeViewItem()
+                litem.Header = leaf
+                parent.Items.Add(litem)
+            for sub, (fitem, _) in folders.items():
+                fitem.Header = self._group_checkbox(u'%s   (%d)' % (sub[-1] or u'(blank)', len(members[sub])),
+                                                    members[sub])
+        self._sync_checks()
+
+    def _org_handler(self, guid):
+        def handler(sender, args):
+            self.state['org'][guid] = sender.SelectedItem
+            self._build_tree()
+        return handler
+
+    def _sync_checks(self):
+        t = self.state['ticked']
+        for cb, key in self._leaf:
+            cb.IsChecked = key in t
+        for cb, keys in self._groups:
+            n = len([k for k in keys if k in t])
+            cb.IsChecked = True if keys and n == len(keys) else (False if n == 0 else None)
+        self._update_status()
+
+    def _on_leaf_click(self, sender, args):
+        if sender.IsChecked:
+            self.state['ticked'].add(sender.Tag)
+        else:
+            self.state['ticked'].discard(sender.Tag)
+        self._sync_checks()
+
+    def _on_group_click(self, sender, args):
+        keys = sender.Tag
+        t = self.state['ticked']
+        if all(k in t for k in keys):
+            for k in keys:
+                t.discard(k)
+        else:
+            for k in keys:
+                t.add(k)
+        self._sync_checks()
+
+    def on_sheet_search(self, sender, args):
+        self._build_tree()
+
+    def on_tick_all(self, sender, args):
+        for _, key in self._leaf:
+            self.state['ticked'].add(key)
+        self._sync_checks()
+
+    def on_untick_all(self, sender, args):
+        for _, key in self._leaf:
+            self.state['ticked'].discard(key)
+        self._sync_checks()
+
+    def _expand(self, items, value):
+        for it in items:
+            try:
+                it.IsExpanded = value
+                self._expand(it.Items, value)
+            except Exception:
+                pass
+
+    def on_expand(self, sender, args):
+        self._expand(self.sheets_tv.Items, True)
+
+    def on_collapse(self, sender, args):
+        self._expand(self.sheets_tv.Items, False)
+
+    def on_lod(self, sender, args):
+        path = forms.pick_file(file_ext='csv', title='Pick a list of drawings (CSV UTF-8)')
+        if not path:
+            return
+        rows = core.read_lod(path)
+        found, missing = 0, []
+        for row in rows:
+            cands = set(core.lod_candidates(row))
+            hit = False
+            for guid in self.state.get('loaded', []):
+                for e in (self.cache.get(guid) or {}).get('sheets', []):
+                    k = e['number'].strip().lower()
+                    if k in cands:
+                        self.state['ticked'].add((guid, k))
+                        hit = True
+            if hit:
+                found += 1
+            else:
+                missing.append(row['_listed'])
+        self._sync_checks()
+        forms.alert('%d of %d listed drawings ticked.%s' % (
+            found, len(rows), ('\n\nNot found in the loaded models:\n' + '\n'.join(missing[:25])) if missing else ''))
+
+    # ------------------------------------------------------------- footer --
+    def picked(self):
+        loaded = set(self.state.get('loaded', []))
+        out = {}
+        for guid, num in self.state['ticked']:
+            if guid in loaded:
+                out.setdefault(guid, set()).add(num)
+        return out
+
+    def _update_status(self):
+        p = self.picked()
+        fm = []
+        if self.pdf_cb.IsChecked:
+            fm.append('PDF')
+        if self.dwg_cb.IsChecked:
+            fm.append('DWG')
+        self.status_tb.Text = u'%d drawing(s) ticked in %d model(s)   ·   %s   ·   %s' % (
+            sum(len(v) for v in p.values()), len(p), ' + '.join(fm) or 'no format',
+            self.out_tb.Text or 'no output folder yet')
+
+    def on_browse(self, sender, args):
+        f = forms.pick_folder(title='Output folder')
+        if f:
+            self.out_tb.Text = f
+            self._update_status()
+
+    def _ready(self):
+        self._read_settings()
+        p = self.picked()
+        if not p:
+            forms.alert('Tick at least one drawing (load the models first).')
+            return False
+        if not (self.pdf_cb.IsChecked or self.dwg_cb.IsChecked):
+            forms.alert('Choose PDF and/or DWG (Output tab).')
+            return False
+        if not self.settings['last_output']:
+            forms.alert('Choose where to save (Output tab).')
+            return False
+        # two drawings that would get the same file name?
+        log = []
+        for guid, nums in p.items():
+            core.plan_from_cache(self.cache.get(guid, {}), nums, self.settings['last_output'], self.settings, log)
+        seen, dup = set(), []
+        for r in log:
+            k = r[7].lower()
+            if k in seen:
+                dup.append(r[7])
+            seen.add(k)
+        if dup:
+            forms.alert('These files would overwrite each other:\n\n%s\n\nTick "One folder per model" '
+                        'or change the file name rule.' % '\n'.join(dup[:15]))
+            return False
+        return True
+
+    def on_dryrun(self, sender, args):
+        if self._ready():
+            self.action = ('dryrun', None)
+            self.Close()
+
+    def on_export(self, sender, args):
+        if self._ready():
+            self.action = ('export', None)
+            self.Close()
+
+    def on_close(self, sender, args):
+        self._read_settings()
+        self.action = None
+        self.Close()
+
+
+def set_title(pb, t):
+    try:
+        pb.title = t
+    except Exception:
+        pass
 
 
 def export_models(next_rec, n_total, job, settings, reg, cache, log_path, pb_title):
@@ -184,7 +530,6 @@ def export_models(next_rec, n_total, job, settings, reg, cache, log_path, pb_tit
                 if pb.cancelled:
                     lines.append('Cancelled by user (models not started are left for other windows / next run).')
                     break
-                pb.update_progress(done, max(n_total, done + 1))
                 rec = next_rec()
                 if rec is None:
                     break
@@ -193,6 +538,14 @@ def export_models(next_rec, n_total, job, settings, reg, cache, log_path, pb_tit
                 guid = rec['ModelGUID'].lower()
                 log = []
                 t0 = time.time()
+                head = u'Model %d of %s  \u00b7  %s' % (done, n_total if n_total >= done else '?',
+                                                    rec.get('Name') or label)
+                set_title(pb, head + u'  \u00b7  opening (download + links)...')
+                pb.update_progress(0, 1)
+
+                def progress(i, n, fmt, num, head=head):
+                    set_title(pb, u'%s  \u00b7  %s %d of %d  (%s)' % (head, fmt, i, n, num))
+                    pb.update_progress(i, n)
 
                 def work(doc):
                     entry = core.read_sheet_list(doc, settings.get('naming_rule') or '{DrawingNumber}')
@@ -202,8 +555,10 @@ def export_models(next_rec, n_total, job, settings, reg, cache, log_path, pb_tit
                     except Exception:
                         pass
                     links = core.check_links(doc)
+                    set_title(pb, head + u'  \u00b7  reading sheets and links...')
                     res = core.export_model(doc, lod_rows, out_root, settings, do_export, log,
-                                            picked=picked.get(guid) if picked is not None else None)
+                                            picked=picked.get(guid) if picked is not None else None,
+                                            progress=progress)
                     return res, links, core.model_name(doc)
 
                 try:
@@ -259,7 +614,7 @@ def report(title, started, lines, totals, do_export, missing, cad_msg, log_path)
 def run_queue(qd, job, settings, reg, cache, window_name):
     """Work on a shared export until no model is left. Any number of Revit windows can do this."""
     models = dict((m['ModelGUID'].lower(), m) for m in job['models'])
-    for k in ('naming_rule', 'dwg_setup', 'pdf_setup', '_formats'):
+    for k in ('naming_rule', 'pdf', 'dwg', 'per_model_folder', '_formats'):
         if k in job:
             settings[k] = job[k]
     log_path = core.usable_log_path(os.path.join(job['out_root'], 'SheetExport_log.csv'))
@@ -293,7 +648,7 @@ def run_queue(qd, job, settings, reg, cache, window_name):
 
 def main():
     settings = core.load_settings()
-    reg = core.load_register()
+    reg = core.refresh_register(app.VersionNumber)
     cache = core.load_sheet_cache()
 
     # another Revit window already started a shared export?
@@ -309,100 +664,51 @@ def main():
             run_queue(qd, job, settings, reg, cache, 'Helper window')
             return
 
-    what = forms.CommandSwitchWindow.show([TICK, LOD, ALL], message='What do you want to export?')
-    if not what:
+    if not reg:
+        forms.alert('No ACC models found on this PC.\n\nThe list is built from Revit\'s cloud cache: any ACC model '
+                    'you have opened in Revit %s on this PC appears here.' % app.VersionNumber)
         return
 
-    lod_rows = None
-    if what == LOD:
-        init = os.path.dirname(settings.get('last_lod') or '') or None
-        lod_path = forms.pick_file(file_ext='csv', init_dir=init, title='Pick your LOD (saved as CSV UTF-8)')
-        if not lod_path:
+    state = {'checked_models': set(), 'loaded': [], 'ticked': set(), 'org': {},
+             'model_filter': '', 'sheet_filter': ''}
+    while True:
+        win = ExportWindow(state, settings, reg, cache)
+        win.ShowDialog()
+        core.save_settings(settings)
+        act = win.action
+        if act is None:
             return
-        lod_rows = core.read_lod(lod_path)
-        if not lod_rows:
-            forms.alert('No drawing numbers found in that CSV.\n\nIt needs a column like "Drawing Number".')
-            return
-        settings['last_lod'] = lod_path
-
-    models, reg = pick_models(settings)
-    if not models:
-        return
-
-    mode = forms.CommandSwitchWindow.show(
-        ['Dry run (check only, export nothing)', 'Export'], message='Mode')
-    if not mode:
-        return
-    do_export = mode == 'Export'
-
-    fmt = forms.CommandSwitchWindow.show(['PDF + DWG', 'PDF only', 'DWG only'], message='Formats')
-    if not fmt:
-        return
-    settings['_formats'] = {'pdf': 'Y' if 'PDF' in fmt else 'N', 'dwg': 'Y' if 'DWG' in fmt else 'N'}
-
-    picked = None
-    if what == TICK:
-        missing = [m for m in models if m['ModelGUID'].lower() not in cache]
-        to_scan = missing
-        if not missing:
-            how = forms.CommandSwitchWindow.show(
-                ['Use saved sheet lists (instant)', 'Refresh sheet lists (opens each model)'],
-                message='Sheet lists of the chosen models')
-            if not how:
-                return
-            if how.startswith('Refresh'):
-                to_scan = models
-        elif not forms.alert('%d model(s) have no saved sheet list yet.\n\nRead them now? '
-                             'Each opens once in the background (detached). '
-                             'Next time this is instant.' % len(missing), yes=True, no=True):
-            return
-        if to_scan:
-            keep = do_export and len(to_scan) <= int(settings.get('keep_open_max', 6))
-            failed = scan_models(to_scan, settings, reg, cache, keep)
+        if act[0] == 'scan':
+            recs = [reg[g] for g in act[1] if g in reg]
+            keep = len(recs) <= int(settings.get('keep_open_max', 6))
+            failed = scan_models(recs, settings, reg, cache, keep)
+            state['loaded'] = [g for g in state['checked_models'] if cache.get(g)]
             if failed:
                 forms.alert('Could not read these models:\n\n' + '\n'.join(failed))
-        picked = pick_sheets(models, cache)
-        if not picked:
-            return
-        models = [m for m in models if m['ModelGUID'].lower() in picked]
-        for guid in list(KEPT.keys()):          # close kept models that have no ticked drawings
-            if guid not in picked:
-                close_model(KEPT.pop(guid)[0])
+            continue
+        break
 
-    out_root = forms.pick_folder(title='Output folder for the exports')
-    if not out_root:
-        return
-    settings['last_output'] = out_root
-
-    run_cad = False
-    if do_export and 'DWG' in fmt:
-        run_cad = forms.alert('After exporting, start AutoCAD to embed the logos?\n\n'
-                              '(You can also do it later with the "Embed Logos" button.)', yes=True, no=True)
-
-    instant = (what == TICK and not do_export)
-    share = False
-    if do_export and lod_rows is None and len(models) > 1:
-        share = forms.alert('Share this export with other Revit windows?\n\n'
-                            'Yes: open another Revit window, click Export Sheets there and choose '
-                            '"Join". Each window takes the next model, so it finishes faster.\n'
-                            '(64 GB memory: 2-3 windows are fine.)', yes=True, no=True)
-
-    n_sheets = sum(len(v) for v in picked.values()) if picked else None
-    if not forms.alert('%s\n\nModels: %d\nDrawings: %s\nFormats: %s\nOutput: %s\nLogos: %s\nShared: %s\n\n%s' % (
-            'EXPORT' if do_export else 'DRY RUN', len(models),
-            n_sheets if n_sheets is not None else ('%d from LOD' % len(lod_rows) if lod_rows else 'all'),
-            fmt, out_root, 'yes' if run_cad else 'no', 'yes' if share else 'no',
-            'Instant - no model is opened.' if instant else 'Revit will be busy until it finishes. Continue?'),
-            yes=True, no=True):
-        return
-    core.save_settings(settings)
+    picked = win.picked()
+    models = [reg[g] for g in picked if g in reg]
+    for g in list(KEPT.keys()):                    # close models that are not part of the export
+        if g not in picked:
+            close_model(KEPT.pop(g)[0])
+    do_export = act[0] == 'export'
+    out_root = settings['last_output']
     core.ensure_dir(out_root)
+    run_cad = do_export and settings.get('embed') and settings['_formats'].get('dwg') == 'Y'
+    share = do_export and settings.get('share') and len(models) > 1
 
-    job = {'out_root': out_root, 'do_export': do_export, 'run_cad': run_cad, 'models': models,
-           'picked': dict((g, sorted(v)) for g, v in picked.items()) if picked else None,
-           'lod_rows': lod_rows, 'naming_rule': settings.get('naming_rule'),
-           'dwg_setup': settings.get('dwg_setup'), 'pdf_setup': settings.get('pdf_setup'),
-           '_formats': settings['_formats']}
+    if do_export and len(models) > 10 and not share:
+        if not forms.alert('%d models in one Revit window will take a while.\n\nContinue anyway? '
+                           '(Or tick "Share with other Revit windows" in the Run tab.)' % len(models),
+                           yes=True, no=True):
+            return
+
+    job = {'out_root': out_root, 'do_export': do_export, 'run_cad': bool(run_cad), 'models': models,
+           'picked': dict((g, sorted(v)) for g, v in picked.items()), 'lod_rows': None,
+           'naming_rule': settings.get('naming_rule'), 'pdf': settings.get('pdf'), 'dwg': settings.get('dwg'),
+           'per_model_folder': settings.get('per_model_folder', True), '_formats': settings['_formats']}
 
     if share:
         qd = core.queue_create(out_root, job, [m['ModelGUID'].lower() for m in models])
@@ -414,7 +720,7 @@ def main():
         forms.alert('SheetExport_log.csv is open in another program (Excel?).\n\nThis run writes to:\n%s' % log_path)
     started = time.time()
 
-    if instant:
+    if not do_export:
         log, lines, totals = [], [], {'ok': 0, 'failed': 0, 'would': 0}
         for rec in models:
             g = rec['ModelGUID'].lower()
@@ -424,28 +730,18 @@ def main():
             lines.append('%s: %d drawing(s), %d file(s) would export (sheet list saved %s)' % (
                 entry.get('model', '?'), len(picked.get(g, [])), n, entry.get('updated', '?')))
         core.append_csv(log_path, core.LOG_HEADER, log)
-        matched_all = set()
-    else:
-        queue = list(models)
-        queue.sort(key=lambda m: m['ModelGUID'].lower() not in KEPT)       # already-open models first
-        lines, totals, matched_all = export_models(lambda: queue.pop(0) if queue else None, len(queue),
-                                                   job, settings, reg, cache, log_path,
-                                                   'Exporting {value} of {max_value} models')
+        report('Sheet Export - DRY RUN (instant, nothing opened)', started, lines, totals, False, [], '', log_path)
+        return
 
-    missing = []
-    if lod_rows is not None:
-        missing = [r['_listed'] for r in lod_rows if r['_listed'].lower() not in matched_all]
-        if missing:
-            core.append_csv(log_path, core.LOG_HEADER,
-                            [[core.now(), 'CHECK', '', m, '', '', '', '', 'NOT_IN_CHOSEN_MODELS', '',
-                              'Not found in any of the chosen models'] for m in missing])
-
+    queue = list(models)
+    queue.sort(key=lambda m: m['ModelGUID'].lower() not in KEPT)          # already-open models first
+    lines, totals, _ = export_models(lambda: queue.pop(0) if queue else None, len(queue), job, settings,
+                                     reg, cache, log_path, 'Exporting')
     cad_msg = ''
     if run_cad:
         jobs = core.find_raw_dwgs(out_root)
         cad_msg = core.start_img2ole(jobs, out_root, settings) if jobs else 'No DWG files to process.'
-    report('Sheet Export - %s' % ('EXPORT' if do_export else 'DRY RUN'), started, lines, totals,
-           do_export, missing, cad_msg, log_path)
+    report('Sheet Export - EXPORT', started, lines, totals, True, [], cad_msg, log_path)
 
 
 try:

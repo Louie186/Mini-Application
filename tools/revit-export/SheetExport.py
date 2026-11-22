@@ -418,4 +418,15 @@ def main():
 try:
     OUT = main()
 except Exception as e:
-    OUT = ["ERROR: " + str(e)]
+    import traceback
+    OUT = ["ERROR: " + str(e), traceback.format_exc()]
+
+OUT = ["Sheet Export ran at " + now()] + OUT
+
+# Show the result in a Revit pop-up so it is obvious the script ran.
+try:
+    clr.AddReference('RevitAPIUI')
+    from Autodesk.Revit.UI import TaskDialog
+    TaskDialog.Show("Sheet Export", "\n".join(OUT[:12]))
+except Exception:
+    pass

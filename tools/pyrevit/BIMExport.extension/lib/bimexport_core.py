@@ -335,24 +335,43 @@ def find_open_doc(app, model_guid):
     return None
 
 
+def _open(app, path, opts):
+    try:
+        return app.OpenDocumentFile(path, opts, DB.DefaultOpenFromCloudCallback())
+    except AttributeError:
+        return app.OpenDocumentFile(path, opts)
+
+
 def open_cloud_model(app, rec, preferred_region):
-    """Open detached with all worksets. Returns (doc, region, error)."""
-    last = u''
+    """Open a cloud model. Workshared: detached + all worksets.
+    Not workshared (no central model): opened normally, closed without saving.
+    Returns (doc, region, note-or-error)."""
+    errors = []
     for reg in _regions(rec.get('Region') or preferred_region):
         try:
             path = ModelPathUtils.ConvertCloudGUIDsToCloudPath(
                 reg, Guid(rec['ProjectGUID']), Guid(rec['ModelGUID']))
+        except Exception as e:
+            errors.append(u'%s: %s' % (reg, text(e)))
+            continue
+        # 1) workshared model: detached, all worksets
+        try:
             opts = OpenOptions()
             opts.DetachFromCentralOption = DetachFromCentralOption.DetachAndPreserveWorksets
             opts.SetOpenWorksetsConfiguration(WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets))
-            try:
-                doc = app.OpenDocumentFile(path, opts, DB.DefaultOpenFromCloudCallback())
-            except AttributeError:
-                doc = app.OpenDocumentFile(path, opts)
-            return doc, reg, None
+            return _open(app, path, opts), reg, None
         except Exception as e:
-            last = text(e)
-    return None, None, last
+            msg = text(e)
+        low = msg.lower()
+        if 'central' in low or 'workshar' in low:
+            # 2) not workshared: there is no central model to detach from
+            try:
+                return _open(app, path, OpenOptions()), reg, \
+                    u'Model is not workshared - opened directly (closed without saving)'
+            except Exception as e2:
+                msg = text(e2)
+        errors.append(u'%s: %s' % (reg, msg))
+    return None, None, u' | '.join(errors)
 
 
 def check_links(doc):

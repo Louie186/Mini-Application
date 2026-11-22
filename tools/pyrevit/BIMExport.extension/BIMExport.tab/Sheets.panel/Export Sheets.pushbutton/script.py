@@ -117,6 +117,7 @@ def main():
                 log = []
                 doc = core.find_open_doc(app, rec['ModelGUID'])
                 opened_here = False
+                open_note = None
                 if doc is None:
                     doc, region, err = core.open_cloud_model(app, rec, settings.get('region'))
                     if doc is None:
@@ -125,6 +126,7 @@ def main():
                                         [[core.now(), 'OPEN', label, '', '', '', '', '', 'OPEN_FAILED', '', err]])
                         continue
                     opened_here = True
+                    open_note = err
                     r = reg.get(rec['ModelGUID'].lower(), rec)
                     r['Region'] = region
                 try:
@@ -133,7 +135,7 @@ def main():
                     r['Name'] = name
                     r['LastSeen'] = core.now()
                     t0 = time.time()
-                    link_notes = core.check_links(doc)
+                    link_notes = ([open_note] if open_note else []) + core.check_links(doc)
                     matched, counts, notes, raw_dir = core.export_model(
                         doc, lod_rows, out_root, settings, do_export, log)
                     matched_all |= matched
@@ -191,7 +193,9 @@ def main():
     else:
         output.print_md('**Files that would export: %d**' % totals['would'])
     if missing:
-        output.print_md('**LOD numbers not found in the chosen models: %d**' % len(missing))
+        failed_open = [l for l in model_lines if l.startswith('FAILED to open')]
+        output.print_md('**LOD numbers not found in the chosen models: %d**%s' % (
+            len(missing), ' (some models did not open - see above)' if failed_open else ''))
         for m in missing[:30]:
             output.print_md('  - ' + m)
     if cad_msg:

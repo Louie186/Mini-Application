@@ -12,7 +12,7 @@ Owner: Lew (Senior BIM Technician). Editing of drawings stays with real people.
 - Revit version: 2025.4.
 - Tool: a Dynamo graph with a built-in Python node (CPython 3 engine in Dynamo for Revit 2025). pyRevit is not required.
 - Later, package the graph as a Dynamo custom node (inputs: drawing list, output folder, naming settings).
-- Export with Revit's own PDF and DWG export, using saved export setups. DiRoots is not used.
+- Export with Revit's own PDF and DWG export, using saved export setups. DiRoots is not used and has no option in the script.
 - User signs in to Autodesk by hand and stays signed in. No passwords in scripts, files or chat.
 - All worksets open and all links loaded for each model (wait for links; log any link that fails).
 - Models are opened detached so colleagues are not locked out. Each model is opened once, exports run, model closes, next model opens.
@@ -52,10 +52,18 @@ Scenarios from the user:
 3. Drafting issues: line weight, tag clash, dimensions, tag alignment, view correctness, drawing number vs list, stamps.
 Reviewer runs in either route: Claude agent (Claude Code on the PC) or office Copilot with a written guideline. Guideline to be built from an interview with the user. Agent flags; a person decides.
 
-## Logo in CAD files (OPEN)
+## Logo in CAD files: separate AutoCAD script (OPEN details)
 - Title block family is supplied and cannot be edited; the logo is an image used on every sheet.
-- DiRoots' option to edit the CAD is the reference behaviour. First, test one DiRoots DWG export and see how the logo is stored.
-- Candidate: a post-export AutoCAD script (AutoLISP/.scr, run in batch with AutoCAD core console) that fixes the logo in every DWG: replace the image reference with a vector block, or repair the path, or package with eTransmit.
+- Revit's own DWG export leaves the logo as a linked image file (it cannot bind images).
+- DiRoots is NOT part of the script. Reason: no known way to drive ProSheets from a script. (User has a paid DiRoots and can still use it by hand outside this workflow.)
+- Separate AutoCAD script runs after the export on selected DWG files (a chosen folder or a list):
+  - Finds the logo image reference in each DWG.
+  - Option A (preferred): replace it with a vector block of the logo at the same position and scale. Needs a vector logo (DWG) from the client.
+  - Option B: embed the picture as an OLE object (what DiRoots reportedly does). Riskier to automate; may need full AutoCAD, not LT; larger files; high-resolution images may show blank.
+  - Option C: keep the image linked and package DWG + image together (eTransmit).
+  - Never overwrites the originals: writes fixed copies to a "processed" folder and logs every file (fixed / no logo found / failed).
+- Test first on one DWG before any batch run.
+- OPEN: full AutoCAD or LT? Is a vector logo available? Does the client accept an OLE logo?
 
 ## Logging and submission
 - Logger updates a master register (new / changed / unchanged per sheet).

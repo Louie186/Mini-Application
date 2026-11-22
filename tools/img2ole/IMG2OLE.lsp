@@ -442,7 +442,79 @@
   (reverse res))
 
 ;; many drawings
-(defun c:IMG2OLE (/ home mode fmt how src lf files outdir work scr f dest names lsp fd n copies)
+(defun i2o:mkdirs (d / p)
+  (setq d (vl-string-right-trim "\\" (i2o:dir d)))
+  (if (not (vl-file-directory-p d))
+    (progn
+      (setq p (vl-filename-directory d))
+      (if (and p (> (strlen p) 2) (/= p d)) (i2o:mkdirs p))
+      (vl-mkdir d)))
+  (vl-file-directory-p d))
+
+;; Queue a batch and start it.
+;;   mode   "DRYRUN" / "RUN"
+;;   jobs   list of (source-dwg . output-folder)
+;;   fmt    "EMF" / "DIB"
+;;   logdir folder for the CSV logs and the batch script
+;; Originals are never opened: each one is copied first (RUN: into its output
+;; folder; DRYRUN: into <logdir>\_dryrun_temp, deleted at the end).
+(defun i2o:batch (mode jobs fmt logdir / home lsp work dest names copies scr f fd)
+  (setq logdir (i2o:dir logdir)
+        home   (i2o:home-quiet))
+  (cond
+    ((null home) (princ "\nIMG2OLE: cannot find the IMG2OLE folder (load IMG2OLE.lsp from its folder)."))
+    ((not (i2o:mkdirs logdir)) (princ (strcat "\nIMG2OLE: cannot create " logdir)))
+    (T
+     (setenv "IMG2OLE_HOME" home)
+     (foreach j jobs
+       (setq work (if (= mode "RUN") (i2o:dir (cdr j)) (strcat logdir "_dryrun_temp\\"))
+             dest (strcat work (vl-filename-base (car j)) ".dwg"))
+       (cond
+         ((not (findfile (car j))) (princ (strcat "\n  Not found, skipped: " (car j))))
+         ((not (i2o:mkdirs work)) (princ (strcat "\n  Cannot create folder, skipped: " work)))
+         ((member (strcase dest) names) (princ (strcat "\n  Same file name twice, skipped: " (car j))))
+         ((= (strcase dest) (strcase (car j))) (princ (strcat "\n  Output = original, skipped: " (car j))))
+         (T
+          (if (findfile dest) (vl-file-delete dest))
+          (if (vl-file-copy (car j) dest)
+            (setq names  (cons (strcase dest) names)
+                  copies (cons (list dest (vl-filename-directory (car j))) copies))
+            (princ (strcat "\n  Could not copy, skipped: " (car j)))))))
+     (setq copies (reverse copies)
+           lsp    (i2o:fwd (strcat home "\\IMG2OLE.lsp"))
+           scr    (strcat logdir "IMG2OLE_batch.scr")
+           fd     (getvar "FILEDIA")
+           f      (open scr "w"))
+     (foreach c copies
+       (write-line (strcat "_.OPEN \"" (car c) "\"") f)
+       (write-line (strcat "(load \"" lsp "\")") f)
+       (write-line (strcat "(i2o:process-file \"" mode "\" \"" (i2o:fwd (cadr c))
+                           "/\" \"" (i2o:fwd logdir) "\" \"" fmt "\")") f)
+       (write-line "_.QSAVE" f)
+       (write-line "_.CLOSE" f))
+     (write-line (strcat "(i2o:finish \"" (i2o:fwd logdir) "\" \"" mode "\" " (itoa fd) ")") f)
+     (close f)
+     (princ (strcat "\n" (itoa (length copies)) " drawing(s) queued. Mode: " mode
+                    "\nPlease do not use AutoCAD until it says 'IMG2OLE finished'."))
+     (setvar "FILEDIA" 0)
+     (command "_.SCRIPT" scr)))
+  (princ))
+
+;; Same, reading the jobs from a text file: one line per DWG  <source dwg>|<output folder>
+;; (written by the Revit "Export Sheets" button).
+(defun i2o:batch-file (jobsfile mode fmt logdir / f l i jobs)
+  (if (setq f (open jobsfile "r"))
+    (progn
+      (while (setq l (read-line f))
+        (if (setq i (vl-string-search "|" l))
+          (setq jobs (cons (cons (substr l 1 i) (substr l (+ i 2))) jobs))))
+      (close f)
+      (i2o:batch (strcase mode) (reverse jobs) (if (= (strcase fmt) "DIB") "DIB" "EMF") logdir))
+    (princ (strcat "\nIMG2OLE: cannot read " jobsfile)))
+  (princ))
+
+;; many drawings (interactive)
+(defun c:IMG2OLE (/ home mode fmt how src lf files outdir f)
   (cond
     ((not (i2o:com-p)) (princ "\nIMG2OLE needs full AutoCAD."))
     ((null (setq home (i2o:home))) (princ "\nCannot find the IMG2OLE folder."))
@@ -462,44 +534,7 @@
         (setq outdir (strcat src "IMG2OLE_processed\\")
               f      (getstring T (strcat "\nOutput folder <" outdir ">: ")))
         (if (/= f "") (setq outdir (i2o:dir f)))
-        (if (not (vl-file-directory-p outdir)) (vl-mkdir (vl-string-right-trim "\\" outdir)))
-        (setq work (if (= mode "RUN") outdir (strcat outdir "_dryrun_temp\\")))
-        (if (not (vl-file-directory-p work)) (vl-mkdir (vl-string-right-trim "\\" work)))
-        (cond
-          ((not (vl-file-directory-p work)) (princ (strcat "\nCannot create folder: " work)))
-          (T
-           ;; copy originals: the batch only ever opens and saves the copies
-           (foreach f files
-             (setq dest (strcat work (vl-filename-base f) ".dwg"))
-             (cond
-               ((member (strcase dest) names)
-                (princ (strcat "\n  Same file name twice, skipped: " f)))
-               ((= (strcase dest) (strcase f))
-                (princ (strcat "\n  Output is the same as the original, skipped: " f)))
-               (T
-                (if (findfile dest) (vl-file-delete dest))
-                (if (vl-file-copy f dest)
-                  (setq names  (cons (strcase dest) names)
-                        copies (cons (list dest (vl-filename-directory f)) copies))
-                  (princ (strcat "\n  Could not copy, skipped: " f))))))
-           (setq copies (reverse copies)
-                 lsp    (i2o:fwd (strcat home "\\IMG2OLE.lsp"))
-                 scr    (strcat outdir "IMG2OLE_batch.scr")
-                 fd     (getvar "FILEDIA")
-                 f      (open scr "w"))
-           (foreach c copies
-             (write-line (strcat "_.OPEN \"" (car c) "\"") f)
-             (write-line (strcat "(load \"" lsp "\")") f)
-             (write-line (strcat "(i2o:process-file \"" mode "\" \"" (i2o:fwd (cadr c))
-                                 "/\" \"" (i2o:fwd outdir) "\" \"" fmt "\")") f)
-             (write-line "_.QSAVE" f)
-             (write-line "_.CLOSE" f))
-           (write-line (strcat "(i2o:finish \"" (i2o:fwd outdir) "\" \"" mode "\" " (itoa fd) ")") f)
-           (close f)
-           (princ (strcat "\n" (itoa (length copies)) " drawing(s) queued. Mode: " mode
-                          "\nPlease do not use AutoCAD until it says 'IMG2OLE finished'."))
-           (setvar "FILEDIA" 0)
-           (command "_.SCRIPT" scr)))))))
+        (i2o:batch mode (mapcar '(lambda (x) (cons x outdir)) files) fmt outdir)))))
   (princ))
 
 ;; last line of the batch script

@@ -24,16 +24,32 @@ You never open a model yourself.
 
 ## Use it
 
-1. Open Revit with **any** file (even an empty project). Sign in to Autodesk
-2. **BIMExport** tab → **Export Sheets**
-3. Answer the windows:
-   - **What to export:** "Sheets from my LOD" (pick the CSV) or "All sheets in the chosen models"
-   - **Mode:** Dry run first
-   - **Output folder**
-   - **Models:** tick the ones you want
-   - **Logos:** Yes to start AutoCAD afterwards (Export mode only)
-4. A progress bar shows each model. **Cancel** stops after the current model
-5. At the end, a report window lists each model, the file counts, and LOD numbers that weren't found
+**Export Sheets** button:
+
+1. **What to export:** pick **Tick sheets from the models** (recommended)
+   - Or "Sheets from my LOD (CSV)", or "All sheets"
+2. **Tick the models**
+3. **Sheet lists:**
+   - First time: each model opens **once** in the background (detached) to read its sheets, then closes
+   - Next time: **instant** (uses the saved list), or choose **Refresh** if sheets changed
+4. **Tick the drawings.** Switch model with the drop-down at the top, or use "* All chosen models". The search box filters the list
+5. **Mode:** Dry run (instant, opens nothing) or Export
+6. **Formats:** PDF + DWG, PDF only, or DWG only
+7. **Output folder**
+8. **Logos:** Yes starts AutoCAD after the export
+
+**Embed Logos** button (run or re-run the logo step any time):
+
+1. Pick the export output folder
+2. It shows the result of the last logo run (OK / PARTIAL / FAILED per drawing)
+3. It checks that IMG2OLE and AutoCAD can be found, and lets you point to them if not
+4. It starts AutoCAD on every `<model>\_DWG_raw\*.dwg` and writes the finished files to `<model>\DWG\`
+
+### Opening models
+
+- **Workshared models open detached** (all worksets), so they never touch your own local copy or the central model
+- **Non-workshared cloud models** can't be detached (a Revit rule), so they open normally. They are still closed without saving
+- **A model already open in this Revit** is used as it is, including your unsynced changes, and left open. The report says so
 
 ### Where the model list comes from
 

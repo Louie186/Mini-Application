@@ -483,14 +483,8 @@ def sheet_revision(sheet):
     return (p.AsString() if p else u'') or u''
 
 
-def make_name(doc, sheet, rule, row, model):
-    vals = {
-        'sheetnumber': sheet.SheetNumber, 'sheetname': sheet.Name,
-        'revision': sheet_revision(sheet), 'model': model,
-        'date': datetime.date.today().strftime('%Y%m%d'),
-        'drawingnumber': row.get('drawingnumber') or sheet.SheetNumber,
-        'listrevision': list_revision(row),
-    }
+def build_name(rule, vals, sheet_param, project_param):
+    """Apply the naming rule. sheet_param / project_param: functions name -> text or None."""
     missing = []
 
     def rep(m):
@@ -500,9 +494,9 @@ def make_name(doc, sheet, rule, row, model):
             return vals[k] or u''
         low = token.lower()
         if low.startswith('p:'):
-            v = _param(sheet, token[2:].strip())
+            v = sheet_param(token[2:].strip())
         elif low.startswith('project:'):
-            v = _param(doc.ProjectInformation, token[8:].strip())
+            v = project_param(token[8:].strip())
         else:
             v = None
         if v is None:
@@ -511,6 +505,96 @@ def make_name(doc, sheet, rule, row, model):
         return v
 
     return clean(re.sub(r'\{([^}]+)\}', rep, rule)), missing
+
+
+def make_name(doc, sheet, rule, row, model):
+    vals = {
+        'sheetnumber': sheet.SheetNumber, 'sheetname': sheet.Name,
+        'revision': sheet_revision(sheet), 'model': model,
+        'date': datetime.date.today().strftime('%Y%m%d'),
+        'drawingnumber': row.get('drawingnumber') or sheet.SheetNumber,
+        'listrevision': list_revision(row),
+    }
+    return build_name(rule, vals, lambda n: _param(sheet, n),
+                      lambda n: _param(doc.ProjectInformation, n))
+
+
+# ------------------------------------------------------ saved sheet lists --
+SHEET_CACHE_FILE = os.path.join(SETTINGS_DIR, 'SheetCache.json')
+
+
+def load_sheet_cache():
+    try:
+        with io.open(SHEET_CACHE_FILE, 'r', encoding='utf-8') as f:
+            return json.loads(f.read())
+    except Exception:
+        return {}
+
+
+def save_sheet_cache(c):
+    ensure_dir(SETTINGS_DIR)
+    with io.open(SHEET_CACHE_FILE, 'w', encoding='utf-8') as f:
+        f.write(text(json.dumps(c, indent=1)))
+
+
+def rule_params(rule):
+    """Sheet and project parameter names used by the naming rule."""
+    sp, pp = [], []
+    for t in re.findall(r'\{([^}]+)\}', rule or u''):
+        t = t.strip()
+        if t.lower().startswith('p:'):
+            sp.append(t[2:].strip())
+        elif t.lower().startswith('project:'):
+            pp.append(t[8:].strip())
+    return sp, pp
+
+
+def read_sheet_list(doc, rule):
+    """Everything needed to show, name and check the sheets later without opening the model."""
+    sp, pp = rule_params(rule)
+    sheets = []
+    for s in FilteredElementCollector(doc).OfClass(ViewSheet):
+        if s.IsPlaceholder:
+            continue
+        params = {}
+        for n in sp:
+            v = _param(s, n)
+            if v is not None:
+                params[n] = v
+        sheets.append({'number': s.SheetNumber, 'name': s.Name, 'rev': sheet_revision(s), 'params': params})
+    sheets.sort(key=lambda x: x['number'])
+    project = {}
+    for n in pp:
+        v = _param(doc.ProjectInformation, n)
+        if v is not None:
+            project[n] = v
+    return {'model': model_name(doc), 'updated': now(), 'rule': rule, 'sheets': sheets, 'project': project}
+
+
+def plan_from_cache(entry, numbers, out_root, settings, log):
+    """Dry run from a saved sheet list (no model opened). Returns count of files."""
+    model = entry.get('model', u'?')
+    rule = settings.get('naming_rule') or u'{DrawingNumber}'
+    fmts = settings.get('_formats') or {'pdf': u'Y', 'dwg': u'Y'}
+    mdir = os.path.join(out_root, clean(model))
+    n = 0
+    for e in entry.get('sheets', []):
+        if e['number'].strip().lower() not in numbers:
+            continue
+        vals = {'sheetnumber': e['number'], 'sheetname': e['name'], 'revision': e.get('rev', u''),
+                'model': model, 'date': datetime.date.today().strftime('%Y%m%d'),
+                'drawingnumber': e['number'], 'listrevision': u''}
+        name, missing = build_name(rule, vals, lambda p: e.get('params', {}).get(p),
+                                   lambda p: entry.get('project', {}).get(p))
+        note = (u'Unknown token(s): %s (refresh the sheet lists if you changed the naming rule)'
+                % u', '.join(missing)) if missing else u''
+        for fmt, sub in ((u'PDF', 'PDF'), (u'DWG', '_DWG_raw')):
+            if yes(fmts.get(fmt.lower())):
+                n += 1
+                log.append([now(), u'DRYRUN', model, e['number'], e['name'], e.get('rev', u''), fmt,
+                            os.path.join(mdir, sub, (name or clean(e['number'])) + u'.' + fmt.lower()),
+                            u'WOULD_EXPORT', u'', note])
+    return n
 
 
 def pdf_options(doc, setup, notes):
@@ -549,8 +633,9 @@ def dwg_options(doc, setup, notes):
     return opts
 
 
-def export_model(doc, lod_rows, out_root, settings, do_export, log):
-    """Export the LOD sheets found in this model (or all sheets when lod_rows is None).
+def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None):
+    """Export: picked sheet numbers (set, lower case), else LOD sheets found in this
+    model, else all sheets (lod_rows None).
     Returns (matched listed numbers, counts, model notes, dwg_raw_folder)."""
     model = model_name(doc)
     mode = u'EXPORT' if do_export else u'DRYRUN'
@@ -561,7 +646,14 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log):
             sheets.setdefault(s.SheetNumber.strip().lower(), s)
 
     jobs = []                       # (row, sheet)
-    if lod_rows is None:
+    if picked is not None:
+        fmts = settings.get('_formats') or {}
+        for k in sorted(picked):
+            if k in sheets:
+                row = dict(fmts)
+                row['_listed'] = sheets[k].SheetNumber
+                jobs.append((row, sheets[k]))
+    elif lod_rows is None:
         for s in sorted(sheets.values(), key=lambda x: x.SheetNumber):
             jobs.append(({'_listed': s.SheetNumber}, s))
     else:
@@ -605,10 +697,11 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log):
         if not name:
             name = clean(sheet.SheetNumber)
 
+        fmts = settings.get('_formats') or {}
         formats = []
-        if yes(row.get('pdf')):
+        if yes(row.get('pdf') or fmts.get('pdf')) and yes(fmts.get('pdf')):
             formats.append(u'PDF')
-        if yes(row.get('dwg')):
+        if yes(row.get('dwg') or fmts.get('dwg')) and yes(fmts.get('dwg')):
             formats.append(u'DWG')
 
         for fmt in formats:
@@ -666,6 +759,39 @@ def find_acad(settings):
                 if os.path.exists(exe):
                     return exe
     return None
+
+
+def find_raw_dwgs(out_root):
+    """(raw dwg, final DWG folder) for every <model>/_DWG_raw/*.dwg under out_root."""
+    jobs = []
+    if not os.path.isdir(out_root):
+        return jobs
+    for m in sorted(os.listdir(out_root)):
+        raw = os.path.join(out_root, m, '_DWG_raw')
+        if os.path.isdir(raw):
+            for f in sorted(os.listdir(raw)):
+                if f.lower().endswith('.dwg'):
+                    jobs.append((os.path.join(raw, f), os.path.join(out_root, m, 'DWG')))
+    return jobs
+
+
+def img2ole_summary(out_root):
+    """Latest IMG2OLE result per drawing from IMG2OLE_files.csv: (counts by result, problem lines)."""
+    path = os.path.join(out_root, 'IMG2OLE_files.csv')
+    if not os.path.exists(path):
+        return None, []
+    latest = {}
+    for r in read_csv(path):
+        if r.get('Mode') == 'RUN':
+            latest[r.get('File', u'')] = r
+    counts, problems = {}, []
+    for f, r in sorted(latest.items()):
+        res = r.get('Result', u'?')
+        counts[res] = counts.get(res, 0) + 1
+        if res not in (u'OK', u'NO_IMAGES'):
+            problems.append(u'%s: %s (replaced %s, skipped %s, failed %s) %s' % (
+                os.path.basename(f), res, r.get('Replaced'), r.get('Skipped'), r.get('Failed'), r.get('Message', u'')))
+    return counts, problems
 
 
 def start_img2ole(jobs, out_root, settings):

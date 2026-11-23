@@ -16,6 +16,39 @@ from pyrevit import forms, script
 
 import bimexport_core as core
 
+
+def autocad_ready(settings, ask=True):
+    """Check (and offer to fix) what the logo step needs. True = ready."""
+    lsp = core.img2ole_path(settings)
+    if not lsp:
+        forms.alert('IMG2OLE.lsp was not found.\n\nThe BIMExport extension folder should contain an "img2ole" '
+                    'folder. Copy the whole BIMExport.extension again from the zip.')
+        return False
+    if not core.find_acad(settings):
+        exe = forms.pick_file(file_ext='exe', title='AutoCAD not found - where is acad.exe? '
+                                                    '(C:\\Program Files\\Autodesk\\AutoCAD 20xx)')
+        if not exe:
+            return False
+        settings['acad_exe'] = exe
+        core.save_settings(settings)
+    folder = os.path.dirname(lsp)
+    profiles, missing = core.acad_trusted_missing(folder)
+    if not profiles:
+        forms.alert('AutoCAD has no settings for your Windows user yet.\n\nOpen AutoCAD once, close it, '
+                    'then try again (or untick "Embed logos").')
+        return False
+    if missing and ask:
+        if not forms.alert('One-time AutoCAD setup:\n\nAdd this folder to AutoCAD\'s Trusted Locations, so AutoCAD '
+                           'can run the logo tool without a security pop-up?\n\n%s' % folder, yes=True, no=True):
+            return False
+        while core.acad_running():
+            if not forms.alert('Please close AutoCAD first (it would overwrite this setting when it closes).\n\n'
+                               'Closed it?', yes=True, no=True):
+                return False
+        n = core.acad_add_trusted(folder)
+        forms.alert('Done: added to %d AutoCAD profile(s).' % n)
+    return True
+
 output = script.get_output()
 
 
@@ -39,27 +72,12 @@ def main():
         forms.alert('No DWGs found in <model>\\_DWG_raw\\ under:\n%s\n\nExport the sheets first.' % out_root)
         return
 
-    # checks, with a chance to fix them here
-    if not os.path.exists(settings.get('img2ole_lsp') or ''):
-        lsp = forms.pick_file(file_ext='lsp', title='Where is IMG2OLE.lsp?')
-        if not lsp:
-            return
-        settings['img2ole_lsp'] = lsp
-    if not core.find_acad(settings):
-        exe = forms.pick_file(file_ext='exe', title='Where is acad.exe? (e.g. C:\\Program Files\\Autodesk\\AutoCAD 2025)')
-        if not exe:
-            return
-        settings['acad_exe'] = exe
-    core.save_settings(settings)
-
-    lsp_dir = os.path.dirname(settings['img2ole_lsp'])
-    if not forms.alert('Embed logos in %d DWG(s)?\n\nAutoCAD: %s\nIMG2OLE: %s\n\n'
-                       'Before you start, check once:\n'
-                       '- AutoCAD Trusted Locations include %s\n'
-                       '- AutoCAD is not busy with other work\n\n'
-                       'Finished drawings go to <model>\\DWG\\. Click this button again later to see the result.'
-                       % (len(jobs), core.find_acad(settings), settings['img2ole_lsp'], lsp_dir),
-                       yes=True, no=True):
+    if not autocad_ready(settings):
+        return
+    if not forms.alert('Embed logos in %d DWG(s)?\n\nAutoCAD: %s\n\nAutoCAD opens and works through them. '
+                       'Avoid copy/paste (Ctrl+C) until it says "IMG2OLE finished". Finished drawings go to '
+                       '<model>\\DWG\\. Click this button again later to see the result.'
+                       % (len(jobs), core.find_acad(settings)), yes=True, no=True):
         return
     msg = core.start_img2ole(jobs, out_root, settings)
     output.print_md('**Logos:** ' + msg)

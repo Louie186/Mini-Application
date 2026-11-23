@@ -15,12 +15,11 @@ You never open a model yourself.
 ## Install (once, 5 minutes)
 
 1. Install **pyRevit** if you don't have it (free: pyrevitlabs.io). Revit must be closed while installing
-2. Copy these folders to your PC:
-   - `C:\BIMTools\pyrevit\BIMExport.extension\` (this folder)
-   - `C:\BIMTools\img2ole\` (the IMG2OLE tool, for the logos)
+2. Copy the **`BIMExport.extension`** folder to pyRevit's extensions folder (`%APPDATA%\pyRevit\Extensions\`)
+   - The logo tool (IMG2OLE) is **inside** it (`BIMExport.extension\img2ole\`), so there's nothing else to copy
 3. Start Revit → **pyRevit** tab → **Settings** → **Custom Extension Directories** → **Add folder** → `C:\BIMTools\pyrevit` → **Save Settings and Reload**
 4. A new **BIMExport** tab appears with the **Export Sheets** button
-5. AutoCAD (for the logos): add `C:\BIMTools\img2ole` to **Trusted Locations** (see the IMG2OLE README)
+5. AutoCAD (for the logos): nothing to do by hand. The first time you export with "Embed logos" ticked, the tool offers to add its IMG2OLE folder to AutoCAD's Trusted Locations (close AutoCAD first)
 
 ## Use it
 

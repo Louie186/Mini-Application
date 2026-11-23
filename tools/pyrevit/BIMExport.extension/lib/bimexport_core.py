@@ -46,7 +46,7 @@ DEFAULT_SETTINGS = {
     'last_lod': '',
     'last_output': '',
     'run_img2ole': True,
-    'img2ole_lsp': r'C:\BIMTools\img2ole\IMG2OLE.lsp',
+    'img2ole_lsp': '',                       # blank = the copy inside this extension
     'acad_exe': '',
 }
 
@@ -1122,6 +1122,74 @@ def write_ansi(path, body):
             continue
 
 
+BUNDLED_IMG2OLE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'img2ole', 'IMG2OLE.lsp')
+
+
+def img2ole_path(settings):
+    """IMG2OLE.lsp: the one set in the settings, else the copy that ships inside this extension."""
+    p = settings.get('img2ole_lsp') or u''
+    if p and os.path.exists(p):
+        return p
+    if os.path.exists(BUNDLED_IMG2OLE):
+        return BUNDLED_IMG2OLE
+    return None
+
+
+def _norm_dir(p):
+    return os.path.normcase(os.path.normpath(p.replace(u'\\...', u'').strip()))
+
+
+def acad_profiles():
+    """Registry keys of every AutoCAD profile of this Windows user: [(key path, TRUSTEDPATHS value)]."""
+    out = []
+    try:
+        from Microsoft.Win32 import Registry
+        base = r'Software\Autodesk\AutoCAD'
+        root = Registry.CurrentUser.OpenSubKey(base)
+        if root is None:
+            return out
+        for ver in root.GetSubKeyNames():
+            vk = root.OpenSubKey(ver)
+            for prod in (vk.GetSubKeyNames() if vk else []):
+                pk = vk.OpenSubKey(prod + r'\Profiles')
+                for prof in (pk.GetSubKeyNames() if pk else []):
+                    path = r'%s\%s\%s\Profiles\%s\Variables' % (base, ver, prod, prof)
+                    k = Registry.CurrentUser.OpenSubKey(path)
+                    if k is not None:
+                        out.append((path, text(k.GetValue('TRUSTEDPATHS') or u'')))
+    except Exception:
+        pass
+    return out
+
+
+def acad_trusted_missing(folder):
+    """AutoCAD profiles that do NOT trust folder yet. ([] and profiles found) -> all good."""
+    want = _norm_dir(folder)
+    profiles = acad_profiles()
+    missing = [(p, v) for p, v in profiles if want not in [_norm_dir(x) for x in v.split(u';') if x.strip()]]
+    return profiles, missing
+
+
+def acad_add_trusted(folder):
+    """Add folder to Trusted Locations in every AutoCAD profile (AutoCAD must be closed)."""
+    from Microsoft.Win32 import Registry
+    done = 0
+    for path, cur in acad_trusted_missing(folder)[1]:
+        k = Registry.CurrentUser.OpenSubKey(path, True)
+        if k is not None:
+            k.SetValue('TRUSTEDPATHS', (cur.rstrip(u';') + u';' if cur.strip() else u'') + folder)
+            done += 1
+    return done
+
+
+def acad_running():
+    try:
+        import System
+        return len(System.Diagnostics.Process.GetProcessesByName('acad')) > 0
+    except Exception:
+        return False
+
+
 def find_acad(settings):
     p = settings.get('acad_exe') or u''
     if p and os.path.exists(p):
@@ -1176,9 +1244,9 @@ def img2ole_summary(out_root):
 
 def start_img2ole(jobs, out_root, settings):
     """jobs: list of (raw dwg file, final DWG folder). Starts AutoCAD, returns a message."""
-    lsp = settings.get('img2ole_lsp') or u''
-    if not os.path.exists(lsp):
-        return u'IMG2OLE.lsp not found (%s) - logos NOT embedded. Run IMG2OLE in AutoCAD yourself.' % lsp
+    lsp = img2ole_path(settings)
+    if not lsp:
+        return u'IMG2OLE.lsp not found - logos NOT embedded. Reinstall the BIMExport extension (it has an img2ole folder).'
     acad = find_acad(settings)
     if not acad:
         return u'AutoCAD not found - logos NOT embedded. Set acad_exe in settings.'

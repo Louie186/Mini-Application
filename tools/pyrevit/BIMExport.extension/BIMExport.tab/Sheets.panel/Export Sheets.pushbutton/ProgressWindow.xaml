@@ -81,10 +81,34 @@
                     <StackPanel DockPanel.Dock="Top">
                         <DockPanel>
                             <TextBlock x:Name="sheets_count_tb" DockPanel.Dock="Right" Foreground="{StaticResource Muted}"/>
-                            <TextBlock x:Name="current_tb" Text="Now exporting" FontSize="14" FontWeight="SemiBold"
-                                       TextTrimming="CharacterEllipsis"/>
+                            <StackPanel Orientation="Horizontal">
+                                <!-- spinning indicator, runs on its own (window has its own thread) -->
+                                <Canvas x:Name="spinner" Width="18" Height="18" Margin="0,0,9,0" VerticalAlignment="Center">
+                                    <Canvas.RenderTransform>
+                                        <RotateTransform x:Name="spin_rt" CenterX="9" CenterY="9"/>
+                                    </Canvas.RenderTransform>
+                                    <Canvas.Triggers>
+                                        <EventTrigger RoutedEvent="Canvas.Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetName="spin_rt" Storyboard.TargetProperty="Angle"
+                                                                     From="0" To="360" Duration="0:0:1"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Canvas.Triggers>
+                                    <Ellipse Width="18" Height="18" Stroke="#D9DEE5" StrokeThickness="3"/>
+                                    <Path Stroke="#1F5FA8" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          Data="M 9,1.5 A 7.5,7.5 0 0 1 16.5,9"/>
+                                </Canvas>
+                                <TextBlock x:Name="done_icon" Text="&#x2714;" Foreground="#1E8A4C" FontSize="15" Margin="0,0,8,0"
+                                           Visibility="Collapsed" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="current_tb" Text="Starting..." FontSize="14" FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            </StackPanel>
                         </DockPanel>
-                        <TextBlock x:Name="phase_tb" Foreground="{StaticResource Muted}" Margin="0,2,0,0"/>
+                        <TextBlock x:Name="phase_tb" Foreground="{StaticResource Muted}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="logo_tb" Margin="0,6,0,0" FontWeight="SemiBold" TextWrapping="Wrap" Visibility="Collapsed"/>
                         <ProgressBar x:Name="sheet_pb" Margin="0,8,0,8"/>
                         <Grid Margin="0,0,0,4">
                             <Grid.ColumnDefinitions>

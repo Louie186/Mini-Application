@@ -120,10 +120,54 @@ from System.Windows.Controls import (CheckBox, TreeViewItem, StackPanel, TextBlo
 from System.Windows.Media import BrushConverter
 
 _BC = BrushConverter()
-MUTED = _BC.ConvertFromString('#6B7785')
-ACCENT = _BC.ConvertFromString('#1F5FA8')
+
+
+def _brush(hexcolor):
+    b = _BC.ConvertFromString(hexcolor)
+    try:
+        b.Freeze()                      # shareable between the Revit thread and the progress window thread
+    except Exception:
+        pass
+    return b
+
+
+MUTED = _brush('#6B7785')
+ACCENT = _brush('#1F5FA8')
 NO_GROUPING = u'(no grouping)'
 XAML = os.path.join(os.path.dirname(__file__), 'ExportWindow.xaml')
+
+
+def autocad_ready(settings, ask=True):
+    """Check (and offer to fix) what the logo step needs. True = ready."""
+    lsp = core.img2ole_path(settings)
+    if not lsp:
+        forms.alert('IMG2OLE.lsp was not found.\n\nThe BIMExport extension folder should contain an "img2ole" '
+                    'folder. Copy the whole BIMExport.extension again from the zip.')
+        return False
+    if not core.find_acad(settings):
+        exe = forms.pick_file(file_ext='exe', title='AutoCAD not found - where is acad.exe? '
+                                                    '(C:\\Program Files\\Autodesk\\AutoCAD 20xx)')
+        if not exe:
+            return False
+        settings['acad_exe'] = exe
+        core.save_settings(settings)
+    folder = os.path.dirname(lsp)
+    profiles, missing = core.acad_trusted_missing(folder)
+    if not profiles:
+        forms.alert('AutoCAD has no settings for your Windows user yet.\n\nOpen AutoCAD once, close it, '
+                    'then try again (or untick "Embed logos").')
+        return False
+    if missing and ask:
+        if not forms.alert('One-time AutoCAD setup:\n\nAdd this folder to AutoCAD\'s Trusted Locations, so AutoCAD '
+                           'can run the logo tool without a security pop-up?\n\n%s' % folder, yes=True, no=True):
+            return False
+        while core.acad_running():
+            if not forms.alert('Please close AutoCAD first (it would overwrite this setting when it closes).\n\n'
+                               'Closed it?', yes=True, no=True):
+                return False
+        n = core.acad_add_trusted(folder)
+        forms.alert('Done: added to %d AutoCAD profile(s).' % n)
+    return True
 
 
 def needs_scan(entry):
@@ -618,6 +662,8 @@ class ExportWindow(forms.WPFWindow):
         if not self.settings['last_output']:
             forms.alert('Choose where to save (Output tab).')
             return False
+        if self.settings.get('embed') and self.dwg_cb.IsChecked and not autocad_ready(self.settings):
+            return False
         # two drawings that would get the same file name?
         log = []
         for guid, nums in p.items():
@@ -665,9 +711,9 @@ from System.Windows.Controls import Grid, ColumnDefinition
 from System.Windows.Threading import Dispatcher, DispatcherPriority
 
 PXAML = os.path.join(os.path.dirname(__file__), 'ProgressWindow.xaml')
-OK_BRUSH = _BC.ConvertFromString('#1E8A4C')
-BAD_BRUSH = _BC.ConvertFromString('#C0392B')
-RUN_BRUSH = _BC.ConvertFromString('#1F5FA8')
+OK_BRUSH = _brush('#1E8A4C')
+BAD_BRUSH = _brush('#C0392B')
+RUN_BRUSH = _brush('#1F5FA8')
 ICON = {'wait': (u'○', MUTED), 'run': (u'▶', RUN_BRUSH), 'ok': (u'✔', OK_BRUSH),
         'bad': (u'✖', BAD_BRUSH), 'skip': (u'–', MUTED)}
 
@@ -695,10 +741,12 @@ def _row(widths):
 
 
 class ProgressWindow(forms.WPFWindow):
-    """Fixed window: all models with their status, and the drawings of the current model."""
+    """Fixed window: all models with their status, and the drawings of the current model.
+    Normally lives on its OWN thread (see ProgressUI), so it keeps moving while Revit is busy."""
 
-    def __init__(self, models, picked, cache, formats, title):
-        forms.WPFWindow.__init__(self, PXAML)
+    def __init__(self, models, picked, cache, formats, title, own_thread=True):
+        forms.WPFWindow.__init__(self, PXAML, set_owner=not own_thread)
+        self.own_thread = own_thread
         self.cancelled = False
         self.t0 = time.time()
         self.files_ok = self.files_bad = 0
@@ -721,14 +769,25 @@ class ProgressWindow(forms.WPFWindow):
         self.done_models = 0
         self.models_count_tb.Text = u'0 of %d done' % len(models)
         self.cells = {}
-        self.Show()
-        self.pump()
+        self._tick(None, None)
+        if own_thread:                          # live clock, independent of Revit
+            from System.Windows.Threading import DispatcherTimer
+            from System import TimeSpan
+            self._timer = DispatcherTimer()
+            self._timer.Interval = TimeSpan.FromSeconds(1)
+            self._timer.Tick += self._tick
+            self._timer.Start()
 
-    # keep the window alive while Revit is busy
+    def _tick(self, sender, args):
+        self.status_tb.Text = u'Elapsed %s   ·   %d file(s) exported   ·   %d failed' % (
+            time.strftime('%H:%M:%S', time.gmtime(time.time() - self.t0)), self.files_ok, self.files_bad)
+
     def pump(self):
+        """Only needed when the window shares Revit's thread (fallback)."""
+        if self.own_thread:
+            return
         try:
-            self.status_tb.Text = u'Elapsed %s   ·   %d file(s) exported   ·   %d failed' % (
-                time.strftime('%H:%M:%S', time.gmtime(time.time() - self.t0)), self.files_ok, self.files_bad)
+            self._tick(None, None)
             Dispatcher.CurrentDispatcher.Invoke(Action(lambda: None), DispatcherPriority.Background)
         except Exception:
             pass
@@ -751,7 +810,7 @@ class ProgressWindow(forms.WPFWindow):
         name = entry.get('model') or rec.get('Name') or core.register_label(rec)
         self._set(g, 'run', u'opening...')
         self.current_tb.Text = u'Now:  ' + name
-        self.phase_tb.Text = u'Opening the model (download from ACC + links). Revit may look frozen for a while.'
+        self.phase_tb.Text = u'Opening the model (download from ACC + links). This can take a few minutes.'
         self.sheets_sp.Children.Clear()
         self.cells = {}
         nums = sorted(self.picked.get(g, [])) if self.picked else [e['number'].lower() for e in entry.get('sheets', [])]
@@ -767,6 +826,7 @@ class ProgressWindow(forms.WPFWindow):
             self.cells[k] = {'PDF': pdf, 'DWG': dwg}
         self.sheet_pb.Maximum = max(1, len(nums) * len(self.formats))
         self.sheet_pb.Value = 0
+        self.sheet_pb.IsIndeterminate = True        # moving bar while the model opens
         self.sheets_count_tb.Text = u'%d drawing(s)' % len(nums)
         self.pump()
 
@@ -775,7 +835,8 @@ class ProgressWindow(forms.WPFWindow):
         self.pump()
 
     def file(self, fmt, num, status):
-        """status None = starting, 'OK' or 'FAILED' = finished. Returns False to stop (Cancel)."""
+        """status None = starting, 'OK' or 'FAILED' = finished."""
+        self.sheet_pb.IsIndeterminate = False
         c = self.cells.get(num.strip().lower(), {}).get(fmt)
         if c is not None:
             if status is None:
@@ -795,17 +856,18 @@ class ProgressWindow(forms.WPFWindow):
         return not self.cancelled
 
     def model_done(self, guid, ok, text):
+        self.sheet_pb.IsIndeterminate = False
         self._set(guid, 'ok' if ok else 'bad', text)
         self.done_models += 1
         self.overall_pb.Value = self.done_models
         self.models_count_tb.Text = u'%d of %d done' % (self.done_models, len(self.rows))
         self.pump()
 
-    def finish(self, headline, out_root, other_windows=False):
-        """Turn into a result window and wait until the user closes it."""
+    def finish(self, headline, out_root, other_windows=False, logo_count=0, logo_since=None):
         for g, (icon, info) in self.rows.items():
             if info.Text == u'waiting':
                 self._set(g, 'skip', u'done in another window' if other_windows else u'not exported')
+        self.sheet_pb.IsIndeterminate = False
         self.title_tb.Text = headline
         self.current_tb.Text = u'Finished' if not self.cancelled else u'Stopped'
         self.phase_tb.Text = u'Full details: SheetExport_log.csv in the output folder.'
@@ -813,9 +875,46 @@ class ProgressWindow(forms.WPFWindow):
         self.open_btn.Visibility = Visibility.Visible
         self.close_btn.Visibility = Visibility.Visible
         self._out = out_root
-        self.pump()
-        self.Hide()
-        self.ShowDialog()
+        if getattr(self, '_timer', None) is not None:
+            self._timer.Stop()
+        if logo_count and self.own_thread:
+            self._logo_total, self._logo_since = logo_count, logo_since or core.now()
+            self.logo_tb.Visibility = Visibility.Visible
+            self.logo_tb.Foreground = RUN_BRUSH
+            self.logo_tb.Text = u'Logos: AutoCAD is starting... (0 of %d drawings)' % logo_count
+            from System.Windows.Threading import DispatcherTimer
+            from System import TimeSpan
+            self._logo_timer = DispatcherTimer()
+            self._logo_timer.Interval = TimeSpan.FromSeconds(3)
+            self._logo_timer.Tick += self._logo_tick
+            self._logo_timer.Start()
+        else:
+            self.spinner.Visibility = Visibility.Collapsed
+            self.done_icon.Visibility = Visibility.Visible
+        self._tick(None, None)
+
+    def _logo_tick(self, sender, args):
+        """Follow AutoCAD: count the drawings IMG2OLE has finished since the export."""
+        try:
+            rows = [r for r in core.read_csv(os.path.join(self._out, 'IMG2OLE_files.csv'))
+                    if r.get('Mode') == 'RUN' and r.get('Timestamp', '') >= self._logo_since]
+        except Exception:
+            rows = []
+        done = len(rows)
+        bad = len([r for r in rows if r.get('Result') not in ('OK', 'NO_IMAGES')])
+        if done >= self._logo_total:
+            self._logo_timer.Stop()
+            self.spinner.Visibility = Visibility.Collapsed
+            self.done_icon.Visibility = Visibility.Visible
+            if bad:
+                self.logo_tb.Foreground = BAD_BRUSH
+                self.logo_tb.Text = (u'⚠ Logos: %d of %d drawings need a check. Click "Embed Logos" on this '
+                                     u'folder to see which.' % (bad, done))
+            else:
+                self.logo_tb.Foreground = OK_BRUSH
+                self.logo_tb.Text = u'✔ Logos embedded in all %d drawing(s). Finished DWGs are in the DWG folder.' % done
+        else:
+            self.logo_tb.Text = u'Logos: AutoCAD is embedding... %d of %d drawings' % (done, self._logo_total)
 
     def on_open(self, sender, args):
         try:
@@ -826,6 +925,94 @@ class ProgressWindow(forms.WPFWindow):
 
     def on_close_done(self, sender, args):
         self.Close()
+
+
+class ProgressUI(object):
+    """Runs the ProgressWindow on its own thread, so it animates and keeps time while Revit works.
+    Every call is forwarded safely to the window's thread."""
+
+    def __init__(self, *args):
+        from System.Threading import Thread, ThreadStart, ApartmentState, ManualResetEvent
+        self._args, self.win, self.error = args, None, None
+        self._ready, self._closed = ManualResetEvent(False), ManualResetEvent(False)
+        t = Thread(ThreadStart(self._run))
+        t.SetApartmentState(ApartmentState.STA)
+        t.IsBackground = True
+        t.Start()
+        self._ready.WaitOne()
+        if self.error:
+            raise Exception(self.error)
+
+    def _run(self):
+        try:
+            self.win = ProgressWindow(*self._args)
+            self.win.Closed += self._on_closed
+            self.win.Show()
+        except Exception as e:
+            self.error = core.text(e)
+            self._ready.Set()
+            return
+        self._ready.Set()
+        Dispatcher.Run()
+
+    def _on_closed(self, sender, args):
+        self._closed.Set()
+        Dispatcher.CurrentDispatcher.BeginInvokeShutdown(DispatcherPriority.Background)
+
+    def _call(self, name, *a):
+        w = self.win
+
+        def go():
+            try:
+                getattr(w, name)(*a)
+            except Exception:
+                pass
+        try:
+            w.Dispatcher.BeginInvoke(Action(go))
+        except Exception:
+            pass
+
+    @property
+    def cancelled(self):
+        return bool(getattr(self.win, 'cancelled', False))
+
+    def model_started(self, rec):
+        self._call('model_started', rec)
+
+    def phase(self, text):
+        self._call('phase', text)
+
+    def file(self, fmt, num, status):
+        self._call('file', fmt, num, status)
+        return not self.cancelled
+
+    def model_done(self, guid, ok, text):
+        self._call('model_done', guid, ok, text)
+
+    def finish(self, headline, out_root, other_windows=False, logo_count=0, logo_since=None):
+        self._call('finish', headline, out_root, other_windows, logo_count, logo_since)
+        self._closed.WaitOne()                   # wait until you close the result window
+
+    def close(self):
+        self._call('Close')
+        self._closed.WaitOne(5000)
+
+
+def open_progress(models, picked, cache, formats, title):
+    try:
+        return ProgressUI(models, picked, cache, formats, title)
+    except Exception:
+        w = ProgressWindow(models, picked, cache, formats, title, own_thread=False)   # fallback: same thread
+        w.Show()
+        w.pump()
+        return w
+
+
+def finish_title(totals, cad_msg):
+    t = u'Finished: %d file(s) exported, %d failed' % (totals['ok'], totals['failed'])
+    if cad_msg and not cad_msg.startswith('AutoCAD started'):
+        t += u'  \u00b7  LOGOS NOT STARTED: ' + cad_msg
+    return t
 
 
 def export_models(next_rec, models, job, settings, reg, cache, log_path, title):
@@ -839,7 +1026,20 @@ def export_models(next_rec, models, job, settings, reg, cache, log_path, title):
     totals = {'ok': 0, 'failed': 0, 'would': 0}
     lines, matched_all = [], set()
     opened_before = set(KEPT.keys())
-    pw = ProgressWindow(models, picked, cache, formats, title)
+    pw = open_progress(models, picked, cache, formats, title)
+    try:
+        return _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_rows, totals,
+                            lines, matched_all, opened_before, do_export, out_root)
+    except Exception:
+        try:
+            pw.close()
+        except Exception:
+            pass
+        raise
+
+
+def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_rows, totals,
+                 lines, matched_all, opened_before, do_export, out_root):
     with core.QuietRevit(uiapp):
         while not pw.cancelled:
             rec = next_rec()
@@ -948,19 +1148,20 @@ def run_queue(qd, job, settings, reg, cache, window_name):
                                          u'Exporting  \u00b7  %s (shared)' % window_name)
     for g in list(KEPT.keys()):                 # kept models another window took: close ours
         close_model(KEPT.pop(g)[0])
-    cad_msg = ''
+    cad_msg, logo_count, logo_since = '', 0, None
     if core.queue_finished(qd):
         if job.get('run_cad') and core.queue_claim_logos(qd):
             jobs = core.find_raw_dwgs(job['out_root'])
+            logo_since = core.now()
             cad_msg = core.start_img2ole(jobs, job['out_root'], settings) if jobs else 'No DWG files to process.'
+            logo_count = len(jobs) if cad_msg.startswith('AutoCAD started') else 0
         lines.append('All models of the shared export are finished.')
     else:
         lines.append('Other Revit window(s) are still working. The last one to finish starts the logo step.')
     report('Sheet Export - %s (%d model(s) done here)' % (window_name, len(claimed)), started, lines,
            totals, job['do_export'], [], cad_msg, log_path)
-    pw.finish(u'Finished: %d file(s) exported, %d failed%s' % (
-        totals['ok'], totals['failed'], u'  \u00b7  logos started in AutoCAD' if cad_msg.startswith('AutoCAD started') else u''),
-        job['out_root'], other_windows=True)
+    pw.finish(finish_title(totals, cad_msg), job['out_root'], other_windows=True,
+              logo_count=logo_count, logo_since=logo_since)
 
 
 def main():
@@ -1055,14 +1256,14 @@ def main():
     queue.sort(key=lambda m: m['ModelGUID'].lower() not in KEPT)          # already-open models first
     lines, totals, _, pw = export_models(lambda: queue.pop(0) if queue else None, list(queue), job, settings,
                                          reg, cache, log_path, u'Exporting')
-    cad_msg = ''
+    cad_msg, logo_count, logo_since = '', 0, None
     if run_cad:
         jobs = core.find_raw_dwgs(out_root)
+        logo_since = core.now()
         cad_msg = core.start_img2ole(jobs, out_root, settings) if jobs else 'No DWG files to process.'
+        logo_count = len(jobs) if cad_msg.startswith('AutoCAD started') else 0
     report('Sheet Export - EXPORT', started, lines, totals, True, [], cad_msg, log_path)
-    pw.finish(u'Finished: %d file(s) exported, %d failed%s' % (
-        totals['ok'], totals['failed'], u'  \u00b7  logos started in AutoCAD' if cad_msg.startswith('AutoCAD started') else u''),
-        out_root)
+    pw.finish(finish_title(totals, cad_msg), out_root, logo_count=logo_count, logo_since=logo_since)
 
 
 try:

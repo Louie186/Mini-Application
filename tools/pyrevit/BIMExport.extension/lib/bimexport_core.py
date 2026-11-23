@@ -370,9 +370,11 @@ def _open(app, path, opts):
         return app.OpenDocumentFile(path, opts)
 
 
-def open_cloud_model(app, rec, preferred_region):
-    """Open a cloud model. Workshared: detached + all worksets.
-    Not workshared (no central model): opened normally, closed without saving.
+def open_cloud_model(app, rec, preferred_region, allow_non_workshared=False):
+    """Open a cloud model for printing.
+    Workshared: DETACHED from central with all worksets (a temporary copy, never synced).
+    Not workshared: there is no central to detach from, so Revit can only open the real model.
+      This is refused unless allow_non_workshared is True.
     Returns (doc, region, note-or-error)."""
     errors = []
     for reg in _regions(rec.get('Region') or preferred_region):
@@ -382,7 +384,6 @@ def open_cloud_model(app, rec, preferred_region):
         except Exception as e:
             errors.append(u'%s: %s' % (reg, text(e)))
             continue
-        # 1) workshared model: detached, all worksets
         try:
             opts = OpenOptions()
             opts.DetachFromCentralOption = DetachFromCentralOption.DetachAndPreserveWorksets
@@ -392,10 +393,13 @@ def open_cloud_model(app, rec, preferred_region):
             msg = text(e)
         low = msg.lower()
         if 'detach' in low or 'workshar' in low or ('central' in low and 'missing' not in low):
-            # 2) not workshared: there is no central model to detach from
+            if not allow_non_workshared:
+                return None, reg, (u'NOT WORKSHARED - skipped to protect it. It cannot be opened detached, '
+                                   u'so printing would open the real model. Allow it in the Run tab only if '
+                                   u'nobody (including you in another Revit window) has it open.')
             try:
                 return _open(app, path, OpenOptions()), reg, \
-                    u'Model is not workshared - opened directly (closed without saving)'
+                    u'Not workshared - opened directly as allowed (closed without saving)'
             except Exception as e2:
                 msg = text(e2)
         if 'central model is missing' in low:
@@ -600,7 +604,7 @@ def read_sheet_list(doc, rule):
     except Exception:
         pass
     return {'model': model_name(doc), 'updated': now(), 'rule': rule, 'sheets': sheets, 'project': project,
-            'orgs': orgs, 'current_org': current}
+            'orgs': orgs, 'current_org': current, 'setups': read_export_setups(doc)}
 
 
 def read_browser_orgs(doc):
@@ -658,11 +662,44 @@ def plan_from_cache(entry, numbers, out_root, settings, log):
     return n
 
 
-PDF_DEFAULTS = {'setup': '', 'colors': 'Color', 'raster_quality': 'High', 'always_raster': False,
-                'hide_crop': True, 'hide_scope': True, 'hide_ref_planes': True, 'hide_unref_tags': True}
-DWG_DEFAULTS = {'setup': '', 'version': '2018', 'layers': 'AIA', 'merged_views': True, 'shared_coords': False}
-PDF_COLORS = {'Color': 'Color', 'Grayscale': 'GrayScale', 'Black lines': 'BlackLine'}
+PDF_DEFAULTS = {'setup': '', 'paper': 'Use sheet size', 'orientation': 'Auto', 'placement': 'Center',
+                'offset_x': 0.0, 'offset_y': 0.0, 'zoom': 'Fit to page', 'zoom_pct': 100,
+                'raster_quality': 'High', 'colors': 'Color', 'processing': 'Vector',
+                'links_blue': False, 'hide_ref_planes': True, 'hide_unref_tags': False, 'mask_coincident': False,
+                'hide_scope': True, 'hide_crop': True, 'halftone_thin': False}
+DWG_DEFAULTS = {'setup': '', 'version': '2018', 'layers': 'AIA', 'merged_views': True, 'shared_coords': False,
+                'colors': 'IndexColors', 'units': 'Default'}
+
+PDF_COLORS = [('Color', 'Color'), ('Grayscale', 'GrayScale'), ('Black lines', 'BlackLine')]
+PDF_PAPERS = [('Use sheet size', 'Default'), ('A0', 'ISO_A0'), ('A1', 'ISO_A1'), ('A2', 'ISO_A2'),
+              ('A3', 'ISO_A3'), ('A4', 'ISO_A4'), ('ANSI D', 'ANSI_D'), ('ANSI E', 'ANSI_E'),
+              ('Letter', 'Letter'), ('Tabloid', 'Tabloid')]
+PDF_ORIENT = [('Auto', 'Auto'), ('Portrait', 'Portrait'), ('Landscape', 'Landscape')]
+PDF_PLACE = [('Center', 'Center'), ('Offset from corner', 'LowerLeft')]
+PDF_ZOOM = [('Fit to page', 'FitToPage'), ('Zoom', 'Zoom')]
+PDF_RASTER = ['Low', 'Medium', 'High', 'Presentation']
 DWG_LAYERS = ['AIA', 'ISO13567', 'CP83', 'BS1192']
+DWG_COLORS = [('Index colors', 'IndexColors'), ('True color', 'TrueColor'), ('True color per view', 'TrueColorPerView')]
+DWG_VERSIONS = ['2018', '2013', '2010', '2007']
+
+PDF_BOOLS = [('links_blue', 'ViewLinksInBlue'), ('hide_ref_planes', 'HideReferencePlane'),
+             ('hide_unref_tags', 'HideUnreferencedViewTags'), ('mask_coincident', 'MaskCoincidentLines'),
+             ('hide_scope', 'HideScopeBoxes'), ('hide_crop', 'HideCropBoundaries'),
+             ('halftone_thin', 'ReplaceHalftoneWithThinLines')]
+
+
+def to_api(pairs, shown):
+    for d, a in pairs:
+        if d == shown:
+            return a
+    return shown
+
+
+def to_shown(pairs, api):
+    for d, a in pairs:
+        if a == api:
+            return d
+    return api
 
 
 def _set(obj, prop, val, notes=None):
@@ -680,23 +717,143 @@ def _enum(enum_type, name):
         return None
 
 
+def _get(obj, prop, default=None):
+    try:
+        return getattr(obj, prop)
+    except Exception:
+        return default
+
+
 def pdf_settings(settings):
     ps = dict(PDF_DEFAULTS)
     ps.update(settings.get('pdf') or {})
-    if not ps.get('setup') and settings.get('pdf_setup'):
-        ps['setup'] = settings['pdf_setup']
     return ps
 
 
 def dwg_settings(settings):
     ds = dict(DWG_DEFAULTS)
     ds.update(settings.get('dwg') or {})
-    if not ds.get('setup') and settings.get('dwg_setup'):
-        ds['setup'] = settings['dwg_setup']
     return ds
 
 
+def pdf_values(opts):
+    """Readable values of a PDFExportOptions (what the window shows)."""
+    v = {'paper': to_shown(PDF_PAPERS, text(_get(opts, 'PaperFormat', 'Default'))),
+         'orientation': to_shown(PDF_ORIENT, text(_get(opts, 'PaperOrientation', 'Auto'))),
+         'placement': to_shown(PDF_PLACE, text(_get(opts, 'PaperPlacement', 'Center'))),
+         'offset_x': _get(opts, 'OriginOffsetX', 0.0), 'offset_y': _get(opts, 'OriginOffsetY', 0.0),
+         'zoom': to_shown(PDF_ZOOM, text(_get(opts, 'ZoomType', 'FitToPage'))),
+         'zoom_pct': _get(opts, 'ZoomPercentage', 100),
+         'raster_quality': text(_get(opts, 'RasterQuality', 'High')),
+         'colors': to_shown(PDF_COLORS, text(_get(opts, 'ColorDepth', 'Color'))),
+         'processing': 'Raster' if _get(opts, 'AlwaysUseRaster', False) else 'Vector'}
+    for key, prop in PDF_BOOLS:
+        v[key] = bool(_get(opts, prop, PDF_DEFAULTS[key]))
+    return v
+
+
+def dwg_values(opts):
+    return {'version': text(_get(opts, 'FileVersion', 'R2018')).replace('R', ''),
+            'layers': text(_get(opts, 'LayerMapping', 'AIA')),
+            'merged_views': bool(_get(opts, 'MergedViews', True)),
+            'shared_coords': bool(_get(opts, 'SharedCoords', False)),
+            'colors': text(_get(opts, 'Colors', 'IndexColors')),
+            'units': text(_get(opts, 'TargetUnit', 'Default'))}
+
+
+def naming_rule_from_pdf(doc, opts):
+    """Turn a PDF setup's file-naming rule into this tool's rule, e.g.
+    {Project:Project Number}-{P:Originator}-...-{SheetNumber}-{Revision}."""
+    try:
+        parts = list(opts.GetNamingRule())
+    except Exception:
+        return u''
+    proj_cat = None
+    try:
+        proj_cat = doc.ProjectInformation.Category.Id
+    except Exception:
+        pass
+    out = []
+    for i, p in enumerate(parts):
+        token = None
+        pid = p.ParamId
+        val = _get(pid, 'Value', None)
+        if val is None:
+            val = _get(pid, 'IntegerValue', 0)
+        try:
+            if val < 0:
+                import System
+                bip = System.Enum.ToObject(BuiltInParameter, val)
+                if bip == BuiltInParameter.SHEET_NUMBER:
+                    token = u'{SheetNumber}'
+                elif bip == BuiltInParameter.SHEET_NAME:
+                    token = u'{SheetName}'
+                elif bip == BuiltInParameter.SHEET_CURRENT_REVISION:
+                    token = u'{Revision}'
+                else:
+                    name = DB.LabelUtils.GetLabelFor(bip)
+            else:
+                name = doc.GetElement(pid).Name
+        except Exception:
+            name = u'?'
+        if token is None:
+            is_proj = proj_cat is not None and _get(p, 'CategoryId', None) == proj_cat
+            token = (u'{Project:%s}' if is_proj else u'{P:%s}') % name
+        sep = _get(p, 'Separator', u'') or u''
+        out.append((_get(p, 'Prefix', u'') or u'') + token + (_get(p, 'Suffix', u'') or u'') +
+                   (sep if i < len(parts) - 1 else u''))
+    return u''.join(out)
+
+
+def read_export_setups(doc):
+    """Saved PDF and DWG export setups of a model, with their values (shown in the window)."""
+    pdf, dwg = {}, {}
+    try:
+        for s in FilteredElementCollector(doc).OfClass(ExportPDFSettings):
+            try:
+                o = s.GetOptions()
+                v = pdf_values(o)
+                v['naming'] = naming_rule_from_pdf(doc, o)
+                pdf[text(s.Name)] = v
+            except Exception:
+                pass
+    except Exception:
+        pass
+    try:
+        for s in FilteredElementCollector(doc).OfClass(DB.ExportDWGSettings):
+            try:
+                dwg[text(s.Name)] = dwg_values(s.GetDWGExportOptions())
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return {'pdf': pdf, 'dwg': dwg}
+
+
+def _apply_pdf(opts, ps, notes):
+    for prop, enum_name, val in (('PaperFormat', 'ExportPaperFormat', to_api(PDF_PAPERS, ps['paper'])),
+                                 ('PaperOrientation', 'PageOrientationType', to_api(PDF_ORIENT, ps['orientation'])),
+                                 ('PaperPlacement', 'PaperPlacementType', to_api(PDF_PLACE, ps['placement'])),
+                                 ('ZoomType', 'ZoomType', to_api(PDF_ZOOM, ps['zoom'])),
+                                 ('RasterQuality', 'RasterQualityType', ps['raster_quality']),
+                                 ('ColorDepth', 'ColorDepthType', to_api(PDF_COLORS, ps['colors']))):
+        e = _enum(getattr(DB, enum_name, None), val)
+        if e is None:
+            notes.append(u'PDF %s "%s" not available - Revit default used' % (prop, val))
+        else:
+            _set(opts, prop, e, notes)
+    if ps['placement'] != 'Center':
+        _set(opts, 'OriginOffsetX', float(ps.get('offset_x') or 0))
+        _set(opts, 'OriginOffsetY', float(ps.get('offset_y') or 0))
+    if ps['zoom'] == 'Zoom':
+        _set(opts, 'ZoomPercentage', int(ps.get('zoom_pct') or 100))
+    _set(opts, 'AlwaysUseRaster', ps.get('processing') == 'Raster')
+    for key, prop in PDF_BOOLS:
+        _set(opts, prop, bool(ps.get(key)))
+
+
 def pdf_options(doc, settings, notes):
+    """The model's own setup when it has the chosen one; otherwise the same values from the window."""
     ps = pdf_settings(settings)
     if ps.get('setup'):
         for s in FilteredElementCollector(doc).OfClass(ExportPDFSettings):
@@ -704,19 +861,9 @@ def pdf_options(doc, settings, notes):
                 opts = s.GetOptions()
                 opts.Combine = True
                 return opts
-        notes.append(u"PDF setup '%s' not found in this model - tool settings used" % ps['setup'])
+        notes.append(u"PDF setup '%s' not in this model - its values from the window were used" % ps['setup'])
     opts = PDFExportOptions()
-    cd = _enum(getattr(DB, 'ColorDepthType', None), PDF_COLORS.get(ps['colors'], 'Color'))
-    if cd is not None:
-        _set(opts, 'ColorDepth', cd, notes)
-    rq = _enum(getattr(DB, 'RasterQualityType', None), ps['raster_quality'])
-    if rq is not None:
-        _set(opts, 'RasterQuality', rq, notes)
-    _set(opts, 'AlwaysUseRaster', bool(ps['always_raster']))
-    _set(opts, 'HideCropBoundaries', bool(ps['hide_crop']))
-    _set(opts, 'HideScopeBoxes', bool(ps['hide_scope']))
-    _set(opts, 'HideReferencePlane', bool(ps['hide_ref_planes']))
-    _set(opts, 'HideUnreferencedViewTags', bool(ps['hide_unref_tags']))
+    _apply_pdf(opts, ps, notes)
     opts.Combine = True
     return opts
 
@@ -727,7 +874,7 @@ def dwg_options(doc, settings, notes):
         opts = DWGExportOptions.GetPredefinedOptions(doc, ds['setup'])
         if opts is not None:
             return opts
-        notes.append(u"DWG setup '%s' not found in this model - tool settings used" % ds['setup'])
+        notes.append(u"DWG setup '%s' not in this model - its values from the window were used" % ds['setup'])
     opts = DWGExportOptions()
     v = _enum(DB.ACADVersion, 'R' + text(ds['version']))
     if v is not None:
@@ -735,6 +882,9 @@ def dwg_options(doc, settings, notes):
     _set(opts, 'LayerMapping', ds['layers'], notes)
     _set(opts, 'MergedViews', bool(ds['merged_views']))
     _set(opts, 'SharedCoords', bool(ds['shared_coords']))
+    c = _enum(getattr(DB, 'ExportColorMode', None), ds.get('colors') or 'IndexColors')
+    if c is not None:
+        _set(opts, 'Colors', c, notes)
     return opts
 
 

@@ -7,7 +7,7 @@ Drawing lists are saved per model, so the window is instant after the first read
 from __future__ import print_function
 
 __title__ = 'Export\nSheets'
-__author__ = 'BIM Export'
+__author__ = 'Lew'
 __context__ = 'zero-doc'                # works with no model open (it opens models itself)
 
 import os
@@ -37,7 +37,8 @@ def open_model(rec, settings, reg):
     if doc is not None:
         return doc, False, 'Already open in this Revit - exported from your open copy (including unsynced changes)', None
     t0 = time.time()
-    doc, region, err = core.open_cloud_model(app, rec, settings.get('region'))
+    doc, region, err = core.open_cloud_model(app, rec, settings.get('region'),
+                                             bool(settings.get('allow_non_workshared', False)))
     OPEN_SECS[guid] = time.time() - t0
     if doc is None:
         return None, False, None, err
@@ -126,7 +127,14 @@ XAML = os.path.join(os.path.dirname(__file__), 'ExportWindow.xaml')
 
 
 def needs_scan(entry):
-    return not entry or 'orgs' not in entry
+    return not entry or 'orgs' not in entry or 'setups' not in entry
+
+
+def plain_text(t):
+    """A TextBlock, so names show exactly as in ACC (WPF hides '_' in plain checkbox text)."""
+    tb = TextBlock()
+    tb.Text = t
+    return tb
 
 
 class ExportWindow(forms.WPFWindow):
@@ -146,38 +154,142 @@ class ExportWindow(forms.WPFWindow):
         self._update_status()
 
     # ---------------------------------------------------------- settings --
-    def _combo(self, cb, items, value):
+    CUSTOM = u'(Custom - use the values below)'
+
+    def _pdf_controls(self):
+        return [self.pdf_paper_cb, self.pdf_orient_cb, self.pdf_place_cb, self.pdf_zoom_cb, self.pdf_zoom_tb,
+                self.pdf_raster_cb, self.pdf_colors_cb, self.pdf_proc_cb, self.pdf_links_blue_cb,
+                self.pdf_hide_ref_cb, self.pdf_hide_tags_cb, self.pdf_mask_cb, self.pdf_hide_scope_cb,
+                self.pdf_hide_crop_cb, self.pdf_halftone_cb]
+
+    def _dwg_controls(self):
+        return [self.dwg_version_cb, self.dwg_layers_cb, self.dwg_colors_cb, self.dwg_merged_cb, self.dwg_shared_cb]
+
+    def _show_pdf(self, v):
+        shown = lambda pairs: [d for d, _ in pairs]
+        self._combo(self.pdf_paper_cb, shown(core.PDF_PAPERS), v['paper'], keep_unknown=True)
+        self._combo(self.pdf_orient_cb, shown(core.PDF_ORIENT), v['orientation'], keep_unknown=True)
+        self._combo(self.pdf_place_cb, shown(core.PDF_PLACE), v['placement'], keep_unknown=True)
+        self._combo(self.pdf_zoom_cb, shown(core.PDF_ZOOM), v['zoom'], keep_unknown=True)
+        self.pdf_zoom_tb.Text = core.text(v.get('zoom_pct') or 100)
+        self._combo(self.pdf_raster_cb, core.PDF_RASTER, v['raster_quality'], keep_unknown=True)
+        self._combo(self.pdf_colors_cb, shown(core.PDF_COLORS), v['colors'], keep_unknown=True)
+        self._combo(self.pdf_proc_cb, ['Vector', 'Raster'], v['processing'])
+        for cb, k in ((self.pdf_links_blue_cb, 'links_blue'), (self.pdf_hide_ref_cb, 'hide_ref_planes'),
+                      (self.pdf_hide_tags_cb, 'hide_unref_tags'), (self.pdf_mask_cb, 'mask_coincident'),
+                      (self.pdf_hide_scope_cb, 'hide_scope'), (self.pdf_hide_crop_cb, 'hide_crop'),
+                      (self.pdf_halftone_cb, 'halftone_thin')):
+            cb.IsChecked = bool(v.get(k))
+        self._pdf_offsets = (v.get('offset_x', 0.0), v.get('offset_y', 0.0))
+
+    def _show_dwg(self, v):
+        self._combo(self.dwg_version_cb, core.DWG_VERSIONS, core.text(v['version']), keep_unknown=True)
+        self._combo(self.dwg_layers_cb, core.DWG_LAYERS, v['layers'], keep_unknown=True)
+        self._combo(self.dwg_colors_cb, [d for d, _ in core.DWG_COLORS],
+                    core.to_shown(core.DWG_COLORS, v.get('colors') or 'IndexColors'), keep_unknown=True)
+        self.dwg_merged_cb.IsChecked = bool(v['merged_views'])
+        self.dwg_shared_cb.IsChecked = bool(v['shared_coords'])
+
+    def _setups(self, kind):
+        """{setup name: (values, [models that have it])} over the loaded models."""
+        out = {}
+        for g in self.state.get('loaded', []):
+            e = self.cache.get(g) or {}
+            for name, vals in ((e.get('setups') or {}).get(kind) or {}).items():
+                if name not in out:
+                    out[name] = (vals, [])
+                out[name][1].append(e.get('model', '?'))
+        return out
+
+    def _fill_setup_combos(self):
+        self._filling = True
+        for kind, cb, current in (('pdf', self.pdf_setup_cb, core.pdf_settings(self.settings).get('setup')),
+                                  ('dwg', self.dwg_setup_cb, core.dwg_settings(self.settings).get('setup'))):
+            names = sorted(self._setups(kind).keys())
+            cb.Items.Clear()
+            cb.Items.Add(self.CUSTOM)
+            for n in names:
+                cb.Items.Add(n)
+            cb.SelectedItem = current if current in names else self.CUSTOM
+        self._filling = False
+        self.on_pdf_setup(None, None)
+        self.on_dwg_setup(None, None)
+
+    def on_pdf_setup(self, sender, args):
+        if getattr(self, '_filling', False):
+            return
+        name = self.pdf_setup_cb.SelectedItem
+        setups = self._setups('pdf')
+        n_loaded = len(self.state.get('loaded', []))
+        if name and name != self.CUSTOM and name in setups:
+            vals, models = setups[name]
+            self._show_pdf(vals)
+            for c in self._pdf_controls():
+                c.IsEnabled = False
+            self.pdf_naming_btn.IsEnabled = bool(vals.get('naming'))
+            self.pdf_setup_info.Text = u'In %d of %d loaded model(s). Shown: its settings (read-only).%s' % (
+                len(models), n_loaded, (u'\nFile naming: ' + vals['naming']) if vals.get('naming') else u'')
+        else:
+            if sender is not None:
+                self._show_pdf(core.pdf_settings(self.settings))
+            for c in self._pdf_controls():
+                c.IsEnabled = True
+            self.pdf_naming_btn.IsEnabled = False
+            self.pdf_setup_info.Text = (u'Load drawings to list the setups saved in the models.' if not setups
+                                        else u'%d setup(s) found in the loaded models.' % len(setups))
+
+    def on_dwg_setup(self, sender, args):
+        if getattr(self, '_filling', False):
+            return
+        name = self.dwg_setup_cb.SelectedItem
+        setups = self._setups('dwg')
+        n_loaded = len(self.state.get('loaded', []))
+        if name and name != self.CUSTOM and name in setups:
+            vals, models = setups[name]
+            self._show_dwg(vals)
+            for c in self._dwg_controls():
+                c.IsEnabled = False
+            self.dwg_setup_info.Text = u'In %d of %d loaded model(s). Shown: its settings (read-only). Units: %s' % (
+                len(models), n_loaded, vals.get('units', '?'))
+        else:
+            if sender is not None:
+                self._show_dwg(core.dwg_settings(self.settings))
+            for c in self._dwg_controls():
+                c.IsEnabled = True
+            self.dwg_setup_info.Text = (u'Load drawings to list the setups saved in the models.' if not setups
+                                        else u'%d setup(s) found in the loaded models.' % len(setups))
+
+    def on_pdf_naming(self, sender, args):
+        name = self.pdf_setup_cb.SelectedItem
+        vals = self._setups('pdf').get(name, ({}, []))[0]
+        if vals.get('naming'):
+            self.naming_tb.Text = vals['naming']
+            forms.alert('File name rule copied from "%s":\n\n%s' % (name, vals['naming']))
+
+    def _combo(self, cb, items, value, keep_unknown=False):
         cb.Items.Clear()
         for i in items:
             cb.Items.Add(i)
-        cb.SelectedItem = value if value in items else items[0]
+        if keep_unknown and value and value not in items:
+            cb.Items.Add(value)
+        cb.SelectedItem = value if (value in items or keep_unknown and value) else items[0]
 
     def _fill_settings(self):
         s = self.settings
-        ps, ds = core.pdf_settings(s), core.dwg_settings(s)
         fm = s.get('_formats') or {'pdf': 'Y', 'dwg': 'Y'}
         self.out_tb.Text = s.get('last_output') or ''
         self.per_model_cb.IsChecked = bool(s.get('per_model_folder', True))
         self.pdf_cb.IsChecked = core.yes(fm.get('pdf'))
         self.dwg_cb.IsChecked = core.yes(fm.get('dwg'))
         self.naming_tb.Text = s.get('naming_rule') or '{SheetNumber}_{SheetName}'
-        self._combo(self.pdf_colors_cb, ['Color', 'Grayscale', 'Black lines'], ps['colors'])
-        self._combo(self.pdf_raster_cb, ['Low', 'Medium', 'High', 'Presentation'], ps['raster_quality'])
-        self.pdf_always_raster_cb.IsChecked = bool(ps['always_raster'])
-        self.pdf_hide_crop_cb.IsChecked = bool(ps['hide_crop'])
-        self.pdf_hide_scope_cb.IsChecked = bool(ps['hide_scope'])
-        self.pdf_hide_ref_cb.IsChecked = bool(ps['hide_ref_planes'])
-        self.pdf_hide_tags_cb.IsChecked = bool(ps['hide_unref_tags'])
-        self.pdf_setup_tb.Text = ps.get('setup') or ''
-        self._combo(self.dwg_version_cb, ['2018', '2013', '2010'], core.text(ds['version']))
-        self._combo(self.dwg_layers_cb, core.DWG_LAYERS, ds['layers'])
-        self.dwg_merged_cb.IsChecked = bool(ds['merged_views'])
-        self.dwg_shared_cb.IsChecked = bool(ds['shared_coords'])
-        self.dwg_setup_tb.Text = ds.get('setup') or ''
+        self._show_pdf(core.pdf_settings(s))
+        self._show_dwg(core.dwg_settings(s))
         self.embed_cb.IsChecked = bool(s.get('embed', True))
         self.share_cb.IsChecked = bool(s.get('share', False))
+        self.allow_nonws_cb.IsChecked = bool(s.get('allow_non_workshared', False))
         self.model_search.Text = self.state.get('model_filter', '')
         self.sheet_search.Text = self.state.get('sheet_filter', '')
+        self._fill_setup_combos()
 
     def _read_settings(self):
         s = self.settings
@@ -185,18 +297,35 @@ class ExportWindow(forms.WPFWindow):
         s['per_model_folder'] = bool(self.per_model_cb.IsChecked)
         s['_formats'] = {'pdf': 'Y' if self.pdf_cb.IsChecked else 'N', 'dwg': 'Y' if self.dwg_cb.IsChecked else 'N'}
         s['naming_rule'] = self.naming_tb.Text.strip() or '{SheetNumber}'
-        s['pdf'] = {'setup': self.pdf_setup_tb.Text.strip(), 'colors': self.pdf_colors_cb.SelectedItem,
-                    'raster_quality': self.pdf_raster_cb.SelectedItem,
-                    'always_raster': bool(self.pdf_always_raster_cb.IsChecked),
-                    'hide_crop': bool(self.pdf_hide_crop_cb.IsChecked),
-                    'hide_scope': bool(self.pdf_hide_scope_cb.IsChecked),
+        pset = self.pdf_setup_cb.SelectedItem
+        try:
+            zoom_pct = int(self.pdf_zoom_tb.Text)
+        except Exception:
+            zoom_pct = 100
+        offs = getattr(self, '_pdf_offsets', (0.0, 0.0))
+        s['pdf'] = {'setup': '' if (not pset or pset == self.CUSTOM) else pset,
+                    'paper': self.pdf_paper_cb.SelectedItem, 'orientation': self.pdf_orient_cb.SelectedItem,
+                    'placement': self.pdf_place_cb.SelectedItem, 'offset_x': offs[0], 'offset_y': offs[1],
+                    'zoom': self.pdf_zoom_cb.SelectedItem, 'zoom_pct': zoom_pct,
+                    'raster_quality': self.pdf_raster_cb.SelectedItem, 'colors': self.pdf_colors_cb.SelectedItem,
+                    'processing': self.pdf_proc_cb.SelectedItem,
+                    'links_blue': bool(self.pdf_links_blue_cb.IsChecked),
                     'hide_ref_planes': bool(self.pdf_hide_ref_cb.IsChecked),
-                    'hide_unref_tags': bool(self.pdf_hide_tags_cb.IsChecked)}
-        s['dwg'] = {'setup': self.dwg_setup_tb.Text.strip(), 'version': self.dwg_version_cb.SelectedItem,
-                    'layers': self.dwg_layers_cb.SelectedItem, 'merged_views': bool(self.dwg_merged_cb.IsChecked),
-                    'shared_coords': bool(self.dwg_shared_cb.IsChecked)}
+                    'hide_unref_tags': bool(self.pdf_hide_tags_cb.IsChecked),
+                    'mask_coincident': bool(self.pdf_mask_cb.IsChecked),
+                    'hide_scope': bool(self.pdf_hide_scope_cb.IsChecked),
+                    'hide_crop': bool(self.pdf_hide_crop_cb.IsChecked),
+                    'halftone_thin': bool(self.pdf_halftone_cb.IsChecked)}
+        dset = self.dwg_setup_cb.SelectedItem
+        s['dwg'] = {'setup': '' if (not dset or dset == self.CUSTOM) else dset,
+                    'version': self.dwg_version_cb.SelectedItem, 'layers': self.dwg_layers_cb.SelectedItem,
+                    'colors': core.to_api(core.DWG_COLORS, self.dwg_colors_cb.SelectedItem),
+                    'merged_views': bool(self.dwg_merged_cb.IsChecked),
+                    'shared_coords': bool(self.dwg_shared_cb.IsChecked),
+                    'units': core.dwg_settings(s).get('units', 'Default')}
         s['embed'] = bool(self.embed_cb.IsChecked)
         s['share'] = bool(self.share_cb.IsChecked)
+        s['allow_non_workshared'] = bool(self.allow_nonws_cb.IsChecked)
         s.pop('pdf_setup', None)
         s.pop('dwg_setup', None)
         self.state['model_filter'] = self.model_search.Text
@@ -213,7 +342,7 @@ class ExportWindow(forms.WPFWindow):
                 continue
             g = r['ModelGUID'].lower()
             cb = CheckBox()
-            cb.Content = label
+            cb.Content = plain_text(label)
             cb.Tag = g
             cb.IsChecked = g in self.state['checked_models']
             cb.ToolTip = u'Sheet list saved: %s' % (self.cache.get(g, {}).get('updated') or 'not yet')
@@ -260,6 +389,7 @@ class ExportWindow(forms.WPFWindow):
             return
         self.state['loaded'] = checked
         self._build_tree()
+        self._fill_setup_combos()
         self._update_status()
 
     # ------------------------------------------------------------ drawings --
@@ -343,7 +473,7 @@ class ExportWindow(forms.WPFWindow):
                         parent.Items.Add(fitem)
                     parent = folders[sub][0]
                 leaf = CheckBox()
-                leaf.Content = u'%s     %s     [%s]' % (e['number'], e['name'], e.get('rev') or '-')
+                leaf.Content = plain_text(u'%s     %s     [%s]' % (e['number'], e['name'], e.get('rev') or '-'))
                 leaf.Tag = key
                 leaf.Click += self._on_leaf_click
                 self._leaf.append((leaf, key))
@@ -498,9 +628,17 @@ class ExportWindow(forms.WPFWindow):
             self.Close()
 
     def on_export(self, sender, args):
-        if self._ready():
-            self.action = ('export', None)
-            self.Close()
+        if not self._ready():
+            return
+        names = sorted((self.cache.get(g) or {}).get('model', '?') for g in self.picked())
+        if not forms.alert(u'Export %d model(s)?\n\n%s\n\nBefore you continue:\n'
+                           u'- Close these models in any OTHER Revit window.\n'
+                           u'- Nothing in the models is changed, saved or synced. Workshared models open '
+                           u'detached and close without saving.' % (len(names), u'\n'.join(u'  \u2022 ' + n for n in names)),
+                           yes=True, no=True):
+            return
+        self.action = ('export', None)
+        self.Close()
 
     def on_close(self, sender, args):
         self._read_settings()
@@ -614,7 +752,7 @@ def report(title, started, lines, totals, do_export, missing, cad_msg, log_path)
 def run_queue(qd, job, settings, reg, cache, window_name):
     """Work on a shared export until no model is left. Any number of Revit windows can do this."""
     models = dict((m['ModelGUID'].lower(), m) for m in job['models'])
-    for k in ('naming_rule', 'pdf', 'dwg', 'per_model_folder', '_formats'):
+    for k in ('naming_rule', 'pdf', 'dwg', 'per_model_folder', '_formats', 'allow_non_workshared'):
         if k in job:
             settings[k] = job[k]
     log_path = core.usable_log_path(os.path.join(job['out_root'], 'SheetExport_log.csv'))
@@ -708,7 +846,8 @@ def main():
     job = {'out_root': out_root, 'do_export': do_export, 'run_cad': bool(run_cad), 'models': models,
            'picked': dict((g, sorted(v)) for g, v in picked.items()), 'lod_rows': None,
            'naming_rule': settings.get('naming_rule'), 'pdf': settings.get('pdf'), 'dwg': settings.get('dwg'),
-           'per_model_folder': settings.get('per_model_folder', True), '_formats': settings['_formats']}
+           'per_model_folder': settings.get('per_model_folder', True), '_formats': settings['_formats'],
+           'allow_non_workshared': bool(settings.get('allow_non_workshared', False))}
 
     if share:
         qd = core.queue_create(out_root, job, [m['ModelGUID'].lower() for m in models])

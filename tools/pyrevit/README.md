@@ -52,6 +52,15 @@ Settings are saved for next time. Before exporting, the tool warns you if two dr
 - Cancel in one window: models it hasn't started stay in the queue for the others
 - The queue lives in `<Output folder>\_queue\`
 
+## Safety: what the tool does to your models
+
+- **Workshared models** open **detached from central** (Revit's own "Detach and preserve worksets"): a temporary copy in memory, all worksets open
+- The tool **never saves and never syncs**. It only reads sheets and exports, then closes with "do not save"
+- It doesn't create a local file, take ownership of elements, or touch the central model, so your own session and your colleagues are unaffected
+- **Non-workshared cloud models** (for example a model saved after detaching) **can't be detached**, a Revit rule. Opening them means opening the real model, so they are **skipped by default**. Allow them in the **Run** tab only if nobody, including you in another Revit window, has them open
+- **A model already open in the same Revit window** is used as it is and left open (the report says so)
+- Before exporting, a confirmation lists the models and reminds you to close them in other Revit windows
+
 ### Opening models
 
 - **Workshared models open detached** (all worksets), so they never touch your own local copy or the central model

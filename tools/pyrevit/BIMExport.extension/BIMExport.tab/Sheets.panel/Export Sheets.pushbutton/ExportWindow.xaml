@@ -1,6 +1,6 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="BIM Export" Width="1280" Height="800" MinWidth="1060" MinHeight="620"
+        Title="BIM Export  ·  by Lew" Width="1280" Height="800" MinWidth="1060" MinHeight="620"
         WindowStartupLocation="CenterScreen" Background="#EEF1F5"
         FontFamily="Segoe UI" FontSize="12.5" ShowInTaskbar="True">
 
@@ -106,7 +106,7 @@
         <Border DockPanel.Dock="Top" Background="{StaticResource Accent}" Padding="22,14">
             <DockPanel>
                 <StackPanel>
-                    <TextBlock Text="BIM Export" FontSize="21" FontWeight="SemiBold" Foreground="White"/>
+                    <StackPanel Orientation="Horizontal"><TextBlock Text="BIM Export" FontSize="21" FontWeight="SemiBold" Foreground="White"/><TextBlock Text="  by Lew" FontSize="12" Foreground="#D3E2F4" VerticalAlignment="Bottom" Margin="0,0,0,3"/></StackPanel>
                     <TextBlock Text="Tick models and drawings, check the settings, then export PDF and CAD."
                                Foreground="#D3E2F4" Margin="0,2,0,0"/>
                 </StackPanel>
@@ -215,20 +215,49 @@
                         <TabItem Header="  PDF  ">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="10">
-                                    <TextBlock Text="Colours" Style="{StaticResource Label}"/>
-                                    <ComboBox x:Name="pdf_colors_cb"/>
-                                    <TextBlock Text="Raster quality" Style="{StaticResource Label}"/>
-                                    <ComboBox x:Name="pdf_raster_cb"/>
-                                    <CheckBox x:Name="pdf_always_raster_cb" Content="Always use raster processing" Margin="0,10,0,4"/>
-                                    <TextBlock Text="Hide" Style="{StaticResource Label}"/>
-                                    <CheckBox x:Name="pdf_hide_crop_cb" Content="Crop boundaries"/>
-                                    <CheckBox x:Name="pdf_hide_scope_cb" Content="Scope boxes"/>
-                                    <CheckBox x:Name="pdf_hide_ref_cb" Content="Reference planes"/>
-                                    <CheckBox x:Name="pdf_hide_tags_cb" Content="Unreferenced view tags"/>
-                                    <TextBlock Text="Or use a saved Revit PDF setup (optional)" Style="{StaticResource Label}"/>
-                                    <TextBox x:Name="pdf_setup_tb" ToolTip="Exact setup name. Every model must have it."/>
-                                    <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                               Text="Paper size follows each sheet. A setup name overrides the options above."/>
+                                    <TextBlock Text="Export setup" Style="{StaticResource Label}"/>
+                                    <ComboBox x:Name="pdf_setup_cb" SelectionChanged="on_pdf_setup"/>
+                                    <TextBlock x:Name="pdf_setup_info" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                                    <Button x:Name="pdf_naming_btn" Content="Use this setup's file naming" Style="{StaticResource Small}"
+                                            HorizontalAlignment="Left" Click="on_pdf_naming"/>
+
+                                    <TextBlock Text="Size" Style="{StaticResource Label}"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                        <TextBlock Text="Page size" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_paper_cb" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Orientation" Grid.Row="1" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_orient_cb" Grid.Row="1" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Placement" Grid.Row="2" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_place_cb" Grid.Row="2" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Zoom" Grid.Row="3" VerticalAlignment="Center"/>
+                                        <DockPanel Grid.Row="3" Grid.Column="1" Margin="0,2">
+                                            <TextBox x:Name="pdf_zoom_tb" Width="50" DockPanel.Dock="Right" Margin="6,0,0,0" ToolTip="% size when Zoom is chosen"/>
+                                            <ComboBox x:Name="pdf_zoom_cb"/>
+                                        </DockPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="Appearance" Style="{StaticResource Label}"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                        <TextBlock Text="Raster quality" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_raster_cb" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Colours" Grid.Row="1" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_colors_cb" Grid.Row="1" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Processing" Grid.Row="2" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_proc_cb" Grid.Row="2" Grid.Column="1" Margin="0,2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="Options" Style="{StaticResource Label}"/>
+                                    <CheckBox x:Name="pdf_links_blue_cb" Content="View links in blue (colour prints only)"/>
+                                    <CheckBox x:Name="pdf_hide_ref_cb" Content="Hide ref/work planes"/>
+                                    <CheckBox x:Name="pdf_hide_tags_cb" Content="Hide unreferenced view tags"/>
+                                    <CheckBox x:Name="pdf_mask_cb" Content="Region edges mask coincident lines"/>
+                                    <CheckBox x:Name="pdf_hide_scope_cb" Content="Hide scope boxes"/>
+                                    <CheckBox x:Name="pdf_hide_crop_cb" Content="Hide crop boundaries"/>
+                                    <CheckBox x:Name="pdf_halftone_cb" Content="Replace halftone with thin lines"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -236,16 +265,23 @@
                         <TabItem Header="  CAD  ">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="10">
-                                    <TextBlock Text="DWG version" Style="{StaticResource Label}"/>
-                                    <ComboBox x:Name="dwg_version_cb"/>
-                                    <TextBlock Text="Layer standard" Style="{StaticResource Label}"/>
-                                    <ComboBox x:Name="dwg_layers_cb"/>
+                                    <TextBlock Text="Export setup" Style="{StaticResource Label}"/>
+                                    <ComboBox x:Name="dwg_setup_cb" SelectionChanged="on_dwg_setup"/>
+                                    <TextBlock x:Name="dwg_setup_info" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                        <TextBlock Text="DWG version" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="dwg_version_cb" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Layers" Grid.Row="1" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="dwg_layers_cb" Grid.Row="1" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Colours" Grid.Row="2" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="dwg_colors_cb" Grid.Row="2" Grid.Column="1" Margin="0,2"/>
+                                    </Grid>
                                     <CheckBox x:Name="dwg_merged_cb" Content="One DWG per sheet (views not as xrefs)" Margin="0,10,0,4"/>
                                     <CheckBox x:Name="dwg_shared_cb" Content="Shared coordinates"/>
-                                    <TextBlock Text="Or use a saved Revit DWG setup (optional)" Style="{StaticResource Label}"/>
-                                    <TextBox x:Name="dwg_setup_tb" ToolTip="Exact setup name. Every model must have it."/>
-                                    <TextBlock Style="{StaticResource Hint}" Margin="0,6,0,0"
-                                               Text="A setup name overrides the options above."/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                               Text="With a setup chosen, each model uses its own copy of that setup. The values shown come from the first model that has it."/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>
@@ -261,9 +297,12 @@
                                     <CheckBox x:Name="share_cb" Content="Share with other Revit windows"/>
                                     <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
                                                Text="Open another Revit, click Export Sheets there and choose Join. Each window takes the next model."/>
-                                    <TextBlock Text="Models" Style="{StaticResource Label}"/>
+                                    <TextBlock Text="Safety" Style="{StaticResource Label}"/>
                                     <TextBlock Style="{StaticResource Hint}"
-                                               Text="Workshared models open detached (all worksets, links checked) and close without saving. Nothing is synced."/>
+                                               Text="Workshared models open DETACHED (a temporary copy, all worksets, links checked) and close without saving. Nothing is saved or synced."/>
+                                    <CheckBox x:Name="allow_nonws_cb" Content="Allow non-workshared models"/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
+                                               Text="They cannot be detached, so the real model is opened (still never saved). Only tick this if nobody, including you in another Revit window, has them open."/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>

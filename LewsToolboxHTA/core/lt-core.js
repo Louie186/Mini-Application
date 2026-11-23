@@ -755,8 +755,10 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.55";
+  L.VERSION = "2026.11.56";
   L.WHATS_NEW = [
+    { v: "2026.11.56", items: [
+      "Drawing Register: importing a generated drawing list checks every Tower / Typology / Model against the model list. What doesn't match opens in a window (why, and the fix): Use the model list, Keep the file's values, or Export them. Kept ones show \u26a0 NOT AS MODEL LIST until fixed"] },
     { v: "2026.11.55", items: [
       "Drawing Register: the model list is the main reference - a drawing with a model takes that model's Tower + Typology from the list (when you save, when the list changes or is imported, and when the project opens). A model with several typologies keeps the drawing's own if it's one of them; anything that doesn't match the list shows \u26a0 CONFLICT"] },
     { v: "2026.11.54", items: [

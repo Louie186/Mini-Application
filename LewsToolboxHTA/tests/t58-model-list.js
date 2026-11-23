@@ -79,4 +79,18 @@ module.exports = async ({ page, out }) => {
   // a drawing whose model's pair is something else (data from before) is lined up when the project opens
   await f.evaluate(() => { $('ovML').style.display = 'none'; P.drawings['9001-ABC-T1-ZZ-PLN-INT-10501'] = { num: '9001-ABC-T1-ZZ-PLN-INT-10501', title: 'OLD ONE', tower: 'T1', typo: '1BRB', model: '9001-ABC-ZZ-ZZ-BIM-INT-22000', ok: true, inMidp: true }; saveP(); loadAll(); });
   ok(await f.evaluate(() => { const d = P.drawings['9001-ABC-T1-ZZ-PLN-INT-10501']; return d.tower == 'T2' && d.typo == '2BRC'; }), 'opening the project: drawings with a model take its Tower + Typology from the list');
+  // a generated drawing list that doesn't match the model list: flagged on import
+  await f.evaluate(() => { const fs = window.top.__mockFs, p = 'C:\\Lists\\Generated.xlsx', rows = [['DRAWING NUMBER', 'DESCRIPTION', 'TOWER', 'TYPOLOGY', 'MODEL'],
+      ['9001-ABC-T1-ZZ-PLN-INT-10600', 'OK ONE', 'T1', '1BRA', '9001-ABC-ZZ-ZZ-BIM-INT-21000'], ['9001-ABC-T1-ZZ-PLN-INT-10601', 'WRONG PAIR', 'T1', '1BRA', '9001-ABC-ZZ-ZZ-BIM-INT-22000'],
+      ['9001-ABC-T1-ZZ-PLN-INT-10603', 'UNKNOWN MODEL', 'T1', '1BRA', '9001-ABC-ZZ-ZZ-BIM-INT-99999'], ['9001-ABC-T9-ZZ-PLN-INT-10604', 'UNKNOWN PAIR', 'T9', 'ZZZ', '']], cells = {};
+    rows.forEach((r, i) => r.forEach((v, j) => { if (v) cells[(i + 1) + ',' + (j + 1)] = { show: v }; })); fs.files[p.toLowerCase()] = { path: p, text: 'MOCKXL' + JSON.stringify([{ name: 'GENERATED LIST', visible: -1, cells }]), time: Date.now() };
+    imp = { kind: 'list', path: p, L: LT.readList(p, '') }; impCols(true); impDo(); });
+  await page.waitForTimeout(100);
+  const mis = await f.evaluate(() => [$('ovMis').style.display, $('misH').innerText, [...$('misT').querySelectorAll('tr')].slice(1).map(r => r.innerText.replace(/\s+/g, ' ')).join(' // '), $('misFix').innerText]);
+  ok(mis[0] == 'block' && /3 drawing\(s\) in Generated.xlsx don't match the model list/.test(mis[1]), 'import of a generated list: a window lists what does not match: ' + mis[1]);
+  ok(/10601 .*has 9001-ABC-ZZ-ZZ-BIM-INT-22000 as T2 · 2BRC, not T1 · 1BRA/.test(mis[2]) && /10603 .*isn't in the model list \(the list has 9001-ABC-ZZ-ZZ-BIM-INT-21000/.test(mis[2]) && /10604 .*T9 · ZZZ isn't in the model list.*by hand/.test(mis[2]) && !/10600/.test(mis[2]), 'each one says why (the matching row is not listed): ' + mis[2]);
+  ok(await f.evaluate(() => /NOT AS MODEL LIST/.test(document.querySelector('#tbl tr[data-k*="10601"]').innerText) && /3 not as the model list/.test($('sum').innerText)), 'flagged in the Note column and counted on top until fixed');
+  await page.screenshot({ path: out + '/mismatch.png' });
+  await f.click('#misFix'); await page.waitForTimeout(80);
+  ok(await f.evaluate(() => { const a = P.drawings['9001-ABC-T1-ZZ-PLN-INT-10601'], b = P.drawings['9001-ABC-T1-ZZ-PLN-INT-10603'], c = P.drawings['9001-ABC-T9-ZZ-PLN-INT-10604']; return a.tower == 'T2' && a.typo == '2BRC' && !a.misList && b.model == '9001-ABC-ZZ-ZZ-BIM-INT-21000' && !b.misList && c.misList && /1 not as the model list/.test($('sum').innerText); }), '"Use the model list": the 2 it can fix take the list values; the one to fix by hand stays flagged');
 };

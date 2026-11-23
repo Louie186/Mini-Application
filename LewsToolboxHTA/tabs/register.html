@@ -163,6 +163,12 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   <div id="mlWrap"></div>
   <div class="acts"><span class="sp"></span><button class="btn primary" id="mlClose">Done</button></div>
 </div></div>
+<div class="ov" id="ovMis"><div class="card" style="width:1000px;max-width:96vw">
+  <h3 id="misH"></h3>
+  <div class="muted small" style="margin-bottom:8px">The drawing list you imported says something different from your model list. <b>Use the model list</b> puts the list's Tower / Typology / Model on them; <b>Keep the file's values</b> leaves them as imported, flagged &#9888; NOT AS MODEL LIST in the Note column (double-click one to fix it).</div>
+  <div id="misT" style="max-height:52vh;overflow:auto"></div>
+  <div class="acts"><button class="btn" id="misCsv">Export these (CSV)</button><span class="sp"></span><button class="btn" id="misKeep">Keep the file's values</button><button class="btn primary" id="misFix"></button></div>
+</div></div>
 <div class="ov" id="ovImp"><div class="card" style="width:720px">
   <h3 id="impH"></h3>
   <div class="row2">
@@ -415,7 +421,7 @@ function wordsIn(text, q) { text = (" " + (text || "") + " ").toLowerCase(); var
 function cfText(c, k, d, s) {
   if (c == "num") return d.num; if (c == "rev") return d.rev; if (c == "title") return d.title + " " + (d.oldTitle || ""); if (c == "cat") return d.cat; if (c == "tower") return d.tower; if (c == "typo") return d.typo;
   if (c == "model") return modelOf(d); if (c == "st") return dStat(k, d).text;
-  if (c == "note") return (CONF0 && CONF0[k] ? "conflict " : "") + (s.isNew ? "new " : "") + (s.chg ? "title changed " : "") + (s.gone ? "removed " : "") + (!d.typo && !s.gone ? "set tower typology " : !d.ok && d.typo ? "guess " : "") + (d.link ? "link" : "");
+  if (c == "note") return (d.misList ? "not as model list mismatch " : "") + (CONF0 && CONF0[k] ? "conflict " : "") + (s.isNew ? "new " : "") + (s.chg ? "title changed " : "") + (s.gone ? "removed " : "") + (!d.typo && !s.gone ? "set tower typology " : !d.ok && d.typo ? "guess " : "") + (d.link ? "link" : "");
   return "";
 }
 function cfBox(c) { return '<input type="text" class="cfi" data-cf="' + c + '" value="' + esc(CF[c] || "") + '" placeholder="filter" title="Words to keep (all of them). -word = leave out. e.g. enlarged -kitchen">'; }
@@ -468,11 +474,14 @@ function render() {
     if (s.chg) note.push('<span class="tag warn" title="was: ' + esc(d.oldTitle || "") + '">TITLE CHANGED</span>');
     if (s.gone) note.push('<span class="tag bad">REMOVED</span>');
     if (d.link) note.push('<span class="lnk" data-lnk="' + esc(k) + '" title="' + esc(d.link) + '">&#128279; link</span>');
+    if (d.misList && !s.gone) note.push('<span class="tag bad" title="' + esc(d.misList) + ' - double-click to fix">&#9888; NOT AS MODEL LIST</span>');
     if (CONF[k]) note.push('<span class="tag bad" title="' + esc(CONF[k]) + ' - double-click to fix">&#9888; CONFLICT</span>');
     if (!d.typo && !s.gone) note.push('<span class="bad">set Tower / Typology</span>');
     else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
     h.push('<tr data-k="' + esc(k) + '"' + (tp ? "" : ' style="display:none"') + '><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td>" + (view == "status" ? stCell(k, d) : "") + "<td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') +  ' title="' + esc(d.tower) + '">' + (d.tower || s.gone ? esc(d.tower) : asBtn("tower")) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + (d.typo || s.gone ? esc(d.typo) : asBtn("typo")) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + (modelOf(d) && modelLink(modelOf(d)) ? '<span class="mlk" data-ml="' + esc(modelLink(modelOf(d))) + '">' + esc(modelOf(d)) + "</span>" : modelOf(d) || s.gone || d.typo == "-" ? esc(modelOf(d)) : asBtn("model")) + "</td><td>" + note.join(" ") + "</td></tr>"); }
   h.push("</table>");
+  var nMis = 0; for (var mk0 in D) if (D.hasOwnProperty(mk0) && D[mk0].misList) nMis++;
+  if (nMis) $("sum").innerHTML += ' &middot; <b class="bad" title="Type mismatch in the Note filter to see them">&#9888; ' + nMis + " not as the model list</b>";
   if (nConf) $("sum").innerHTML += ' &middot; <b class="bad" title="Type CONFLICT in the Note filter to see them">&#9888; ' + nConf + " conflict(s) in Tower / Typology / Model</b>";
   $("sum").innerHTML += '<span id="fltN"></span>'; fltN();
   if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
@@ -903,6 +912,29 @@ function listSync(only) {
     if (up(d.tower) != up(p.tower) || normT(d.typo || "") != normT(p.typo)) { d.tower = p.tower; d.typo = p.typo; d.ok = true; d.how = "list"; d.like = ""; n++; } }
   if (n) MM = null; return n;
 }
+/* a row of a drawing list (Tower, Typology, Model) against the model list: null = fine, else { text, fix: { tower, typo, model } or null } */
+function listCheck(t, y, m) {
+  if (!P.models.length || !y || y == "-") { if (m && P.models.length && y == "-") { var g = listPairs()[up(m)]; if (!g) return { text: "Model " + m + " isn't in the model list", fix: null }; } return null; }
+  var LP = listPairs(), own = null, i;
+  for (i = 0; i < P.models.length; i++) { var x = P.models[i]; if (x.model && up(x.tower) == up(t) && normT(x.typo) == normT(y)) { own = x; break; } }
+  if (m) { var ps = LP[up(m)];
+    if (!ps) return { text: "Model " + m + " isn't in the model list" + (own ? " (the list has " + own.model + " for " + t + " \u00b7 " + y + ")" : ""), fix: own ? { tower: t, typo: y, model: own.model } : null };
+    for (i = 0; i < ps.length; i++) if (up(ps[i].tower) == up(t) && normT(ps[i].typo) == normT(y)) return null;
+    var pt = []; for (i = 0; i < ps.length; i++) pt.push((ps[i].tower || "-") + " \u00b7 " + (ps[i].typo || "-"));
+    return { text: "The model list has " + m + " as " + pt.join(" / ") + ", not " + t + " \u00b7 " + y, fix: ps.length == 1 ? { tower: ps[0].tower, typo: ps[0].typo, model: m } : null }; }
+  if (!own) return { text: t + " \u00b7 " + y + " isn't in the model list", fix: null };
+  return null;
+}
+var MISS = [];
+function misShow(list, file) { MISS = list; var h = ['<table class="grid nofit nonum"><tr><th>Drawing</th><th>In the file</th><th>What the model list says</th><th>Fix</th></tr>'], nf = 0;
+  for (var i = 0; i < list.length; i++) { var x = list[i]; if (x.fix) nf++;
+    h.push('<tr><td class="no">' + esc(x.num) + "</td><td>" + esc((x.tower || "-") + " \u00b7 " + (x.typo || "-") + " \u00b7 " + (x.model || "(no model)")) + '</td><td class="bad small">' + esc(x.text) + "</td><td>" + (x.fix ? esc(x.fix.tower + " \u00b7 " + x.fix.typo + " \u00b7 " + x.fix.model) : '<span class="muted">by hand</span>') + "</td></tr>"); }
+  $("misH").innerHTML = "&#9888; " + list.length + " drawing(s) in " + esc(file) + " don't match the model list";
+  $("misT").innerHTML = h.join("") + "</table>"; $("misFix").innerHTML = "Use the model list (" + nf + ")"; $("misFix").disabled = !nf; $("ovMis").style.display = "block"; }
+function misFix() { var n = 0; for (var i = 0; i < MISS.length; i++) { var x = MISS[i], d = P.drawings[x.key]; if (!d || !x.fix) continue; d.tower = x.fix.tower; d.typo = x.fix.typo; d.model = x.fix.model; d.ok = true; d.how = "list"; d.misList = ""; n++; }
+  MM = null; saveP(); $("ovMis").style.display = "none"; fillFilters(); render(); LT.toast(n + " drawing(s) set from the model list"); }
+function misCsv() { var t = [["Drawing", "Tower (file)", "Typology (file)", "Model (file)", "Model list says", "Fix"]]; for (var i = 0; i < MISS.length; i++) { var x = MISS[i]; t.push([x.num, x.tower, x.typo, x.model, x.text, x.fix ? x.fix.tower + " / " + x.fix.typo + " / " + x.fix.model : ""]); }
+  var f = LT.exportsDir() + "\\Not matching the model list_" + LT.safeName(P.name) + "_" + LT.stamp() + ".csv"; LT.mkdirs(LT.exportsDir()); LT.writeCsv(f, t); try { LT.open(f); } catch (e) { } }
 /* drawings that don't line up with the rest: one Tower + Typology with two different models. { key: "why" } (one model on several typologies is fine) */
 function gridConflicts() {
   var D = P.drawings, mT = {}, tM = {}, k, d, m, tt, out = {};
@@ -1101,7 +1133,7 @@ function saveEdit(na) {
   if (na) { t = "-"; y = "-"; m = ""; } else if (!edCheck()) return;
   for (var i = 0; i < editKeys.length; i++) { var d = P.drawings[editKeys[i]];
     if (one) d.link = lk; else if (lk) d.link = lk;
-    if (t != KEEP) d.tower = t; if (y != KEEP) d.typo = y; if (m != KEEP) d.model = m;
+    if (t != KEEP) d.tower = t; if (y != KEEP) d.typo = y; if (m != KEEP) d.model = m; d.misList = "";
     if (!na && d.model && d.typo) { var nk = mlKey({ model: d.model, tower: d.tower, typo: d.typo }), have = false; for (var pm = 0; pm < P.models.length && !have; pm++) if (mlKey(P.models[pm]) == nk || (d.typo == "-" && up(P.models[pm].model) == up(d.model))) have = true;
       if (!have) P.models.push({ tower: d.tower, typo: d.typo, model: d.model, link: "", x: {}, added: true }); }
     if (d.typo) { d.ok = true; d.how = "you"; d.like = ""; } }
@@ -1213,12 +1245,14 @@ function impDo() {
     MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")";
     var nSync = listSync(); if (nSync) LT.toast(nSync + " drawing(s) updated from the model list");
     lookRelink(); var nl = 0; for (var q = 0; q < P.models.length; q++) if (P.models[q].link) nl++; LT.toast(P.models.length + " models imported" + (nl ? ", " + nl + " with a path / link" : "") + (kept.length ? " \u00b7 " + kept.length + " you added here kept" : "")); if ($("ovML").style.display == "block") mlWin(); }
-  else { var D = P.drawings, nN = 0, nU = 0, nL = 0;
+  else { var D = P.drawings, nN = 0, nU = 0, nL = 0, MIS = [];
     for (var j = 0; j < rs.length; j++) { var r = rs[j], d = D[r.key];
       if (!d) { d = D[r.key] = { num: r.num, title: r.title, cat: "", rev: "", tower: "", typo: "", model: "", how: "", ok: false, first: LT.today(), inMidp: P.last ? false : undefined }; nN++; } else nU++;
       if (!d.title) d.title = r.title;
       if (r.typo) { d.tower = r.tower; d.typo = r.typo; d.ok = true; d.how = "import"; d.like = ""; if (r.model) d.impModel = r.model; }
-      if (r.model && r.link) { setModelLink(r.model, r.link); nL++; } }
+      if (r.model && r.link) { setModelLink(r.model, r.link); nL++; }
+      var why = listCheck(r.tower, r.typo, r.model); d.misList = why ? why.text : ""; if (why) MIS.push({ key: r.key, num: r.num, tower: r.tower, typo: r.typo, model: r.model, text: why.text, fix: why.fix }); }
+    if (MIS.length) window.setTimeout(function () { misShow(MIS, fso.GetFileName(imp.path || "")); }, 0);
     var nG = guessAll(null); lookRelink(); LT.toast(nN + " drawings added, " + nU + " updated" + (nG ? ", " + nG + " guessed" : "") + (nL ? " \u00b7 " + nL + " with a model link (" + keys(P.modelLinks || {}).length + " models)" : "")); }
   saveP(); $("ovImp").style.display = "none"; fillFilters(); render();
 }
@@ -1286,6 +1320,7 @@ $("edGrip").onmousedown = function (e) { e = e || window.event; var c = $("edCar
   var upf = function () { if (document.removeEventListener) { document.removeEventListener("mousemove", mv, false); document.removeEventListener("mouseup", upf, false); } else { document.detachEvent("onmousemove", mv); document.detachEvent("onmouseup", upf); } if (last) edSizeSave(c.offsetWidth, c.offsetHeight); };
   if (document.addEventListener) { document.addEventListener("mousemove", mv, false); document.addEventListener("mouseup", upf, false); } else { document.attachEvent("onmousemove", mv); document.attachEvent("onmouseup", upf); }
   if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; };
+$("misFix").onclick = misFix; $("misKeep").onclick = function () { $("ovMis").style.display = "none"; render(); }; $("misCsv").onclick = misCsv;
 $("mlWQ").onkeyup = mlWin;
 $("mlClose").onclick = function () { $("ovML").style.display = "none"; render(); };
 $("mlAdd").onclick = function () { var R = mlRoles(), m = { tower: "", typo: "", model: "", link: "", x: {}, added: true }; P.models.push(m); $("mlWQ").value = ""; mlWin(); saveP();

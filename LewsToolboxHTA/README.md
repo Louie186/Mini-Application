@@ -280,6 +280,10 @@ One point per line; **Tab** = one level in, **Shift+Tab** = out (or paste a list
   - **Export to Excel** – the same sheet name and columns, **with your new rows in it** (Exports folder)
   - **Import the file again** later: the rows you added in the Toolbox (tagged ADDED) and the file doesn't have yet are kept. Rows that came from the file take the file's values again – export first if you changed them here
   - A new model typed in the edit window joins the list too
+  - **Importing a generated drawing list** (Setup › Import an existing drawing list) checks each row's Tower / Typology / Model against the model list. Anything different opens in a window – the drawing, what the file says, what the list says, and the fix:
+    - **Use the model list** – the ones it can fix take the list's values
+    - **Keep the file's values** – they stay as imported, flagged **⚠ NOT AS MODEL LIST** (count on top; type `mismatch` in the Note filter) until you fix them
+    - **Export these (CSV)** – to send back to whoever made the list
   - **The model list is the main reference:** a drawing with a model takes that model's **Tower + Typology from the list** – when you save it, when you change or import the list, and when the project opens (a toast says how many were lined up). A model with several typologies keeps the drawing's own pair if it's one of them; a pair that isn't in the list shows **⚠ CONFLICT**
 - **List lookup:** each drawing row has **✎ Edit** (or double-click) – the same window; the register and the lookup row both update
 - **⚠ CONFLICT** in the Note column (and a count on top) = a Tower + Typology that has two different models. Type `conflict` in the Note filter to list them, double-click to fix

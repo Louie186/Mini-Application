@@ -658,89 +658,253 @@ class ExportWindow(forms.WPFWindow):
         self.Close()
 
 
-def set_title(pb, t):
-    try:
-        pb.title = t
-    except Exception:
-        pass
+# ------------------------------------------------------- progress window --
+from System import Action
+from System.Windows import Visibility, GridUnitType
+from System.Windows.Controls import Grid, ColumnDefinition
+from System.Windows.Threading import Dispatcher, DispatcherPriority
+
+PXAML = os.path.join(os.path.dirname(__file__), 'ProgressWindow.xaml')
+OK_BRUSH = _BC.ConvertFromString('#1E8A4C')
+BAD_BRUSH = _BC.ConvertFromString('#C0392B')
+RUN_BRUSH = _BC.ConvertFromString('#1F5FA8')
+ICON = {'wait': (u'○', MUTED), 'run': (u'▶', RUN_BRUSH), 'ok': (u'✔', OK_BRUSH),
+        'bad': (u'✖', BAD_BRUSH), 'skip': (u'–', MUTED)}
 
 
-def export_models(next_rec, n_total, job, settings, reg, cache, log_path, pb_title):
-    """Export model after model, as long as next_rec() gives one. Returns (lines, totals, matched)."""
+def _cell(grid, col, text, brush=None, bold=False):
+    tb = TextBlock()
+    tb.Text = text
+    if brush is not None:
+        tb.Foreground = brush
+    if bold:
+        tb.FontWeight = FontWeights.SemiBold
+    tb.Margin = Thickness(0, 2, 6, 2)
+    Grid.SetColumn(tb, col)
+    grid.Children.Add(tb)
+    return tb
+
+
+def _row(widths):
+    g = Grid()
+    for w in widths:
+        cd = ColumnDefinition()
+        cd.Width = GridLength(w) if w else GridLength(1, GridUnitType.Star)
+        g.ColumnDefinitions.Add(cd)
+    return g
+
+
+class ProgressWindow(forms.WPFWindow):
+    """Fixed window: all models with their status, and the drawings of the current model."""
+
+    def __init__(self, models, picked, cache, formats, title):
+        forms.WPFWindow.__init__(self, PXAML)
+        self.cancelled = False
+        self.t0 = time.time()
+        self.files_ok = self.files_bad = 0
+        self.formats = formats                 # ['PDF', 'DWG']
+        self.picked, self.cache = picked, cache
+        self.title_tb.Text = title
+        self.overall_pb.Maximum = max(1, len(models))
+        self.rows = {}
+        for rec in models:
+            g = rec['ModelGUID'].lower()
+            entry = cache.get(g) or {}
+            n = len(picked.get(g, [])) if picked else len(entry.get('sheets', []))
+            r = _row([26, 0, 110, 150])
+            icon = _cell(r, 0, ICON['wait'][0], ICON['wait'][1], True)
+            _cell(r, 1, entry.get('model') or rec.get('Name') or core.register_label(rec))
+            _cell(r, 2, u'%d drawing(s)' % n, MUTED)
+            info = _cell(r, 3, u'waiting', MUTED)
+            self.models_sp.Children.Add(r)
+            self.rows[g] = (icon, info)
+        self.done_models = 0
+        self.models_count_tb.Text = u'0 of %d done' % len(models)
+        self.cells = {}
+        self.Show()
+        self.pump()
+
+    # keep the window alive while Revit is busy
+    def pump(self):
+        try:
+            self.status_tb.Text = u'Elapsed %s   ·   %d file(s) exported   ·   %d failed' % (
+                time.strftime('%H:%M:%S', time.gmtime(time.time() - self.t0)), self.files_ok, self.files_bad)
+            Dispatcher.CurrentDispatcher.Invoke(Action(lambda: None), DispatcherPriority.Background)
+        except Exception:
+            pass
+
+    def on_cancel(self, sender, args):
+        self.cancelled = True
+        self.cancel_btn.IsEnabled = False
+        self.cancel_btn.Content = u'Stopping after the current file...'
+
+    def _set(self, guid, state, text):
+        icon, info = self.rows.get(guid, (None, None))
+        if icon is not None:
+            icon.Text, icon.Foreground = ICON[state]
+            info.Text = text
+            info.Foreground = ICON[state][1] if state in ('ok', 'bad') else MUTED
+
+    def model_started(self, rec):
+        g = rec['ModelGUID'].lower()
+        entry = self.cache.get(g) or {}
+        name = entry.get('model') or rec.get('Name') or core.register_label(rec)
+        self._set(g, 'run', u'opening...')
+        self.current_tb.Text = u'Now:  ' + name
+        self.phase_tb.Text = u'Opening the model (download from ACC + links). Revit may look frozen for a while.'
+        self.sheets_sp.Children.Clear()
+        self.cells = {}
+        nums = sorted(self.picked.get(g, [])) if self.picked else [e['number'].lower() for e in entry.get('sheets', [])]
+        names = dict((e['number'].strip().lower(), e) for e in entry.get('sheets', []))
+        for k in nums:
+            e = names.get(k, {'number': k, 'name': ''})
+            r = _row([90, 0, 90, 90])
+            _cell(r, 0, e['number'])
+            _cell(r, 1, e['name'])
+            pdf = _cell(r, 2, u'○ waiting' if 'PDF' in self.formats else u'–', MUTED)
+            dwg = _cell(r, 3, u'○ waiting' if 'DWG' in self.formats else u'–', MUTED)
+            self.sheets_sp.Children.Add(r)
+            self.cells[k] = {'PDF': pdf, 'DWG': dwg}
+        self.sheet_pb.Maximum = max(1, len(nums) * len(self.formats))
+        self.sheet_pb.Value = 0
+        self.sheets_count_tb.Text = u'%d drawing(s)' % len(nums)
+        self.pump()
+
+    def phase(self, text):
+        self.phase_tb.Text = text
+        self.pump()
+
+    def file(self, fmt, num, status):
+        """status None = starting, 'OK' or 'FAILED' = finished. Returns False to stop (Cancel)."""
+        c = self.cells.get(num.strip().lower(), {}).get(fmt)
+        if c is not None:
+            if status is None:
+                c.Text, c.Foreground = u'▶ exporting', RUN_BRUSH
+                self.phase_tb.Text = u'Exporting %s  %s' % (fmt, num)
+            elif status == 'OK':
+                c.Text, c.Foreground = u'✔ done', OK_BRUSH
+            else:
+                c.Text, c.Foreground = u'✖ failed', BAD_BRUSH
+        if status is not None:
+            self.sheet_pb.Value = self.sheet_pb.Value + 1
+            if status == 'OK':
+                self.files_ok += 1
+            else:
+                self.files_bad += 1
+        self.pump()
+        return not self.cancelled
+
+    def model_done(self, guid, ok, text):
+        self._set(guid, 'ok' if ok else 'bad', text)
+        self.done_models += 1
+        self.overall_pb.Value = self.done_models
+        self.models_count_tb.Text = u'%d of %d done' % (self.done_models, len(self.rows))
+        self.pump()
+
+    def finish(self, headline, out_root, other_windows=False):
+        """Turn into a result window and wait until the user closes it."""
+        for g, (icon, info) in self.rows.items():
+            if info.Text == u'waiting':
+                self._set(g, 'skip', u'done in another window' if other_windows else u'not exported')
+        self.title_tb.Text = headline
+        self.current_tb.Text = u'Finished' if not self.cancelled else u'Stopped'
+        self.phase_tb.Text = u'Full details: SheetExport_log.csv in the output folder.'
+        self.cancel_btn.Visibility = Visibility.Collapsed
+        self.open_btn.Visibility = Visibility.Visible
+        self.close_btn.Visibility = Visibility.Visible
+        self._out = out_root
+        self.pump()
+        self.Hide()
+        self.ShowDialog()
+
+    def on_open(self, sender, args):
+        try:
+            os.startfile(self._out)
+        except Exception:
+            import System
+            System.Diagnostics.Process.Start('explorer.exe', self._out)
+
+    def on_close_done(self, sender, args):
+        self.Close()
+
+
+def export_models(next_rec, models, job, settings, reg, cache, log_path, title):
+    """Export model after model, as long as next_rec() gives one.
+    Returns (lines, totals, matched, progress window)."""
     do_export, out_root = job['do_export'], job['out_root']
     picked = dict((g, set(v)) for g, v in job['picked'].items()) if job.get('picked') is not None else None
     lod_rows = job.get('lod_rows')
+    fm = job.get('_formats') or settings.get('_formats') or {}
+    formats = [f for f in ('PDF', 'DWG') if core.yes(fm.get(f.lower()))]
     totals = {'ok': 0, 'failed': 0, 'would': 0}
     lines, matched_all = [], set()
     opened_before = set(KEPT.keys())
-    done = 0
+    pw = ProgressWindow(models, picked, cache, formats, title)
     with core.QuietRevit(uiapp):
-        with forms.ProgressBar(title=pb_title, cancellable=True) as pb:
-            while True:
-                if pb.cancelled:
-                    lines.append('Cancelled by user (models not started are left for other windows / next run).')
-                    break
-                rec = next_rec()
-                if rec is None:
-                    break
-                done += 1
-                label = core.register_label(rec)
-                guid = rec['ModelGUID'].lower()
-                log = []
-                t0 = time.time()
-                head = u'Model %d of %s  \u00b7  %s' % (done, n_total if n_total >= done else '?',
-                                                    rec.get('Name') or label)
-                set_title(pb, head + u'  \u00b7  opening (download + links)...')
-                pb.update_progress(0, 1)
+        while not pw.cancelled:
+            rec = next_rec()
+            if rec is None:
+                break
+            label = core.register_label(rec)
+            guid = rec['ModelGUID'].lower()
+            log = []
+            t0 = time.time()
+            pw.model_started(rec)
 
-                def progress(i, n, fmt, num, head=head):
-                    set_title(pb, u'%s  \u00b7  %s %d of %d  (%s)' % (head, fmt, i, n, num))
-                    pb.update_progress(i, n)
+            def progress(i, n, fmt, num, status=None):
+                return pw.file(fmt, num, status)
 
-                def work(doc):
-                    entry = core.read_sheet_list(doc, settings.get('naming_rule') or '{DrawingNumber}')
-                    cache[guid] = entry
-                    try:
-                        core.save_sheet_entry(guid, entry)
-                    except Exception:
-                        pass
-                    links = core.check_links(doc)
-                    set_title(pb, head + u'  \u00b7  reading sheets and links...')
-                    res = core.export_model(doc, lod_rows, out_root, settings, do_export, log,
-                                            picked=picked.get(guid) if picked is not None else None,
-                                            progress=progress)
-                    return res, links, core.model_name(doc)
-
+            def work(doc):
+                pw.phase(u'Reading drawings, export setups and links...')
+                entry = core.read_sheet_list(doc, settings.get('naming_rule') or '{DrawingNumber}')
+                cache[guid] = entry
                 try:
-                    res, note, err = run_on_model(rec, settings, reg, work)
-                except Exception as e:
-                    res, note, err = None, None, core.text(e)
-                if res is None:
-                    lines.append('FAILED %s: %s' % (label, err))
-                    log.append([core.now(), 'OPEN', label, '', '', '', '', '', 'FAILED', '', err])
-                else:
-                    (matched, counts, notes, raw_dir), links, mname = res
-                    matched_all |= matched
-                    for k in totals:
-                        totals[k] += counts[k]
-                    extra = ([note] if note else []) + links + notes
-                    for n in extra:
-                        log.append([core.now(), 'INFO', mname, '', '', '', '', '', 'NOTE', '', n])
-                    total = time.time() - t0
-                    osecs = OPEN_SECS.get(guid)
-                    lines.append('%s: %d drawing(s), %s  |  %s%s' % (
-                        mname, len(matched),
-                        ('%d file(s) exported, %d failed' % (counts['ok'], counts['failed'])) if do_export
-                        else ('%d file(s) would export' % counts['would']),
-                        ('open %.0fs + export %.0fs' % (osecs, max(0, total - osecs))
-                         if (osecs is not None and guid not in opened_before)
-                         else 'export %.0fs (model was already open)' % total),
-                        ('  [%s]' % '; '.join(extra)) if extra else ''))
-                core.append_csv(log_path, core.LOG_HEADER, log)
-                if job.get('_on_done'):
-                    job['_on_done'](guid)
+                    core.save_sheet_entry(guid, entry)
+                except Exception:
+                    pass
+                links = core.check_links(doc)
+                res = core.export_model(doc, lod_rows, out_root, settings, do_export, log,
+                                        picked=picked.get(guid) if picked is not None else None,
+                                        progress=progress)
+                pw.phase(u'Closing the model (not saved)...')
+                return res, links, core.model_name(doc)
+
+            try:
+                res, note, err = run_on_model(rec, settings, reg, work)
+            except Exception as e:
+                res, note, err = None, None, core.text(e)
+            if res is None:
+                lines.append('FAILED %s: %s' % (label, err))
+                log.append([core.now(), 'OPEN', label, '', '', '', '', '', 'FAILED', '', err])
+                pw.model_done(guid, False, u'not opened - see report')
+            else:
+                (matched, counts, notes, raw_dir), links, mname = res
+                matched_all |= matched
+                for k in totals:
+                    totals[k] += counts[k]
+                extra = ([note] if note else []) + links + notes
+                for n in extra:
+                    log.append([core.now(), 'INFO', mname, '', '', '', '', '', 'NOTE', '', n])
+                total = time.time() - t0
+                osecs = OPEN_SECS.get(guid)
+                timing = ('open %.0fs + export %.0fs' % (osecs, max(0, total - osecs))
+                          if (osecs is not None and guid not in opened_before)
+                          else 'export %.0fs (model was already open)' % total)
+                lines.append('%s: %d drawing(s), %s  |  %s%s' % (
+                    mname, len(matched),
+                    ('%d file(s) exported, %d failed' % (counts['ok'], counts['failed'])) if do_export
+                    else ('%d file(s) would export' % counts['would']),
+                    timing, ('  [%s]' % '; '.join(extra)) if extra else ''))
+                pw.model_done(guid, counts['failed'] == 0,
+                              u'%d file(s), %s' % (counts['ok'], time.strftime('%M:%S', time.gmtime(total)))
+                              if counts['failed'] == 0 else u'%d failed - see report' % counts['failed'])
+            core.append_csv(log_path, core.LOG_HEADER, log)
+            if job.get('_on_done'):
+                job['_on_done'](guid)
+        if pw.cancelled:
+            lines.append('Cancelled by user (models not started are left for other windows / next run).')
     core.save_register(reg)
-    return lines, totals, matched_all
+    return lines, totals, matched_all, pw
 
 
 def report(title, started, lines, totals, do_export, missing, cad_msg, log_path):
@@ -780,8 +944,8 @@ def run_queue(qd, job, settings, reg, cache, window_name):
 
     started = time.time()
     left = len([x for x in os.listdir(qd) if x.endswith('.todo')])
-    lines, totals, _ = export_models(next_rec, left, job, settings, reg, cache, log_path,
-                                     '%s: exporting (shared with other Revit windows)' % window_name)
+    lines, totals, _, pw = export_models(next_rec, job['models'], job, settings, reg, cache, log_path,
+                                         u'Exporting  \u00b7  %s (shared)' % window_name)
     for g in list(KEPT.keys()):                 # kept models another window took: close ours
         close_model(KEPT.pop(g)[0])
     cad_msg = ''
@@ -794,6 +958,9 @@ def run_queue(qd, job, settings, reg, cache, window_name):
         lines.append('Other Revit window(s) are still working. The last one to finish starts the logo step.')
     report('Sheet Export - %s (%d model(s) done here)' % (window_name, len(claimed)), started, lines,
            totals, job['do_export'], [], cad_msg, log_path)
+    pw.finish(u'Finished: %d file(s) exported, %d failed%s' % (
+        totals['ok'], totals['failed'], u'  \u00b7  logos started in AutoCAD' if cad_msg.startswith('AutoCAD started') else u''),
+        job['out_root'], other_windows=True)
 
 
 def main():
@@ -886,13 +1053,16 @@ def main():
 
     queue = list(models)
     queue.sort(key=lambda m: m['ModelGUID'].lower() not in KEPT)          # already-open models first
-    lines, totals, _ = export_models(lambda: queue.pop(0) if queue else None, len(queue), job, settings,
-                                     reg, cache, log_path, 'Exporting')
+    lines, totals, _, pw = export_models(lambda: queue.pop(0) if queue else None, list(queue), job, settings,
+                                         reg, cache, log_path, u'Exporting')
     cad_msg = ''
     if run_cad:
         jobs = core.find_raw_dwgs(out_root)
         cad_msg = core.start_img2ole(jobs, out_root, settings) if jobs else 'No DWG files to process.'
     report('Sheet Export - EXPORT', started, lines, totals, True, [], cad_msg, log_path)
+    pw.finish(u'Finished: %d file(s) exported, %d failed%s' % (
+        totals['ok'], totals['failed'], u'  \u00b7  logos started in AutoCAD' if cad_msg.startswith('AutoCAD started') else u''),
+        out_root)
 
 
 try:

@@ -937,6 +937,7 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
         dwg_opts = dwg_options(doc, settings, notes)
 
     matched = set()
+    stopped = False
     for job_i, (row, sheet) in enumerate(jobs):
         listed = row['_listed']
         matched.add(listed.lower())
@@ -973,9 +974,12 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
                 continue
             if progress:
                 try:
-                    progress(job_i + 1, len(jobs), fmt, sheet.SheetNumber)
+                    if progress(job_i + 1, len(jobs), fmt, sheet.SheetNumber, None) is False:
+                        stopped = True              # Cancel pressed: stop after the current file
                 except Exception:
                     pass
+            if stopped:
+                break
             t0 = time.time()
             status, extra = u'FAILED', u''
             try:
@@ -996,6 +1000,15 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
             counts['ok' if status == u'OK' else 'failed'] += 1
             log.append([now(), mode, model, listed, sheet.Name, rev, fmt, target, status,
                         u'%.1f' % (time.time() - t0), u'; '.join([n for n in note + [extra] if n])])
+            if progress:
+                try:
+                    if progress(job_i + 1, len(jobs), fmt, sheet.SheetNumber, status) is False:
+                        stopped = True
+                except Exception:
+                    pass
+        if stopped:
+            notes.append(u'Cancelled - remaining drawings of this model were not exported')
+            break
     return matched, counts, notes, raw_dir
 
 

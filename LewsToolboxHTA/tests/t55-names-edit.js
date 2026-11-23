@@ -22,14 +22,16 @@ module.exports = async ({ page, out }) => {
   await nm.click('[data-mr="0"]'); await page.waitForTimeout(80);
   ok(await nm.evaluate(() => document.querySelector('[data-r="0"]').value == 'C03' && document.querySelector('#res table') === window.__tbl), 'single: MIDP rev -> C03 in place (no redraw)');
   // type a revision by hand
-  await nm.fill('[data-r="0"]', 'c4'); await nm.evaluate(() => { const i = document.querySelector('[data-r="0"]'); i.dispatchEvent(new Event('change', { bubbles: true })); });
-  ok(await nm.evaluate(() => document.querySelector('[data-r="0"]').value == 'C04' && results[0].rev == 'C04'), 'single: typed "c4" becomes C04');
+  await nm.fill('[data-r="0"]', 't1'); await nm.evaluate(() => { const i = document.querySelector('[data-r="0"]'); i.dispatchEvent(new Event('change', { bubbles: true })); });
+  ok(await nm.evaluate(() => document.querySelector('[data-r="0"]').value == 'T1' && results[0].rev == 'T1'), 'single: typed "t1" stays T1 (only upper case, no extra 0)');
   // bulk: show everything, tick the 3 fine ones, set C02
   await nm.selectOption('#show', 'all'); await page.waitForTimeout(100);
   await nm.click('[data-t="1"]'); await nm.click('[data-t="3"]', { modifiers: ['Shift'] });
   ok(await nm.evaluate(() => $('nT').innerText == '4'), 'bulk: Shift+click ticks a range (4 ticked)');
-  await nm.fill('#bkRev', 'C2'); await nm.click('#bkSet');
-  ok(await nm.evaluate(() => [1, 2, 3].every(i => document.querySelector('[data-r="' + i + '"]').value == 'C02') && document.querySelector('[data-r="0"]').value == 'C02'), 'bulk: Set C2 -> C02 on every ticked file');
+  await nm.fill('#bkRev', 't2'); await nm.click('#bkSet');
+  ok(await nm.evaluate(() => document.querySelector('[data-r="1"]').value == 'T2'), 'bulk: Set "t2" stays T2 (no extra 0)');
+  await nm.fill('#bkRev', 'C02'); await nm.click('#bkSet');
+  ok(await nm.evaluate(() => [1, 2, 3].every(i => document.querySelector('[data-r="' + i + '"]').value == 'C02') && document.querySelector('[data-r="0"]').value == 'C02'), 'bulk: Set C02 on every ticked file (as typed)');
   await nm.click('#bkUp');
   ok(await nm.evaluate(() => [1, 2, 3].every(i => document.querySelector('[data-r="' + i + '"]').value == 'C03')), 'bulk: Revision +1 -> C03');
   await nm.click('#bkMidR');
@@ -41,6 +43,8 @@ module.exports = async ({ page, out }) => {
   ok(files.join('|') == ['C:\\Ren\\PRJ-KEO-T1-ZZ-DR-A-10100-C03.pdf', 'C:\\Ren\\PRJ-KEO-T1-ZZ-DR-A-10101-C02.pdf', 'C:\\Ren\\PRJ-KEO-T1-ZZ-DR-A-10102-C02.pdf', 'C:\\Ren\\PRJ-KEO-T1-ZZ-DR-A-10103-C02.pdf'].join('|'), 'renamed: ' + files.join(', '));
   await nm.click('#bUndo'); await page.waitForTimeout(150);
   ok((await F()).includes('C:\\Ren\\PRJ-XYZ-T1-ZZ-DR-A-10100-C01.pdf'), 'Undo puts the old names back');
+  // the automatic fix follows the rule's revision example: T1 -> one digit, P01 -> two
+  ok(await nm.evaluate(() => { const r = JSON.parse(JSON.stringify(rule())); r.parts[r.parts.length - 1].val = 'T1'; const a = LT.nameFix('prj_keo_t1_zz_dr_a_10100_t1', r); r.parts[r.parts.length - 1].val = 'P01'; const b = LT.nameFix('prj_keo_t1_zz_dr_a_10100_p1', r); return a == 'PRJ-KEO-T1-ZZ-DR-A-10100-T1' && b == 'PRJ-KEO-T1-ZZ-DR-A-10100-P01'; }), 'automatic fix: rule example T1 keeps T1, P01 makes P1 -> P01');
   // source = one of My sets: only its drawings count
   await nm.evaluate(() => { const P = LT.readJson(LT.registerFile('p1')); P.sets = [{ id: 's1', name: 'Batch 1', keys: ['PRJ-KEO-T1-ZZ-DR-A-10101'] }]; LT.saveJson(LT.registerFile('p1'), P); setMatch({ kind: 'set', id: 's1' }); });
   ok(await nm.evaluate(() => /My set: Batch 1/.test($('bMatch').innerText) && /1 drawing/.test($('matchInfo').innerText) && !results[0].mid && results[1].mid && results[1].mid.rev == 'C02' && /Use set revision/.test($('bkMidR').innerText)), 'My set as the source: only its drawings match; buttons say "set"');

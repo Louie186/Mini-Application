@@ -180,7 +180,8 @@ $("bMatch").onclick = function (e) { var R = reg(), ss = R ? R.sets() : [], cur 
     { label: "Nothing - the naming rule only", on: cur.kind == "none", fn: function () { setMatch({ kind: "none" }); } });
   LT.menu(rc.left, rc.bottom + 2, m); (e || window.event).cancelBubble = true; };
 function hasRev(r) { return r.parts.length && r.parts[r.parts.length - 1].kind == "rev"; }
-function padRev(v) { v = LT.trim(v || "").toUpperCase(); var m = /^([A-Z]{1,2})(\d)$/.exec(v); return m ? m[1] + "0" + m[2] : v; }
+/* a revision as you typed it - only made UPPER CASE (T1 stays T1, C02 stays C02) */
+function padRev(v) { return LT.trim(v || "").toUpperCase(); }
 function splitName(stem, r) {   // "base" + sep + "rev" as the rule sees it
   var b = stem.split(r.sep); if (hasRev(r) && b.length == r.parts.length) return { base: b.slice(0, -1).join(r.sep), rev: b[b.length - 1] };
   var t = LT.trSplit(stem); return { base: t.base, rev: t.rev };

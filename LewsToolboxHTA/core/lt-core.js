@@ -755,8 +755,10 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.52";
+  L.VERSION = "2026.11.53";
   L.WHATS_NEW = [
+    { v: "2026.11.53", items: [
+      "Folder Check > Names: the revision stays as you type it (T1 stays T1 - no more T01). The automatic fix follows your rule's revision example: T1 = one digit, P01 = two"] },
     { v: "2026.11.52", items: [
       "Drawing Register: Model list window (Models view, or Setup > Models) - your model list in its own columns, exactly as in your Excel (Sheet location, Scope, Classification, Model type, path...). Edit a cell, + Add row, Delete, Export to Excel in the same format with your new rows in it",
       "Importing the model list keeps every column and the sheet name; the path column is the link (not Sheet location); general models (Tower -) keep their description. Rows you added here stay when you import the file again",
@@ -942,7 +944,8 @@ var LT = (function () {
       if (p.kind == "any") { out.push(b == b.toLowerCase() ? b.toUpperCase() : b); continue; }   // t1 -> T1, but "Unit Model" stays
       b = b.toUpperCase();
       if (p.kind == "digits" && /^\d+$/.test(b) && b.length < +p.val) while (b.length < +p.val) b = "0" + b;
-      if (p.kind == "rev") { var m = /^([A-Z]{1,2})(\d{1,3})$/.exec(b); if (m && m[2].length == 1) b = m[1] + "0" + m[2]; }
+      if (p.kind == "rev") { var m = /^([A-Z]{1,2})(\d{1,3})$/.exec(b), ex = /^[A-Z]{1,2}(\d+)$/i.exec(L.trim(p.val || "").split(",")[0]), nd = ex ? ex[1].length : 2;   // as many digits as the rule's example (T1 -> 1, P01 -> 2; none given = 2)
+        if (m) { var dg = m[2]; while (dg.length < nd) dg = "0" + dg; b = m[1] + dg; } }
       out.push(b); }
     var fixed = out.join(r.sep);
     return fixed != stem && !L.nameCheck(fixed, r).length ? fixed : null;

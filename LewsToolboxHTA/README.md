@@ -265,11 +265,14 @@ One point per line; **Tab** = one level in, **Shift+Tab** = out (or paste a list
 ## Drawing Register
 
 - **Edit any drawing:** double-click it (or **+ set ▾** in an empty cell, or tick rows → **Set Tower / Typology...**). The window has **drop-downs**:
+  - **🧱 From the model list** (the tab it opens on): every model with its **Tower · Typology**, from your models table (Setup › Models) and the models already on drawings. Search it, **click one row = Model + Tower + Typology set together** (double-click = set and save). A model on two typologies is two rows. A row that clashes with the list is marked ⚠ and can't be picked
+  - **Tower · Typology · Model** tab – the drop-downs:
   - **Model first:** pick a model and its **Tower + Typology fill in**. A model with several typologies shows **"which one is this drawing?"** – pick it
   - Or **Tower** → **Typology** (that tower's typologies, with their model, first) → **Model** (the one that goes with them first, then all models with their Tower · Typology)
   - **New...** in any box lets you type a new value
   - A **second, different model for a Tower + Typology** that already has one is **flagged in red and Save is off**. One model on several typologies is fine (a note tells you when it gets one more)
   - Several drawings at once: each box starts on *(leave as it is)*
+- **List lookup:** each drawing row has **✎ Edit** (or double-click) – the same window; the register and the lookup row both update
 - **⚠ CONFLICT** in the Note column (and a count on top) = a Tower + Typology that has two different models. Type `conflict` in the Note filter to list them, double-click to fix
 - **Search and the column filters** hide / show rows as you type – the list doesn't redraw
 

@@ -755,8 +755,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.50";
+  L.VERSION = "2026.11.51";
   L.WHATS_NEW = [
+    { v: "2026.11.51", items: [
+      "Drawing Register edit window: a \"From the model list\" tab (opens first) - every model with its Tower \u00b7 Typology, searchable. One click sets all three; a model on two typologies shows as two rows; rows that clash with the list are marked \u26a0 and can't be picked",
+      "List lookup: an \u270e Edit button (or double-click) on each drawing - changes the register and the lookup row together"] },
     { v: "2026.11.50", items: [
       "Drawing Register edit window: pick the Model first - its Tower and Typology fill in by themselves. A model with several typologies asks which one",
       "One model may hold several typologies now; only a Tower + Typology with two different models is a conflict"] },

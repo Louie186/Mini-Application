@@ -35,14 +35,26 @@ module.exports = async ({ page, out }) => {
   ok(await r.evaluate(() => !$('edOk').disabled && /Model from the list: INT-21000/.test($('edHint').innerText)), 'back to the table model: fine');
   await r.click('#edOk'); await page.waitForTimeout(100);
   ok(/T1 \| 1BRA \| INT-21000/.test(await row('10101')), 'saved: T1 | 1BRA | INT-21000');
-  // model first on an empty drawing: one pair -> filled in
+  // the model list tab: double-click opens on it; one click sets all three
   await r.dblclick('#tbl tr[data-k*="10102"] td:nth-child(5)'); await page.waitForTimeout(80);
+  ok(await r.evaluate(() => $('edList').style.display == 'block' && $('edBoxes').style.display == 'none'), 'double-click: the window opens on "From the model list"');
+  const ml = await r.evaluate(() => [...document.querySelectorAll('#mlL .mlR')].map(x => x.innerText.replace(/\s+/g, ' ').trim()));
+  ok(ml.some(t => /^INT-21000 T1 · 1BRA/.test(t)) && ml.some(t => /^INT-21000 T2 · 9XX/.test(t)) && ml.some(t => /^INT-22000 T2 · 2BRC list/.test(t)), 'the list: every model with its Tower · Typology (a model on 2 typologies = 2 rows): ' + ml.join(' / '));
+  ok(await r.evaluate(() => { const x = [...document.querySelectorAll('#mlL .mlR')].find(e => /INT-29999/.test(e.innerText)); return x && /clash/.test(x.className); }), 'a model that clashes with the list (INT-29999 on T1 · 1BRA) is marked ⚠ and can\'t be picked');
+  await r.fill('#mlQ', '2brc'); await r.dispatchEvent('#mlQ', 'keyup');
+  ok((await r.evaluate(() => document.querySelectorAll('#mlL .mlR').length)) == 1, 'search the list');
+  await r.click('#mlL .mlR'); await page.waitForTimeout(50);
+  ok(await r.evaluate(() => $('edTowerS').value == 'T2' && $('edTypoS').value == '2BRC' && $('edModelS').value == 'INT-22000' && /Selected: INT-22000 · T2 · 2BRC/.test($('mlSel').innerText) && !$('edOk').disabled), 'one click: Model INT-22000 + Tower T2 + Typology 2BRC set together');
+  await page.screenshot({ path: out + '/reg_model_list.png' });
+  await r.click('#edCancel');
+  // model first on an empty drawing: one pair -> filled in
+  await r.dblclick('#tbl tr[data-k*="10102"] td:nth-child(5)'); await page.waitForTimeout(80); await r.click('.edTab[data-et="boxes"]');
   await r.selectOption('#edModelS', 'INT-21001');
   ok(await r.evaluate(() => $('edTowerS').value == 'T1' && $('edTypoS').value == '1BRB' && $('edPairBox').style.display == 'none' && !$('edOk').disabled), 'model first: INT-21001 -> Tower T1, Typology 1BRB filled in');
   await r.click('#edOk'); await page.waitForTimeout(100);
   ok(/T1 \| 1BRB \| INT-21001/.test(await row('10102')), 'saved: ' + await row('10102'));
   // a model with several typologies -> pick which
-  await r.dblclick('#tbl tr[data-k*="10103"] td:nth-child(5)'); await page.waitForTimeout(80);
+  await r.dblclick('#tbl tr[data-k*="10103"] td:nth-child(5)'); await page.waitForTimeout(80); await r.click('.edTab[data-et="boxes"]');
   await r.selectOption('#edModelS', 'INT-21000');
   const pairs = await opts('edPair');
   ok(await r.evaluate(() => $('edPairBox').style.display == 'block') && pairs.join() == 'Pick the Tower + Typology…,T1 · 1BRA,T2 · 9XX', 'INT-21000 has 2 typologies: "which one?" with T1 · 1BRA / T2 · 9XX');
@@ -51,13 +63,20 @@ module.exports = async ({ page, out }) => {
   ok(await r.evaluate(() => $('edTowerS').value == 'T2' && $('edTypoS').value == '9XX' && $('edPairBox').style.display == 'none'), 'picked T2 · 9XX: filled in');
   await r.click('#edOk'); await page.waitForTimeout(100);
   ok(/T2 \| 9XX \| INT-21000/.test(await row('10103')), 'saved: ' + await row('10103'));
-  await r.dblclick('#tbl tr[data-k*="10101"] td:nth-child(5)'); await page.waitForTimeout(80);
+  await r.dblclick('#tbl tr[data-k*="10101"] td:nth-child(5)'); await page.waitForTimeout(80); await r.click('.edTab[data-et="boxes"]');
   await r.click('#edCancel');
   // bulk with "leave as it is"
   await r.evaluate(() => { ticked = {}; Object.keys(P.drawings).forEach(k => { if (/1010[01]/.test(k)) ticked[k] = 1; }); render(); });
   await r.click('#tickBar button'); await page.waitForTimeout(80);
   ok(await r.evaluate(() => $('edTowerS').value == '\u0001keep' && $('edTypoS').value == '\u0001keep' && $('edModelS').value == '\u0001keep'), 'several drawings: every box starts on "(leave as it is)"');
   await r.click('#edCancel');
+  // List lookup: edit a drawing from there
+  await r.evaluate(() => { const t = '5013-KEO-T1-ZZ-PLN-INT-10101\n5013-KEO-XX-ZZ-PLN-INT-10102'; P.lookup = { text: t, at: LT.today(), rows: lookRun(lookParse(t)) }; view = 'look'; render(); });
+  ok(await r.evaluate(() => document.querySelectorAll('#lkT [data-lke]').length == 2), 'List lookup: an Edit button on each drawing row');
+  await r.click('#lkT [data-lke*="10102"]'); await page.waitForTimeout(80);
+  await r.fill('#mlQ', 'INT-22000'); await r.dispatchEvent('#mlQ', 'keyup'); await r.click('#mlL .mlR'); await r.click('#edOk'); await page.waitForTimeout(100);
+  ok(await r.evaluate(() => { const row = P.lookup.rows.find(x => /10102/.test(x.num)), d = Object.values(P.drawings).find(x => /10102/.test(x.num)); return row.model == 'INT-22000' && row.tower == 'T2' && row.typo == '2BRC' && d.model == 'INT-22000' && view == 'look' && /INT-22000/.test($('lkT').innerText); }), 'edited from the lookup: the register and the lookup row both show T2 · 2BRC · INT-22000');
+  await r.evaluate(() => { view = 'midp'; render(); });
   // search: no redraw while typing
   await r.evaluate(() => { window.__t = $('tbl'); });
   await r.type('#search', 'detail', { delay: 20 }); await page.waitForTimeout(100);

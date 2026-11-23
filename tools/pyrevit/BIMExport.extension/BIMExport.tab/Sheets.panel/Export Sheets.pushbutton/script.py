@@ -114,7 +114,7 @@ def scan_models(models, settings, reg, cache, keep):
 
 
 # ------------------------------------------------------------------ window --
-from System.Windows import Thickness, FontWeights, VerticalAlignment
+from System.Windows import Thickness, FontWeights, VerticalAlignment, GridLength
 from System.Windows.Controls import (CheckBox, TreeViewItem, StackPanel, TextBlock, ComboBox,
                                      Orientation)
 from System.Windows.Media import BrushConverter
@@ -289,6 +289,13 @@ class ExportWindow(forms.WPFWindow):
         self.allow_nonws_cb.IsChecked = bool(s.get('allow_non_workshared', False))
         self.model_search.Text = self.state.get('model_filter', '')
         self.sheet_search.Text = self.state.get('sheet_filter', '')
+        try:                                                  # panel widths you dragged last time
+            if s.get('col_models'):
+                self.col_models.Width = GridLength(float(s['col_models']))
+            if s.get('col_settings'):
+                self.col_settings.Width = GridLength(float(s['col_settings']))
+        except Exception:
+            pass
         self._fill_setup_combos()
 
     def _read_settings(self):
@@ -326,6 +333,11 @@ class ExportWindow(forms.WPFWindow):
         s['embed'] = bool(self.embed_cb.IsChecked)
         s['share'] = bool(self.share_cb.IsChecked)
         s['allow_non_workshared'] = bool(self.allow_nonws_cb.IsChecked)
+        try:
+            s['col_models'] = round(self.col_models.ActualWidth)
+            s['col_settings'] = round(self.col_settings.ActualWidth)
+        except Exception:
+            pass
         s.pop('pdf_setup', None)
         s.pop('dwg_setup', None)
         self.state['model_filter'] = self.model_search.Text

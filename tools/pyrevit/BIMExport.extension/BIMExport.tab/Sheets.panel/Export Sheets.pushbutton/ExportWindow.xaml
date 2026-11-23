@@ -133,10 +133,20 @@
         <!-- body -->
         <Grid Margin="10">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="300"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="360"/>
+                <ColumnDefinition x:Name="col_models" Width="300" MinWidth="200"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*" MinWidth="320"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition x:Name="col_settings" Width="360" MinWidth="280"/>
             </Grid.ColumnDefinitions>
+
+            <!-- drag these to resize the panels -->
+            <GridSplitter Grid.Column="1" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          Background="Transparent" Cursor="SizeWE" ResizeBehavior="PreviousAndNext"
+                          ToolTip="Drag to resize"/>
+            <GridSplitter Grid.Column="3" Width="8" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                          Background="Transparent" Cursor="SizeWE" ResizeBehavior="PreviousAndNext"
+                          ToolTip="Drag to resize"/>
 
             <!-- 1 models -->
             <Border Grid.Column="0" Style="{StaticResource Card}">
@@ -158,7 +168,7 @@
             </Border>
 
             <!-- 2 drawings -->
-            <Border Grid.Column="1" Style="{StaticResource Card}">
+            <Border Grid.Column="2" Style="{StaticResource Card}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
                         <TextBlock Text="2   Drawings" Style="{StaticResource StepTitle}"/>
@@ -181,7 +191,7 @@
             </Border>
 
             <!-- 3 settings -->
-            <Border Grid.Column="2" Style="{StaticResource Card}">
+            <Border Grid.Column="4" Style="{StaticResource Card}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top">
                         <TextBlock Text="3   Settings" Style="{StaticResource StepTitle}"/>

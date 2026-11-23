@@ -32,7 +32,8 @@ module.exports = async ({ page, out }) => {
   ok(await d.evaluate(() => !findTask('T006').hideNums && /T006\.1/.test($('main').innerText)), '... and show them again');
 
   // like My sets: a click only highlights - the list is not drawn again, nothing moves
-  await d.evaluate(() => { SEL = {}; render(); document.querySelector('#main table').__mark = 1; $('main').scrollTop = 30; window.__top = $('main').scrollTop; window.__barH = $('selBar').offsetHeight; });
+  await d.evaluate(() => { SEL = {}; render(); }); await page.waitForTimeout(150);   // let the list settle (render puts the scroll back a moment later)
+  await d.evaluate(() => { document.querySelector('#main table').__mark = 1; $('main').scrollTop = 30; window.__top = $('main').scrollTop; window.__barH = $('selBar').offsetHeight; });
   await d.evaluate(() => { var c = document.querySelectorAll('#main td.it')[1], e = document.createEvent('MouseEvents'); e.initMouseEvent('click', true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null); c.dispatchEvent(e); }); await page.waitForTimeout(100);   // a click without the test tool scrolling first
   ok(await d.evaluate(() => document.querySelector('#main table').__mark === 1 && $('main').scrollTop == window.__top && $('selBar').offsetHeight == window.__barH), 'click a row: the list is not drawn again, it does not move');
   ok(await d.evaluate(() => document.querySelectorAll('#main tr.sel').length == 1 && /1 selected/.test($('sbN').innerText) && document.querySelector('#main tr.sel input').checked), '... the row is highlighted (its tick box follows), the bar counts 1');

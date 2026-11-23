@@ -264,6 +264,11 @@ One point per line; **Tab** = one level in, **Shift+Tab** = out (or paste a list
 
 ## Drawing Register
 
+- **Empty Tower / Typology / Model:** click **+ set ▾** in the cell → a short list from your models table (the ones for that row's tower first). Search it, or type a new value and press Enter
+  - Picking a **Model** also fills its Tower and Typology; picking a **Typology** brings its model from the table
+  - **Tick rows first** to set them all at once
+- **Search and the column filters** hide / show rows as you type – the list doesn't redraw
+
 One list of every drawing in a project, kept up to date from the MIDP. One register per project (**Project ▾**: new, rename, remove).
 
 **First time for a project (about 2 minutes)**

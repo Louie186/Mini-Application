@@ -755,8 +755,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.47";
+  L.VERSION = "2026.11.48";
   L.WHATS_NEW = [
+    { v: "2026.11.48", items: [
+      "Drawing Register: an empty Tower, Typology or Model cell has \"+ set\" - pick from the models table (the ones for that tower first), or type a new one. A model brings its Tower and Typology; a Typology brings its model. Tick rows first to set them all at once",
+      "Drawing Register: typing in Search or a column filter no longer redraws the list - rows just hide / show"] },
     { v: "2026.11.47", items: [
       "Folder Check > Groups: what a folder holds, grouped Tower \u203a Typology \u203a Model (from the MIDP) with counts. Click the arrow to open a group and see its drawings (revisions, file types). Group by Model or Tower too; Open all / Close all; search"] },
     { v: "2026.11.46", items: [

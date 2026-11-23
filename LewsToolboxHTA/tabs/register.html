@@ -21,6 +21,13 @@
 #app{display:flex;flex-direction:column;height:100%}
 .step{flex:none;padding:10px 14px 4px}
 #res{flex:1 1 auto;overflow:auto;min-height:0}
+.asg{display:inline-block;padding:0 7px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap}
+#asPk{display:none;position:fixed;z-index:50;width:330px;padding:8px}
+#asH{font-size:12px;margin-bottom:6px}
+#asQ{width:100%;height:26px;margin-bottom:6px}
+#asL{max-height:300px;overflow:auto}
+.asI{padding:5px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asSep{padding:4px 8px 2px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
 .lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
 .big{font-weight:bold}
 .right{float:right}
@@ -95,6 +102,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
 </div></div>
 
 <!-- edit one or many drawings -->
+<div id="asPk"><div id="asH" class="big"></div><input type="text" id="asQ" placeholder="Search the list (or type a new one)"><div id="asL"></div></div>
 <div class="ov" id="ovEdit"><div class="card">
   <h3 id="edH"></h3>
   <div id="edInfo" class="muted small" style="margin-bottom:10px"></div>
@@ -364,12 +372,16 @@ function pickHide() { $("pick").style.display = "none"; pickKey = ""; }
 var LF = null;
 function lfLabel() { var b = $("fSaved"); if (b) b.innerHTML = LF ? "&#9733; " + esc(LF.name) + " &#9662;" : "&#9734; Saved filters &#9662;"; if (b) b.className = "btn small" + (LF ? " on" : ""); }
 function lfSet(name, keyList) { var o = {}; for (var i = 0; i < keyList.length; i++) o[keyList[i]] = 1; LF = keyList.length ? { name: name, keys: o } : null; lfLabel(); fillFilters(); render(); if (LF) LT.toast(name + ": " + keyList.length + " drawing(s)"); }
-function pass(k, d, s) {
+function pass(k, d, s, noText) {
   if (LF && !LF.keys[k] && view != "sets") return false;
   if ((view == "midp" || view == "status" || view == "sets") && s.gone) return false;
   if (view == "status" && stF && dStat(k, d).st != stF) return false; if (view == "changes" && !P.changes[k]) return false; if (view == "check" && !s.check) return false; if (view == "gone" && !s.gone) return false;
-  var q = LT.trim($("search").value).toLowerCase();
   for (var f in F) if (F.hasOwnProperty(f) && keys(F[f]).length && !F[f][d[f] || "(empty)"]) return false;
+  return noText ? true : textPass(k, d, s);
+}
+/* the typed filters (Search + the boxes under the headings): checked on rows already drawn, so typing doesn't redraw the list */
+function textPass(k, d, s) {
+  var q = LT.trim($("search").value).toLowerCase();
   if (q) { var all = (d.num + " " + d.title + " " + (d.cat || "")).toLowerCase(), ws = q.split(/\s+/); for (var w = 0; w < ws.length; w++) if (ws[w] && all.indexOf(ws[w]) < 0) return false; }
   for (var cf in CF) if (CF.hasOwnProperty(cf) && LT.trim(CF[cf]) && !wordsIn(cfText(cf, k, d, s), CF[cf])) return false;
   return true;
@@ -424,8 +436,12 @@ function render() {
   if (view == "status") $("sum").innerHTML = statusSummary();
   for (var c = 0; c < CL.length; c++) { var cc = CL[c]; tot += W[cc[0]]; cg += '<col data-c="' + cc[0] + '" style="width:' + W[cc[0]] + 'px">'; th += "<th>" + cc[1] + '<span class="rz" data-rz="' + cc[0] + '" title="Drag to change the width (double-click = back to normal)"></span>' + cfBox(cc[0]) + "</th>"; }
   var h = ['<table class="grid" id="tbl" style="width:' + tot + 'px">' + cg + '</colgroup><tr><th class="tk"><input type="checkbox" id="tkAll" style="height:auto" title="Tick all shown"></th><th>Drawing' + cfBox("num") + "</th>" + th + "</tr>"];
-  shown = []; var max = 2000;
-  for (var i = 0; i < ks.length; i++) { var k = ks[i], d = D[k], s = stat(k, d); if (!pass(k, d, s)) continue; shown.push(k); if (shown.length > max) continue;
+  shown = []; var max = 2000, base = 0;
+  for (var b = 0; b < ks.length; b++) if (pass(ks[b], D[ks[b]], stat(ks[b], D[ks[b]]), true)) base++;
+  RFULL = base <= max;   // every row the other filters allow is drawn: typing only hides / shows them
+  for (var i = 0; i < ks.length; i++) { var k = ks[i], d = D[k], s = stat(k, d), tp;
+    if (RFULL) { if (!pass(k, d, s, true)) continue; tp = textPass(k, d, s); if (tp) shown.push(k); }
+    else { if (!pass(k, d, s)) continue; tp = true; shown.push(k); if (shown.length > max) continue; }
     var gcls = d.ok ? "" : ' class="warn g"', note = [];
     if (s.isNew) note.push('<span class="tag ok">' + (P.changes[k] == "back" ? "BACK" : "NEW") + "</span>");
     if (s.chg) note.push('<span class="tag warn" title="was: ' + esc(d.oldTitle || "") + '">TITLE CHANGED</span>');
@@ -433,13 +449,13 @@ function render() {
     if (d.link) note.push('<span class="lnk" data-lnk="' + esc(k) + '" title="' + esc(d.link) + '">&#128279; link</span>');
     if (!d.typo && !s.gone) note.push('<span class="bad">set Tower / Typology</span>');
     else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
-    h.push('<tr data-k="' + esc(k) + '"><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td>" + (view == "status" ? stCell(k, d) : "") + "<td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.tower) + '">' + esc(d.tower) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + esc(d.typo) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + (modelOf(d) && modelLink(modelOf(d)) ? '<span class="mlk" data-ml="' + esc(modelLink(modelOf(d))) + '">' + esc(modelOf(d)) + "</span>" : esc(modelOf(d))) + "</td><td>" + note.join(" ") + "</td></tr>"); }
+    h.push('<tr data-k="' + esc(k) + '"' + (tp ? "" : ' style="display:none"') + '><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td>" + (view == "status" ? stCell(k, d) : "") + "<td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') +  ' title="' + esc(d.tower) + '">' + (d.tower || s.gone ? esc(d.tower) : asBtn("tower")) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + (d.typo || s.gone ? esc(d.typo) : asBtn("typo")) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + (modelOf(d) && modelLink(modelOf(d)) ? '<span class="mlk" data-ml="' + esc(modelLink(modelOf(d))) + '">' + esc(modelOf(d)) + "</span>" : modelOf(d) || s.gone || d.typo == "-" ? esc(modelOf(d)) : asBtn("model")) + "</td><td>" + note.join(" ") + "</td></tr>"); }
   h.push("</table>");
-  if (cfOn() || LT.trim($("search").value) || keys(F.cat).length || keys(F.tower).length || keys(F.typo).length) $("sum").innerHTML += ' &middot; <b class="ok">filtered: ' + shown.length + " shown</b>";
+  $("sum").innerHTML += '<span id="fltN"></span>'; fltN();
   if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
-  $("res").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
+  $("res").innerHTML = (RFULL ? base : shown.length) ? h.join("") + '<div class="muted" id="noRows" style="padding:24px;display:' + (shown.length ? "none" : "block") + '">Nothing matches.</div>' : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
   if ($("tkAll")) { var all = shown.length > 0; for (var ta = 0; ta < shown.length && all; ta++) if (!ticked[shown[ta]]) all = false; $("tkAll").checked = all; }
-  tickBar();
+  tickBar(); if (RFULL && (LT.trim($("search").value) || cfOn())) window.setTimeout(applyText, 0);
 }
 /* ---------- List lookup: paste / load a list of drawing numbers (descriptions optional) -> Tower, Typology, Model (clickable) ----------
    From the register when it knows the drawing; otherwise a guess from the description (same as for a new MIDP drawing). P.lookup = { text, at, rows } */
@@ -613,6 +629,7 @@ function modelGroups() {
   a.sort(function (p, q) { return !p.model ? 1 : !q.model ? -1 : up(p.model) < up(q.model) ? -1 : 1; }); return a;
 }
 function modelCount() { var c = {}, n = 0; for (var k in P.drawings) if (P.drawings.hasOwnProperty(k) && P.drawings[k].inMidp !== false) { var m = modelOf(P.drawings[k]); if (m && !c[m]) { c[m] = 1; n++; } } return n; }
+var mqT = null;
 function modelsView() {
   $("tickBar").style.display = "none";
   var G = modelGroups(), q = up(mQ), h = [], shownN = 0, noModel = 0;
@@ -636,7 +653,7 @@ function modelsView() {
   tlDraw();
   var tlSave = function () { P.tlook = { text: $("tlIn").value, tower: $("tlTw").value, list: tlList() }; saveP(); tlDraw(); };
   $("tlIn").onkeyup = tlSave; $("tlTw").onchange = tlSave; $("tlCopy").onclick = tlCopy; $("tlClr").onclick = function () { $("tlIn").value = ""; tlSave(); $("tlIn").focus(); };
-  $("mQ").onkeyup = function () { mQ = this.value; var at = this.selectionStart; modelsView(); var e = $("mQ"); e.focus(); try { e.setSelectionRange(at, at); } catch (x2) { } };
+  $("mQ").onkeyup = function () { if (this.value === mQ) return; mQ = this.value; if (mqT) window.clearTimeout(mqT); mqT = window.setTimeout(function () { var e0 = $("mQ"), at = e0 ? e0.selectionStart : 0; modelsView(); var e = $("mQ"); if (e) { e.focus(); try { e.setSelectionRange(at, at); } catch (x2) { } } }, 350); };
   $("res").onclick = function (e) { var t = e.target || e.srcElement, o = LT.up(t, "data-mo"), st = LT.up(t, "data-mset"), G2 = modelGroups();
     if (o) { var m = G2[+o.getAttribute("data-mo")].model; mOpen[m] = !mOpen[m]; modelsView(); return; }
     if (st) { var g2 = G2[+st.getAttribute("data-mset")]; P.sets = P.sets || []; P.sets.push({ id: LT.uid("s"), name: g2.model, keys: g2.keys.slice(0), made: LT.today() }); saveP(); LT.toast('Set "' + g2.model + '" made (' + g2.keys.length + " drawings) - in My sets"); render(); } };
@@ -848,6 +865,60 @@ function setStat(ks, st) { for (var i = 0; i < ks.length; i++) { var d = P.drawi
 function statMenu(ks, x, y) { var m = [{ label: '<span class="muted">' + ks.length + " drawing(s)</span>", fn: function () { } }];
   for (var i = 0; i < 3; i++) (function (s) { m.push({ label: s, fn: function () { setStat(ks, s); } }); })(ST_LIST[i]);
   m.push({ label: '<span class="muted">Issued = when it goes out on a transmittal</span>', fn: function () { } }); LT.menu(x, y, m); }
+/* ---------- empty Tower / Typology / Model: "+ set" opens a short list from what the project already has (the models table) ----------
+   ticked rows: the choice goes to every ticked row (when this row is one of them) */
+function asBtn(f) { return '<span class="asg" data-as="' + f + '" title="Pick from the list you have">+ set &#9662;</span>'; }
+var AS = null;
+function asItems(k, f) {
+  var d = P.drawings[k], o = [], seen = {}, tw = up(d.tower), ty = normT(d.typo || ""), i, m;
+  if (f == "tower") { var ts = towers(); for (i = 0; i < ts.length; i++) o.push({ v: ts[i], label: ts[i], hint: "" }); return o; }
+  if (f == "typo") { for (i = 0; i < P.models.length; i++) { m = P.models[i]; if (!m.typo || m.typo.charAt(0) == "*") continue; var key = up(m.tower) + "|" + m.typo; if (seen[key]) continue; seen[key] = 1;
+      o.push({ v: m.typo, tower: m.tower, label: m.typo, hint: (m.tower || "") + (m.model ? " &middot; " + esc(m.model) : ""), top: tw && up(m.tower) == tw }); } }
+  else { for (i = 0; i < P.models.length; i++) { m = P.models[i]; if (!m.model || seen[up(m.model)]) continue; seen[up(m.model)] = 1;
+      o.push({ v: m.model, tower: m.tower, typo: m.typo, label: m.model, hint: esc(m.tower || "") + (m.typo ? " &middot; " + esc(m.typo) : ""), top: (tw && up(m.tower) == tw) && (!ty || normT(m.typo) == ty) }); } }
+  o.sort(function (a, b) { if (!!a.top != !!b.top) return a.top ? -1 : 1; return a.label < b.label ? -1 : a.label > b.label ? 1 : 0; });
+  return o;
+}
+function asOpen(k, f, el) {
+  var r = el.getBoundingClientRect(), n = ticked[k] ? keys(ticked).length : 1, box = $("asPk");
+  AS = { k: k, f: f, items: asItems(k, f), keys: ticked[k] ? keys(ticked) : [k] };
+  $("asH").innerHTML = "Set the " + { tower: "Tower", typo: "Typology", model: "Model" }[f] + (n > 1 ? " of the " + n + " ticked rows" : " of " + esc(P.drawings[k].num));
+  $("asQ").value = ""; asList(); box.style.display = "block";
+  var x = Math.min(r.left, document.documentElement.clientWidth - box.offsetWidth - 8), y = r.bottom + 2; if (y + box.offsetHeight > document.documentElement.clientHeight - 8) y = Math.max(8, r.top - box.offsetHeight - 2);
+  box.style.left = Math.max(8, x) + "px"; box.style.top = y + "px"; try { $("asQ").focus(); } catch (e) { }
+}
+function asList() { var q = up($("asQ").value), h = [], n = 0, it = AS.items, sep = false;
+  for (var i = 0; i < it.length; i++) { if (q && (up(it[i].label) + " " + up(it[i].hint)).indexOf(q) < 0) continue; if (!it[i].top && n && !sep && it[0].top && !q) { h.push('<div class="asSep">others</div>'); sep = true; } n++;
+    h.push('<div class="asI' + (it[i].top ? " top" : "") + '" data-ai="' + i + '"><b>' + esc(it[i].label) + '</b> <span class="muted">' + it[i].hint + "</span></div>"); }
+  if (AS.f != "model" || !it.length) h.push('<div class="asI typed" data-ai="-1">' + (q ? 'Use &ldquo;<b>' + esc(LT.trim($("asQ").value)) + '</b>&rdquo;' : '<span class="muted">Type a new one, or pick above</span>') + "</div>");
+  else if (q && !n) h.push('<div class="asI typed" data-ai="-1">Use &ldquo;<b>' + esc(LT.trim($("asQ").value)) + "</b>&rdquo;</div>");
+  $("asL").innerHTML = h.join("") || '<div class="muted" style="padding:8px">Nothing in the models table yet (Setup &gt; Models).</div>'; }
+function asPick(i) {
+  var f = AS.f, it = i >= 0 ? AS.items[i] : { v: LT.trim($("asQ").value) }; if (!it.v) return;
+  for (var j = 0; j < AS.keys.length; j++) { var d = P.drawings[AS.keys[j]]; if (!d) continue;
+    if (f == "tower") d.tower = it.v;
+    else if (f == "typo") { d.typo = it.v; if (!d.tower && it.tower) d.tower = it.tower; }
+    else { d.model = it.v; if (!d.tower && it.tower) d.tower = it.tower; if (!d.typo && it.typo) d.typo = it.typo; }
+    if (d.typo) { d.ok = true; d.how = "you"; d.like = ""; } }
+  var n = AS.keys.length; $("asPk").style.display = "none"; AS = null; saveP(); MM = null;
+  var sc = $("res").scrollTop; fillFilters(); render(); $("res").scrollTop = sc;
+  LT.toast(n + " drawing(s): " + { tower: "Tower", typo: "Typology", model: "Model" }[f] + " " + it.v);
+}
+function asClose() { $("asPk").style.display = "none"; AS = null; }
+var RFULL = false, txTimer = null;
+function fltN() { var e = $("fltN"); if (e) e.innerHTML = cfOn() || LT.trim($("search").value) || keys(F.cat).length || keys(F.tower).length || keys(F.typo).length ? ' &middot; <b class="ok">filtered: ' + shown.length + " shown</b>" : ""; }
+/* typing in Search / a column box: hide and show the rows in place (no redraw). Only a very long list (over 2000 rows) is drawn again, once you stop typing */
+function applyText() {
+  fillFilters();
+  if (!RFULL || !$("tbl")) { if (txTimer) window.clearTimeout(txTimer); txTimer = window.setTimeout(function () { var a = document.activeElement, cf = a && a.getAttribute ? a.getAttribute("data-cf") : null; render();
+      if (cf != null) { var ins = $("res").getElementsByTagName("input"); for (var i = 0; i < ins.length; i++) if (ins[i].getAttribute("data-cf") == cf) { try { ins[i].focus(); var v = ins[i].value; ins[i].value = ""; ins[i].value = v; } catch (x) { } } } }, 400); return; }
+  var rows = $("tbl").rows, D = P.drawings; shown = [];
+  for (var i = 0; i < rows.length; i++) { var k = rows[i].getAttribute("data-k"); if (k == null || !D[k]) continue; var ok = textPass(k, D[k], stat(k, D[k])); rows[i].style.display = ok ? "" : "none"; if (ok) shown.push(k); }
+  var no = 0; for (var r = 0; r < rows.length; r++) { var c0 = rows[r].cells[0]; if (c0 && c0.className == "rn" && rows[r].getAttribute("data-k") != null && rows[r].style.display != "none") c0.innerHTML = "" + (++no); }
+  if ($("noRows")) $("noRows").style.display = shown.length ? "none" : "block";
+  if ($("tkAll")) { var all = shown.length > 0; for (var t = 0; t < shown.length && all; t++) if (!ticked[shown[t]]) all = false; $("tkAll").checked = all; }
+  fltN();
+}
 function cols() { return view == "status" ? [COLS[0], ["st", "Status", 230]].concat(COLS.slice(1)) : COLS; }
 function tickBar() { var n = keys(ticked).length; $("bStat").style.display = view == "status" ? "" : "none"; $("tickBar").style.display = n ? "block" : "none"; $("tickN").innerHTML = n + " ticked:"; }
 
@@ -1046,13 +1117,19 @@ var iMap = { iNum: "name", iTitle: "title", iTower: "tower", iTypo: "typo", iMod
 for (var im in iMap) if (iMap.hasOwnProperty(im)) (function (id, key) { $(id).onchange = function () { imp.c[key] = this.value; impPrev(); }; })(im, iMap[im]);
 $("views").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-v"); if (c) { view = c.getAttribute("data-v"); render(); } };
 $("filters").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-f"); if (!b) return; var f = b.getAttribute("data-f"); if (pickKey == f) { pickHide(); return; } pickShow(f, b); (e || window.event).cancelBubble = true; };
-$("search").onkeyup = function () { fillFilters(); render(); };
+$("asQ").onkeyup = function (e) { e = e || window.event; if (e.keyCode == 27) { asClose(); return; } if (e.keyCode == 13) { var f = $("asL").getElementsByTagName("div"); for (var i = 0; i < f.length; i++) if (f[i].getAttribute("data-ai") != null) { asPick(+f[i].getAttribute("data-ai")); return; } return; } asList(); };
+$("asQ").oninput = function () { if (AS) asList(); };
+$("asL").onclick = function (e) { var it = LT.up((e || window.event).target || (e || window.event).srcElement, "data-ai"); if (it) asPick(+it.getAttribute("data-ai")); };
+(function () { var h = function (e) { e = e || window.event; if (!AS) return; var t = e.target || e.srcElement; while (t && t.id != "asPk") t = t.parentNode; if (!t) asClose(); };
+  if (document.attachEvent) document.attachEvent("onmousedown", h); else document.addEventListener("mousedown", h, false); })();
+$("search").onkeyup = function (e) { e = e || window.event; if (e.keyCode == 27) this.value = ""; if (this.value === this.lastQ) return; this.lastQ = this.value; applyText(); };
 $("fClear").onclick = function () { F = { cat: {}, tower: {}, typo: {} }; CF = {}; LF = null; lfLabel(); $("search").value = ""; fillFilters(); render(); };
 $("fSaved").onclick = function (e) { if (!P) return; var a = at(this); savedMenu(a[0], a[1]); stop(e); };
 /* typing in a column filter (also in the heading that stays on top while scrolling) */
 (function () { var h = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-cf") == null || !P) return; var c = t.getAttribute("data-cf");
-    if (e.keyCode == 27) t.value = ""; CF[c] = t.value; if (cfTimer) window.clearTimeout(cfTimer);
-    cfTimer = window.setTimeout(function () { fillFilters(); render(); var ins = $("res").getElementsByTagName("input"); for (var i = 0; i < ins.length; i++) if (ins[i].getAttribute("data-cf") == c) { try { ins[i].focus(); var v = ins[i].value; ins[i].value = ""; ins[i].value = v; } catch (x) { } } }, 300); };
+    if (e.keyCode == 27) t.value = ""; if (CF[c] === t.value) return; CF[c] = t.value;
+    var ins = $("res").getElementsByTagName("input"); for (var i = 0; i < ins.length; i++) if (ins[i] != t && ins[i].getAttribute("data-cf") == c) ins[i].value = t.value;   // the copy in the heading that stays on top
+    applyText(); };
   if (document.attachEvent) document.attachEvent("onkeyup", h); else document.addEventListener("keyup", h, false); })();
 $("pkQ").onkeyup = pickList;
 $("pkList").onclick = function (e) { var t = e.target || e.srcElement; if (!t.getAttribute || t.getAttribute("data-pv") == null) return; var v = t.getAttribute("data-pv"); if (t.checked) F[pickKey][v] = 1; else delete F[pickKey][v]; fillFilters(); render(); };
@@ -1087,6 +1164,7 @@ $("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.get
   var tr = LT.up(t, "data-k"); if (tr) edit([tr.getAttribute("data-k")]); };
 $("res").onclick = function (e) {
   e = e || window.event; var t = e.target || e.srcElement;
+  var asb = LT.up(t, "data-as"); if (asb) { var atr = LT.up(asb, "data-k"); asOpen(atr.getAttribute("data-k"), asb.getAttribute("data-as"), asb); return; }
   if (t.id == "tkAll") { ticked = {}; if (t.checked) for (var i = 0; i < shown.length; i++) ticked[shown[i]] = 1; render(); return; }
   var sc = LT.up(t, "data-st"); if (sc) { var sk = sc.getAttribute("data-st"); statMenu(ticked[sk] ? keys(ticked) : [sk], e.clientX, e.clientY); return; }
   if (LT.up(t, "data-ml")) return;   // a model link: opened by lt-core
@@ -1111,7 +1189,7 @@ $("res").oncontextmenu = function (e) {
 $("bSet").onclick = function () { edit(keys(ticked)); };
 $("bStat").onclick = function (e) { var a = at(this); statMenu(keys(ticked), a[0], a[1]); stop(e); };
 $("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-stf"); if (c) { stF = c.getAttribute("data-stf"); render(); } }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
-function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".dr.ins{opacity:.5}.dr.ins:after{content:' \\2713  in the set';font-size:.8em;color:{ok}}", ".scf{padding:12px 16px 0}.scf .lbl{margin:0 6px 0 8px}.scf input{width:104px;margin:0 8px 6px 0}.scc{display:flex;flex-wrap:wrap;padding:6px 10px}.scc .mc{flex:0 1 220px;margin:6px;padding:12px 14px;border-radius:16px}.big2{font-size:1.7em;font-weight:700}.sleg2{padding:0 20px 4px;font-size:.85em}.sleg2 span{margin-right:18px}.sleg2 i{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:3px}.sleg2 i.ds{height:0;border-top:3px dashed;background:none}",
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", ".asg{color:{accent};background:{accSoft};border-radius:{rc}px;border:1px dashed {accent}}.asg:hover{background:{accent};color:{accText}}", "#asPk{background:{bg};border:1px solid {line};border-radius:{r}px;box-shadow:0 10px 30px rgba(0,0,0,.18)}.asI{border-radius:{rc}px}.asI:hover{background:{accSoft}}.asI.top b{color:{accent}}.asSep{color:{muted}}.asI.typed{border-top:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".dr.ins{opacity:.5}.dr.ins:after{content:' \\2713  in the set';font-size:.8em;color:{ok}}", ".scf{padding:12px 16px 0}.scf .lbl{margin:0 6px 0 8px}.scf input{width:104px;margin:0 8px 6px 0}.scc{display:flex;flex-wrap:wrap;padding:6px 10px}.scc .mc{flex:0 1 220px;margin:6px;padding:12px 14px;border-radius:16px}.big2{font-size:1.7em;font-weight:700}.sleg2{padding:0 20px 4px;font-size:.85em}.sleg2 span{margin-right:18px}.sleg2 i{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:3px}.sleg2 i.ds{height:0;border-top:3px dashed;background:none}",
   ".tlb{margin:12px 12px 4px;padding:12px 14px;border-radius:14px;background:{bg};border:1px solid {line}}.tlh{display:flex;align-items:center;flex-wrap:wrap;margin-bottom:6px}.tlh b{margin-right:10px}.tlh select{width:150px;margin:0 6px 0 auto}.tlh .btn{margin:0 0 0 6px}#tlIn{width:100%;height:46px;font-family:{mono};resize:vertical}.tlw{display:flex;margin-top:8px}#tlRes{flex:1 1 60%;min-width:0;max-height:300px;overflow:auto;margin-right:10px}#tlBag{flex:1 1 40%;min-width:0;max-height:300px;overflow:auto;border:1px dashed {line};border-radius:{r}px;padding:6px}#tlBag.over{border-color:{accent};background:{accSoft}}", ".tlr{display:flex;padding:5px 6px;border-bottom:1px solid {lineSoft}}.tlr span{flex:1 1 0px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px}.tlr span:nth-child(4){flex:2 1 0px}.tlr span:nth-child(5){flex:0 0 44px}.tlr .wide{flex:6 1 0px}.tlhd{font-size:.78em;text-transform:uppercase;letter-spacing:.4px;color:{muted}}.tlr.dragme{cursor:move}.tlr.dragme:hover{background:{hover}}.tlr.ins{opacity:.55}", ".tlbh{padding:2px 4px 6px}.tli{display:flex;align-items:center;padding:5px 6px;margin-bottom:4px;border:1px solid {line};border-radius:{r}px;background:{panel};cursor:move}.tli.over{border-top:3px solid {accent}}.tli .n{flex:0 0 22px;font-weight:bold;color:{accent}}.tli .t{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tli .x{flex:none;cursor:pointer;padding:0 4px;color:{muted}}.tli .x:hover{color:{bad}}.tlba{margin-top:6px}.tlba .btn{margin:0 6px 4px 0}", ".mgrid{display:flex;flex-wrap:wrap;padding:12px 6px}.mc{flex:1 1 300px;max-width:520px;margin:0 6px 12px;padding:14px 16px;border-radius:16px;background:{bg};border:1px solid {line}}.mc.none{opacity:.75}.mh{display:flex;align-items:flex-start}.mn{flex:1 1 auto;min-width:0}.mp{text-align:right;margin-left:10px}.mp b{display:block;font-size:1.5em;line-height:1}.stbar.mb{display:block;width:auto;height:10px;margin:10px 0 6px}.mst span{margin-right:10px}.mst .t1{color:{warn}}.mst .t2{color:{accent}}.mst .t3{color:{ok}}.mst .t0{color:{muted}}.ma{margin-top:8px}.ma .mo{cursor:pointer;color:{accent};font-weight:600;margin-right:14px;font-size:.9em}.ml{margin-top:8px;border-top:1px solid {line};padding-top:6px;font-size:.9em}.ml div{padding:2px 0;display:flex}.ml .muted{flex:1 1 auto;margin:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.ml .s{font-weight:600;white-space:nowrap}.ml .st0{color:{muted}}.ml .st1{color:{warn}}.ml .st2{color:{accent}}.ml .st3{color:{ok}}", ".stc{cursor:pointer;margin-right:6px}.stbar{display:inline-block;vertical-align:middle;width:180px;height:10px;margin:0 8px;background:{chip};border-radius:5px;overflow:hidden;white-space:nowrap}.stbar i{display:inline-block;height:10px}", "td.st{cursor:pointer;font-weight:bold}td.st0{color:{muted};font-weight:normal}td.st1{color:{warn}}td.st2{color:{accent}}td.st3{color:{ok}}.stbar i.st0{background:{line}}.stbar i.st1{background:{warn}}.stbar i.st2{background:{accent}}.stbar i.st3{background:{ok}}.chip.st3{color:{ok}}.chip.st1{color:{warn}}", ".lk{display:flex;height:100%;padding:8px;box-sizing:border-box}.lkin{flex:0 0 270px;display:flex;flex-direction:column;padding-right:10px}.lkin textarea{flex:1 1 auto;min-height:200px;margin:6px 0;font-family:{mono};font-size:.9em}.lkres{flex:1 1 auto;min-width:0;overflow:auto}.lkh{font-weight:bold;margin-bottom:4px}.lkh .btn{margin-left:8px}",
   ".mlk{color:{accent};cursor:pointer;text-decoration:underline}.mlk:hover{color:{text}}", ".sets{display:flex;height:100%;padding:8px;box-sizing:border-box}.sl{flex:0 0 190px;overflow-y:auto;padding-right:8px}.slh{font-weight:bold;margin-bottom:6px}.si{padding:6px 8px;cursor:pointer;border-radius:{r}px;margin-bottom:2px}.si:hover{background:{hover}}.si.on{background:{chip};box-shadow:inset 3px 0 0 {accent}}",
   ".pane{flex:1 1 0px;min-width:0;display:flex;flex-direction:column;border:{bw}px solid {line};border-radius:{r}px;background:{panel}}.pane.over{outline:2px dashed {accent};background:{hover}}.ph{flex:none;padding:6px 10px;border-bottom:1px solid {line};background:{bg}}.pl{flex:1 1 auto;overflow-y:auto;min-height:0}",

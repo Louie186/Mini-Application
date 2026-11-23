@@ -212,7 +212,7 @@ function openProject(id) {
   var h = ""; for (var i = 0; i < IX.projects.length; i++) h += '<option value="' + esc(IX.projects[i].id) + '"' + (IX.projects[i].id == id ? " selected" : "") + ">" + esc(IX.projects[i].name) + "</option>";
   $("proj").innerHTML = h;
   $("empty").style.display = P ? "none" : "block"; $("res").style.display = $("filters").style.display = $("sum").style.display = P ? "" : "none";
-  if (P) { fillFilters(); render(); }
+  if (P) { var ns = listSync(); if (ns) { saveP(); LT.toast(ns + " drawing(s) lined up with the model list"); } fillFilters(); render(); }
 }
 function newProject() {
   var n = prompt("Name of the project (e.g. the project number and name):", ""); if (!n || !LT.trim(n)) return;
@@ -893,13 +893,26 @@ function statMenu(ks, x, y) { var m = [{ label: '<span class="muted">' + ks.leng
   m.push({ label: '<span class="muted">Issued = when it goes out on a transmittal</span>', fn: function () { } }); LT.menu(x, y, m); }
 /* ---------- empty Tower / Typology / Model: "+ set" opens the edit window (ticked rows: all of them) ---------- */
 function asBtn(f) { return '<span class="asg" data-as="' + f + '" title="Set it (or double-click the row)">+ set &#9662;</span>'; }
+/* ---------- the model list is the main reference: a drawing given a model takes that model's Tower + Typology from the list ----------
+   one pair in the list = copied onto the drawing; several pairs = the drawing keeps its own if it's one of them, else it's flagged */
+function listPairs() { var o = {}; for (var i = 0; i < P.models.length; i++) { var m = P.models[i]; if (!m.model || (m.typo || "").charAt(0) == "*") continue; var L = o[up(m.model)] || (o[up(m.model)] = []), dup = false;
+    for (var j = 0; j < L.length; j++) if (up(L[j].tower) == up(m.tower) && normT(L[j].typo) == normT(m.typo)) dup = true; if (!dup) L.push({ tower: m.tower || "", typo: m.typo || "" }); } return o; }
+function listSync(only) {
+  var L = listPairs(), D = P.drawings, n = 0, ks = only || keys(D);
+  for (var i = 0; i < ks.length; i++) { var d = D[ks[i]]; if (!d || !d.model) continue; var ps = L[up(d.model)]; if (!ps || ps.length != 1) continue; var p = ps[0];
+    if (up(d.tower) != up(p.tower) || normT(d.typo || "") != normT(p.typo)) { d.tower = p.tower; d.typo = p.typo; d.ok = true; d.how = "list"; d.like = ""; n++; } }
+  if (n) MM = null; return n;
+}
 /* drawings that don't line up with the rest: one Tower + Typology with two different models. { key: "why" } (one model on several typologies is fine) */
 function gridConflicts() {
   var D = P.drawings, mT = {}, tM = {}, k, d, m, tt, out = {};
   var add = function (o, a, b) { (o[a] || (o[a] = {}))[b] = 1; };
   for (var i = 0; i < P.models.length; i++) { var x = P.models[i]; if (x.model && x.typo && x.typo != "-" && x.typo.charAt(0) != "*") { add(mT, up(x.model), mKey(x.tower, x.typo)); add(tM, mKey(x.tower, x.typo), up(x.model)); } }
   for (k in D) if (D.hasOwnProperty(k)) { d = D[k]; m = modelOf(d); if (!m || !d.typo || d.typo == "-") continue; tt = mKey(d.tower, d.typo); add(mT, up(m), tt); add(tM, tt, up(m)); }
-  for (k in D) if (D.hasOwnProperty(k)) { d = D[k]; m = modelOf(d); if (!m || !d.typo || d.typo == "-") continue; tt = mKey(d.tower, d.typo);
+  var LP = listPairs();
+  for (k in D) if (D.hasOwnProperty(k)) { d = D[k]; if (d.model && LP[up(d.model)]) { var ps = LP[up(d.model)], hit = false; for (var q = 0; q < ps.length; q++) if (up(ps[q].tower) == up(d.tower) && normT(ps[q].typo) == normT(d.typo || "")) hit = true;
+      if (!hit) { var pt = []; for (var q2 = 0; q2 < ps.length; q2++) pt.push((ps[q2].tower || "-") + " \u00b7 " + (ps[q2].typo || "-")); out[k] = "Model " + d.model + " is " + pt.join(" / ") + " in the model list - this drawing has " + (d.tower || "-") + " \u00b7 " + (d.typo || "-"); continue; } } }
+  for (k in D) if (D.hasOwnProperty(k)) { d = D[k]; m = modelOf(d); if (out[k] || !m || !d.typo || d.typo == "-") continue; tt = mKey(d.tower, d.typo);
     if (keys(tM[tt]).length > 1) out[k] = d.tower + " \u00b7 " + d.typo + " has " + keys(tM[tt]).length + " models: " + keys(tM[tt]).join(", "); }
   return out;
 }
@@ -1023,7 +1036,7 @@ function mlWin() {
   $("mlWrap").innerHTML = h.join(""); $("mlN").innerHTML = "(" + P.models.length + " rows" + (q ? ", " + n + " shown" : "") + (nf ? ' &middot; <span class="bad">' + nf + " to look at</span>" : "") + ")";
 }
 function mlOpenWin() { $("mlWQ").value = ""; mlTick = {}; $("mlMsg").innerHTML = ""; $("ovML").style.display = "block"; mlWin(); }
-function mlChanged() { MM = null; lookRelink(); saveP(); }
+function mlChanged() { MM = null; var n = listSync(); lookRelink(); saveP(); if (n) LT.toast(n + " drawing(s) updated from the model list"); }
 function mlCell(td) { var tr = LT.up(td, "data-mi"); if (!tr || td.getAttribute("data-h") == null) return; var m = P.models[+tr.getAttribute("data-mi")], h = mlCols()[+td.getAttribute("data-h")], v = td.innerText || td.textContent || "";
   if (LT.trim(v) == mlGet(m, h)) return; mlSet(m, h, v); td.title = mlGet(m, h); mlChanged(); var F = mlFlags(), i = +tr.getAttribute("data-mi"), last = tr.cells[tr.cells.length - 1];
   last.innerHTML = (m.added ? '<span class="tg tnew">ADDED</span>' : "") + (F[i] ? '<span class="tg tbad" title="' + esc(F[i]) + '">&#9888; ' + esc(F[i]) + "</span>" : ""); }
@@ -1094,6 +1107,7 @@ function saveEdit(na) {
     if (d.typo) { d.ok = true; d.how = "you"; d.like = ""; } }
   if (P.lookup && P.lookup.rows) for (var lr = 0; lr < P.lookup.rows.length; lr++) { var R0 = P.lookup.rows[lr], d0 = R0.key ? P.drawings[R0.key] : null; if (!d0 || R0.isModel) continue;
     for (var ek = 0; ek < editKeys.length; ek++) if (editKeys[ek] == R0.key) { R0.tower = d0.tower || ""; R0.typo = d0.typo || ""; R0.model = modelOf(d0); R0.link = R0.model ? modelLink(R0.model) : ""; R0.src = "register"; } }
+  listSync(editKeys);
   saveP(); $("ovEdit").style.display = "none"; MM = null; fillFilters(); var sc = $("res").scrollTop; render(); $("res").scrollTop = sc;
 }
 function accept(ks) { var n = 0; for (var i = 0; i < ks.length; i++) { var d = P.drawings[ks[i]]; if (d.typo && !d.ok) { d.ok = true; n++; } } saveP(); render(); LT.toast(n + " guess(es) accepted"); }
@@ -1143,7 +1157,7 @@ function setupSave() {
   var ms = [], ls = $("sModels").value.split(/\r?\n/); for (var i = 0; i < ls.length; i++) { var p = ls[i].split("|"); if (p.length >= 3 && LT.trim(p[1])) { var lk = LT.trim(p.slice(3).join("|")); var nm = { tower: LT.trim(p[0]), typo: LT.trim(p[1]), model: LT.trim(p[2]), link: lk }, was = null; for (var w = 0; w < P.models.length && !was; w++) if (mlKey(P.models[w]) == mlKey(nm)) was = P.models[w];
       if (was) { nm.x = was.x; nm.desc = was.desc; nm.added = was.added; } ms.push(nm); } }
   S.modelsDir = LT.trim($("sModDir").value); S.accRoot = LT.trim($("sAcc").value).replace(/[\\\/]+$/, ""); MF = null; ACCF = {};
-  P.models = ms; MM = null; lookRelink(); saveP(); $("ovSetup").style.display = "none"; render(); LT.toast("Setup saved");
+  P.models = ms; MM = null; listSync(); lookRelink(); saveP(); $("ovSetup").style.display = "none"; render(); LT.toast("Setup saved");
 }
 
 /* ---------- import a list / a models table ---------- */
@@ -1197,6 +1211,7 @@ function impDo() {
     P.models = P.models.concat(kept);
     P.modelCols = imp.L.head.slice(0); P.modelSheet = imp.L.sheet || "Model list"; P.modelRoles = { tower: imp.c.tower || "", typo: imp.c.typo || "", model: imp.c.model || "", link: imp.c.link || "" };
     MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")";
+    var nSync = listSync(); if (nSync) LT.toast(nSync + " drawing(s) updated from the model list");
     lookRelink(); var nl = 0; for (var q = 0; q < P.models.length; q++) if (P.models[q].link) nl++; LT.toast(P.models.length + " models imported" + (nl ? ", " + nl + " with a path / link" : "") + (kept.length ? " \u00b7 " + kept.length + " you added here kept" : "")); if ($("ovML").style.display == "block") mlWin(); }
   else { var D = P.drawings, nN = 0, nU = 0, nL = 0;
     for (var j = 0; j < rs.length; j++) { var r = rs[j], d = D[r.key];

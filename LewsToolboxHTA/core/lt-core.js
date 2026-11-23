@@ -755,8 +755,10 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.54";
+  L.VERSION = "2026.11.55";
   L.WHATS_NEW = [
+    { v: "2026.11.55", items: [
+      "Drawing Register: the model list is the main reference - a drawing with a model takes that model's Tower + Typology from the list (when you save, when the list changes or is imported, and when the project opens). A model with several typologies keeps the drawing's own if it's one of them; anything that doesn't match the list shows \u26a0 CONFLICT"] },
     { v: "2026.11.54", items: [
       "Drawing Register edit window: \u2922 (top right) makes it big, or drag the bottom-right corner - the size is remembered. The model list shows the full model number and the description wraps instead of being cut"] },
     { v: "2026.11.53", items: [

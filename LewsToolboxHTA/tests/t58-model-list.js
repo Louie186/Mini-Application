@@ -66,4 +66,17 @@ module.exports = async ({ page, out }) => {
   ok(await f.evaluate((w0) => $('edCard').offsetWidth > w0 + 150 && LT.settings().edSize, w0), 'drag the corner: wider (both sides), remembered');
   await f.evaluate(() => { $('ovEdit').style.display = 'none'; edit(['9001-ABC-T2-ZZ-PLN-INT-20200']); });
   ok(await f.evaluate((w0) => $('edCard').offsetWidth > w0 + 150, w0), 'opening it again: the same size');
+  // the model list is the main reference
+  await f.evaluate(() => { $('ovEdit').style.display = 'none'; P.drawings['9001-ABC-T1-ZZ-PLN-INT-10500'] = { num: '9001-ABC-T1-ZZ-PLN-INT-10500', title: 'GUESSED ONE', tower: 'T1', typo: '1BRA', ok: false, how: 'like', inMidp: true }; saveP(); view = 'midp'; render(); });
+  await f.dblclick('#tbl tr[data-k*="10500"] td:nth-child(5)'); await page.waitForTimeout(80);
+  await f.fill('#mlQ', '22010'); await f.dispatchEvent('#mlQ', 'keyup'); await f.click('#mlL .mlR'); await f.click('#edOk'); await page.waitForTimeout(80);
+  ok(await f.evaluate(() => { const d = P.drawings['9001-ABC-T1-ZZ-PLN-INT-10500']; return d.tower == 'T2' && d.typo == '3BRD' && d.model == '9001-ABC-ZZ-ZZ-BIM-INT-22010' && d.ok; }), 'a drawing that had T1 · 1BRA, given model 22010 from the list: now T2 · 3BRD (the list wins)');
+  const row = await f.evaluate(() => [...document.querySelector('#tbl tr[data-k*="10500"]').cells].map(c => c.innerText.trim()).join(' | '));
+  ok(/T2 \| 3BRD \| 9001-ABC-ZZ-ZZ-BIM-INT-22010/.test(row), 'the list shows it: ' + row);
+  // change the model's Typology in the Model list window -> the drawing follows
+  await f.evaluate(() => { mlOpenWin(); const i = P.models.findIndex(m => /22010/.test(m.model)), tr = document.querySelector('#mlTb tr[data-mi="' + i + '"]'), td = tr.cells[2]; td.focus(); td.innerText = '3BRD-X'; td.blur(); });
+  ok(await f.evaluate(() => P.drawings['9001-ABC-T1-ZZ-PLN-INT-10500'].typo == '3BRD-X'), 'the Typology changed in the model list: the drawing follows');
+  // a drawing whose model's pair is something else (data from before) is lined up when the project opens
+  await f.evaluate(() => { $('ovML').style.display = 'none'; P.drawings['9001-ABC-T1-ZZ-PLN-INT-10501'] = { num: '9001-ABC-T1-ZZ-PLN-INT-10501', title: 'OLD ONE', tower: 'T1', typo: '1BRB', model: '9001-ABC-ZZ-ZZ-BIM-INT-22000', ok: true, inMidp: true }; saveP(); loadAll(); });
+  ok(await f.evaluate(() => { const d = P.drawings['9001-ABC-T1-ZZ-PLN-INT-10501']; return d.tower == 'T2' && d.typo == '2BRC'; }), 'opening the project: drawings with a model take its Tower + Typology from the list');
 };

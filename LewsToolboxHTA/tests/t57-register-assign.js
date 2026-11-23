@@ -9,7 +9,7 @@ module.exports = async ({ page, out }) => {
     mk('10105', 'T1', '1BRA', 'UNIT 1BR TYPE A - ODD', 'INT-29999');   // a conflict: T1 · 1BRA already has INT-21000
     mk('00000', '-', '-', 'COVER SHEET');
     LT.saveJson(LT.registerFile('p1'), { name: 'Akala', drawings: D, sets: [], filters: [], changes: {}, history: [], last: { file: 'MIDP.xlsx', date: LT.today(), count: 6 },
-      models: [{ tower: 'T1', typo: '1BRA', model: 'INT-21000' }, { tower: 'T1', typo: '1BRB', model: 'INT-21001' }, { tower: 'T2', typo: '2BRC', model: 'INT-22000' }] });
+      models: [{ tower: 'T1', typo: '1BRA', model: 'INT-21000' }, { tower: 'T2', typo: '9XX', model: 'INT-21000' }, { tower: 'T1', typo: '1BRB', model: 'INT-21001' }, { tower: 'T2', typo: '2BRC', model: 'INT-22000' }] });   // INT-21000 holds two typologies
   });
   await page.click('.nb[data-k="register"]'); await page.waitForTimeout(500);
   const r = page.frame({ url: /register\.html/ }); await r.evaluate(() => { if (window.loadAll) loadAll(); view = 'midp'; render(); });

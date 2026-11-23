@@ -65,7 +65,7 @@ module.exports = async ({ page, out }) => {
   const nCheck = await f.evaluate(() => shown.length);
   await f.evaluate(() => { ticked = {}; shown.forEach(k => ticked[k] = 1); accept(Object.keys(ticked)); ticked = {}; render(); });
   ok(nCheck >= 4 && await f.evaluate(() => counts().check == 1), 'accept the guesses: "To check" goes from ' + nCheck + ' to 1 (one with no guess)');
-  await f.evaluate(() => { edit(['9001-ABC-XX-ZZ-PLN-INT-00103']); document.getElementById('edTower').value = 'T1'; document.getElementById('edTypo').value = '1BRA'; saveEdit(false); });
+  await f.evaluate(() => { edit(['9001-ABC-XX-ZZ-PLN-INT-00103']); $('edTowerS').value = 'T1'; edChanged('Tower'); $('edTypoS').value = '1BRA'; edChanged('Typo'); saveEdit(false); });
   ok(await f.evaluate(() => { const d = P.drawings['9001-ABC-XX-ZZ-PLN-INT-00103']; return d.how == 'you' && d.ok && modelOf(d) == 'M-21000'; }), 'edit by hand: model follows the table');
   ok(/NEW[\s\S]*REMOVED[\s\S]*TITLE CHANGED/.test(await f.evaluate(() => changesText())), 'copy changes text has new / removed / title changed');
   await f.evaluate(() => { view = 'midp'; render(); exportExcel(false); });

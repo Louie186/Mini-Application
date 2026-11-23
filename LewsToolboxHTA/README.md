@@ -264,9 +264,12 @@ One point per line; **Tab** = one level in, **Shift+Tab** = out (or paste a list
 
 ## Drawing Register
 
-- **Empty Tower / Typology / Model:** click **+ set ▾** in the cell → a short list from your models table (the ones for that row's tower first). Search it, or type a new value and press Enter
-  - Picking a **Model** also fills its Tower and Typology; picking a **Typology** brings its model from the table
-  - **Tick rows first** to set them all at once
+- **Edit any drawing:** double-click it (or **+ set ▾** in an empty cell, or tick rows → **Set Tower / Typology...**). The window has **drop-downs**:
+  - **Tower** → **Typology** shows that tower's typologies (with their model) first, other towers after → **Model** only offers the one that goes with that Tower + Typology
+  - **New...** in any box lets you type a new value
+  - Something that doesn't line up with the list (a model that already belongs to another typology, or a second model for the same Tower + Typology) is **flagged in red and Save is off**
+  - Several drawings at once: each box starts on *(leave as it is)*
+- **⚠ CONFLICT** in the Note column (and a count on top) = drawings that already clash. Type `conflict` in the Note filter to list them, double-click to fix
 - **Search and the column filters** hide / show rows as you type – the list doesn't redraw
 
 One list of every drawing in a project, kept up to date from the MIDP. One register per project (**Project ▾**: new, rename, remove).

@@ -22,12 +22,7 @@
 .step{flex:none;padding:10px 14px 4px}
 #res{flex:1 1 auto;overflow:auto;min-height:0}
 .asg{display:inline-block;padding:0 7px;font-size:11px;font-weight:bold;cursor:pointer;white-space:nowrap}
-#asPk{display:none;position:fixed;z-index:50;width:330px;padding:8px}
-#asH{font-size:12px;margin-bottom:6px}
-#asQ{width:100%;height:26px;margin-bottom:6px}
-#asL{max-height:300px;overflow:auto}
-.asI{padding:5px 8px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.asSep{padding:4px 8px 2px;font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+
 .lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
 .big{font-weight:bold}
 .right{float:right}
@@ -39,6 +34,8 @@
 .g{font-style:italic}
 .tag{display:inline-block;padding:1px 7px;margin:0 3px 2px 0;font-size:.82em;font-weight:bold;white-space:nowrap}
 #empty{padding:40px 24px}
+.edNew{display:none;margin-top:4px}
+#edHint .bad{display:block;padding:4px 0}
 .opts span{display:inline-block;padding:2px 8px;margin:0 4px 4px 0;cursor:pointer;font-size:.88em}
 #sheetList .btn{display:block;width:100%;text-align:left;margin:0 0 6px}
 textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
@@ -102,13 +99,12 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
 </div></div>
 
 <!-- edit one or many drawings -->
-<div id="asPk"><div id="asH" class="big"></div><input type="text" id="asQ" placeholder="Search the list (or type a new one)"><div id="asL"></div></div>
 <div class="ov" id="ovEdit"><div class="card">
   <h3 id="edH"></h3>
   <div id="edInfo" class="muted small" style="margin-bottom:10px"></div>
-  <div class="fld"><label>Tower</label><input type="text" id="edTower"><div class="opts" id="edTowerO"></div></div>
-  <div class="fld"><label>Typology</label><input type="text" id="edTypo"><div class="opts" id="edTypoO"></div></div>
-  <div class="fld"><label>Model (empty = from the models table)</label><input type="text" id="edModel"></div>
+  <div class="fld"><label>Tower</label><select id="edTowerS"></select><input type="text" id="edTower" class="edNew" placeholder="Type the new tower"></div>
+  <div class="fld"><label>Typology <span class="muted small">(the ones of this tower)</span></label><select id="edTypoS"></select><input type="text" id="edTypo" class="edNew" placeholder="Type the new typology"></div>
+  <div class="fld"><label>Model <span class="muted small">(the one that goes with this Tower + Typology)</span></label><select id="edModelS"></select><input type="text" id="edModel" class="edNew" placeholder="Type the new model"></div>
   <div class="fld"><label>Online link (ACC / SharePoint / BIM 360) &ndash; tasks, packs and summaries link to it</label><input type="text" id="edLink" placeholder="https://..."></div>
   <div class="muted small" id="edHint"></div>
   <div class="acts"><button class="btn" id="edNa" title="General drawings that belong to no tower / typology">Not for a typology ( - )</button><span class="sp"></span><button class="btn" id="edCancel">Cancel</button><button class="btn primary" id="edOk">Save</button></div>
@@ -394,7 +390,7 @@ function wordsIn(text, q) { text = (" " + (text || "") + " ").toLowerCase(); var
 function cfText(c, k, d, s) {
   if (c == "num") return d.num; if (c == "rev") return d.rev; if (c == "title") return d.title + " " + (d.oldTitle || ""); if (c == "cat") return d.cat; if (c == "tower") return d.tower; if (c == "typo") return d.typo;
   if (c == "model") return modelOf(d); if (c == "st") return dStat(k, d).text;
-  if (c == "note") return (s.isNew ? "new " : "") + (s.chg ? "title changed " : "") + (s.gone ? "removed " : "") + (!d.typo && !s.gone ? "set tower typology " : !d.ok && d.typo ? "guess " : "") + (d.link ? "link" : "");
+  if (c == "note") return (CONF0 && CONF0[k] ? "conflict " : "") + (s.isNew ? "new " : "") + (s.chg ? "title changed " : "") + (s.gone ? "removed " : "") + (!d.typo && !s.gone ? "set tower typology " : !d.ok && d.typo ? "guess " : "") + (d.link ? "link" : "");
   return "";
 }
 function cfBox(c) { return '<input type="text" class="cfi" data-cf="' + c + '" value="' + esc(CF[c] || "") + '" placeholder="filter" title="Words to keep (all of them). -word = leave out. e.g. enlarged -kitchen">'; }
@@ -436,7 +432,7 @@ function render() {
   if (view == "status") $("sum").innerHTML = statusSummary();
   for (var c = 0; c < CL.length; c++) { var cc = CL[c]; tot += W[cc[0]]; cg += '<col data-c="' + cc[0] + '" style="width:' + W[cc[0]] + 'px">'; th += "<th>" + cc[1] + '<span class="rz" data-rz="' + cc[0] + '" title="Drag to change the width (double-click = back to normal)"></span>' + cfBox(cc[0]) + "</th>"; }
   var h = ['<table class="grid" id="tbl" style="width:' + tot + 'px">' + cg + '</colgroup><tr><th class="tk"><input type="checkbox" id="tkAll" style="height:auto" title="Tick all shown"></th><th>Drawing' + cfBox("num") + "</th>" + th + "</tr>"];
-  shown = []; var max = 2000, base = 0;
+  shown = []; var max = 2000, base = 0, CONF = CONF0 = gridConflicts(), nConf = keys(CONF).length;
   for (var b = 0; b < ks.length; b++) if (pass(ks[b], D[ks[b]], stat(ks[b], D[ks[b]]), true)) base++;
   RFULL = base <= max;   // every row the other filters allow is drawn: typing only hides / shows them
   for (var i = 0; i < ks.length; i++) { var k = ks[i], d = D[k], s = stat(k, d), tp;
@@ -447,10 +443,12 @@ function render() {
     if (s.chg) note.push('<span class="tag warn" title="was: ' + esc(d.oldTitle || "") + '">TITLE CHANGED</span>');
     if (s.gone) note.push('<span class="tag bad">REMOVED</span>');
     if (d.link) note.push('<span class="lnk" data-lnk="' + esc(k) + '" title="' + esc(d.link) + '">&#128279; link</span>');
+    if (CONF[k]) note.push('<span class="tag bad" title="' + esc(CONF[k]) + ' - double-click to fix">&#9888; CONFLICT</span>');
     if (!d.typo && !s.gone) note.push('<span class="bad">set Tower / Typology</span>');
     else if (!d.ok && d.typo) note.push('<span class="warn small">guess' + (d.how == "like" ? " &ndash; like " + esc((d.like || "").split("-").pop()) : d.how == "rule" ? " &ndash; rule" : d.how == "group" ? " &ndash; section" : "") + "</span>");
     h.push('<tr data-k="' + esc(k) + '"' + (tp ? "" : ' style="display:none"') + '><td class="tk"><input type="checkbox" style="height:auto"' + (ticked[k] ? " checked" : "") + '></td><td class="no">' + esc(d.num) + '</td><td class="nw">' + esc(d.rev || "") + "</td>" + (view == "status" ? stCell(k, d) : "") + "<td>" + esc(d.title) + (s.chg ? '<div class="muted small">was: ' + esc(d.oldTitle || "") + "</div>" : "") + '</td><td class="cat muted">' + esc(d.cat || "") + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') +  ' title="' + esc(d.tower) + '">' + (d.tower || s.gone ? esc(d.tower) : asBtn("tower")) + "</td><td" + (d.ok ? ' class="nw"' : ' class="warn g nw"') + ' title="' + esc(d.typo) + '">' + (d.typo || s.gone ? esc(d.typo) : asBtn("typo")) + '</td><td class="nw" title="' + esc(modelOf(d)) + '">' + (modelOf(d) && modelLink(modelOf(d)) ? '<span class="mlk" data-ml="' + esc(modelLink(modelOf(d))) + '">' + esc(modelOf(d)) + "</span>" : modelOf(d) || s.gone || d.typo == "-" ? esc(modelOf(d)) : asBtn("model")) + "</td><td>" + note.join(" ") + "</td></tr>"); }
   h.push("</table>");
+  if (nConf) $("sum").innerHTML += ' &middot; <b class="bad" title="Type CONFLICT in the Note filter to see them">&#9888; ' + nConf + " conflict(s) in Tower / Typology / Model</b>";
   $("sum").innerHTML += '<span id="fltN"></span>'; fltN();
   if (shown.length > max) h.push('<div class="muted" style="padding:10px">Showing the first ' + max + " of " + shown.length + " - use the filters.</div>");
   $("res").innerHTML = (RFULL ? base : shown.length) ? h.join("") + '<div class="muted" id="noRows" style="padding:24px;display:' + (shown.length ? "none" : "block") + '">Nothing matches.</div>' : '<div class="muted" style="padding:24px">Nothing to show here.</div>';
@@ -865,47 +863,20 @@ function setStat(ks, st) { for (var i = 0; i < ks.length; i++) { var d = P.drawi
 function statMenu(ks, x, y) { var m = [{ label: '<span class="muted">' + ks.length + " drawing(s)</span>", fn: function () { } }];
   for (var i = 0; i < 3; i++) (function (s) { m.push({ label: s, fn: function () { setStat(ks, s); } }); })(ST_LIST[i]);
   m.push({ label: '<span class="muted">Issued = when it goes out on a transmittal</span>', fn: function () { } }); LT.menu(x, y, m); }
-/* ---------- empty Tower / Typology / Model: "+ set" opens a short list from what the project already has (the models table) ----------
-   ticked rows: the choice goes to every ticked row (when this row is one of them) */
-function asBtn(f) { return '<span class="asg" data-as="' + f + '" title="Pick from the list you have">+ set &#9662;</span>'; }
-var AS = null;
-function asItems(k, f) {
-  var d = P.drawings[k], o = [], seen = {}, tw = up(d.tower), ty = normT(d.typo || ""), i, m;
-  if (f == "tower") { var ts = towers(); for (i = 0; i < ts.length; i++) o.push({ v: ts[i], label: ts[i], hint: "" }); return o; }
-  if (f == "typo") { for (i = 0; i < P.models.length; i++) { m = P.models[i]; if (!m.typo || m.typo.charAt(0) == "*") continue; var key = up(m.tower) + "|" + m.typo; if (seen[key]) continue; seen[key] = 1;
-      o.push({ v: m.typo, tower: m.tower, label: m.typo, hint: (m.tower || "") + (m.model ? " &middot; " + esc(m.model) : ""), top: tw && up(m.tower) == tw }); } }
-  else { for (i = 0; i < P.models.length; i++) { m = P.models[i]; if (!m.model || seen[up(m.model)]) continue; seen[up(m.model)] = 1;
-      o.push({ v: m.model, tower: m.tower, typo: m.typo, label: m.model, hint: esc(m.tower || "") + (m.typo ? " &middot; " + esc(m.typo) : ""), top: (tw && up(m.tower) == tw) && (!ty || normT(m.typo) == ty) }); } }
-  o.sort(function (a, b) { if (!!a.top != !!b.top) return a.top ? -1 : 1; return a.label < b.label ? -1 : a.label > b.label ? 1 : 0; });
-  return o;
+/* ---------- empty Tower / Typology / Model: "+ set" opens the edit window (ticked rows: all of them) ---------- */
+function asBtn(f) { return '<span class="asg" data-as="' + f + '" title="Set it (or double-click the row)">+ set &#9662;</span>'; }
+/* drawings that don't line up with the rest: one model on two Tower + Typology pairs, or one Tower + Typology with two models. { key: "why" } */
+function gridConflicts() {
+  var D = P.drawings, mT = {}, tM = {}, k, d, m, tt, out = {};
+  var add = function (o, a, b) { (o[a] || (o[a] = {}))[b] = 1; };
+  for (var i = 0; i < P.models.length; i++) { var x = P.models[i]; if (x.model && x.typo && x.typo != "-" && x.typo.charAt(0) != "*") { add(mT, up(x.model), mKey(x.tower, x.typo)); add(tM, mKey(x.tower, x.typo), up(x.model)); } }
+  for (k in D) if (D.hasOwnProperty(k)) { d = D[k]; m = modelOf(d); if (!m || !d.typo || d.typo == "-") continue; tt = mKey(d.tower, d.typo); add(mT, up(m), tt); add(tM, tt, up(m)); }
+  for (k in D) if (D.hasOwnProperty(k)) { d = D[k]; m = modelOf(d); if (!m || !d.typo || d.typo == "-") continue; tt = mKey(d.tower, d.typo);
+    if (keys(mT[up(m)]).length > 1) out[k] = "Model " + m + " is on " + keys(mT[up(m)]).length + " Tower + Typology pairs: " + keys(mT[up(m)]).join(", ").replace(/\|/g, " \u00b7 ");
+    else if (keys(tM[tt]).length > 1) out[k] = d.tower + " \u00b7 " + d.typo + " has " + keys(tM[tt]).length + " models: " + keys(tM[tt]).join(", "); }
+  return out;
 }
-function asOpen(k, f, el) {
-  var r = el.getBoundingClientRect(), n = ticked[k] ? keys(ticked).length : 1, box = $("asPk");
-  AS = { k: k, f: f, items: asItems(k, f), keys: ticked[k] ? keys(ticked) : [k] };
-  $("asH").innerHTML = "Set the " + { tower: "Tower", typo: "Typology", model: "Model" }[f] + (n > 1 ? " of the " + n + " ticked rows" : " of " + esc(P.drawings[k].num));
-  $("asQ").value = ""; asList(); box.style.display = "block";
-  var x = Math.min(r.left, document.documentElement.clientWidth - box.offsetWidth - 8), y = r.bottom + 2; if (y + box.offsetHeight > document.documentElement.clientHeight - 8) y = Math.max(8, r.top - box.offsetHeight - 2);
-  box.style.left = Math.max(8, x) + "px"; box.style.top = y + "px"; try { $("asQ").focus(); } catch (e) { }
-}
-function asList() { var q = up($("asQ").value), h = [], n = 0, it = AS.items, sep = false;
-  for (var i = 0; i < it.length; i++) { if (q && (up(it[i].label) + " " + up(it[i].hint)).indexOf(q) < 0) continue; if (!it[i].top && n && !sep && it[0].top && !q) { h.push('<div class="asSep">others</div>'); sep = true; } n++;
-    h.push('<div class="asI' + (it[i].top ? " top" : "") + '" data-ai="' + i + '"><b>' + esc(it[i].label) + '</b> <span class="muted">' + it[i].hint + "</span></div>"); }
-  if (AS.f != "model" || !it.length) h.push('<div class="asI typed" data-ai="-1">' + (q ? 'Use &ldquo;<b>' + esc(LT.trim($("asQ").value)) + '</b>&rdquo;' : '<span class="muted">Type a new one, or pick above</span>') + "</div>");
-  else if (q && !n) h.push('<div class="asI typed" data-ai="-1">Use &ldquo;<b>' + esc(LT.trim($("asQ").value)) + "</b>&rdquo;</div>");
-  $("asL").innerHTML = h.join("") || '<div class="muted" style="padding:8px">Nothing in the models table yet (Setup &gt; Models).</div>'; }
-function asPick(i) {
-  var f = AS.f, it = i >= 0 ? AS.items[i] : { v: LT.trim($("asQ").value) }; if (!it.v) return;
-  for (var j = 0; j < AS.keys.length; j++) { var d = P.drawings[AS.keys[j]]; if (!d) continue;
-    if (f == "tower") d.tower = it.v;
-    else if (f == "typo") { d.typo = it.v; if (!d.tower && it.tower) d.tower = it.tower; }
-    else { d.model = it.v; if (!d.tower && it.tower) d.tower = it.tower; if (!d.typo && it.typo) d.typo = it.typo; }
-    if (d.typo) { d.ok = true; d.how = "you"; d.like = ""; } }
-  var n = AS.keys.length; $("asPk").style.display = "none"; AS = null; saveP(); MM = null;
-  var sc = $("res").scrollTop; fillFilters(); render(); $("res").scrollTop = sc;
-  LT.toast(n + " drawing(s): " + { tower: "Tower", typo: "Typology", model: "Model" }[f] + " " + it.v);
-}
-function asClose() { $("asPk").style.display = "none"; AS = null; }
-var RFULL = false, txTimer = null;
+var RFULL = false, txTimer = null, CONF0 = null;
 function fltN() { var e = $("fltN"); if (e) e.innerHTML = cfOn() || LT.trim($("search").value) || keys(F.cat).length || keys(F.tower).length || keys(F.typo).length ? ' &middot; <b class="ok">filtered: ' + shown.length + " shown</b>" : ""; }
 /* typing in Search / a column box: hide and show the rows in place (no redraw). Only a very long list (over 2000 rows) is drawn again, once you stop typing */
 function applyText() {
@@ -923,25 +894,78 @@ function cols() { return view == "status" ? [COLS[0], ["st", "Status", 230]].con
 function tickBar() { var n = keys(ticked).length; $("bStat").style.display = view == "status" ? "" : "none"; $("tickBar").style.display = n ? "block" : "none"; $("tickN").innerHTML = n + " ticked:"; }
 
 /* ---------- editing ---------- */
-function opts(el, list, target) { var h = ""; for (var i = 0; i < list.length && i < 40; i++) h += '<span class="chipO" data-o="' + esc(list[i]) + '">' + esc(list[i]) + "</span>"; $(el).innerHTML = h; $(el).onclick = function (e) { var o = LT.up(e.target || e.srcElement, "data-o"); if (o) { $(target).value = o.getAttribute("data-o"); if (target == "edTower") typoOpts(); hint(); } }; }
-function towers() { var s = {}, a = []; for (var i = 0; i < P.models.length; i++) if (P.models[i].tower && !s[P.models[i].tower]) { s[P.models[i].tower] = 1; a.push(P.models[i].tower); } var D = P.drawings; for (var k in D) if (D.hasOwnProperty(k) && D[k].ok && D[k].tower && D[k].tower != "-" && !s[D[k].tower]) { s[D[k].tower] = 1; a.push(D[k].tower); } return a.sort(); }
-function typoOpts() { var t = up($("edTower").value), s = {}, a = []; for (var i = 0; i < P.models.length; i++) { var m = P.models[i]; if ((!t || up(m.tower) == t) && m.typo.charAt(0) != "*" && !s[m.typo]) { s[m.typo] = 1; a.push(m.typo); } } a.sort(); opts("edTypoO", a, "edTypo"); }
-function hint() { var t = LT.trim($("edTower").value), y = LT.trim($("edTypo").value), m = y && y != "-" ? modelMap()[mKey(t, y)] : ""; $("edHint").innerHTML = y && y != "-" ? (m ? "Model from the table: <b>" + esc(m) + "</b>" : '<span class="warn">This Tower + Typology is not in the models table.</span>') : ""; }
-function edit(ks) {
-  if (!ks.length) return; editKeys = ks; var d = P.drawings[ks[0]], one = ks.length == 1;
+/* what the project already has: every Tower + Typology + Model that's set (models table + confirmed drawings; the drawings being edited left out).
+   byModel: model -> its Tower + Typology   byTT: Tower|Typology -> its model   (the first one wins; a second, different one is a conflict) */
+function known(skip) {
+  var o = { towers: {}, typos: {}, byModel: {}, byTT: {} }, sk = {}, i;
+  for (i = 0; i < (skip || []).length; i++) sk[skip[i]] = 1;
+  var add = function (t, y, m) { t = LT.trim(t || ""); y = LT.trim(y || ""); m = LT.trim(m || ""); if (t && t != "-") o.towers[up(t)] = t;
+    if (y && y != "-" && y.charAt(0) != "*") { var tk = up(t); (o.typos[tk] || (o.typos[tk] = {}))[normT(y)] = y; if (m) { var k = mKey(t, y); if (!o.byTT[k]) o.byTT[k] = m; } }
+    if (m && !o.byModel[up(m)]) o.byModel[up(m)] = { tower: t, typo: y, model: m }; };
+  for (i = 0; i < P.models.length; i++) add(P.models[i].tower, P.models[i].typo, P.models[i].model);
+  var D = P.drawings; for (var k in D) if (D.hasOwnProperty(k) && !sk[k] && (D[k].ok || D[k].model)) add(D[k].tower, D[k].typo, D[k].model || modelOf(D[k]));
+  return o;
+}
+function vals(o) { var a = []; for (var k in o) if (o.hasOwnProperty(k)) a.push(o[k]); return a.sort(function (x, y) { return x.toUpperCase() < y.toUpperCase() ? -1 : 1; }); }
+function opt(v, label, sel) { return '<option value="' + esc(v) + '"' + (sel ? " selected" : "") + ">" + label + "</option>"; }
+var EK = null, KEEP = "\u0001keep", NEW = "\u0001new";
+/* the value of a box: the drop-down, or what's typed when "New..." is picked */
+function fv(f) { var s = $("ed" + f + "S").value; return s == NEW ? LT.trim($("ed" + f).value) : s; }
+function fillTower(cur) { var multi = editKeys.length > 1, h = multi ? opt(KEEP, "(leave as it is)", cur == KEEP) : opt("", "(none)", !cur), ts = vals(EK.towers), found = !cur || cur == KEEP;
+  for (var i = 0; i < ts.length; i++) { h += opt(ts[i], esc(ts[i]), up(ts[i]) == up(cur)); if (up(ts[i]) == up(cur)) found = true; }
+  h += opt("-", "- (no tower)", cur == "-"); if (cur == "-") found = true;
+  if (!found) h += opt(cur, esc(cur) + " (new)", true);
+  $("edTowerS").innerHTML = h + opt(NEW, "New tower&hellip;", false); }
+function fillTypo(cur) { var t = fv("Tower"), multi = editKeys.length > 1, h = multi ? opt(KEEP, "(leave as it is)", cur == KEEP) : opt("", "(none)", !cur), found = !cur || cur == KEEP;
+  if (t != "-") { var mine = t == KEEP ? {} : EK.typos[up(t)] || {}, ys = vals(mine), oth = {};
+    if (ys.length) { h += '<optgroup label="' + (t && t != KEEP ? "Tower " + esc(t) : "Typologies") + '">'; for (var i = 0; i < ys.length; i++) { h += opt(ys[i], esc(ys[i]) + (EK.byTT[mKey(t, ys[i])] ? " &middot; " + esc(EK.byTT[mKey(t, ys[i])]) : ""), normT(ys[i]) == normT(cur)); if (normT(ys[i]) == normT(cur)) found = true; } h += "</optgroup>"; }
+    for (var tk in EK.typos) if (EK.typos.hasOwnProperty(tk) && tk != up(t)) for (var yk in EK.typos[tk]) if (EK.typos[tk].hasOwnProperty(yk) && !mine[yk]) oth[yk] = EK.typos[tk][yk];
+    var os = vals(oth); if (os.length) { h += '<optgroup label="Used in other towers">'; for (var j = 0; j < os.length; j++) { h += opt(os[j], esc(os[j]), normT(os[j]) == normT(cur)); if (normT(os[j]) == normT(cur)) found = true; } h += "</optgroup>"; } }
+  h += opt("-", "- (not for a typology)", cur == "-"); if (cur == "-") found = true;
+  if (!found) h += opt(cur, esc(cur) + " (new)", true);
+  $("edTypoS").innerHTML = h + opt(NEW, "New typology&hellip;", false); }
+/* models: only the one that belongs to this Tower + Typology; when it has none yet, the models not used by another Tower + Typology */
+function fillModel(cur) { var t = fv("Tower"), y = fv("Typo"), multi = editKeys.length > 1, own = y && y != "-" && y != KEEP && t != KEEP ? EK.byTT[mKey(t, y)] : "", h = multi ? opt(KEEP, "(leave as it is)", cur == KEEP) : "", found = !cur || cur == KEEP;
+  h += opt("", own ? "(from the table: " + esc(own) + ")" : "(none)", !cur && !multi);
+  if (own) { h += opt(own, esc(own), up(own) == up(cur)); if (up(own) == up(cur)) found = true; }
+  else { var free = []; for (var mk in EK.byModel) if (EK.byModel.hasOwnProperty(mk)) { var b = EK.byModel[mk]; if (!b.typo || b.typo == "-") free.push(b.model); }
+    free.sort(); if (free.length) { h += '<optgroup label="Not used by a typology yet">'; for (var i = 0; i < free.length; i++) { h += opt(free[i], esc(free[i]), up(free[i]) == up(cur)); if (up(free[i]) == up(cur)) found = true; } h += "</optgroup>"; } }
+  if (!found) h += opt(cur, esc(cur) + " (now)", true);
+  $("edModelS").innerHTML = h + opt(NEW, "New model&hellip;", false); }
+/* is it aligned with the rest of the list? [] = fine */
+function conflicts(t, y, m, d) {
+  var out = [], T = t == KEEP ? d.tower || "" : t, Y = y == KEEP ? d.typo || "" : y, M = m == KEEP ? d.model || "" : m;
+  if (M) { var b = EK.byModel[up(M)]; if (b && b.typo && b.typo != "-" && (up(b.tower) != up(T) || normT(b.typo) != normT(Y))) out.push("Model <b>" + esc(M) + "</b> already belongs to Tower <b>" + esc(b.tower || "-") + "</b> &middot; Typology <b>" + esc(b.typo) + "</b>"); }
+  if (Y && Y != "-") { var o = EK.byTT[mKey(T, Y)]; if (o && M && up(o) != up(M)) out.push("Tower <b>" + esc(T || "-") + "</b> &middot; <b>" + esc(Y) + "</b> already has model <b>" + esc(o) + "</b>"); }
+  return out;
+}
+function edCheck() {
+  var t = fv("Tower"), y = fv("Typo"), m = fv("Model"), bad = [], seen = {};
+  for (var i = 0; i < editKeys.length; i++) { var c = conflicts(t, y, m, P.drawings[editKeys[i]]); for (var j = 0; j < c.length; j++) if (!seen[c[j]]) { seen[c[j]] = 1; bad.push(c[j]); } }
+  var own = y && y != "-" && y != KEEP && t != KEEP ? EK.byTT[mKey(t, y)] : "";
+  $("edHint").innerHTML = bad.length ? '<span class="bad">&#9888; Not aligned with the list: ' + bad.join("<br>&#9888; ") + "</span>" : own && !m ? "Model from the list: <b>" + esc(own) + "</b>" : y && y != "-" && y != KEEP && !own && !m ? '<span class="warn">No model for this Tower + Typology yet - pick or type one.</span>' : "";
+  $("edOk").disabled = bad.length > 0; return !bad.length;
+}
+function edShow() { var fs = ["Tower", "Typo", "Model"]; for (var i = 0; i < fs.length; i++) $("ed" + fs[i]).style.display = $("ed" + fs[i] + "S").value == NEW ? "block" : "none"; }
+function edChanged(which) { var t = fv("Tower"), y = fv("Typo"), m = fv("Model");
+  if (which == "Tower") { fillTypo(y); fillModel(m); } else if (which == "Typo") { fillModel(m); }
+  edShow(); edCheck(); }
+function edit(ks, focus) {
+  if (!ks.length) return; editKeys = ks; var d = P.drawings[ks[0]], one = ks.length == 1; EK = known(ks);
   $("edH").innerHTML = one ? esc(d.num) : "Set " + ks.length + " drawings";
-  $("edInfo").innerHTML = one ? esc(d.title) + (d.cat ? "<br>" + esc(d.cat) : "") + (!d.ok && d.typo ? '<br><span class="warn">Guess' + (d.how == "like" ? " &ndash; same as " + esc(d.like) : d.how == "rule" ? " &ndash; from a typology rule" : " &ndash; its section has no typologies") + "</span>" : "") : "Empty boxes are left as they are.";
-  $("edTower").value = one ? d.tower || "" : ""; $("edTypo").value = one ? d.typo || "" : ""; $("edModel").value = one ? d.model || "" : ""; $("edLink").value = one ? d.link || "" : "";
-  opts("edTowerO", towers().concat(["-"]), "edTower"); typoOpts(); hint();
-  $("ovEdit").style.display = "block"; try { $("edTower").focus(); } catch (e) { }
+  $("edInfo").innerHTML = one ? esc(d.title) + (d.cat ? "<br>" + esc(d.cat) : "") + (!d.ok && d.typo ? '<br><span class="warn">Guess' + (d.how == "like" ? " &ndash; same as " + esc(d.like) : d.how == "rule" ? " &ndash; from a typology rule" : " &ndash; its section has no typologies") + "</span>" : "") : "&ldquo;(leave as it is)&rdquo; keeps what each drawing has.";
+  $("edTower").value = ""; $("edTypo").value = ""; $("edModel").value = ""; $("edLink").value = one ? d.link || "" : "";
+  $("edTowerS").innerHTML = opt(one ? d.tower || "" : KEEP, "", true); fillTower(one ? d.tower || "" : KEEP);
+  fillTypo(one ? d.typo || "" : KEEP); fillModel(one ? d.model || "" : KEEP); edShow(); edCheck();
+  $("ovEdit").style.display = "block"; try { $(focus == "model" ? "edModelS" : focus == "typo" ? "edTypoS" : "edTowerS").focus(); } catch (e) { }
 }
 function saveEdit(na) {
-  var t = LT.trim($("edTower").value), y = LT.trim($("edTypo").value), m = LT.trim($("edModel").value), lk = LT.trim($("edLink").value), one = editKeys.length == 1;
+  var t = fv("Tower"), y = fv("Typo"), m = fv("Model"), lk = LT.trim($("edLink").value), one = editKeys.length == 1;
   if (lk && !/^[a-z]+:/i.test(lk)) lk = "https://" + lk;
-  if (na) { t = "-"; y = "-"; m = ""; }
+  if (na) { t = "-"; y = "-"; m = ""; } else if (!edCheck()) return;
   for (var i = 0; i < editKeys.length; i++) { var d = P.drawings[editKeys[i]];
     if (one) d.link = lk; else if (lk) d.link = lk;
-    if (one || na) { d.tower = t; d.typo = y; d.model = m; } else { if (t) d.tower = t; if (y) d.typo = y; if (m) d.model = m; }
+    if (t != KEEP) d.tower = t; if (y != KEEP) d.typo = y; if (m != KEEP) d.model = m;
     if (d.typo) { d.ok = true; d.how = "you"; d.like = ""; } }
   saveP(); $("ovEdit").style.display = "none"; MM = null; fillFilters(); render();
 }
@@ -1106,7 +1130,8 @@ $("bHist").onclick = function (e) { if (!P) return; var a = at(this); histMenu(a
 $("ldOk").onclick = applyMidp; $("ldCancel").onclick = function () { pending = null; $("ovLoad").style.display = "none"; };
 $("shCancel").onclick = function () { $("ovSheet").style.display = "none"; };
 $("edOk").onclick = function () { saveEdit(false); }; $("edNa").onclick = function () { saveEdit(true); }; $("edCancel").onclick = function () { $("ovEdit").style.display = "none"; };
-$("edTower").onkeyup = function () { typoOpts(); hint(); }; $("edTypo").onkeyup = hint;
+$("edTowerS").onchange = function () { edChanged("Tower"); }; $("edTypoS").onchange = function () { edChanged("Typo"); }; $("edModelS").onchange = function () { edChanged("Model"); };
+$("edTower").onkeyup = function () { edChanged("Tower"); }; $("edTypo").onkeyup = function () { edChanged("Typo"); }; $("edModel").onkeyup = function () { edCheck(); };
 $("sOk").onclick = setupSave; $("sAccB").onclick = function () { var f = LT.pickFolder("Your ACC project folder on this PC (Desktop Connector: ...\\DC\\ACCDocs\\<company>\\<project>)"); if (f) $("sAcc").value = f; };
 $("sModDirB").onclick = function () { var f = LT.pickFolder("The folder with the project's models (.rvt / .nwd)"); if (f) $("sModDir").value = f; }; $("sCancel").onclick = function () { $("ovSetup").style.display = "none"; };
 $("sTowerPart").onkeyup = setupEx;
@@ -1117,11 +1142,6 @@ var iMap = { iNum: "name", iTitle: "title", iTower: "tower", iTypo: "typo", iMod
 for (var im in iMap) if (iMap.hasOwnProperty(im)) (function (id, key) { $(id).onchange = function () { imp.c[key] = this.value; impPrev(); }; })(im, iMap[im]);
 $("views").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-v"); if (c) { view = c.getAttribute("data-v"); render(); } };
 $("filters").onclick = function (e) { var b = LT.up(e.target || e.srcElement, "data-f"); if (!b) return; var f = b.getAttribute("data-f"); if (pickKey == f) { pickHide(); return; } pickShow(f, b); (e || window.event).cancelBubble = true; };
-$("asQ").onkeyup = function (e) { e = e || window.event; if (e.keyCode == 27) { asClose(); return; } if (e.keyCode == 13) { var f = $("asL").getElementsByTagName("div"); for (var i = 0; i < f.length; i++) if (f[i].getAttribute("data-ai") != null) { asPick(+f[i].getAttribute("data-ai")); return; } return; } asList(); };
-$("asQ").oninput = function () { if (AS) asList(); };
-$("asL").onclick = function (e) { var it = LT.up((e || window.event).target || (e || window.event).srcElement, "data-ai"); if (it) asPick(+it.getAttribute("data-ai")); };
-(function () { var h = function (e) { e = e || window.event; if (!AS) return; var t = e.target || e.srcElement; while (t && t.id != "asPk") t = t.parentNode; if (!t) asClose(); };
-  if (document.attachEvent) document.attachEvent("onmousedown", h); else document.addEventListener("mousedown", h, false); })();
 $("search").onkeyup = function (e) { e = e || window.event; if (e.keyCode == 27) this.value = ""; if (this.value === this.lastQ) return; this.lastQ = this.value; applyText(); };
 $("fClear").onclick = function () { F = { cat: {}, tower: {}, typo: {} }; CF = {}; LF = null; lfLabel(); $("search").value = ""; fillFilters(); render(); };
 $("fSaved").onclick = function (e) { if (!P) return; var a = at(this); savedMenu(a[0], a[1]); stop(e); };
@@ -1164,7 +1184,7 @@ $("res").ondblclick = function (e) { var t = e.target || e.srcElement; if (t.get
   var tr = LT.up(t, "data-k"); if (tr) edit([tr.getAttribute("data-k")]); };
 $("res").onclick = function (e) {
   e = e || window.event; var t = e.target || e.srcElement;
-  var asb = LT.up(t, "data-as"); if (asb) { var atr = LT.up(asb, "data-k"); asOpen(atr.getAttribute("data-k"), asb.getAttribute("data-as"), asb); return; }
+  var asb = LT.up(t, "data-as"); if (asb) { var atr = LT.up(asb, "data-k"); var ak = atr.getAttribute("data-k"); edit(ticked[ak] ? keys(ticked) : [ak], asb.getAttribute("data-as")); return; }
   if (t.id == "tkAll") { ticked = {}; if (t.checked) for (var i = 0; i < shown.length; i++) ticked[shown[i]] = 1; render(); return; }
   var sc = LT.up(t, "data-st"); if (sc) { var sk = sc.getAttribute("data-st"); statMenu(ticked[sk] ? keys(ticked) : [sk], e.clientX, e.clientY); return; }
   if (LT.up(t, "data-ml")) return;   // a model link: opened by lt-core
@@ -1189,7 +1209,7 @@ $("res").oncontextmenu = function (e) {
 $("bSet").onclick = function () { edit(keys(ticked)); };
 $("bStat").onclick = function (e) { var a = at(this); statMenu(keys(ticked), a[0], a[1]); stop(e); };
 $("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-stf"); if (c) { stF = c.getAttribute("data-stf"); render(); } }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
-function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", ".asg{color:{accent};background:{accSoft};border-radius:{rc}px;border:1px dashed {accent}}.asg:hover{background:{accent};color:{accText}}", "#asPk{background:{bg};border:1px solid {line};border-radius:{r}px;box-shadow:0 10px 30px rgba(0,0,0,.18)}.asI{border-radius:{rc}px}.asI:hover{background:{accSoft}}.asI.top b{color:{accent}}.asSep{color:{muted}}.asI.typed{border-top:1px solid {line}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".dr.ins{opacity:.5}.dr.ins:after{content:' \\2713  in the set';font-size:.8em;color:{ok}}", ".scf{padding:12px 16px 0}.scf .lbl{margin:0 6px 0 8px}.scf input{width:104px;margin:0 8px 6px 0}.scc{display:flex;flex-wrap:wrap;padding:6px 10px}.scc .mc{flex:0 1 220px;margin:6px;padding:12px 14px;border-radius:16px}.big2{font-size:1.7em;font-weight:700}.sleg2{padding:0 20px 4px;font-size:.85em}.sleg2 span{margin-right:18px}.sleg2 i{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:3px}.sleg2 i.ds{height:0;border-top:3px dashed;background:none}",
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", ".asg{color:{accent};background:{accSoft};border-radius:{rc}px;border:1px dashed {accent}}.asg:hover{background:{accent};color:{accText}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".dr.ins{opacity:.5}.dr.ins:after{content:' \\2713  in the set';font-size:.8em;color:{ok}}", ".scf{padding:12px 16px 0}.scf .lbl{margin:0 6px 0 8px}.scf input{width:104px;margin:0 8px 6px 0}.scc{display:flex;flex-wrap:wrap;padding:6px 10px}.scc .mc{flex:0 1 220px;margin:6px;padding:12px 14px;border-radius:16px}.big2{font-size:1.7em;font-weight:700}.sleg2{padding:0 20px 4px;font-size:.85em}.sleg2 span{margin-right:18px}.sleg2 i{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:3px}.sleg2 i.ds{height:0;border-top:3px dashed;background:none}",
   ".tlb{margin:12px 12px 4px;padding:12px 14px;border-radius:14px;background:{bg};border:1px solid {line}}.tlh{display:flex;align-items:center;flex-wrap:wrap;margin-bottom:6px}.tlh b{margin-right:10px}.tlh select{width:150px;margin:0 6px 0 auto}.tlh .btn{margin:0 0 0 6px}#tlIn{width:100%;height:46px;font-family:{mono};resize:vertical}.tlw{display:flex;margin-top:8px}#tlRes{flex:1 1 60%;min-width:0;max-height:300px;overflow:auto;margin-right:10px}#tlBag{flex:1 1 40%;min-width:0;max-height:300px;overflow:auto;border:1px dashed {line};border-radius:{r}px;padding:6px}#tlBag.over{border-color:{accent};background:{accSoft}}", ".tlr{display:flex;padding:5px 6px;border-bottom:1px solid {lineSoft}}.tlr span{flex:1 1 0px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px}.tlr span:nth-child(4){flex:2 1 0px}.tlr span:nth-child(5){flex:0 0 44px}.tlr .wide{flex:6 1 0px}.tlhd{font-size:.78em;text-transform:uppercase;letter-spacing:.4px;color:{muted}}.tlr.dragme{cursor:move}.tlr.dragme:hover{background:{hover}}.tlr.ins{opacity:.55}", ".tlbh{padding:2px 4px 6px}.tli{display:flex;align-items:center;padding:5px 6px;margin-bottom:4px;border:1px solid {line};border-radius:{r}px;background:{panel};cursor:move}.tli.over{border-top:3px solid {accent}}.tli .n{flex:0 0 22px;font-weight:bold;color:{accent}}.tli .t{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tli .x{flex:none;cursor:pointer;padding:0 4px;color:{muted}}.tli .x:hover{color:{bad}}.tlba{margin-top:6px}.tlba .btn{margin:0 6px 4px 0}", ".mgrid{display:flex;flex-wrap:wrap;padding:12px 6px}.mc{flex:1 1 300px;max-width:520px;margin:0 6px 12px;padding:14px 16px;border-radius:16px;background:{bg};border:1px solid {line}}.mc.none{opacity:.75}.mh{display:flex;align-items:flex-start}.mn{flex:1 1 auto;min-width:0}.mp{text-align:right;margin-left:10px}.mp b{display:block;font-size:1.5em;line-height:1}.stbar.mb{display:block;width:auto;height:10px;margin:10px 0 6px}.mst span{margin-right:10px}.mst .t1{color:{warn}}.mst .t2{color:{accent}}.mst .t3{color:{ok}}.mst .t0{color:{muted}}.ma{margin-top:8px}.ma .mo{cursor:pointer;color:{accent};font-weight:600;margin-right:14px;font-size:.9em}.ml{margin-top:8px;border-top:1px solid {line};padding-top:6px;font-size:.9em}.ml div{padding:2px 0;display:flex}.ml .muted{flex:1 1 auto;margin:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.ml .s{font-weight:600;white-space:nowrap}.ml .st0{color:{muted}}.ml .st1{color:{warn}}.ml .st2{color:{accent}}.ml .st3{color:{ok}}", ".stc{cursor:pointer;margin-right:6px}.stbar{display:inline-block;vertical-align:middle;width:180px;height:10px;margin:0 8px;background:{chip};border-radius:5px;overflow:hidden;white-space:nowrap}.stbar i{display:inline-block;height:10px}", "td.st{cursor:pointer;font-weight:bold}td.st0{color:{muted};font-weight:normal}td.st1{color:{warn}}td.st2{color:{accent}}td.st3{color:{ok}}.stbar i.st0{background:{line}}.stbar i.st1{background:{warn}}.stbar i.st2{background:{accent}}.stbar i.st3{background:{ok}}.chip.st3{color:{ok}}.chip.st1{color:{warn}}", ".lk{display:flex;height:100%;padding:8px;box-sizing:border-box}.lkin{flex:0 0 270px;display:flex;flex-direction:column;padding-right:10px}.lkin textarea{flex:1 1 auto;min-height:200px;margin:6px 0;font-family:{mono};font-size:.9em}.lkres{flex:1 1 auto;min-width:0;overflow:auto}.lkh{font-weight:bold;margin-bottom:4px}.lkh .btn{margin-left:8px}",
   ".mlk{color:{accent};cursor:pointer;text-decoration:underline}.mlk:hover{color:{text}}", ".sets{display:flex;height:100%;padding:8px;box-sizing:border-box}.sl{flex:0 0 190px;overflow-y:auto;padding-right:8px}.slh{font-weight:bold;margin-bottom:6px}.si{padding:6px 8px;cursor:pointer;border-radius:{r}px;margin-bottom:2px}.si:hover{background:{hover}}.si.on{background:{chip};box-shadow:inset 3px 0 0 {accent}}",
   ".pane{flex:1 1 0px;min-width:0;display:flex;flex-direction:column;border:{bw}px solid {line};border-radius:{r}px;background:{panel}}.pane.over{outline:2px dashed {accent};background:{hover}}.ph{flex:none;padding:6px 10px;border-bottom:1px solid {line};background:{bg}}.pl{flex:1 1 auto;overflow-y:auto;min-height:0}",

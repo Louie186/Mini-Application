@@ -755,8 +755,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.48";
+  L.VERSION = "2026.11.49";
   L.WHATS_NEW = [
+    { v: "2026.11.49", items: [
+      "Drawing Register: the edit window (double-click any drawing, or \"+ set\") now has drop-downs - Typology shows the ones of the chosen Tower, Model only the one that goes with that Tower + Typology. New... lets you type a new one",
+      "A choice that doesn't line up with the list (a model that belongs to another typology, or a second model for a Tower + Typology) is flagged and can't be saved; drawings that already clash show \u26a0 CONFLICT"] },
     { v: "2026.11.48", items: [
       "Drawing Register: an empty Tower, Typology or Model cell has \"+ set\" - pick from the models table (the ones for that tower first), or type a new one. A model brings its Tower and Typology; a Typology brings its model. Tick rows first to set them all at once",
       "Drawing Register: typing in Search or a column filter no longer redraws the list - rows just hide / show"] },

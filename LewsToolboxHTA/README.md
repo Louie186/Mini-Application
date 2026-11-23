@@ -272,6 +272,13 @@ One point per line; **Tab** = one level in, **Shift+Tab** = out (or paste a list
   - **New...** in any box lets you type a new value
   - A **second, different model for a Tower + Typology** that already has one is **flagged in red and Save is off**. One model on several typologies is fine (a note tells you when it gets one more)
   - Several drawings at once: each box starts on *(leave as it is)*
+- **🧱 Model list** (button in the **Models** view, or **Setup › Models › Open the model list**) – your model list in its own columns, the same as your Excel
+  - **Import from Excel...** – every column and the sheet name are kept (Tower, Typology, Sheet location, Model number, Scope, Classification, Model type, path…). The **path** column makes the model clickable. Rows with Tower **-** are general models (federated, shared, tier models): their Typology text is kept as their description
+  - **Click a cell** to change it (Enter or click away = saved). **+ Add row** for a new model. Tick rows → **Delete ticked**
+  - **⚠** marks a Tower + Typology with two models, or a row listed twice
+  - **Export to Excel** – the same sheet name and columns, **with your new rows in it** (Exports folder)
+  - **Import the file again** later: the rows you added in the Toolbox (tagged ADDED) and the file doesn't have yet are kept. Rows that came from the file take the file's values again – export first if you changed them here
+  - A new model typed in the edit window joins the list too
 - **List lookup:** each drawing row has **✎ Edit** (or double-click) – the same window; the register and the lookup row both update
 - **⚠ CONFLICT** in the Note column (and a count on top) = a Tower + Typology that has two different models. Type `conflict` in the Note filter to list them, double-click to fix
 - **Search and the column filters** hide / show rows as you type – the list doesn't redraw

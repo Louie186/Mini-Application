@@ -39,6 +39,11 @@
 #mlQ{width:100%;height:28px;margin-bottom:6px}#mlL{height:250px;overflow:auto}
 .mlR{display:flex;padding:5px 8px;cursor:pointer;white-space:nowrap}.mlR b{flex:0 0 42%;overflow:hidden;text-overflow:ellipsis;font-family:Consolas,monospace}.mlR span{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}.mlR i{flex:0 0 auto;font-style:normal;margin-left:8px}
 #mlSel{padding:6px 2px 8px}
+#mlWrap{height:56vh;overflow:auto}
+#mlTb{border-collapse:collapse;min-width:100%}#mlTb th{position:sticky;top:0;z-index:1;text-align:left;padding:5px 6px;font-size:12px;white-space:nowrap}
+#mlTb td{padding:4px 6px;font-size:12px;max-width:260px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;vertical-align:top}
+#mlTb td[contenteditable]{cursor:text;outline:none}#mlTb td[contenteditable]:focus{white-space:normal;word-break:break-all}
+#mlTb td.ck{width:24px}#mlTb .tg{font-size:10px;font-weight:bold;padding:0 5px;margin-left:3px}
 #edHint .bad{display:block;padding:4px 0}
 .opts span{display:inline-block;padding:2px 8px;margin:0 4px 4px 0;cursor:pointer;font-size:.88em}
 #sheetList .btn{display:block;width:100%;text-align:left;margin:0 0 6px}
@@ -137,7 +142,7 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   <textarea id="sRules" rows="4"></textarea>
   <div class="muted small">Example: <b>Unit Type {n} BR - Type {x} =&gt; {n}BR{x}</b> makes "UNIT TYPE 2 BR - Type C ..." into 2BRC. Rules are only used when no similar drawing is known.</div>
   <div class="h">Models table <span class="muted small" style="font-weight:normal" id="sModN"></span></div>
-  <button class="btn small" id="sModImp">Import from Excel...</button><span class="muted small">one per line:  Tower | Typology | Model | link (optional: the .rvt path or the ACC / BIM 360 link &ndash; makes the model clickable)</span>
+  <button class="btn small" id="sModImp">Import from Excel...</button><button class="btn small" id="sModWin">&#129521; Open the model list (all columns, add rows, export)</button><span class="muted small">one per line:  Tower | Typology | Model | link (optional: the .rvt path or the ACC / BIM 360 link &ndash; makes the model clickable)</span>
   <textarea id="sModels" rows="5"></textarea>
   <div class="fld" style="margin-top:6px"><label>ACC on this PC (Desktop Connector) &ndash; where an ACC path like <i>Project Files/03 WIP/...rvt</i> is found, e.g. C:\Users\you\DC\ACCDocs\Company\Project</label><div style="display:flex"><input type="text" id="sAcc" style="flex:1 1 auto;margin-right:6px" placeholder="(web links work without this)"><button class="btn" id="sAccB" style="margin:0">Browse...</button></div></div>
   <div class="fld" style="margin-top:6px"><label>Models folder (optional) &ndash; a model with no link opens the file in here whose name has the model's name (.rvt / .nwd / .nwc / .ifc, subfolders too)</label><div style="display:flex"><input type="text" id="sModDir" style="flex:1 1 auto;margin-right:6px"><button class="btn" id="sModDirB" style="margin:0">Browse...</button></div></div>
@@ -147,6 +152,13 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
 </div></div>
 
 <!-- import a list or a models table: pick the columns -->
+<div class="ov" id="ovML"><div class="card" style="width:1180px;max-width:96vw">
+  <h3>&#129521; Model list <span class="muted small" id="mlN"></span></h3>
+  <div class="muted small" style="margin-bottom:8px">Your model list in its own columns. Click a cell to change it. <b>+ Add row</b> for a new model &ndash; <b>Export</b> gives the same Excel format with your new rows in it. Importing the file again keeps the rows you added here.</div>
+  <div style="margin-bottom:8px"><input type="text" id="mlWQ" placeholder="Find..." style="width:220px;margin-right:6px"><button class="btn small primary" id="mlAdd">+ Add row</button><button class="btn small" id="mlDel">Delete ticked</button><button class="btn small" id="mlImp">Import from Excel...</button><button class="btn small" id="mlExp">Export to Excel</button><span class="small" id="mlMsg" style="margin-left:8px"></span></div>
+  <div id="mlWrap"></div>
+  <div class="acts"><span class="sp"></span><button class="btn primary" id="mlClose">Done</button></div>
+</div></div>
 <div class="ov" id="ovImp"><div class="card" style="width:720px">
   <h3 id="impH"></h3>
   <div class="row2">
@@ -640,7 +652,7 @@ var mqT = null;
 function modelsView() {
   $("tickBar").style.display = "none";
   var G = modelGroups(), q = up(mQ), h = [], shownN = 0, noModel = 0;
-  $("sum").innerHTML = 'Every model with its drawings: where they stand (not started &middot; in progress &middot; checked &middot; issued), and the model opens with a click. <input type="text" id="mQ" placeholder="Find a model, tower, typology..." style="width:240px;margin-left:8px" value="' + esc(mQ) + '">';
+  $("sum").innerHTML = 'Every model with its drawings: where they stand (not started &middot; in progress &middot; checked &middot; issued), and the model opens with a click. <input type="text" id="mQ" placeholder="Find a model, tower, typology..." style="width:240px;margin-left:8px" value="' + esc(mQ) + '"> <button class="btn small primary" id="mlOpen" title="Your model list in its own columns: import, add rows, export">&#129521; Model list (' + P.models.length + ')</button>';
   var L0 = P.tlook || {}, tws = towersOf(), to = '<option value="">All towers</option>'; for (var w = 0; w < tws.length; w++) to += "<option" + (up(tws[w]) == up(L0.tower || "") ? " selected" : "") + ">" + esc(tws[w]) + "</option>";
   h.push('<div class="tlb"><div class="tlh"><b>&#128269; Typology &rarr; model</b><span class="muted small">type or paste typologies (one per line)</span><select id="tlTw">' + to + '</select><button class="btn small" id="tlCopy">Copy (for Excel)</button><button class="btn small" id="tlClr">Clear</button></div>' +
     '<textarea id="tlIn" rows="2" spellcheck="false" placeholder="e.g. 1BR-A">' + esc(L0.text || "") + '</textarea><div class="tlw"><div id="tlRes"></div><div id="tlBag"></div></div></div>');
@@ -660,6 +672,7 @@ function modelsView() {
   tlDraw();
   var tlSave = function () { P.tlook = { text: $("tlIn").value, tower: $("tlTw").value, list: tlList() }; saveP(); tlDraw(); };
   $("tlIn").onkeyup = tlSave; $("tlTw").onchange = tlSave; $("tlCopy").onclick = tlCopy; $("tlClr").onclick = function () { $("tlIn").value = ""; tlSave(); $("tlIn").focus(); };
+  $("mlOpen").onclick = mlOpenWin;
   $("mQ").onkeyup = function () { if (this.value === mQ) return; mQ = this.value; if (mqT) window.clearTimeout(mqT); mqT = window.setTimeout(function () { var e0 = $("mQ"), at = e0 ? e0.selectionStart : 0; modelsView(); var e = $("mQ"); if (e) { e.focus(); try { e.setSelectionRange(at, at); } catch (x2) { } } }, 350); };
   $("res").onclick = function (e) { var t = e.target || e.srcElement, o = LT.up(t, "data-mo"), st = LT.up(t, "data-mset"), G2 = modelGroups();
     if (o) { var m = G2[+o.getAttribute("data-mo")].model; mOpen[m] = !mOpen[m]; modelsView(); return; }
@@ -979,11 +992,59 @@ function fromModel(m) {
     else { var h = opt("", "Pick the Tower + Typology&hellip;", true); for (var j = 0; j < L.length; j++) h += opt("" + j, esc(L[j].tower || "-") + " &middot; " + esc(L[j].typo || "-"), false); $("edPair").innerHTML = h; box.style.display = "block"; try { $("edPair").focus(); } catch (e) { } } }
   edShow(); edCheck();
 }
+/* ---------- the Model list window: the list in its own columns (as imported), cells edited in place, rows added, exported in the same format ----------
+   P.modelCols = the file's headings, P.modelRoles = which heading is Tower / Typology / Model / link, P.models[i].x = the other cells, .added = made here */
+function mlKey(m) { return up(m.model) + "|" + up(m.tower) + "|" + normT(m.typo || ""); }
+function mlCols() { return P.modelCols && P.modelCols.length ? P.modelCols : ["Tower", "Typology", "Model number", "path"]; }
+function mlRoles() { return P.modelRoles && P.modelRoles.model ? P.modelRoles : { tower: "Tower", typo: "Typology", model: "Model number", link: "path" }; }
+function mlGet(m, h) { var R = mlRoles(); if (h == R.tower) return m.tower || ""; if (h == R.typo) return m.tower == "-" ? m.desc || "" : m.typo || ""; if (h == R.model) return m.model || ""; if (h == R.link) return m.link || ""; var v = (m.x || {})[h]; return v == null ? "" : "" + v; }
+function mlSet(m, h, v) { var R = mlRoles(); v = LT.trim(v);
+  if (h == R.tower) { if (v == "-" && m.tower != "-") { m.desc = m.typo; m.typo = "-"; } else if (v != "-" && m.tower == "-") { m.typo = m.desc || ""; m.desc = ""; } m.tower = v; }
+  else if (h == R.typo) { if (m.tower == "-") m.desc = v; else m.typo = v; }
+  else if (h == R.model) m.model = v; else if (h == R.link) m.link = v; else { m.x = m.x || {}; m.x[h] = v; } }
+/* ⚠ a Tower + Typology with two models, or the same model twice on one Tower + Typology */
+function mlFlags() { var tt = {}, kk = {}, f = {}, i, m;
+  for (i = 0; i < P.models.length; i++) { m = P.models[i]; if (!m.model) continue; kk[mlKey(m)] = (kk[mlKey(m)] || 0) + 1; if (m.typo && m.typo != "-" && m.typo.charAt(0) != "*") { var k = mKey(m.tower, m.typo); (tt[k] || (tt[k] = {}))[up(m.model)] = 1; } }
+  for (i = 0; i < P.models.length; i++) { m = P.models[i]; if (!m.model) { f[i] = "no model number"; continue; } if (kk[mlKey(m)] > 1) f[i] = "listed twice"; else if (m.typo && m.typo != "-" && tt[mKey(m.tower, m.typo)] && keys(tt[mKey(m.tower, m.typo)]).length > 1) f[i] = m.tower + " \u00b7 " + m.typo + " has " + keys(tt[mKey(m.tower, m.typo)]).length + " models"; }
+  return f; }
+var mlTick = {};
+function mlWin() {
+  var C = mlCols(), q = up($("mlWQ").value), F = mlFlags(), h = ['<table id="mlTb" class="grid nofit nonum"><tr><th class="ck"></th>'], n = 0, nf = 0;
+  for (var c = 0; c < C.length; c++) h.push("<th>" + esc(C[c]) + "</th>"); h.push("<th></th></tr>");
+  for (var i = 0; i < P.models.length; i++) { var m = P.models[i], txt = ""; if (q) { for (var c2 = 0; c2 < C.length; c2++) txt += " " + up(mlGet(m, C[c2])); if (txt.indexOf(q) < 0) continue; } n++; if (F[i]) nf++;
+    h.push('<tr data-mi="' + i + '"><td class="ck"><input type="checkbox" style="height:auto"' + (mlTick[i] ? " checked" : "") + "></td>");
+    for (var c3 = 0; c3 < C.length; c3++) { var v = mlGet(m, C[c3]); h.push('<td contenteditable="true" data-h="' + c3 + '" title="' + esc(v) + '">' + esc(v) + "</td>"); }
+    h.push("<td>" + (m.added ? '<span class="tg tnew">ADDED</span>' : "") + (F[i] ? '<span class="tg tbad" title="' + esc(F[i]) + '">&#9888; ' + esc(F[i]) + "</span>" : "") + "</td></tr>"); }
+  h.push("</table>");
+  $("mlWrap").innerHTML = h.join(""); $("mlN").innerHTML = "(" + P.models.length + " rows" + (q ? ", " + n + " shown" : "") + (nf ? ' &middot; <span class="bad">' + nf + " to look at</span>" : "") + ")";
+}
+function mlOpenWin() { $("mlWQ").value = ""; mlTick = {}; $("mlMsg").innerHTML = ""; $("ovML").style.display = "block"; mlWin(); }
+function mlChanged() { MM = null; lookRelink(); saveP(); }
+function mlCell(td) { var tr = LT.up(td, "data-mi"); if (!tr || td.getAttribute("data-h") == null) return; var m = P.models[+tr.getAttribute("data-mi")], h = mlCols()[+td.getAttribute("data-h")], v = td.innerText || td.textContent || "";
+  if (LT.trim(v) == mlGet(m, h)) return; mlSet(m, h, v); td.title = mlGet(m, h); mlChanged(); var F = mlFlags(), i = +tr.getAttribute("data-mi"), last = tr.cells[tr.cells.length - 1];
+  last.innerHTML = (m.added ? '<span class="tg tnew">ADDED</span>' : "") + (F[i] ? '<span class="tg tbad" title="' + esc(F[i]) + '">&#9888; ' + esc(F[i]) + "</span>" : ""); }
+function mlExport() {
+  var C = mlCols(), R = mlRoles(), xl = null, wb = null, out = "", base = LT.exportsDir() + "\\Model list_" + LT.safeName(P.name) + "_" + LT.stamp(); LT.mkdirs(LT.exportsDir());
+  try { xl = new ActiveXObject("Excel.Application"); xl.Visible = false; xl.DisplayAlerts = false;
+    wb = xl.Workbooks.Add(); while (wb.Worksheets.Count > 1) wb.Worksheets(wb.Worksheets.Count).Delete(); var ws = wb.Worksheets(1); try { ws.Name = (P.modelSheet || "Model list").substring(0, 31); } catch (e0) { }
+    for (var c = 0; c < C.length; c++) { var hc = ws.Cells(1, c + 1); hc.Value = C[c]; hc.Font.Bold = true; }
+    for (var i = 0; i < P.models.length; i++) for (var k = 0; k < C.length; k++) { var v = mlGet(P.models[i], C[k]), cell = ws.Cells(i + 2, k + 1); if (v === "") continue;
+      if (/^\d+$/.test(v) && C[k] != R.model) cell.Value = +v; else { cell.NumberFormat = "@"; cell.Value = v; }
+      if (C[k] == R.link && /^https?:/i.test(v)) { try { ws.Hyperlinks.Add(cell, v, "", "", v); } catch (e1) { } } }
+    try { ws.Range(ws.Cells(1, 1), ws.Cells(P.models.length + 1, C.length)).AutoFilter(); ws.Rows(2).Select(); xl.ActiveWindow.FreezePanes = true; } catch (e2) { }
+    for (var w = 1; w <= C.length; w++) try { ws.Columns(w).ColumnWidth = C[w - 1] == R.link ? 40 : C[w - 1] == R.model ? 34 : 16; } catch (e3) { }
+    wb.SaveAs(base + ".xlsx", 51); out = base + ".xlsx";
+  } catch (e) { var t = [C.slice(0)]; for (var j = 0; j < P.models.length; j++) { var row = []; for (var k2 = 0; k2 < C.length; k2++) row.push(mlGet(P.models[j], C[k2])); t.push(row); }
+    try { LT.writeCsv(base + ".csv", t); out = base + ".csv"; } catch (e4) { alert("Couldn't export:\n" + (e4.message || e4)); } }
+  finally { try { if (wb) wb.Close(false); } catch (e5) { } try { if (xl) xl.Quit(); } catch (e6) { } }
+  if (out) { $("mlMsg").innerHTML = 'Saved: <b>' + esc(LT.fso.GetFileName(out)) + "</b>"; try { LT.open(out); } catch (e7) { } }
+  return out;
+}
 /* ---------- the model list tab: every Model with its Tower + Typology (the models table, then the models already on drawings). One click sets all three ---------- */
 var ML = [];
 function mlRows() {
   var o = [], seen = {}, i, add = function (m, t, y, src) { m = LT.trim(m || ""); if (!m) return; var k = up(m) + "|" + up(t) + "|" + normT(y || ""); if (seen[k]) { seen[k].n += src == "d" ? 1 : 0; return; } var r = { model: m, tower: LT.trim(t || ""), typo: LT.trim(y || ""), n: src == "d" ? 1 : 0, table: src == "t" }; seen[k] = r; o.push(r); };
-  for (i = 0; i < P.models.length; i++) if (P.models[i].typo.charAt(0) != "*") add(P.models[i].model, P.models[i].tower, P.models[i].typo, "t");
+  for (i = 0; i < P.models.length; i++) if ((P.models[i].typo || "").charAt(0) != "*") { add(P.models[i].model, P.models[i].tower, P.models[i].typo, "t"); if (P.models[i].desc) for (var dq = 0; dq < o.length; dq++) if (up(o[dq].model) == up(P.models[i].model) && o[dq].tower == "-") o[dq].desc = P.models[i].desc; }
   var D = P.drawings; for (var k in D) if (D.hasOwnProperty(k) && D[k].inMidp !== false) { var m = modelOf(D[k]); if (m) add(m, D[k].tower, D[k].typo, "d"); }
   o.sort(function (a, b) { var x = up(a.model), y = up(b.model); return x < y ? -1 : x > y ? 1 : up(a.tower) + normT(a.typo) < up(b.tower) + normT(b.typo) ? -1 : 1; });
   return o;
@@ -991,8 +1052,9 @@ function mlRows() {
 function mlDraw() { var q = up($("mlQ").value), h = [], t = fv("Tower"), y = fv("Typo"), m = fv("Model");
   for (var i = 0; i < ML.length; i++) { var r = ML[i]; if (q && (up(r.model) + " " + up(r.tower) + " " + up(r.typo)).indexOf(q) < 0) continue;
     var on = m && up(m) == up(r.model) && up(t) == up(r.tower) && normT(y) == normT(r.typo), own = r.typo && r.typo != "-" ? EK.byTT[mKey(r.tower, r.typo)] : "", clash = own && up(own) != up(r.model) && !r.table;
-    h.push('<div class="mlR' + (on ? " on" : "") + (clash ? " clash" : "") + '" data-mr="' + i + '"' + (clash ? ' title="' + esc(r.tower + " \u00b7 " + r.typo) + " has model " + esc(own) + ' in the list - this one clashes, it can\'t be picked"' : "") + "><b>" + (clash ? "&#9888; " : "") + esc(r.model) + "</b><span>" + esc(r.tower || "-") + " &middot; " + esc(r.typo || "-") + '</span><i class="muted">' + (r.table ? "list" : "") + (r.n ? (r.table ? " &middot; " : "") + r.n + " dwg" : "") + "</i></div>"); }
-  $("mlL").innerHTML = h.join("") || '<div class="muted" style="padding:10px;line-height:1.6">' + (ML.length ? "Nothing matches." : 'No models yet. Load your model list in <b>Setup &gt; Models</b> (Import from Excel), or type them in the Tower &middot; Typology &middot; Model tab.') + "</div>";
+    h.push('<div class="mlR' + (on ? " on" : "") + (clash ? " clash" : "") + '" data-mr="' + i + '"' + (clash ? ' title="' + esc(r.tower + " \u00b7 " + r.typo) + " has model " + esc(own) + ' in the list - this one clashes, it can\'t be picked"' : "") + "><b>" + (clash ? "&#9888; " : "") + esc(r.model) + "</b><span>" + (r.desc ? '<span class="muted">' + esc(r.desc) + "</span>" : esc(r.tower || "-") + " &middot; " + esc(r.typo || "-")) + '</span><i class="muted">' + (r.table ? "list" : "") + (r.n ? (r.table ? " &middot; " : "") + r.n + " dwg" : "") + "</i></div>"); }
+  $("mlL").innerHTML = h.join("") || '<div class="muted" style="padding:10px;line-height:1.6">' + (ML.length ? "Nothing matches." : 'No models yet. <a href="#" id="mlGo">Open the model list</a> to import your Excel or add rows, or type them in the Tower &middot; Typology &middot; Model tab.') + "</div>";
+  if ($("mlGo")) $("mlGo").onclick = function () { mlOpenWin(); return false; };
   $("mlSel").innerHTML = m && m != KEEP ? "Selected: <b>" + esc(m) + "</b> &middot; " + esc(t || "-") + " &middot; " + esc(y || "-") : '<span class="muted">Click a model: its Tower and Typology come with it.</span>'; }
 function edTab(which) { $("edList").style.display = which == "list" ? "block" : "none"; $("edBoxes").style.display = which == "list" ? "none" : "block";
   var ts = document.querySelectorAll ? document.querySelectorAll(".edTab") : []; for (var i = 0; i < ts.length; i++) ts[i].className = "edTab" + (ts[i].getAttribute("data-et") == which ? " on" : "");
@@ -1015,6 +1077,8 @@ function saveEdit(na) {
   for (var i = 0; i < editKeys.length; i++) { var d = P.drawings[editKeys[i]];
     if (one) d.link = lk; else if (lk) d.link = lk;
     if (t != KEEP) d.tower = t; if (y != KEEP) d.typo = y; if (m != KEEP) d.model = m;
+    if (!na && d.model && d.typo) { var nk = mlKey({ model: d.model, tower: d.tower, typo: d.typo }), have = false; for (var pm = 0; pm < P.models.length && !have; pm++) if (mlKey(P.models[pm]) == nk || (d.typo == "-" && up(P.models[pm].model) == up(d.model))) have = true;
+      if (!have) P.models.push({ tower: d.tower, typo: d.typo, model: d.model, link: "", x: {}, added: true }); }
     if (d.typo) { d.ok = true; d.how = "you"; d.like = ""; } }
   if (P.lookup && P.lookup.rows) for (var lr = 0; lr < P.lookup.rows.length; lr++) { var R0 = P.lookup.rows[lr], d0 = R0.key ? P.drawings[R0.key] : null; if (!d0 || R0.isModel) continue;
     for (var ek = 0; ek < editKeys.length; ek++) if (editKeys[ek] == R0.key) { R0.tower = d0.tower || ""; R0.typo = d0.typo || ""; R0.model = modelOf(d0); R0.link = R0.model ? modelLink(R0.model) : ""; R0.src = "register"; } }
@@ -1064,7 +1128,8 @@ function setupEx() { var ex = ""; for (var k in P.drawings) if (P.drawings.hasOw
 function setupSave() {
   var S = P.setup; S.sheet = LT.trim($("sSheet").value); S.num = up($("sNum").value); S.title = up($("sTitle").value); S.prefix = LT.trim($("sPrefix").value); S.towerPart = parseInt($("sTowerPart").value, 10) || 0;
   P.rules = rulesFrom($("sRules").value);
-  var ms = [], ls = $("sModels").value.split(/\r?\n/); for (var i = 0; i < ls.length; i++) { var p = ls[i].split("|"); if (p.length >= 3 && LT.trim(p[1])) { var lk = LT.trim(p.slice(3).join("|")); ms.push({ tower: LT.trim(p[0]), typo: LT.trim(p[1]), model: LT.trim(p[2]), link: lk }); } }
+  var ms = [], ls = $("sModels").value.split(/\r?\n/); for (var i = 0; i < ls.length; i++) { var p = ls[i].split("|"); if (p.length >= 3 && LT.trim(p[1])) { var lk = LT.trim(p.slice(3).join("|")); var nm = { tower: LT.trim(p[0]), typo: LT.trim(p[1]), model: LT.trim(p[2]), link: lk }, was = null; for (var w = 0; w < P.models.length && !was; w++) if (mlKey(P.models[w]) == mlKey(nm)) was = P.models[w];
+      if (was) { nm.x = was.x; nm.desc = was.desc; nm.added = was.added; } ms.push(nm); } }
   S.modelsDir = LT.trim($("sModDir").value); S.accRoot = LT.trim($("sAcc").value).replace(/[\\\/]+$/, ""); MF = null; ACCF = {};
   P.models = ms; MM = null; lookRelink(); saveP(); $("ovSetup").style.display = "none"; render(); LT.toast("Setup saved");
 }
@@ -1092,7 +1157,7 @@ function impHead(re, not) { var h = imp.L.head; for (var i = 0; i < h.length; i+
 function impCols(guess) {
   var L = imp.L, c;
   if (imp.kind == "list") { c = LT.listColumns(L, imp.c || {}, guess); if (guess || c.link == null) c.link = impHead(/^(path|model path|model link|link|url|hyperlink|acc|acc link|location)$/i) || impHead(/path|link|url/i); }
-  else c = guess ? { tower: impHead(/tower|building|block/i), typo: impHead(/typolog|unit type|type/i, /model/i), model: impHead(/model n|model ref|^model$/i) || impHead(/model/i, /type|path|link|url|location/i), link: impHead(/path|link|url|location|acc|hyperlink/i) } : imp.c;
+  else c = guess ? { tower: impHead(/tower|building|block/i), typo: impHead(/typolog|unit type|type/i, /model/i), model: impHead(/model n|model ref|^model$/i) || impHead(/model/i, /type|path|link|url|location/i), link: impHead(/^(path|model path|model link|link|url|hyperlink|acc|acc link)$/i) || impHead(/path|link|url|acc|hyperlink/i, /sheet/i) || impHead(/location/i, /sheet/i) } : imp.c;
   imp.c = c;
   var so = ""; for (var s = 0; s < L.sheets.length; s++) so += "<option" + (L.sheets[s] == L.sheet ? " selected" : "") + ">" + esc(L.sheets[s]) + "</option>"; $("iSheet").innerHTML = so;
   var o = function (sel, none) { var h = none ? '<option value="">(none)</option>' : ""; for (var i = 0; i < L.head.length; i++) h += "<option" + (L.head[i] == sel ? " selected" : "") + ">" + esc(L.head[i]) + "</option>"; return h; };
@@ -1101,10 +1166,11 @@ function impCols(guess) {
 }
 function impRows() {
   var L = imp.L, c = imp.c, ix = function (n) { return n ? L.head.indexOf(n) : -1; }, iN = ix(c.name), iT = ix(c.title), iTw = ix(c.tower), iTy = ix(c.typo), iM = ix(c.model), iL = ix(c.link), out = [];
-  for (var r = L.headRow + 1; r < L.table.length; r++) { var row = L.table[r], tw = LT.cell(row, iTw), ty = LT.cell(row, iTy), m = LT.cell(row, iM);
+  for (var r = L.headRow + 1; r < L.table.length; r++) { var row = L.table[r], tw = LT.cell(row, iTw), ty = LT.cell(row, iTy), m = LT.cell(row, iM), allX = {};
+    if (imp.kind == "models") { var any = false; for (var xc = 0; xc < L.head.length; xc++) { var xv = LT.cell(row, xc); if (xc == iL && L.links && L.links[r + "," + xc]) xv = L.links[r + "," + xc]; allX[L.head[xc]] = xv; if (xv) any = true; } if (!any) continue; }
     var o = { tower: noVal(tw) ? "" : tw, typo: noVal(ty) ? "" : ty, model: noVal(m) || m == "-" ? "" : m }, lk = LT.cell(row, iL), hl = L.links || {}; lk = (iL >= 0 && hl[r + "," + iL]) || (hl[r + "," + iM]) || lk; o.link = noVal(lk) || lk == "-" ? "" : lk;   // a hyperlinked cell: the link behind it
     if (imp.kind == "list") { var n = LT.cell(row, iN); if (!LT.isDocNo(n)) continue; var s = splitNo(n); o.num = s.base; o.key = s.key; o.title = LT.cell(row, iT); }
-    else if (!o.typo || !o.model) continue;
+    else { if (!o.model) continue; o.x = allX; if (LT.trim(tw) == "-") { o.desc = o.typo; o.tower = "-"; o.typo = "-"; } else if (!o.typo) continue; }
     out.push(o); }
   return out;
 }
@@ -1112,9 +1178,14 @@ function impPrev() { var rs = impRows(), h = ""; for (var i = 0; i < Math.min(rs
   $("impPrev").innerHTML = (h || '<tr><td class="bad">Nothing found with these columns.</td></tr>') + '<tr><td colspan="6" class="muted">' + rs.length + " rows" + (function () { var n = 0; for (var i = 0; i < rs.length; i++) if (rs[i].link) n++; return n ? " &middot; <b>" + n + " with a path / link</b> (the Model becomes clickable)" : imp.c.link ? ' &middot; <span class="warn">no paths found in that column</span>' : ""; })() + "</td></tr>"; }
 function impDo() {
   var rs = impRows(); if (!rs.length) { alert("Nothing to import with these columns."); return; }
-  if (imp.kind == "models") { var oldL = {}; for (var o = 0; o < P.models.length; o++) if (P.models[o].link) oldL[up(P.models[o].model)] = P.models[o].link;
-    P.models = []; for (var i = 0; i < rs.length; i++) P.models.push({ tower: rs[i].tower, typo: rs[i].typo, model: rs[i].model, link: rs[i].link || oldL[up(rs[i].model)] || "" }); MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")";
-    lookRelink(); var nl = 0; for (var q = 0; q < P.models.length; q++) if (P.models[q].link) nl++; LT.toast(P.models.length + " models imported" + (nl ? ", " + nl + " with a path / link" : "")); }
+  if (imp.kind == "models") { var oldL = {}, inFile = {}, kept = []; for (var o = 0; o < P.models.length; o++) if (P.models[o].link) oldL[up(P.models[o].model)] = P.models[o].link;
+    for (var f0 = 0; f0 < rs.length; f0++) inFile[mlKey(rs[f0])] = 1;
+    for (var o2 = 0; o2 < P.models.length; o2++) if (P.models[o2].added && !inFile[mlKey(P.models[o2])]) kept.push(P.models[o2]);   // rows you added here and the file doesn't have yet stay
+    P.models = []; for (var i = 0; i < rs.length; i++) P.models.push({ tower: rs[i].tower, typo: rs[i].typo, model: rs[i].model, link: rs[i].link || oldL[up(rs[i].model)] || "", desc: rs[i].desc || "", x: rs[i].x || {} });
+    P.models = P.models.concat(kept);
+    P.modelCols = imp.L.head.slice(0); P.modelSheet = imp.L.sheet || "Model list"; P.modelRoles = { tower: imp.c.tower || "", typo: imp.c.typo || "", model: imp.c.model || "", link: imp.c.link || "" };
+    MM = null; $("sModels").value = modelsTxt(); $("sModN").innerHTML = "(" + P.models.length + ")";
+    lookRelink(); var nl = 0; for (var q = 0; q < P.models.length; q++) if (P.models[q].link) nl++; LT.toast(P.models.length + " models imported" + (nl ? ", " + nl + " with a path / link" : "") + (kept.length ? " \u00b7 " + kept.length + " you added here kept" : "")); if ($("ovML").style.display == "block") mlWin(); }
   else { var D = P.drawings, nN = 0, nU = 0, nL = 0;
     for (var j = 0; j < rs.length; j++) { var r = rs[j], d = D[r.key];
       if (!d) { d = D[r.key] = { num: r.num, title: r.title, cat: "", rev: "", tower: "", typo: "", model: "", how: "", ok: false, first: LT.today(), inMidp: P.last ? false : undefined }; nN++; } else nU++;
@@ -1182,6 +1253,19 @@ $("ldOk").onclick = applyMidp; $("ldCancel").onclick = function () { pending = n
 $("shCancel").onclick = function () { $("ovSheet").style.display = "none"; };
 $("edOk").onclick = function () { saveEdit(false); }; $("edNa").onclick = function () { saveEdit(true); }; $("edCancel").onclick = function () { $("ovEdit").style.display = "none"; };
 $("edTowerS").onchange = function () { edChanged("Tower"); }; $("edTypoS").onchange = function () { edChanged("Typo"); }; $("edModelS").onchange = function () { edChanged("Model"); };
+$("mlWQ").onkeyup = mlWin;
+$("mlClose").onclick = function () { $("ovML").style.display = "none"; render(); };
+$("mlAdd").onclick = function () { var R = mlRoles(), m = { tower: "", typo: "", model: "", link: "", x: {}, added: true }; P.models.push(m); $("mlWQ").value = ""; mlWin(); saveP();
+  var w = $("mlWrap"); w.scrollTop = w.scrollHeight; var tr = $("mlTb").rows[$("mlTb").rows.length - 1]; try { tr.cells[1].focus(); } catch (e) { } };
+$("mlDel").onclick = function () { var ks = []; for (var k in mlTick) if (mlTick.hasOwnProperty(k) && mlTick[k]) ks.push(+k); if (!ks.length) { alert("Tick the rows to delete first."); return; }
+  if (!confirm("Delete " + ks.length + " row(s) from the model list?")) return; ks.sort(function (a, b) { return b - a; }); for (var i = 0; i < ks.length; i++) P.models.splice(ks[i], 1); mlTick = {}; mlChanged(); mlWin(); };
+$("mlImp").onclick = function () { startImport("models"); };
+$("mlExp").onclick = mlExport;
+$("mlWrap").onclick = function (e) { var t = (e || window.event).target || (e || window.event).srcElement; if (t.type == "checkbox") { var tr = LT.up(t, "data-mi"); mlTick[+tr.getAttribute("data-mi")] = t.checked; } };
+(function () { var w = $("mlWrap"), h = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (t && t.getAttribute && t.getAttribute("data-h") != null) mlCell(t); };
+  if (w.addEventListener) w.addEventListener("focusout", h, false); else w.attachEvent("onfocusout", h);
+  w.onkeydown = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (e.keyCode == 13 && t.getAttribute && t.getAttribute("data-h") != null) { try { t.blur(); } catch (x) { } mlCell(t); if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } }; })();
+$("sModWin").onclick = function () { mlOpenWin(); };
 $("mlQ").onkeyup = mlDraw; $("mlQ").oninput = mlDraw;
 $("mlL").onclick = function (e) { var r = LT.up((e || window.event).target || (e || window.event).srcElement, "data-mr"); if (!r) return; var x = ML[+r.getAttribute("data-mr")]; if (r.className.indexOf("clash") >= 0) { LT.toast(x.tower + " \u00b7 " + x.typo + " already has another model"); return; }
   $("edPairBox").style.display = "none"; setPair(x.tower, x.typo, x.model); mlDraw(); };
@@ -1266,7 +1350,7 @@ $("res").oncontextmenu = function (e) {
 $("bSet").onclick = function () { edit(keys(ticked)); };
 $("bStat").onclick = function (e) { var a = at(this); statMenu(keys(ticked), a[0], a[1]); stop(e); };
 $("sum").onclick = function (e) { var c = LT.up(e.target || e.srcElement, "data-stf"); if (c) { stF = c.getAttribute("data-stf"); render(); } }; $("bAccept").onclick = function () { accept(keys(ticked)); }; $("bUntick").onclick = function () { ticked = {}; render(); };
-function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", ".edTab{border-radius:{rc}px;background:{chip}}.edTab.on{background:{accent};color:{accText}}#mlL{border:1px solid {line};border-radius:{r}px}.mlR{border-bottom:1px solid {line}}.mlR:hover{background:{accSoft}}.mlR.on{background:{accent};color:{accText}}.mlR.on .muted{color:{accText}}.mlR.clash{opacity:.55;cursor:not-allowed}.mlR.clash b{color:{bad}}", ".asg{color:{accent};background:{accSoft};border-radius:{rc}px;border:1px dashed {accent}}.asg:hover{background:{accent};color:{accText}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".dr.ins{opacity:.5}.dr.ins:after{content:' \\2713  in the set';font-size:.8em;color:{ok}}", ".scf{padding:12px 16px 0}.scf .lbl{margin:0 6px 0 8px}.scf input{width:104px;margin:0 8px 6px 0}.scc{display:flex;flex-wrap:wrap;padding:6px 10px}.scc .mc{flex:0 1 220px;margin:6px;padding:12px 14px;border-radius:16px}.big2{font-size:1.7em;font-weight:700}.sleg2{padding:0 20px 4px;font-size:.85em}.sleg2 span{margin-right:18px}.sleg2 i{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:3px}.sleg2 i.ds{height:0;border-top:3px dashed;background:none}",
+function look() { LT.applyLook(["#sum{border-bottom:1px solid {line}}", "#mlTb th{background:{panel};border-bottom:1px solid {line}}#mlTb td{border-bottom:1px solid {line}}#mlTb td[contenteditable]:focus{background:{accSoft}}.tg{border-radius:{rc}px}.tnew{background:{okSoft};color:{ok}}.tbad{background:{badSoft};color:{bad}}", ".edTab{border-radius:{rc}px;background:{chip}}.edTab.on{background:{accent};color:{accText}}#mlL{border:1px solid {line};border-radius:{r}px}.mlR{border-bottom:1px solid {line}}.mlR:hover{background:{accSoft}}.mlR.on{background:{accent};color:{accText}}.mlR.on .muted{color:{accText}}.mlR.clash{opacity:.55;cursor:not-allowed}.mlR.clash b{color:{bad}}", ".asg{color:{accent};background:{accSoft};border-radius:{rc}px;border:1px dashed {accent}}.asg:hover{background:{accent};color:{accText}}", "#res{background:{panel}}", ".tag{border-radius:{r}px;background:{chip}}", ".dr.ins{opacity:.5}.dr.ins:after{content:' \\2713  in the set';font-size:.8em;color:{ok}}", ".scf{padding:12px 16px 0}.scf .lbl{margin:0 6px 0 8px}.scf input{width:104px;margin:0 8px 6px 0}.scc{display:flex;flex-wrap:wrap;padding:6px 10px}.scc .mc{flex:0 1 220px;margin:6px;padding:12px 14px;border-radius:16px}.big2{font-size:1.7em;font-weight:700}.sleg2{padding:0 20px 4px;font-size:.85em}.sleg2 span{margin-right:18px}.sleg2 i{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:3px}.sleg2 i.ds{height:0;border-top:3px dashed;background:none}",
   ".tlb{margin:12px 12px 4px;padding:12px 14px;border-radius:14px;background:{bg};border:1px solid {line}}.tlh{display:flex;align-items:center;flex-wrap:wrap;margin-bottom:6px}.tlh b{margin-right:10px}.tlh select{width:150px;margin:0 6px 0 auto}.tlh .btn{margin:0 0 0 6px}#tlIn{width:100%;height:46px;font-family:{mono};resize:vertical}.tlw{display:flex;margin-top:8px}#tlRes{flex:1 1 60%;min-width:0;max-height:300px;overflow:auto;margin-right:10px}#tlBag{flex:1 1 40%;min-width:0;max-height:300px;overflow:auto;border:1px dashed {line};border-radius:{r}px;padding:6px}#tlBag.over{border-color:{accent};background:{accSoft}}", ".tlr{display:flex;padding:5px 6px;border-bottom:1px solid {lineSoft}}.tlr span{flex:1 1 0px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:6px}.tlr span:nth-child(4){flex:2 1 0px}.tlr span:nth-child(5){flex:0 0 44px}.tlr .wide{flex:6 1 0px}.tlhd{font-size:.78em;text-transform:uppercase;letter-spacing:.4px;color:{muted}}.tlr.dragme{cursor:move}.tlr.dragme:hover{background:{hover}}.tlr.ins{opacity:.55}", ".tlbh{padding:2px 4px 6px}.tli{display:flex;align-items:center;padding:5px 6px;margin-bottom:4px;border:1px solid {line};border-radius:{r}px;background:{panel};cursor:move}.tli.over{border-top:3px solid {accent}}.tli .n{flex:0 0 22px;font-weight:bold;color:{accent}}.tli .t{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tli .x{flex:none;cursor:pointer;padding:0 4px;color:{muted}}.tli .x:hover{color:{bad}}.tlba{margin-top:6px}.tlba .btn{margin:0 6px 4px 0}", ".mgrid{display:flex;flex-wrap:wrap;padding:12px 6px}.mc{flex:1 1 300px;max-width:520px;margin:0 6px 12px;padding:14px 16px;border-radius:16px;background:{bg};border:1px solid {line}}.mc.none{opacity:.75}.mh{display:flex;align-items:flex-start}.mn{flex:1 1 auto;min-width:0}.mp{text-align:right;margin-left:10px}.mp b{display:block;font-size:1.5em;line-height:1}.stbar.mb{display:block;width:auto;height:10px;margin:10px 0 6px}.mst span{margin-right:10px}.mst .t1{color:{warn}}.mst .t2{color:{accent}}.mst .t3{color:{ok}}.mst .t0{color:{muted}}.ma{margin-top:8px}.ma .mo{cursor:pointer;color:{accent};font-weight:600;margin-right:14px;font-size:.9em}.ml{margin-top:8px;border-top:1px solid {line};padding-top:6px;font-size:.9em}.ml div{padding:2px 0;display:flex}.ml .muted{flex:1 1 auto;margin:0 8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.ml .s{font-weight:600;white-space:nowrap}.ml .st0{color:{muted}}.ml .st1{color:{warn}}.ml .st2{color:{accent}}.ml .st3{color:{ok}}", ".stc{cursor:pointer;margin-right:6px}.stbar{display:inline-block;vertical-align:middle;width:180px;height:10px;margin:0 8px;background:{chip};border-radius:5px;overflow:hidden;white-space:nowrap}.stbar i{display:inline-block;height:10px}", "td.st{cursor:pointer;font-weight:bold}td.st0{color:{muted};font-weight:normal}td.st1{color:{warn}}td.st2{color:{accent}}td.st3{color:{ok}}.stbar i.st0{background:{line}}.stbar i.st1{background:{warn}}.stbar i.st2{background:{accent}}.stbar i.st3{background:{ok}}.chip.st3{color:{ok}}.chip.st1{color:{warn}}", ".lk{display:flex;height:100%;padding:8px;box-sizing:border-box}.lkin{flex:0 0 270px;display:flex;flex-direction:column;padding-right:10px}.lkin textarea{flex:1 1 auto;min-height:200px;margin:6px 0;font-family:{mono};font-size:.9em}.lkres{flex:1 1 auto;min-width:0;overflow:auto}.lkh{font-weight:bold;margin-bottom:4px}.lkh .btn{margin-left:8px}",
   ".mlk{color:{accent};cursor:pointer;text-decoration:underline}.mlk:hover{color:{text}}", ".sets{display:flex;height:100%;padding:8px;box-sizing:border-box}.sl{flex:0 0 190px;overflow-y:auto;padding-right:8px}.slh{font-weight:bold;margin-bottom:6px}.si{padding:6px 8px;cursor:pointer;border-radius:{r}px;margin-bottom:2px}.si:hover{background:{hover}}.si.on{background:{chip};box-shadow:inset 3px 0 0 {accent}}",
   ".pane{flex:1 1 0px;min-width:0;display:flex;flex-direction:column;border:{bw}px solid {line};border-radius:{r}px;background:{panel}}.pane.over{outline:2px dashed {accent};background:{hover}}.ph{flex:none;padding:6px 10px;border-bottom:1px solid {line};background:{bg}}.pl{flex:1 1 auto;overflow-y:auto;min-height:0}",

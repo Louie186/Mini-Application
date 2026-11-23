@@ -755,8 +755,12 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.51";
+  L.VERSION = "2026.11.52";
   L.WHATS_NEW = [
+    { v: "2026.11.52", items: [
+      "Drawing Register: Model list window (Models view, or Setup > Models) - your model list in its own columns, exactly as in your Excel (Sheet location, Scope, Classification, Model type, path...). Edit a cell, + Add row, Delete, Export to Excel in the same format with your new rows in it",
+      "Importing the model list keeps every column and the sheet name; the path column is the link (not Sheet location); general models (Tower -) keep their description. Rows you added here stay when you import the file again",
+      "A new model typed in the edit window joins the model list too"] },
     { v: "2026.11.51", items: [
       "Drawing Register edit window: a \"From the model list\" tab (opens first) - every model with its Tower \u00b7 Typology, searchable. One click sets all three; a model on two typologies shows as two rows; rows that clash with the list are marked \u26a0 and can't be picked",
       "List lookup: an \u270e Edit button (or double-click) on each drawing - changes the register and the lookup row together"] },

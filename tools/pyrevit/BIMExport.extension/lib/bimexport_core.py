@@ -370,7 +370,31 @@ def _open(app, path, opts):
         return app.OpenDocumentFile(path, opts)
 
 
-def open_cloud_model(app, rec, preferred_region, allow_non_workshared=False):
+def workset_config(path, worksets, skip_pattern):
+    """'all'  : every workset (complete prints)
+       'none' : all user worksets closed - fastest, no linked models load (enough to read the drawing list)
+       'skip' : every workset except those whose name matches skip_pattern (e.g. *Link*) -> links not loaded
+    Returns (WorksetConfiguration, note)."""
+    if worksets == 'none':
+        return WorksetConfiguration(WorksetConfigurationOption.CloseAllWorksets), None
+    if worksets == 'skip' and skip_pattern:
+        try:
+            import fnmatch
+            infos = list(DB.WorksharingUtils.GetUserWorksetInfo(path))
+            pats = [p.strip().lower() for p in skip_pattern.split(';') if p.strip()]
+            keep = [w for w in infos if not any(fnmatch.fnmatch(w.Name.lower(), p) for p in pats)]
+            skipped = [w.Name for w in infos if w not in keep]
+            wc = WorksetConfiguration(WorksetConfigurationOption.CloseAllWorksets)
+            wc.Open(List[DB.WorksetId]([w.Id for w in keep]))
+            return wc, (u'Worksets not opened (links skipped): %s' % u', '.join(skipped)) if skipped else \
+                u'No workset matched "%s" - all worksets opened' % skip_pattern
+        except Exception as e:
+            return WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets), \
+                u'Could not read worksets (%s) - all worksets opened' % text(e)
+    return WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets), None
+
+
+def open_cloud_model(app, rec, preferred_region, allow_non_workshared=False, worksets='all', skip_pattern=u''):
     """Open a cloud model for printing.
     Workshared: DETACHED from central with all worksets (a temporary copy, never synced).
     Not workshared: there is no central to detach from, so Revit can only open the real model.
@@ -387,8 +411,9 @@ def open_cloud_model(app, rec, preferred_region, allow_non_workshared=False):
         try:
             opts = OpenOptions()
             opts.DetachFromCentralOption = DetachFromCentralOption.DetachAndPreserveWorksets
-            opts.SetOpenWorksetsConfiguration(WorksetConfiguration(WorksetConfigurationOption.OpenAllWorksets))
-            return _open(app, path, opts), reg, None
+            wc, wnote = workset_config(path, worksets, skip_pattern)
+            opts.SetOpenWorksetsConfiguration(wc)
+            return _open(app, path, opts), reg, wnote
         except Exception as e:
             msg = text(e)
         low = msg.lower()
@@ -408,11 +433,14 @@ def open_cloud_model(app, rec, preferred_region, allow_non_workshared=False):
     return None, None, u' | '.join(errors)
 
 
-def check_links(doc):
+def check_links(doc, reload_links=True):
     notes = []
     for lt in FilteredElementCollector(doc).OfClass(RevitLinkType):
         try:
             if not RevitLinkType.IsLoaded(doc, lt.Id):
+                if not reload_links:
+                    notes.append(u'Link not loaded (skipped on purpose): %s' % lt.Name)
+                    continue
                 try:
                     lt.Reload()
                     notes.append(u'Reloaded link: %s' % lt.Name)

@@ -27,7 +27,7 @@ KEPT = {}            # models read for their sheet list and kept open for the ex
 OPEN_SECS = {}       # guid -> seconds it took to open
 
 
-def open_model(rec, settings, reg):
+def open_model(rec, settings, reg, worksets=None):
     """Returns (doc, close_after, note, error)."""
     guid = rec['ModelGUID'].lower()
     if guid in KEPT:
@@ -37,8 +37,11 @@ def open_model(rec, settings, reg):
     if doc is not None:
         return doc, False, 'Already open in this Revit - exported from your open copy (including unsynced changes)', None
     t0 = time.time()
+    if worksets is None:
+        worksets = 'skip' if settings.get('skip_links') else 'all'
     doc, region, err = core.open_cloud_model(app, rec, settings.get('region'),
-                                             bool(settings.get('allow_non_workshared', False)))
+                                             bool(settings.get('allow_non_workshared', False)),
+                                             worksets, settings.get('link_pattern') or '*Link*')
     OPEN_SECS[guid] = time.time() - t0
     if doc is None:
         return None, False, None, err
@@ -91,12 +94,12 @@ def scan_models(models, settings, reg, cache, keep):
                     break
                 pb.update_progress(i, len(models))
                 try:
-                    pb.title = u'Reading drawings: model %d of %d  \u00b7  %s  \u00b7  opening...' % (
+                    pb.title = u'Reading drawing lists (quick open, no links): model %d of %d  \u00b7  %s' % (
                         i + 1, len(models), rec.get('Name') or core.register_label(rec))
                 except Exception:
                     pass
                 guid = rec['ModelGUID'].lower()
-                doc, close_after, note, err = open_model(rec, settings, reg)
+                doc, close_after, note, err = open_model(rec, settings, reg, worksets='none')   # quick: no worksets, no links
                 if doc is None:
                     failed.append('%s: %s' % (core.register_label(rec), err))
                     continue
@@ -104,10 +107,8 @@ def scan_models(models, settings, reg, cache, keep):
                     cache[guid] = core.read_sheet_list(doc, rule)
                 except Exception as e:
                     failed.append('%s: %s' % (core.register_label(rec), core.text(e)))
-                if close_after and keep:
-                    KEPT[guid] = (doc, note)
-                elif close_after:
-                    close_model(doc)
+                if close_after:
+                    close_model(doc)                  # light copy: never reused for printing
     core.save_sheet_cache(cache)
     core.save_register(reg)
     return failed
@@ -348,6 +349,8 @@ class ExportWindow(forms.WPFWindow):
         self.embed_cb.IsChecked = bool(s.get('embed', True))
         self.share_cb.IsChecked = bool(s.get('share', False))
         self.allow_nonws_cb.IsChecked = bool(s.get('allow_non_workshared', False))
+        self.skip_links_cb.IsChecked = bool(s.get('skip_links', False))
+        self.link_pattern_tb.Text = s.get('link_pattern') or '*Link*'
         self.model_search.Text = self.state.get('model_filter', '')
         self.sheet_search.Text = self.state.get('sheet_filter', '')
         try:                                                  # panel widths you dragged last time
@@ -394,6 +397,8 @@ class ExportWindow(forms.WPFWindow):
         s['embed'] = bool(self.embed_cb.IsChecked)
         s['share'] = bool(self.share_cb.IsChecked)
         s['allow_non_workshared'] = bool(self.allow_nonws_cb.IsChecked)
+        s['skip_links'] = bool(self.skip_links_cb.IsChecked)
+        s['link_pattern'] = self.link_pattern_tb.Text.strip() or '*Link*'
         try:
             s['col_models'] = round(self.col_models.ActualWidth)
             s['col_settings'] = round(self.col_settings.ActualWidth)
@@ -455,7 +460,8 @@ class ExportWindow(forms.WPFWindow):
             to_scan = [g for g in checked if needs_scan(self.cache.get(g))]
         if to_scan:
             if not forms.alert('Read the drawings of %d model(s)?\n\nEach opens in the background (detached), '
-                               'then its list is saved. Next time it is instant.' % len(to_scan), yes=True, no=True):
+                               'then its list is saved. Next time it is instant.\n\nQuick open: no worksets and no '
+                               'linked models are loaded for this step.' % len(to_scan), yes=True, no=True):
                 return
             self.action = ('scan', to_scan)
             self.Close()
@@ -761,13 +767,14 @@ class ProgressWindow(forms.WPFWindow):
     """Fixed window: all models with their status, and the drawings of the current model.
     Normally lives on its OWN thread (see ProgressUI), so it keeps moving while Revit is busy."""
 
-    def __init__(self, models, picked, cache, formats, title, own_thread=True):
+    def __init__(self, models, picked, cache, formats, title, skip_links=False, own_thread=True):
         forms.WPFWindow.__init__(self, PXAML, set_owner=not own_thread)
         self.own_thread = own_thread
         self.cancelled = False
         self.t0 = time.time()
         self.files_ok = self.files_bad = 0
         self.formats = formats                 # ['PDF', 'DWG']
+        self.skip_links = skip_links
         self.picked, self.cache = picked, cache
         self.title_tb.Text = title
         self.overall_pb.Maximum = max(1, len(models))
@@ -827,7 +834,9 @@ class ProgressWindow(forms.WPFWindow):
         name = entry.get('model') or rec.get('Name') or core.register_label(rec)
         self._set(g, 'run', u'opening...')
         self.current_tb.Text = u'Now:  ' + name
-        self.phase_tb.Text = u'Opening the model (download from ACC + links). This can take a few minutes.'
+        self.phase_tb.Text = (u'Opening the model from ACC (link worksets skipped - faster).' if self.skip_links else
+                              u'Opening the model from ACC with all worksets and linked models. Big models or '
+                              u'many links take longest here - Revit is busy, this window keeps running.')
         self.sheets_sp.Children.Clear()
         self.cells = {}
         nums = sorted(self.picked.get(g, [])) if self.picked else [e['number'].lower() for e in entry.get('sheets', [])]
@@ -1015,11 +1024,11 @@ class ProgressUI(object):
         self._closed.WaitOne(5000)
 
 
-def open_progress(models, picked, cache, formats, title):
+def open_progress(models, picked, cache, formats, title, skip_links=False):
     try:
-        return ProgressUI(models, picked, cache, formats, title)
+        return ProgressUI(models, picked, cache, formats, title, skip_links)
     except Exception:
-        w = ProgressWindow(models, picked, cache, formats, title, own_thread=False)   # fallback: same thread
+        w = ProgressWindow(models, picked, cache, formats, title, skip_links, own_thread=False)   # fallback
         w.Show()
         w.pump()
         return w
@@ -1043,7 +1052,7 @@ def export_models(next_rec, models, job, settings, reg, cache, log_path, title):
     totals = {'ok': 0, 'failed': 0, 'would': 0}
     lines, matched_all = [], set()
     opened_before = set(KEPT.keys())
-    pw = open_progress(models, picked, cache, formats, title)
+    pw = open_progress(models, picked, cache, formats, title, bool(settings.get('skip_links')))
     try:
         return _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_rows, totals,
                             lines, matched_all, opened_before, do_export, out_root)
@@ -1079,7 +1088,7 @@ def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_
                     core.save_sheet_entry(guid, entry)
                 except Exception:
                     pass
-                links = core.check_links(doc)
+                links = core.check_links(doc, reload_links=not settings.get('skip_links'))
                 res = core.export_model(doc, lod_rows, out_root, settings, do_export, log,
                                         picked=picked.get(guid) if picked is not None else None,
                                         progress=progress)
@@ -1215,8 +1224,7 @@ def main():
             return
         if act[0] == 'scan':
             recs = [reg[g] for g in act[1] if g in reg]
-            keep = len(recs) <= int(settings.get('keep_open_max', 6))
-            failed = scan_models(recs, settings, reg, cache, keep)
+            failed = scan_models(recs, settings, reg, cache, False)
             state['loaded'] = [g for g in state['checked_models'] if cache.get(g)]
             if failed:
                 forms.alert('Could not read these models:\n\n' + '\n'.join(failed))

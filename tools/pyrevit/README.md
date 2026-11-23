@@ -60,6 +60,12 @@ Settings are saved for next time. Before exporting, the tool warns you if two dr
 - **A model already open in the same Revit window** is used as it is and left open (the report says so)
 - Before exporting, a confirmation lists the models and reminds you to close them in other Revit windows
 
+### Speed
+
+- **Reading the drawing list** opens each model "light": all worksets closed, so no linked models load. Much faster than a full open, and only needed once per model (or when you tick Refresh)
+- **The export** opens each model with **all worksets and links** (complete prints), unless you tick **Run → "Faster: don't load linked models"**. That leaves worksets named like `*Link*` closed (change the pattern to suit your project). Only use it for drawings that don't show linked content
+- **Several Revit windows** can share one export (Run → Share)
+
 ### Opening models
 
 - **Workshared models open detached** (all worksets), so they never touch your own local copy or the central model

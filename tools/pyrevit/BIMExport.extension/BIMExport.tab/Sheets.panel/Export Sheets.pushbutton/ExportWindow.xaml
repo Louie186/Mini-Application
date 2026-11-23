@@ -307,6 +307,13 @@
                                     <CheckBox x:Name="share_cb" Content="Share with other Revit windows"/>
                                     <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
                                                Text="Open another Revit, click Export Sheets there and choose Join. Each window takes the next model."/>
+                                    <CheckBox x:Name="skip_links_cb" Content="Faster: don't load linked models"/>
+                                    <DockPanel Margin="20,2,0,0">
+                                        <TextBlock Text="Skip worksets named " VerticalAlignment="Center" Foreground="{StaticResource Muted}"/>
+                                        <TextBox x:Name="link_pattern_tb" ToolTip="Workset names to leave closed. Use * as wildcard, ; between names. Example: *Link*;Z-Links"/>
+                                    </DockPanel>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="20,2,0,0"
+                                               Text="Only for drawings that do NOT show linked content - otherwise it is missing from the prints."/>
                                     <TextBlock Text="Safety" Style="{StaticResource Label}"/>
                                     <TextBlock Style="{StaticResource Hint}"
                                                Text="Workshared models open DETACHED (a temporary copy, all worksets, links checked) and close without saving. Nothing is saved or synced."/>

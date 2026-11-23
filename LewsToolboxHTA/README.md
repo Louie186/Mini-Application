@@ -266,6 +266,7 @@ One point per line; **Tab** = one level in, **Shift+Tab** = out (or paste a list
 
 - **Edit any drawing:** double-click it (or **+ set ▾** in an empty cell, or tick rows → **Set Tower / Typology...**). The window has **drop-downs**:
   - **🧱 From the model list** (the tab it opens on): every model with its **Tower · Typology**, from your models table (Setup › Models) and the models already on drawings. Search it, **click one row = Model + Tower + Typology set together** (double-click = set and save). A model on two typologies is two rows. A row that clashes with the list is marked ⚠ and can't be picked
+  - **⤢** (top right) makes the window big (again = back to normal), or **drag the bottom-right corner**. The size is remembered. Full model numbers always show; long descriptions wrap
   - **Tower · Typology · Model** tab – the drop-downs:
   - **Model first:** pick a model and its **Tower + Typology fill in**. A model with several typologies shows **"which one is this drawing?"** – pick it
   - Or **Tower** → **Typology** (that tower's typologies, with their model, first) → **Model** (the one that goes with them first, then all models with their Tower · Typology)

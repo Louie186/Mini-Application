@@ -52,4 +52,18 @@ module.exports = async ({ page, out }) => {
   // the model list tab shows the general model by its description
   await f.evaluate(() => edit(['9001-ABC-T2-ZZ-PLN-INT-20200']));
   ok(await f.evaluate(() => [...document.querySelectorAll('#mlL .mlR')].some(r => /10100\s*Interior Design Federated Model/.test(r.innerText))), 'model list tab: the federated model shows with its description');
+  // the window can be made bigger; names are never cut
+  ok(await f.evaluate(() => [...document.querySelectorAll('#mlL .mlR b')].every(b => b.scrollWidth <= b.clientWidth + 1) && [...document.querySelectorAll('#mlL .mlR span')].every(x => x.scrollWidth <= x.clientWidth + 1)), 'model list rows: full model number, the description wraps (nothing cut)');
+  const w0 = await f.evaluate(() => $('edCard').offsetWidth);
+  await f.click('#edBig'); await page.waitForTimeout(50);
+  ok(await f.evaluate((w0) => $('edCard').offsetWidth > w0 + 100 && LT.settings().edSize && LT.settings().edSize[0] > 700, w0), '⤢ makes the window bigger (and remembers it)');
+  await page.screenshot({ path: out + '/edit_big.png' });
+  await f.click('#edBig');
+  ok(await f.evaluate((w0) => Math.abs($('edCard').offsetWidth - w0) < 4 && !LT.settings().edSize, w0), '⤢ again: back to normal');
+  const g = await f.evaluate(() => { const r = $('edGrip').getBoundingClientRect(); return [r.left + 8, r.top + 8]; });
+  const fr = await page.evaluate(() => { const r = document.querySelector('iframe[src*="register"]') || [...document.querySelectorAll('iframe')].find(x => /register/.test(x.src)); const b = r.getBoundingClientRect(); return [b.left, b.top]; });
+  await page.mouse.move(fr[0] + g[0], fr[1] + g[1]); await page.mouse.down(); await page.mouse.move(fr[0] + g[0] + 120, fr[1] + g[1] + 60, { steps: 5 }); await page.mouse.up();
+  ok(await f.evaluate((w0) => $('edCard').offsetWidth > w0 + 150 && LT.settings().edSize, w0), 'drag the corner: wider (both sides), remembered');
+  await f.evaluate(() => { $('ovEdit').style.display = 'none'; edit(['9001-ABC-T2-ZZ-PLN-INT-20200']); });
+  ok(await f.evaluate((w0) => $('edCard').offsetWidth > w0 + 150, w0), 'opening it again: the same size');
 };

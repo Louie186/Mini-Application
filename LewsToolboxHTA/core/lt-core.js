@@ -755,8 +755,10 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.53";
+  L.VERSION = "2026.11.54";
   L.WHATS_NEW = [
+    { v: "2026.11.54", items: [
+      "Drawing Register edit window: \u2922 (top right) makes it big, or drag the bottom-right corner - the size is remembered. The model list shows the full model number and the description wraps instead of being cut"] },
     { v: "2026.11.53", items: [
       "Folder Check > Names: the revision stays as you type it (T1 stays T1 - no more T01). The automatic fix follows your rule's revision example: T1 = one digit, P01 = two"] },
     { v: "2026.11.52", items: [

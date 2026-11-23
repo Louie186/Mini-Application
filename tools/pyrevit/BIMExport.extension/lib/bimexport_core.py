@@ -1140,30 +1140,54 @@ def _norm_dir(p):
 
 
 def acad_profiles():
-    """Registry keys of every AutoCAD profile of this Windows user: [(key path, TRUSTEDPATHS value)]."""
+    """Every AutoCAD profile of this Windows user: [(Variables key path, TRUSTEDPATHS value)].
+    A profile counts even when its 'Variables' key does not exist yet (it is created when writing)."""
     out = []
     try:
         from Microsoft.Win32 import Registry
-        base = r'Software\Autodesk\AutoCAD'
-        root = Registry.CurrentUser.OpenSubKey(base)
-        if root is None:
-            return out
-        for ver in root.GetSubKeyNames():
+    except Exception:
+        return out
+    base = r'Software\Autodesk\AutoCAD'
+    root = Registry.CurrentUser.OpenSubKey(base)
+    if root is None:
+        return out
+    for ver in root.GetSubKeyNames():                 # R25.0 ...
+        try:
             vk = root.OpenSubKey(ver)
-            for prod in (vk.GetSubKeyNames() if vk else []):
+            prods = vk.GetSubKeyNames() if vk else []
+        except Exception:
+            continue
+        for prod in prods:                            # ACAD-8101:409 ...
+            try:
                 pk = vk.OpenSubKey(prod + r'\Profiles')
-                for prof in (pk.GetSubKeyNames() if pk else []):
-                    path = r'%s\%s\%s\Profiles\%s\Variables' % (base, ver, prod, prof)
+                profs = pk.GetSubKeyNames() if pk else []
+            except Exception:
+                continue
+            for prof in profs:                        # <<Unnamed Profile>> ...
+                path = r'%s\%s\%s\Profiles\%s\Variables' % (base, ver, prod, prof)
+                cur = u''
+                try:
                     k = Registry.CurrentUser.OpenSubKey(path)
                     if k is not None:
-                        out.append((path, text(k.GetValue('TRUSTEDPATHS') or u'')))
-    except Exception:
-        pass
+                        cur = text(k.GetValue('TRUSTEDPATHS') or u'')
+                except Exception:
+                    pass
+                out.append((path, cur))
     return out
 
 
+def acad_versions_found():
+    """What exists under HKCU\\Software\\Autodesk\\AutoCAD (for messages)."""
+    try:
+        from Microsoft.Win32 import Registry
+        root = Registry.CurrentUser.OpenSubKey(r'Software\Autodesk\AutoCAD')
+        return list(root.GetSubKeyNames()) if root else []
+    except Exception:
+        return []
+
+
 def acad_trusted_missing(folder):
-    """AutoCAD profiles that do NOT trust folder yet. ([] and profiles found) -> all good."""
+    """(all profiles, profiles that do NOT trust folder yet)."""
     want = _norm_dir(folder)
     profiles = acad_profiles()
     missing = [(p, v) for p, v in profiles if want not in [_norm_dir(x) for x in v.split(u';') if x.strip()]]
@@ -1175,10 +1199,12 @@ def acad_add_trusted(folder):
     from Microsoft.Win32 import Registry
     done = 0
     for path, cur in acad_trusted_missing(folder)[1]:
-        k = Registry.CurrentUser.OpenSubKey(path, True)
-        if k is not None:
+        try:
+            k = Registry.CurrentUser.CreateSubKey(path)          # creates 'Variables' if missing
             k.SetValue('TRUSTEDPATHS', (cur.rstrip(u';') + u';' if cur.strip() else u'') + folder)
             done += 1
+        except Exception:
+            pass
     return done
 
 

@@ -32,11 +32,28 @@ def autocad_ready(settings, ask=True):
         settings['acad_exe'] = exe
         core.save_settings(settings)
     folder = os.path.dirname(lsp)
+    if settings.get('acad_trust_manual') == folder:
+        return True                                   # you confirmed the manual setup before
     profiles, missing = core.acad_trusted_missing(folder)
     if not profiles:
-        forms.alert('AutoCAD has no settings for your Windows user yet.\n\nOpen AutoCAD once, close it, '
-                    'then try again (or untick "Embed logos").')
-        return False
+        try:
+            import System
+            System.Windows.Clipboard.SetText(folder)
+        except Exception:
+            pass
+        choice = forms.CommandSwitchWindow.show(
+            ['I added it - continue', 'Continue - I will click "Always Load" in AutoCAD', 'Cancel'],
+            message=('I could not find AutoCAD\'s settings automatically (found: %s).\n\n'
+                     'Add this folder to AutoCAD\'s Trusted Locations once (the path is on your clipboard):\n%s\n\n'
+                     'AutoCAD: OPTIONS > Files > Trusted Locations > Add > paste > OK.\n'
+                     'Or skip it: the first time, AutoCAD asks about IMG2OLE.lsp - click "Always Load".'
+                     % (', '.join(core.acad_versions_found()) or 'nothing', folder)))
+        if not choice or choice == 'Cancel':
+            return False
+        if choice.startswith('I added'):
+            settings['acad_trust_manual'] = folder
+            core.save_settings(settings)
+        return True
     if missing and ask:
         if not forms.alert('One-time AutoCAD setup:\n\nAdd this folder to AutoCAD\'s Trusted Locations, so AutoCAD '
                            'can run the logo tool without a security pop-up?\n\n%s' % folder, yes=True, no=True):

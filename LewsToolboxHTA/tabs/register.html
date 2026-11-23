@@ -104,7 +104,8 @@ textarea{width:100%;font-family:Consolas,monospace;font-size:.9em}
   <div id="edInfo" class="muted small" style="margin-bottom:10px"></div>
   <div class="fld"><label>Tower</label><select id="edTowerS"></select><input type="text" id="edTower" class="edNew" placeholder="Type the new tower"></div>
   <div class="fld"><label>Typology <span class="muted small">(the ones of this tower)</span></label><select id="edTypoS"></select><input type="text" id="edTypo" class="edNew" placeholder="Type the new typology"></div>
-  <div class="fld"><label>Model <span class="muted small">(the one that goes with this Tower + Typology)</span></label><select id="edModelS"></select><input type="text" id="edModel" class="edNew" placeholder="Type the new model"></div>
+  <div class="fld"><label>Model <span class="muted small">(pick one first and its Tower + Typology fill in)</span></label><select id="edModelS"></select><input type="text" id="edModel" class="edNew" placeholder="Type the new model"></div>
+  <div class="fld" id="edPairBox" style="display:none"><label class="warn">This model has several typologies &ndash; which one is this drawing?</label><select id="edPair"></select></div>
   <div class="fld"><label>Online link (ACC / SharePoint / BIM 360) &ndash; tasks, packs and summaries link to it</label><input type="text" id="edLink" placeholder="https://..."></div>
   <div class="muted small" id="edHint"></div>
   <div class="acts"><button class="btn" id="edNa" title="General drawings that belong to no tower / typology">Not for a typology ( - )</button><span class="sp"></span><button class="btn" id="edCancel">Cancel</button><button class="btn primary" id="edOk">Save</button></div>
@@ -865,15 +866,14 @@ function statMenu(ks, x, y) { var m = [{ label: '<span class="muted">' + ks.leng
   m.push({ label: '<span class="muted">Issued = when it goes out on a transmittal</span>', fn: function () { } }); LT.menu(x, y, m); }
 /* ---------- empty Tower / Typology / Model: "+ set" opens the edit window (ticked rows: all of them) ---------- */
 function asBtn(f) { return '<span class="asg" data-as="' + f + '" title="Set it (or double-click the row)">+ set &#9662;</span>'; }
-/* drawings that don't line up with the rest: one model on two Tower + Typology pairs, or one Tower + Typology with two models. { key: "why" } */
+/* drawings that don't line up with the rest: one Tower + Typology with two different models. { key: "why" } (one model on several typologies is fine) */
 function gridConflicts() {
   var D = P.drawings, mT = {}, tM = {}, k, d, m, tt, out = {};
   var add = function (o, a, b) { (o[a] || (o[a] = {}))[b] = 1; };
   for (var i = 0; i < P.models.length; i++) { var x = P.models[i]; if (x.model && x.typo && x.typo != "-" && x.typo.charAt(0) != "*") { add(mT, up(x.model), mKey(x.tower, x.typo)); add(tM, mKey(x.tower, x.typo), up(x.model)); } }
   for (k in D) if (D.hasOwnProperty(k)) { d = D[k]; m = modelOf(d); if (!m || !d.typo || d.typo == "-") continue; tt = mKey(d.tower, d.typo); add(mT, up(m), tt); add(tM, tt, up(m)); }
   for (k in D) if (D.hasOwnProperty(k)) { d = D[k]; m = modelOf(d); if (!m || !d.typo || d.typo == "-") continue; tt = mKey(d.tower, d.typo);
-    if (keys(mT[up(m)]).length > 1) out[k] = "Model " + m + " is on " + keys(mT[up(m)]).length + " Tower + Typology pairs: " + keys(mT[up(m)]).join(", ").replace(/\|/g, " \u00b7 ");
-    else if (keys(tM[tt]).length > 1) out[k] = d.tower + " \u00b7 " + d.typo + " has " + keys(tM[tt]).length + " models: " + keys(tM[tt]).join(", "); }
+    if (keys(tM[tt]).length > 1) out[k] = d.tower + " \u00b7 " + d.typo + " has " + keys(tM[tt]).length + " models: " + keys(tM[tt]).join(", "); }
   return out;
 }
 var RFULL = false, txTimer = null, CONF0 = null;
@@ -895,13 +895,13 @@ function tickBar() { var n = keys(ticked).length; $("bStat").style.display = vie
 
 /* ---------- editing ---------- */
 /* what the project already has: every Tower + Typology + Model that's set (models table + confirmed drawings; the drawings being edited left out).
-   byModel: model -> its Tower + Typology   byTT: Tower|Typology -> its model   (the first one wins; a second, different one is a conflict) */
+   byModel: model -> [its Tower + Typology pairs] (a model can hold several typologies)   byTT: Tower|Typology -> its model (one only: a second, different one is a conflict) */
 function known(skip) {
   var o = { towers: {}, typos: {}, byModel: {}, byTT: {} }, sk = {}, i;
   for (i = 0; i < (skip || []).length; i++) sk[skip[i]] = 1;
   var add = function (t, y, m) { t = LT.trim(t || ""); y = LT.trim(y || ""); m = LT.trim(m || ""); if (t && t != "-") o.towers[up(t)] = t;
     if (y && y != "-" && y.charAt(0) != "*") { var tk = up(t); (o.typos[tk] || (o.typos[tk] = {}))[normT(y)] = y; if (m) { var k = mKey(t, y); if (!o.byTT[k]) o.byTT[k] = m; } }
-    if (m && !o.byModel[up(m)]) o.byModel[up(m)] = { tower: t, typo: y, model: m }; };
+    if (m) { var L = o.byModel[up(m)] || (o.byModel[up(m)] = []), dup = false; for (var q = 0; q < L.length; q++) if (up(L[q].tower) == up(t) && normT(L[q].typo) == normT(y)) dup = true; if (!dup) L.push({ tower: t, typo: y, model: m }); } };
   for (i = 0; i < P.models.length; i++) add(P.models[i].tower, P.models[i].typo, P.models[i].model);
   var D = P.drawings; for (var k in D) if (D.hasOwnProperty(k) && !sk[k] && (D[k].ok || D[k].model)) add(D[k].tower, D[k].typo, D[k].model || modelOf(D[k]));
   return o;
@@ -925,38 +925,58 @@ function fillTypo(cur) { var t = fv("Tower"), multi = editKeys.length > 1, h = m
   if (!found) h += opt(cur, esc(cur) + " (new)", true);
   $("edTypoS").innerHTML = h + opt(NEW, "New typology&hellip;", false); }
 /* models: only the one that belongs to this Tower + Typology; when it has none yet, the models not used by another Tower + Typology */
+/* Model: the one that goes with the chosen Tower + Typology first, then every model you have (pick one: its Tower + Typology follow) */
+function pairTxt(L) { if (!L || !L.length) return ""; var a = []; for (var i = 0; i < L.length && i < 3; i++) a.push((L[i].tower || "-") + " &middot; " + esc(L[i].typo || "-")); return a.join(", ") + (L.length > 3 ? " +" + (L.length - 3) : ""); }
 function fillModel(cur) { var t = fv("Tower"), y = fv("Typo"), multi = editKeys.length > 1, own = y && y != "-" && y != KEEP && t != KEEP ? EK.byTT[mKey(t, y)] : "", h = multi ? opt(KEEP, "(leave as it is)", cur == KEEP) : "", found = !cur || cur == KEEP;
-  h += opt("", own ? "(from the table: " + esc(own) + ")" : "(none)", !cur && !multi);
-  if (own) { h += opt(own, esc(own), up(own) == up(cur)); if (up(own) == up(cur)) found = true; }
-  else { var free = []; for (var mk in EK.byModel) if (EK.byModel.hasOwnProperty(mk)) { var b = EK.byModel[mk]; if (!b.typo || b.typo == "-") free.push(b.model); }
-    free.sort(); if (free.length) { h += '<optgroup label="Not used by a typology yet">'; for (var i = 0; i < free.length; i++) { h += opt(free[i], esc(free[i]), up(free[i]) == up(cur)); if (up(free[i]) == up(cur)) found = true; } h += "</optgroup>"; } }
+  h += opt("", own ? "(from the list: " + esc(own) + ")" : "(none)", !cur && !multi);
+  if (own) { h += '<optgroup label="Goes with ' + esc(t || "-") + " &middot; " + esc(y) + '">' + opt(own, esc(own), up(own) == up(cur)) + "</optgroup>"; if (up(own) == up(cur)) found = true; }
+  var ms = []; for (var mk in EK.byModel) if (EK.byModel.hasOwnProperty(mk) && (!own || mk != up(own))) ms.push(EK.byModel[mk]);
+  ms.sort(function (a, b) { return up(a[0].model) < up(b[0].model) ? -1 : 1; });
+  if (ms.length) { h += '<optgroup label="' + (own ? "Other models" : "All models (picks its Tower + Typology)") + '">';
+    for (var i = 0; i < ms.length; i++) { var mm = ms[i][0].model; h += opt(mm, esc(mm) + " &mdash; " + pairTxt(ms[i]), up(mm) == up(cur)); if (up(mm) == up(cur)) found = true; } h += "</optgroup>"; }
   if (!found) h += opt(cur, esc(cur) + " (now)", true);
   $("edModelS").innerHTML = h + opt(NEW, "New model&hellip;", false); }
 /* is it aligned with the rest of the list? [] = fine */
 function conflicts(t, y, m, d) {
   var out = [], T = t == KEEP ? d.tower || "" : t, Y = y == KEEP ? d.typo || "" : y, M = m == KEEP ? d.model || "" : m;
-  if (M) { var b = EK.byModel[up(M)]; if (b && b.typo && b.typo != "-" && (up(b.tower) != up(T) || normT(b.typo) != normT(Y))) out.push("Model <b>" + esc(M) + "</b> already belongs to Tower <b>" + esc(b.tower || "-") + "</b> &middot; Typology <b>" + esc(b.typo) + "</b>"); }
   if (Y && Y != "-") { var o = EK.byTT[mKey(T, Y)]; if (o && M && up(o) != up(M)) out.push("Tower <b>" + esc(T || "-") + "</b> &middot; <b>" + esc(Y) + "</b> already has model <b>" + esc(o) + "</b>"); }
   return out;
+}
+/* not wrong, just worth knowing: the model gets one more Tower + Typology */
+function notes(t, y, m, d) {
+  var T = t == KEEP ? d.tower || "" : t, Y = y == KEEP ? d.typo || "" : y, M = m == KEEP ? d.model || "" : m, L = M ? EK.byModel[up(M)] : null;
+  if (!L || !Y || Y == "-") return "";
+  for (var i = 0; i < L.length; i++) if (up(L[i].tower) == up(T) && normT(L[i].typo) == normT(Y)) return "";
+  return "Model <b>" + esc(M) + "</b> is on " + pairTxt(L) + " &ndash; it will also cover <b>" + esc(T || "-") + " &middot; " + esc(Y) + "</b>";
 }
 function edCheck() {
   var t = fv("Tower"), y = fv("Typo"), m = fv("Model"), bad = [], seen = {};
   for (var i = 0; i < editKeys.length; i++) { var c = conflicts(t, y, m, P.drawings[editKeys[i]]); for (var j = 0; j < c.length; j++) if (!seen[c[j]]) { seen[c[j]] = 1; bad.push(c[j]); } }
-  var own = y && y != "-" && y != KEEP && t != KEEP ? EK.byTT[mKey(t, y)] : "";
-  $("edHint").innerHTML = bad.length ? '<span class="bad">&#9888; Not aligned with the list: ' + bad.join("<br>&#9888; ") + "</span>" : own && !m ? "Model from the list: <b>" + esc(own) + "</b>" : y && y != "-" && y != KEEP && !own && !m ? '<span class="warn">No model for this Tower + Typology yet - pick or type one.</span>' : "";
+  var own = y && y != "-" && y != KEEP && t != KEEP ? EK.byTT[mKey(t, y)] : "", nt = editKeys.length ? notes(t, y, m, P.drawings[editKeys[0]]) : "";
+  $("edHint").innerHTML = bad.length ? '<span class="bad">&#9888; Not aligned with the list: ' + bad.join("<br>&#9888; ") + "</span>" : own && !m ? "Model from the list: <b>" + esc(own) + "</b>" : nt ? '<span class="warn">' + nt + "</span>" : y && y != "-" && y != KEEP && !own && !m ? '<span class="warn">No model for this Tower + Typology yet - pick or type one.</span>' : "";
   $("edOk").disabled = bad.length > 0; return !bad.length;
 }
 function edShow() { var fs = ["Tower", "Typo", "Model"]; for (var i = 0; i < fs.length; i++) $("ed" + fs[i]).style.display = $("ed" + fs[i] + "S").value == NEW ? "block" : "none"; }
 function edChanged(which) { var t = fv("Tower"), y = fv("Typo"), m = fv("Model");
-  if (which == "Tower") { fillTypo(y); fillModel(m); } else if (which == "Typo") { fillModel(m); }
-  edShow(); edCheck(); }
+  if (which == "Tower") { fillTypo(y); fillModel(m); } else if (which == "Typo") { fillModel(m); } else if (which == "Model") { fromModel(m); return; }
+  $("edPairBox").style.display = "none"; edShow(); edCheck(); }
+/* a model picked: one Tower + Typology -> filled in; several -> "Which Tower + Typology?" (the one you already have stays if it's one of them) */
+function fromModel(m) {
+  var L = m && m != KEEP ? EK.byModel[up(m)] : null, t = fv("Tower"), y = fv("Typo"), box = $("edPairBox");
+  box.style.display = "none";
+  if (L && L.length) { var mine = -1; for (var i = 0; i < L.length; i++) if (up(L[i].tower) == up(t) && normT(L[i].typo) == normT(y)) mine = i;
+    if (L.length == 1 || mine >= 0) { var p = L[mine >= 0 ? mine : 0]; setPair(p.tower, p.typo, m); }
+    else { var h = opt("", "Pick the Tower + Typology&hellip;", true); for (var j = 0; j < L.length; j++) h += opt("" + j, esc(L[j].tower || "-") + " &middot; " + esc(L[j].typo || "-"), false); $("edPair").innerHTML = h; box.style.display = "block"; try { $("edPair").focus(); } catch (e) { } } }
+  edShow(); edCheck();
+}
+function setPair(t, y, m) { fillTower(t); fillTypo(y); fillModel(m); edShow(); edCheck(); }
 function edit(ks, focus) {
   if (!ks.length) return; editKeys = ks; var d = P.drawings[ks[0]], one = ks.length == 1; EK = known(ks);
   $("edH").innerHTML = one ? esc(d.num) : "Set " + ks.length + " drawings";
   $("edInfo").innerHTML = one ? esc(d.title) + (d.cat ? "<br>" + esc(d.cat) : "") + (!d.ok && d.typo ? '<br><span class="warn">Guess' + (d.how == "like" ? " &ndash; same as " + esc(d.like) : d.how == "rule" ? " &ndash; from a typology rule" : " &ndash; its section has no typologies") + "</span>" : "") : "&ldquo;(leave as it is)&rdquo; keeps what each drawing has.";
   $("edTower").value = ""; $("edTypo").value = ""; $("edModel").value = ""; $("edLink").value = one ? d.link || "" : "";
   $("edTowerS").innerHTML = opt(one ? d.tower || "" : KEEP, "", true); fillTower(one ? d.tower || "" : KEEP);
-  fillTypo(one ? d.typo || "" : KEEP); fillModel(one ? d.model || "" : KEEP); edShow(); edCheck();
+  fillTypo(one ? d.typo || "" : KEEP); fillModel(one ? d.model || "" : KEEP); $("edPairBox").style.display = "none"; edShow(); edCheck();
   $("ovEdit").style.display = "block"; try { $(focus == "model" ? "edModelS" : focus == "typo" ? "edTypoS" : "edTowerS").focus(); } catch (e) { }
 }
 function saveEdit(na) {
@@ -1131,6 +1151,7 @@ $("ldOk").onclick = applyMidp; $("ldCancel").onclick = function () { pending = n
 $("shCancel").onclick = function () { $("ovSheet").style.display = "none"; };
 $("edOk").onclick = function () { saveEdit(false); }; $("edNa").onclick = function () { saveEdit(true); }; $("edCancel").onclick = function () { $("ovEdit").style.display = "none"; };
 $("edTowerS").onchange = function () { edChanged("Tower"); }; $("edTypoS").onchange = function () { edChanged("Typo"); }; $("edModelS").onchange = function () { edChanged("Model"); };
+$("edPair").onchange = function () { if (this.value === "") return; var p = EK.byModel[up(fv("Model"))][+this.value]; $("edPairBox").style.display = "none"; setPair(p.tower, p.typo, fv("Model")); };
 $("edTower").onkeyup = function () { edChanged("Tower"); }; $("edTypo").onkeyup = function () { edChanged("Typo"); }; $("edModel").onkeyup = function () { edCheck(); };
 $("sOk").onclick = setupSave; $("sAccB").onclick = function () { var f = LT.pickFolder("Your ACC project folder on this PC (Desktop Connector: ...\\DC\\ACCDocs\\<company>\\<project>)"); if (f) $("sAcc").value = f; };
 $("sModDirB").onclick = function () { var f = LT.pickFolder("The folder with the project's models (.rvt / .nwd)"); if (f) $("sModDir").value = f; }; $("sCancel").onclick = function () { $("ovSetup").style.display = "none"; };

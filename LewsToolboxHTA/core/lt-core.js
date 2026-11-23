@@ -755,8 +755,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.49";
+  L.VERSION = "2026.11.50";
   L.WHATS_NEW = [
+    { v: "2026.11.50", items: [
+      "Drawing Register edit window: pick the Model first - its Tower and Typology fill in by themselves. A model with several typologies asks which one",
+      "One model may hold several typologies now; only a Tower + Typology with two different models is a conflict"] },
     { v: "2026.11.49", items: [
       "Drawing Register: the edit window (double-click any drawing, or \"+ set\") now has drop-downs - Typology shows the ones of the chosen Tower, Model only the one that goes with that Tower + Typology. New... lets you type a new one",
       "A choice that doesn't line up with the list (a model that belongs to another typology, or a second model for a Tower + Typology) is flagged and can't be saved; drawings that already clash show \u26a0 CONFLICT"] },

@@ -188,6 +188,7 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
   - When A is **done**, B shows **▶ can continue** and the **bell** tells you (opening B clears it)
   - Also: right-click a task › **Waits for another task...**, or the task window › **Linked tasks** (✕ removes a link, click an ID to open it). Loops are refused
   - **❚❚ On hold** view; the weekly summary has an **ON HOLD** section
+  - **Delegated tasks:** the Delegate list tags them **❚❚ on hold**, and the **next files you send** say so: the **task pack** shows **ON HOLD – waits for TL-…: why** on that task, the **Excel sheet** has an **ON HOLD** section on its Guide sheet. When the other task is done, the next files don't (it's read from Tasks each time the files are made)
 - **Duplicates** – a task with the **same drawings**, the **same My set** or (almost) the **same title** as an open task:
   - Adding it, or giving it to someone (Who), asks first: **Merge into TL-…** (checklist, references, notes, groups and links go into that task), **Keep both** (not asked again for those two), **Cancel**. A task from a template isn't asked (it repeats work on purpose)
   - **Delegate this task** checks the Delegate tab: the same drawings already given to someone → asked first

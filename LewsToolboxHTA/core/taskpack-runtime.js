@@ -75,7 +75,7 @@
       '.sts{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}.sts button{border:0;border-radius:0;padding:3px 9px;font-size:12.5px;background:#fff;color:var(--muted)}.sts button+button{border-left:1px solid var(--line)}',
       '.sts button.on.s0{background:#e9ebf0;color:var(--ink)}.sts button.on.s1{background:#fdf1d8;color:#8a5a0c}.sts button.on.s2{background:#dff3e6;color:var(--ok)}',
       '.tools{display:flex;gap:2px}.ib{border:0;background:none;padding:3px 6px;font-size:15px;color:var(--muted)}.ib.has{color:var(--acc)}.ib.x{color:var(--bad);font-size:17px}',
-      '.it textarea{grid-column:1/-1;font-size:13.5px;margin:2px 0 4px}.new{background:#fbfaff}.tag{font-size:10.5px;font-weight:700;color:var(--acc);border:1px solid var(--acc);border-radius:99px;padding:0 5px;margin-left:5px;vertical-align:1px}',
+      '.it textarea{grid-column:1/-1;font-size:13.5px;margin:2px 0 4px}.new{background:#fbfaff}.tag.hold{color:#b45309;border-color:#d97706;background:#fff7ed}.holdb{background:#fff7ed;border-left:4px solid #d97706;color:#92400e;font-weight:600;padding:8px 12px;border-radius:8px;margin:6px 0}.tag{font-size:10.5px;font-weight:700;color:var(--acc);border:1px solid var(--acc);border-radius:99px;padding:0 5px;margin-left:5px;vertical-align:1px}',
       '.add{padding:5px 12px;border-top:1px dashed var(--line);display:flex;gap:6px}.add input{flex:1;padding:4px 9px;font-size:14px;border-style:dashed}.add button{padding:3px 10px;font-size:13px}',
       '.panel{padding:10px 12px;display:grid;gap:7px}.lbl{font-size:12.5px;color:var(--muted)}',
       '.foot{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:7px 12px;box-shadow:0 -2px 10px rgba(0,0,0,.06)}.foot .in{max-width:1400px;margin:0 auto;display:flex;gap:6px;flex-wrap:wrap;align-items:center}.foot .hint{font-size:12.5px;color:var(--muted);flex:1 1 200px}',
@@ -173,9 +173,9 @@
         var dn = mine.filter(function (l) { return stOf(l) === 'Completed'; }).length;
         var tlate = t.due && t.due < TODAY && dn < mine.length;
         var fold = !!OPEN['f:' + t.code];   // this task folded away (its outline and items hidden)
-        h += '<div class="card"><div class="ch"><button class="fold" data-fold="' + esc(t.code) + '" title="' + (fold ? 'Show' : 'Hide') + ' this task\u2019s items">' + (fold ? '\u25b8' : '\u25be') + '</button><span class="code">' + esc(t.code) + '</span><b>' + esc(t.title) + '</b>' + (t.isNew ? '<span class="tag">NEW</span>' : '') + (t.group ? '<span class="grp">' + esc(t.group) + '</span>' : '') +
+        h += '<div class="card"><div class="ch"><button class="fold" data-fold="' + esc(t.code) + '" title="' + (fold ? 'Show' : 'Hide') + ' this task\u2019s items">' + (fold ? '\u25b8' : '\u25be') + '</button><span class="code">' + esc(t.code) + '</span><b>' + esc(t.title) + '</b>' + (t.isNew ? '<span class="tag">NEW</span>' : '') + (t.group ? '<span class="grp">' + esc(t.group) + '</span>' : '') + (t.hold ? '<span class="tag hold" title="' + esc(t.hold) + '">\u275a\u275a ON HOLD</span>' : '') +
           '<span class="cnt">' + dn + '/' + mine.length + '</span><span class="due' + (tlate ? ' late' : '') + '">' + (t.due ? (tlate ? 'overdue ' : 'due ') + esc(fmt(t.due)) : '') + '</span></div>' +
-          (fold ? '</div>' : (t.notes ? '<div class="lew">\ud83d\udcdd ' + esc(t.notes) + '</div>' : '') + outlineHtml(t) + (t.refs && t.refs.length ? '<div class="lew">' + refsHtml(t.refs) + '</div>' : '') + ls.map(itemHtml).join('') +
+          (fold ? '</div>' : (t.hold ? '<div class="lew holdb">\u275a\u275a ' + esc(t.hold) + '</div>' : '') + (t.notes ? '<div class="lew">\ud83d\udcdd ' + esc(t.notes) + '</div>' : '') + outlineHtml(t) + (t.refs && t.refs.length ? '<div class="lew">' + refsHtml(t.refs) + '</div>' : '') + ls.map(itemHtml).join('') +
           '<div class="add"><input data-addin="' + esc(t.code) + '" placeholder="+ add an item\u2026"><button data-add="' + esc(t.code) + '">Add</button></div></div>');
       });
       S.newTasks.forEach(function (nt) {

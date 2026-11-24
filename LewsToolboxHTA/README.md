@@ -506,6 +506,11 @@ For drawings someone sends you **to check**: the folder's own contents become yo
 - Click a group (the **▶ arrow**) to open it – the drawings under it show their **revisions** and **file types**. Click again to close. Nothing redraws
 - **Open all / Close all**, **Search drawings** (opens the groups that match). Open groups stay open after **Read again**
 - Drawings not in the MIDP are in their own group at the end. Double-click a drawing = show it in its folder
+- **📁 Copy into folders...** – makes the folders of your grouping (e.g. `T1\1BRA\INT-21000\`) in a **Target folder** and copies (or **moves**) the drawings into them
+  - The window shows the **folder tree** with how many drawings and files go in each. **Click a folder name to change it** (e.g. `T1` → `Tower 1`, `INT-21000` → `21000 - 1BR Type A`) – kept for next time; **Names back to normal** undoes them
+  - **Revisions:** all, or **the latest only**. Drawings not in the MIDP go into **Others** (rename it, or untick to leave them out)
+  - Only what the search shows is copied. Files already there are **never overwritten** (skipped and listed). **Undo last run** deletes the copies (or moves the files back) and removes the empty folders it made
+  - Also from **Bulk Files** (step 3): **Sort into Tower / Typology / Model folders...**
 
 ### Names
 

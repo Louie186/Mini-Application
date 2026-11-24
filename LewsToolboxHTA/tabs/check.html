@@ -377,7 +377,10 @@ $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "d
 /* called by the main window */
 window.ltTheme = function () { look(); for (var n in subFrames) if (subFrames.hasOwnProperty(n)) { try { subFrames[n].contentWindow.ltTheme(); } catch (e) { } } };
 window.ltReload = function () { loadCfg(); table = null; showPaths(); $("remTop").checked = cfg.remTop !== false; };
-window.ltReceive = function (what, value) { if (what == "view") { setView(value); return; } if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); setView("sub"); } };
+window.ltReceive = function (what, value) { if (what == "view") { setView(value); return; }
+  /* from Bulk Files: Groups with this folder, and its "Copy into folders" window open */
+  if (what == "groups-copy") { if (value && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); } setView("groups");
+    var go = function (n) { try { var w = subFrames.groups.contentWindow; if (w.ltReceive && w.cfg) { if (value && w.cfg.folder != value) w.ltReceive("open-folder", value); w.ltReceive("copy-into-folders", ""); return; } } catch (e) { } if (n < 30) window.setTimeout(function () { go(n + 1); }, 150); }; go(0); return; } if (what == "check-folder" && fso.FolderExists(value)) { cfg.folder = value; saveCfg(); showPaths(); setView("sub"); } };
 /* ---------- the views ---------- */
 var subFrames = {};
 function setView(v) {

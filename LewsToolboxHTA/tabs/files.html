@@ -65,12 +65,14 @@ td.fd{white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis}
       <label class="lbl"><input type="checkbox" id="keep" checked style="height:auto"> keep subfolders</label></span>
     <label class="lbl" id="lockBox" style="display:none" title="Rename and Move change your original folder, so they stay locked until you tick this. It locks again after each run."><input type="checkbox" id="unlock" style="height:auto"> <span id="lockIc">&#128274;</span> Allow changes to the original folder</label>
     <button class="btn primary" id="bRun">&#9654; Preview and run...</button>
-    <span class="right"><button class="btn small" id="bUndo">&#8630; Undo last run</button><button class="btn small" id="bHist">History</button></span>
+    <span class="right"><a href="#" id="bSortTT" class="small" style="margin-right:10px" title="Make Tower / Typology / Model folders and copy the drawings into them (Folder Check &gt; Groups)">&#128193; Sort into Tower / Typology / Model folders...</a><button class="btn small" id="bUndo">&#8630; Undo last run</button><button class="btn small" id="bHist">History</button></span>
     <div><span class="lbl" id="prog"></span><span class="lbl muted" id="summary"></span></div>
   </div>
 </div>
 <script>
 var fso = LT.fso, $ = LT.$, esc = LT.esc;
+/* the folder-by-Tower / Typology / Model tool lives in Folder Check > Groups: open it there with this folder */
+function sortTT() { var m = LT.main(); if (m) m.send("check", "groups-copy", folder || ""); return false; }
 var rows = [], folder = "", dest = "", busy = false, opt = { subs: true, filter: "" }, anchor = -1;
 var HIST = function () { return LT.dataPath("bulk-files-history.json"); };
 var BAD = /[\\\/:*?"<>|\u0000-\u001f]/;
@@ -419,7 +421,7 @@ $("bDest").onclick = pickDest;
 $("show").onchange = render;
 $("mode").onchange = function () { $("unlock").checked = false; validate(); };
 $("keep").onclick = validate; $("unlock").onclick = buttons;
-$("bRun").onclick = run; $("bUndo").onclick = undo; $("bHist").onclick = showHistory;
+$("bSortTT").onclick = sortTT; $("bRun").onclick = run; $("bUndo").onclick = undo; $("bHist").onclick = showHistory;
 $("list").onclick = function (e) {
   e = e || window.event; var t = e.target || e.srcElement;
   if (t.id == "cbAll") { setTick(rows, t.checked); return; }

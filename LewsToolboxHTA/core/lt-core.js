@@ -755,8 +755,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.58";
+  L.VERSION = "2026.11.59";
   L.WHATS_NEW = [
+    { v: "2026.11.59", items: [
+      "Folder Check > Groups: Copy into folders - makes Tower / Typology / Model folders (as you group them) and copies or moves the drawings into them. Rename any folder first (kept for next time), the latest revision only if you like, drawings not in the MIDP into Others. Never overwrites; Undo",
+      "Bulk Files: a link \"Sort into Tower / Typology / Model folders\" opens it with the same folder"] },
     { v: "2026.11.58", items: [
       "Delegate: a task that is on hold in Tasks (it waits for another task) is tagged in the Delegate list, and the next files you send say so - the task pack shows ON HOLD with what it waits for and why; the Excel sheet has an ON HOLD section on its Guide sheet. When the other task is done, the next files don't"] },
     { v: "2026.11.57", items: [

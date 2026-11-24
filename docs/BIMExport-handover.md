@@ -4,7 +4,7 @@
 
 - **Owner:** Lew (Senior BIM Technician, construction & design consultancy)
 - **Status:** working in real Revit 2025 for export. Logo embedding and the latest speed changes are built but **not yet confirmed on the real project**
-- **Version:** v6.2 (latest commit `3b645d8`, branch `claude/epic-gates-3468ux`)
+- **Version:** v7.0 = Export Sheets v6.2 + **new Issue Sheets button** (branch `claude/epic-gates-3468ux`)
 - **Source of truth:** this repo, `tools/pyrevit/` (pyRevit extension) and `tools/img2ole/` (AutoCAD logo tool)
 
 > For a new conversation: read this file first, then `docs/sheet-export-plan.md` (history and decisions), then the code. The user prefers **bullet points, plain English, short answers, step-by-step instructions**.
@@ -214,6 +214,21 @@
 
 ---
 
+## 7b. Issue Sheets (v7.0, new button, untested in real Revit)
+
+- Files: `Issue Sheets.pushbutton/script.py`, `IssueWindow.xaml`, `icon.png`; `lib/bimissue_core.py`; shared UI moved to `lib/bimexport_ui.py` (+ `lib/ProgressWindow.xaml`). Export Sheets still uses its own copy
+- Agreed rules (2026-11-24):
+  - **File names only** are corrected, never the model: MIDP code first 7 parts + **Revit's current revision** (MIDP revision/dates are not reliable). Uncertain = BLOCKED
+  - Change check: model **sync stamp** (`Document.GetDocumentVersion` → NumberOfSaves) vs the stamp when that drawing was last printed, + revision change. Per-drawing file compare was proposed (not built)
+  - Revisions shown like Revit (sequence, Revit's own numbering), tick per sheet updates current rev/date, **add revision** allowed
+  - Title block: family/type per drawing, Yes/No params only (instance/type), type = all drawings of that type
+  - Export quality: the user's full setups, edited manually (basic/fast setups rejected)
+  - **Apply** (only revisions + Yes/No): local copy with all worksets closed, ownership check, one transaction, read back, sync + relinquish, close; undo log in `%APPDATA%\BIMExport\apply_logs`, Revert
+  - **Issue register**: one CSV (`settings['issue_register']`, default `<output>\IssueRegister.csv`), one row per print, sorted by drawing then date. Columns: DrawingCode, Model, SheetNumber, SheetName, Revision, RevisionDate, RevisionDescription, PrintedOn, PrintedBy, Formats, PDFFile, DWGFile, Change, ModelVersion, Note
+  - Saved sets: `%APPDATA%\BIMExport\IssueSets.json`
+- Bug fixed at the same time: new `SheetExport_log.csv` files were written **without a header** (the "file open in Excel" check created an empty file first)
+- To verify tomorrow: GetDocumentVersion on a detached quick open; DataGrid single-click checkboxes; Apply/sync on a test model; per-sheet numbering display; Revision.Create + SetAdditionalRevisionIds
+
 ## 8. Version history (short)
 
 | Version | What changed |
@@ -225,3 +240,4 @@
 | v4–4.1 | Model export setups + full PDF page settings, safety for non-workshared models, names exactly as ACC, Lew branding, resizable panels |
 | v5 | Progress window with per-model and per-drawing status |
 | v6–6.2 | Threaded animated progress window + logo tracking, IMG2OLE bundled, AutoCAD setup check (+ fallback), quick open for drawing lists, optional skip of link worksets |
+| v7.0 | **Issue Sheets** button (sets, change check, revisions, title block Yes/No, Apply/Revert, exact MIDP names, issue register); log header bug fixed |

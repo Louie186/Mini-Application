@@ -138,7 +138,7 @@ def csv_line(values):
 
 
 def _append(path, header, rows):
-    new = not os.path.exists(path)
+    new = not os.path.exists(path) or os.path.getsize(path) == 0
     with io.open(path, 'a', encoding='utf-8-sig' if new else 'utf-8') as f:
         if new:
             f.write(csv_line(header) + u'\n')
@@ -147,7 +147,9 @@ def _append(path, header, rows):
 
 
 def usable_log_path(path):
-    """The log path, or a new dated one if the file is locked (e.g. open in Excel)."""
+    """The log path, or a new dated one if the file is locked (e.g. open in Excel). Never creates the file."""
+    if not os.path.exists(path):
+        return path
     try:
         with io.open(path, 'a', encoding='utf-8'):
             pass
@@ -515,6 +517,19 @@ def sheet_revision(sheet):
     return (p.AsString() if p else u'') or u''
 
 
+def model_guid(doc):
+    try:
+        return doc.GetCloudModelPath().GetModelGUID().ToString().lower()
+    except Exception:
+        return u''
+
+
+def fixed_name(settings, guid, number):
+    """Exact file name set beforehand for this model + sheet (Issue Sheets), else None."""
+    names = settings.get('_names') or {}
+    return names.get(u'%s|%s' % ((guid or u'').lower(), number.strip().lower()))
+
+
 def build_name(rule, vals, sheet_param, project_param):
     """Apply the naming rule. sheet_param / project_param: functions name -> text or None."""
     missing = []
@@ -631,7 +646,7 @@ def read_sheet_list(doc, rule):
         current = DB.BrowserOrganization.GetCurrentBrowserOrganizationForSheets(doc).Name
     except Exception:
         pass
-    return {'model': model_name(doc), 'updated': now(), 'rule': rule, 'sheets': sheets, 'project': project,
+    return {'model': model_name(doc), 'guid': model_guid(doc), 'updated': now(), 'rule': rule, 'sheets': sheets, 'project': project,
             'orgs': orgs, 'current_org': current, 'setups': read_export_setups(doc)}
 
 
@@ -677,8 +692,12 @@ def plan_from_cache(entry, numbers, out_root, settings, log):
         vals = {'sheetnumber': e['number'], 'sheetname': e['name'], 'revision': e.get('rev', u''),
                 'model': model, 'date': datetime.date.today().strftime('%Y%m%d'),
                 'drawingnumber': e['number'], 'listrevision': u''}
-        name, missing = build_name(rule, vals, lambda p: e.get('params', {}).get(p),
-                                   lambda p: entry.get('project', {}).get(p))
+        fixed = fixed_name(settings, entry.get('guid', u''), e['number'])
+        if fixed:
+            name, missing = fixed, []
+        else:
+            name, missing = build_name(rule, vals, lambda p: e.get('params', {}).get(p),
+                                       lambda p: entry.get('project', {}).get(p))
         note = (u'Unknown token(s): %s (refresh the sheet lists if you changed the naming rule)'
                 % u', '.join(missing)) if missing else u''
         for fmt, sub in ((u'PDF', 'PDF'), (u'DWG', '_DWG_raw')):
@@ -979,7 +998,11 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
             note.append(u'Revision differs: LOD %s, Revit %s' % (lrev, rev))
         elif lrev and not rev:
             note.append(u'LOD has revision %s, Revit sheet has none' % lrev)
-        name, missing = make_name(doc, sheet, settings.get('naming_rule') or u'{DrawingNumber}', row, model)
+        fixed = fixed_name(settings, settings.get('_current_guid') or model_guid(doc), sheet.SheetNumber)
+        if fixed:                                 # exact file name decided beforehand (Issue Sheets: MIDP code + Revit rev)
+            name, missing = fixed, []
+        else:
+            name, missing = make_name(doc, sheet, settings.get('naming_rule') or u'{DrawingNumber}', row, model)
         if missing:
             note.append(u'Unknown token(s): ' + u', '.join(missing))
         if not name:

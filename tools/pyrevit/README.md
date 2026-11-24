@@ -78,6 +78,27 @@ Settings are saved for next time. Before exporting, the tool warns you if two dr
 - A model you have **never** opened on this PC won't be listed. Open it once in Revit the normal way (or ask me about the ACC web-service option below)
 - The list is saved in `%APPDATA%\BIMExport\ModelRegister.csv`. Names are updated every time a model is opened
 
+## Issue Sheets (new button)
+
+For formal issues: **what changed → fix revisions / title block switches → issue with exact MIDP names → log every print**. Export Sheets stays as it was.
+
+1. **Models:** tick them (or pick a **saved set**: Save / Delete next to the list). Pick your **MIDP / LOD (CSV)**
+2. **Check models:** quick open of each model (no worksets, no links). Reads drawings, revisions, title blocks and the model's **sync stamp**
+3. **Drawings tab:** one row per drawing:
+   - **File name** = MIDP code (first 7 parts) + **Revit's current revision**. Uncertain → **✖ BLOCKED** (not in MIDP, twice in MIDP, no revision, bad characters), never guessed
+   - **Change**: New (never issued) · Revision changed (T1 → T2) · Model synced since last issue · No change
+   - **Tick changed** ticks everything that changed and isn't blocked. Optional **Title block** column
+4. **Revisions tab** (like Revit's Sheet Issues/Revisions + Revisions on Sheet):
+   - All revisions with Rev, Date, Description, Issued to/by. Edit dates/descriptions (not Issued ones). **+ Add revision**
+   - Tick revisions per drawing: **Current rev and date update straight away**. Clouded revisions can't be removed here
+5. **Title blocks tab:** click a drawing → its title block family/type and **Yes/No** parameters (instance = this drawing, type = ALL drawings of that type). Only Yes/No can be changed
+6. **Changes tab → Apply to the models** (only if you changed revisions or Yes/No):
+   - Local copy (not detached) → nobody else owns the items → **one change step** → read back → **sync + give back everything borrowed** → close
+   - Any problem: **nothing is saved**. Every Apply keeps an undo log: **Revert last apply...**
+7. **Issue:** exports the ticked drawings (detached, closed without saving) with the exact names, embeds logos if ticked, and writes **one row per print** in the **issue register** CSV (each drawing's prints grouped together, newest under the older ones)
+
+**Change check, honestly:** the sync stamp changes with every sync, so "Model synced since last issue" means something in the model changed, not necessarily on that drawing. "No change" = same revision and no sync since that drawing was last printed.
+
 ## Output
 
 ```

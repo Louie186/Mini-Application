@@ -176,6 +176,29 @@ Three steps on screen. Nothing changes on disk until you click **▶ Preview and
 - **📂 Open a task folder…** (top of Tasks) – pick any task folder: its task opens. If it isn't in your Tasks (another PC, or deleted), it's added back from the folder
 - The task shows **📁 folder** in the list (click it). **Delegate this task**: the files in **Reference** go along as references (copied into the transmittal)
 
+### Groups, links and duplicates (Tasks)
+
+- **Groups panel** (right side, **▦ Groups** shows / hides it) – a building, an area, a package
+  - **+ Group**, then **drag tasks onto it**. A task can be in more than one group
+  - Each card: open / done / on hold, the next due date. **Click a group** = only its tasks (click again = all)
+  - Right-click a group: rename, **add the tasks with drawings in a tower**, delete (the tasks stay)
+- **Linked tasks** – drag a task **onto another task** in the list → a menu:
+  - **B waits for A** (A must finish first) – you can type why. B shows **❚❚ on hold – waits for A: why** and its Status says On hold; A shows **holds up B**
+  - **⚠ A is due after this** when the task it waits for is due later
+  - When A is **done**, B shows **▶ can continue** and the **bell** tells you (opening B clears it)
+  - Also: right-click a task › **Waits for another task...**, or the task window › **Linked tasks** (✕ removes a link, click an ID to open it). Loops are refused
+  - **❚❚ On hold** view; the weekly summary has an **ON HOLD** section
+- **Duplicates** – a task with the **same drawings**, the **same My set** or (almost) the **same title** as an open task:
+  - Adding it, or giving it to someone (Who), asks first: **Merge into TL-…** (checklist, references, notes, groups and links go into that task), **Keep both** (not asked again for those two), **Cancel**. A task from a template isn't asked (it repeats work on purpose)
+  - **Delegate this task** checks the Delegate tab: the same drawings already given to someone → asked first
+  - Duplicates already in the list show **⚠ duplicate? TL-…** and a **⚠ Duplicates** view appears
+  - Drag one task onto the other › **The same work – merge**
+- **🕸 Links view** – tasks as nodes:
+  - **arrows** = must finish first, **boxes** = groups, orange outline = on hold, red = possible duplicate, dashed = date clash, green = done
+  - the **longest chain of waiting tasks glows**
+  - **drag a node** to move it (kept); **drag from a node's ● to another node** = link them; click = open; right-click = the task menu
+  - **every open task** shows all of them; **Tidy up** puts them back in columns (one per group)
+
 ## Delegate
 
 1. **📥 From Tasks…** – the tasks you logged with someone in "Who does it" and haven't handed out yet. Pick one: it becomes `T001` (with its checklist `T001.1` … and references) and **Send** opens

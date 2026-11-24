@@ -755,8 +755,13 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.56";
+  L.VERSION = "2026.11.57";
   L.WHATS_NEW = [
+    { v: "2026.11.57", items: [
+      "Tasks: a Groups panel (right) - a building, an area, a package. Drag tasks onto a group; a task can be in more than one; click a group = only its tasks; right-click = rename, fill from a tower, delete",
+      "Tasks: drag a task onto another = link them (one must finish first). The waiting task shows On hold (and why), \u26a0 when the other one is due later; when the first is done it can continue (tag + bell). On hold view; weekly summary lists them",
+      "Tasks: possible duplicates (the same drawings, My set or title) are flagged before a task is added or given to someone - Merge, Keep both or Cancel. Delegate asks too when the drawings are already given out. Duplicates view",
+      "Tasks: Links view - every task a node, arrows = must finish first, boxes = groups, the longest waiting chain glows. Drag nodes (kept), drag from a node's dot to another to link, click = open"] },
     { v: "2026.11.56", items: [
       "Drawing Register: importing a generated drawing list checks every Tower / Typology / Model against the model list. What doesn't match opens in a window (why, and the fix): Use the model list, Keep the file's values, or Export them. Kept ones show \u26a0 NOT AS MODEL LIST until fixed"] },
     { v: "2026.11.55", items: [

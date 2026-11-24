@@ -19,7 +19,14 @@
 <style>
 #app{display:flex;flex-direction:column;height:100%}
 #top,#views,#filters{flex:none}
-#main{flex:1 1 auto;overflow:auto;min-height:0}
+#mid{flex:1 1 auto;display:flex;min-height:0}
+#main{flex:1 1 auto;overflow:auto;min-height:0;min-width:0}
+#gp{flex:0 0 236px;overflow:auto;padding:8px 10px}#gp.hide{display:none}
+.gph{display:flex;align-items:center;margin-bottom:8px}.gph b{flex:1 1 auto}
+.gcard{padding:8px 10px;margin-bottom:6px;cursor:pointer}.gcard .gn{font-weight:bold;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.gcard .gi{font-size:.82em}
+.tchip{display:inline-block;font-size:.78em;font-weight:bold;padding:0 6px;margin:0 4px 2px 0;white-space:nowrap;cursor:default}
+#gWrap{overflow:auto}.gbar{padding:6px 12px}
+#dupDlg{z-index:40}#dupDlg .card{width:720px}
 #quick{width:420px;max-width:60%;margin:0 6px 6px 0}
 .lbl{display:inline-block;margin:0 6px 6px 0;vertical-align:middle}
 td.cb{width:30px;text-align:center}
@@ -76,11 +83,17 @@ table.cal td.busy .ev{display:inline-block;margin-right:3px;max-width:100%}.evc{
   <div id="filters" class="bar2">
     <span class="lbl">Project:</span><select id="proj" style="width:170px;margin:0 8px 6px 0"></select>
     <input type="text" id="search" placeholder="Search" style="width:180px;margin:0 8px 6px 0">
+    <button class="btn small" id="bGp" title="Show / hide the Groups panel (buildings, areas...)">&#9638; Groups</button>
     <span class="lbl" id="tm"></span><button class="btn small" id="bStop" style="display:none">&#9632; Stop timer</button>
     <span class="lbl muted" id="hint"></span>
   </div>
-  <div id="main"></div>
+  <div id="mid"><div id="main"></div><div id="gp"></div></div>
 </div>
+<div class="ov" id="dupDlg"><div class="card">
+  <h3 id="dupH"></h3>
+  <div id="dupT"></div>
+  <div class="acts"><span class="sp"></span><button class="btn" id="dupCancel">Cancel</button><button class="btn" id="dupKeep" title="They're different work - don't ask again for these two">Keep both</button></div>
+</div></div>
 <div id="nd" style="display:none"><div id="ndH"></div><div id="ndL"></div></div>
 
 <div class="ov" id="dlg"><div class="card">
@@ -105,6 +118,7 @@ table.cal td.busy .ev{display:inline-block;margin-right:3px;max-width:100%}.evc{
   <div class="fld"><label>Description / notes</label><textarea id="eNotes" style="width:100%"></textarea></div>
   <div class="fld"><label>Work outline &ndash; what to adjust (goes with the task when you delegate it)</label>
     <div class="row2"><div class="fld"><textarea id="eOutline" spellcheck="false" style="height:110px;font-family:Consolas,monospace" placeholder="One point per line - Tab = one level in"></textarea></div><div class="fld"><div id="eOutPrev" class="olprev"></div></div></div></div>
+  <div class="fld" id="eLinksF"><label>Linked tasks <span class="muted small">(&#10074;&#10074; on hold = waits for another task to finish first)</span></label><div id="eLinks"></div></div>
   <div class="fld"><label>References for the whole task (links, files, folders, drawings, notes)</label><div id="eRefs"></div></div>
   <div class="fld"><label>Checklist (optional) &ndash; each item can have its own person, date and references</label>
     <div id="eLink" style="display:none"></div>
@@ -163,7 +177,7 @@ table.cal td.busy .ev{display:inline-block;margin-right:3px;max-width:100%}.evc{
 <script>
 var $ = LT.$, esc = LT.esc, fso = LT.fso;
 var STATUSES = ["To do", "Doing", "Waiting", "Done"], PRIOS = ["High", "Normal", "Low"];
-var VIEWS = [["today", "Today"], ["week", "This week"], ["overdue", "Overdue"], ["todel", "To delegate"], ["waiting", "Waiting on others"], ["open", "All open"], ["board", "Board"], ["cal", "Calendar"], ["done", "Done"]];
+var VIEWS = [["today", "Today"], ["week", "This week"], ["overdue", "Overdue"], ["todel", "To delegate"], ["waiting", "Waiting on others"], ["hold", "\u275a\u275a On hold"], ["open", "All open"], ["board", "Board"], ["cal", "Calendar"], ["links", "\ud83d\udd78 Links"], ["dup", "\u26a0 Duplicates"], ["done", "Done"]];
 var data = { tasks: [], view: "today" }, feed = [], shown = [], editing = null, work = null;
 function FILE() { return LT.dataPath("tracker.json"); }
 function FEED() { return LT.dataPath("delegate-feed.json"); }
@@ -261,12 +275,15 @@ function pick(view) {
   for (var i = 0; i < a.length; i++) {
     var t = a[i], d = D(t.due), done = t.status == "Done";
     if (proj && t.project != proj) continue;
+    if (data.gSel && !inGroup(t, data.gSel)) continue;
     if (words[0]) { var hay = (t.code + " " + t.title + " " + t.project + " " + t.notes + " " + t.waitingOn + " " + t.who).toLowerCase(), ok = true; for (var w = 0; w < words.length; w++) if (hay.indexOf(words[w]) < 0) ok = false; if (!ok) continue; }
     if (view == "today" && !(!done && (t.status == "Doing" || (d && d <= today)))) continue;   // everything due today, whoever has it (Who column)
     if (view == "week" && !(!done && (t.status == "Doing" || (d && d <= wEnd)))) continue;
     if (view == "todel" && !(!done && t.who && !t.delegated)) continue;
     if (view == "waiting" && !(!done && (t.delegated || t.fromDelegate || t.status == "Waiting"))) continue;
     if (view == "overdue" && !overdue(t)) continue;
+    if (view == "hold" && !(!done && !t.fromDelegate && holdOf(t).length)) continue;
+    if (view == "dup" && !(!done && DUPS && DUPS[t.id])) continue;
     if (view == "open" && done) continue;
     if (view == "board" && done && !(D(t.doneOn) && D(t.doneOn) >= addDays(today, -14))) continue;
     if (view == "cal" && done && !t.due) continue;
@@ -291,31 +308,33 @@ function render() {
   $("proj").innerHTML = h; $("projList").innerHTML = dl;
   // view buttons with counts
   h = "";
-  for (var v = 0; v < VIEWS.length; v++) { var k = VIEWS[v][0], n = k == "board" || k == "done" || k == "cal" ? -1 : pick(k).length;
-    h += '<button class="btn' + (data.view == k ? " on" : "") + (k == "overdue" && n > 0 ? " late" : "") + '" data-v="' + k + '">' + VIEWS[v][1] + (n >= 0 ? " &nbsp;" + n : "") + "</button>"; }
+  DUPS = dupMap();
+  for (var v = 0; v < VIEWS.length; v++) { var k = VIEWS[v][0], n = k == "board" || k == "done" || k == "cal" || k == "links" ? -1 : pick(k).length; if ((k == "dup" || k == "hold") && !n && data.view != k) continue;
+    h += '<button class="btn' + (data.view == k ? " on" : "") + ((k == "overdue" || k == "dup") && n > 0 ? " late" : "") + '" data-v="' + k + '">' + VIEWS[v][1] + (n >= 0 ? " &nbsp;" + n : "") + "</button>"; }
   $("views").innerHTML = h;
-  if (data.view == "board") board(); else if (data.view == "cal") cal(); else list();
-  timer(); tray();
+  if (data.view == "board") board(); else if (data.view == "cal") cal(); else if (data.view == "links") graph(); else list();
+  timer(); tray(); gpDraw();
 }
 function list() {
   shown = pick(data.view);
   var h = ['<table class="grid"><tr><th></th><th>ID</th><th>Task</th><th>Who</th><th>Project</th><th>Due</th><th>Priority</th><th>Status</th><th>Hours</th><th>Notes</th></tr>'];
   for (var i = 0; i < shown.length; i++) {
     var t = shown[i], st = statusText(t), hr = hours(t), nd = 0; for (var q = 0; q < t.subs.length; q++) if (t.subs[q].status == "Done") nd++;
-    var extra = (t.folder ? '<span class="rfc tfc" data-tf="' + i + '" title="' + esc(t.folder) + ' - click to open the task folder">&#128193; folder</span> ' : "") + (t.subs.length ? '<span class="muted">&#9745; ' + nd + "/" + t.subs.length + "</span> " : "") + LT.refChips(t.refs);
+    var extra = linkChips(t) + (t.folder ? '<span class="rfc tfc" data-tf="' + i + '" title="' + esc(t.folder) + ' - click to open the task folder">&#128193; folder</span> ' : "") + (t.subs.length ? '<span class="muted">&#9745; ' + nd + "/" + t.subs.length + "</span> " : "") + LT.refChips(t.refs);
     var dueCls = overdue(t) ? "bad" : (t.due == LT.today() && t.status != "Done" ? "today" : "");
-    h.push('<tr data-i="' + i + '" class="' + (t.status == "Done" ? "done" : "") + (picked && t === picked ? " pick" : "") + '"><td class="cb"><input type="checkbox" data-done="' + i + '" style="height:auto"' + (t.status == "Done" ? " checked" : "") + (t.fromDelegate ? " disabled" : "") + '></td>' +
+    h.push('<tr data-i="' + i + '" draggable="' + (t.fromDelegate ? "false" : "true") + '" class="' + (t.status == "Done" ? "done" : "") + (picked && t === picked ? " pick" : "") + '"><td class="cb"><input type="checkbox" data-done="' + i + '" style="height:auto"' + (t.status == "Done" ? " checked" : "") + (t.fromDelegate ? " disabled" : "") + '></td>' +
       '<td class="tid">' + esc(t.code || "") + '</td><td class="t">' + (t.fromDelegate ? "&#128203; " : "") + (t.timer ? "&#9201; " : "") + esc(t.title) + (t.repeat ? " &#8635;" : "") + (extra ? '<div class="sub">' + extra + "</div>" : "") + "</td><td>" + esc(t.who || (t.fromDelegate ? t.waitingOn : "")) + "</td><td>" + esc(t.project) + '</td><td class="' + dueCls + '">' + (t.status == "Done" ? "done " + esc(nice(t.doneOn)) : esc(nice(t.due))) +
       '</td><td class="' + (t.priority == "High" ? "bad" : "") + '">' + (t.priority == "Normal" ? "" : t.priority) + '</td><td class="' + (t.status == "Doing" ? "ok" : t.status == "Waiting" || t.delegated ? "warn" : t.who && !t.delegated && t.status != "Done" ? "todel" : "") + '">' + esc(st) +
       "</td><td>" + (hr ? Math.round(hr * 100) / 100 : "") + '</td><td class="muted">' + esc((t.notes || "").replace(/\s+/g, " ")) + "</td></tr>");
   }
   h.push("</table>");
   $("main").innerHTML = shown.length ? h.join("") : '<div class="muted" style="padding:30px">' + (data.view == "today" ? "Nothing due today &ndash; nice. Type a task above and press Enter." : "Nothing here.") + "</div>";
-  $("hint").innerHTML = shown.length ? "Click a task + <b>Ctrl+V</b> = paste a snip or copied files into its folder &middot; double-click = edit &middot; right-click = more" + (data.view == "todel" ? " &middot; <b>right-click &gt; Delegate this task</b> to hand it out" : "") : "";
+  $("hint").innerHTML = shown.length ? "Drag a task onto a <b>group</b> (right) or onto <b>another task</b> (link / merge) &middot; Click a task + <b>Ctrl+V</b> = paste a snip or copied files into its folder &middot; double-click = edit &middot; right-click = more" + (data.view == "todel" ? " &middot; <b>right-click &gt; Delegate this task</b> to hand it out" : "") : "";
 }
 /* what the Status column says: delegated work shows who has it and how far it is */
 function statusText(t) {
   if (t.status == "Done") return "Done";
+  if (!t.fromDelegate && holdOf(t).length) return "\u275a\u275a On hold (" + holdOf(t).map(function (x) { return x.code; }).join(", ") + ")";
   if (t.delegated) return "Delegated to " + (t.dwho || t.delegated.to || t.who) + (t.dprog ? " \u00b7 " + t.dprog : "") + (t.delegated.tr ? " \u00b7 " + t.delegated.tr : "");
   if (t.who) return "To delegate (" + t.who + ")";
   return t.status == "Waiting" && t.waitingOn ? "Waiting on " + t.waitingOn : t.status;
@@ -381,13 +400,16 @@ function quickAdd() {
   if (!t.title) { alert("Type what the task is, e.g.  Check RFI drawings fri #Tower1"); return; }
   if ($("proj").value && !t.project) t.project = $("proj").value;
   if (!t.due && data.view == "today") t.due = LT.today();
-  addTask(t); save(); $("quick").value = ""; render();
-  LT.toast("Added: " + t.title + (t.due ? " · due " + nice(t.due) : ""));
+  dupAsk(t, dupsOf(t), function (act, into) {
+    if (act == "cancel") return; addTask(t); if (act == "merge") { merge(t, into); save(); $("quick").value = ""; render(); LT.toast("Merged into " + into.code); return; }
+    if (act == "keep") for (var i = 0; i < DUPCB0.length; i++) notDup(t, DUPCB0[i].t);
+    save(); $("quick").value = ""; render(); LT.toast("Added: " + t.title + (t.due ? " · due " + nice(t.due) : "")); }, "The new task");
 }
 function setStatus(t, st) {
   if (t.fromDelegate) { render(); return; }
   if (t.timer && st == "Done") stopTimer(t);
-  var was = t.status == "Done"; if (t.status != st) LT.taskEvent(t, st == "Done" ? "Done" : "Status: " + st); t.status = st;
+  var was = t.status == "Done"; if (t.status != st) LT.taskEvent(t, st == "Done" ? "Done" : "Status: " + st); t.status = st; delete t.released;
+  if (st == "Done" && !was) release(t);
   if (st == "Done" && !was) { t.doneOn = LT.today(); var n = nextRepeat(t); if (n) { addTask(n); LT.toast("Repeats – next one is due " + nice(n.due)); } }
   if (st != "Done") t.doneOn = "";
   save(); render();
@@ -409,6 +431,7 @@ function copy(t) { return JSON.parse(JSON.stringify(t)); }
 function delegate(t) {
   if (t.delegated) { if (LT.main()) LT.main().send("delegate", "show-task", t.delegated.code); return; }
   if (!t.who) { var w = prompt('Who should do "' + t.title + '"?  (a person or a group)', ""); if (!w || !LT.trim(w)) return; t.who = LT.trim(w); save(); render(); }
+  var dd = delegDups(t); if (dd.length && !confirm("\u26a0 Possible duplicate - some of this work is already given out in Delegate:\n\n" + dd.slice(0, 6).join("\n") + (dd.length > 6 ? "\n..." : "") + "\n\nDelegate " + t.code + " to " + t.who + " anyway?")) return;
   if (LT.main()) LT.main().send("delegate", "from-log", JSON.stringify(t));
 }
 /* people and groups for the "who" boxes: from the Delegate tab's data */
@@ -435,6 +458,9 @@ function taskMenu(t, x, y) {
   for (var i = 0; i < STATUSES.length; i++) (function (s) {
     m.push({ label: s, on: t.status == s, fn: function () { if (s == "Waiting" && !t.waitingOn) { var w = prompt("Who are you waiting on?", ""); if (w == null) return; t.waitingOn = w; } setStatus(t, s); } });
   })(STATUSES[i]);
+  m.push("-", { label: "&#128279; Waits for another task...", fn: function () { var c = prompt(t.code + " waits for which task? Its ID, e.g. TL-004:", ""); if (!c) return; var f = byCode(LT.trim(c).toUpperCase()); if (!f) { alert("There's no task " + c + "."); return; } var why = prompt("Why is " + t.code + " on hold? (optional)", ""); if (why !== null) linkTasks(f, t, why); } });
+  var w0 = (t.after || []).map(byId).filter(Boolean); for (var wi = 0; wi < w0.length; wi++) (function (f) { m.push({ label: "&#10005; No longer waits for " + esc(f.code), fn: function () { unlink(t, f); } }); })(w0[wi]);
+  var gs0 = groups(); for (var gi = 0; gi < gs0.length; gi++) (function (g) { m.push({ label: "&#9638; " + esc(g.name), on: inGroup(t, g.id), fn: function () { if (inGroup(t, g.id)) outGroup(t, g); else toGroup(t, g); save(); render(); } }); })(gs0[gi]);
   m.push("-");
   var dueTo = function (d) { return function () { t.due = d; save(); render(); }; };
   m.push({ label: "Due today", fn: dueTo(LT.today()) }, { label: "Due tomorrow", fn: dueTo(LT.iso(addDays(todayD(), 1))) },
@@ -499,6 +525,184 @@ $("nd").onkeydown = function (e) { e = e || window.event; if (e.keyCode != 13) r
 $("nd").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "data-nd"); if (r && (e.target || e.srcElement).tagName != "INPUT") edit(byId(r.getAttribute("data-nd"))); };
 $("nd").ondragstart = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-nd"); if (!r) return; dragTask = byId(r.getAttribute("data-nd")); dragI = null; try { e.dataTransfer.setData("text", "nd"); e.dataTransfer.effectAllowed = "copyMove"; } catch (x) { } };
 
+/* ---------- groups (a building / area: tasks not linked, just together), links (one must finish first), duplicates ----------
+   data.groups = [{ id, name }]   t.groups = [group ids]   t.after = [ids of tasks that must finish before t]   t.notDup = [ids "not a duplicate"]
+   data.nodePos = { id: [x, y] } (the Links view)   data.gSel = the group the list is filtered on */
+function groups() { return data.groups || (data.groups = []); }
+function grpById(id) { var g = groups(); for (var i = 0; i < g.length; i++) if (g[i].id == id) return g[i]; return null; }
+function inGroup(t, id) { return (t.groups || []).indexOf(id) >= 0; }
+function toGroup(t, g) { if (!t || t.fromDelegate || !g) return false; t.groups = t.groups || []; if (inGroup(t, g.id)) return false; t.groups.push(g.id); LT.taskEvent(t, "Group: " + g.name); return true; }
+function outGroup(t, g) { var i = (t.groups || []).indexOf(g.id); if (i >= 0) { t.groups.splice(i, 1); LT.taskEvent(t, "Out of group: " + g.name); } }
+function newGroup(name) { name = LT.trim(name || ""); if (!name) return null; var g = groups(); for (var i = 0; i < g.length; i++) if (g[i].name.toLowerCase() == name.toLowerCase()) return g[i]; var n = { id: LT.uid("g"), name: name }; g.push(n); return n; }
+function grpStats(g) { var o = { n: 0, open: 0, done: 0, hold: 0, next: "" }; for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (!inGroup(t, g.id)) continue; o.n++; if (t.status == "Done") { o.done++; continue; } o.open++; if (holdOf(t).length) o.hold++; if (t.due && (!o.next || t.due < o.next)) o.next = t.due; } return o; }
+/* links: t waits for the tasks in t.after that aren't done */
+function holdOf(t) { var o = []; for (var i = 0; i < (t.after || []).length; i++) { var p = byId(t.after[i]); if (p && p.status != "Done") o.push(p); } return o; }
+function holding(t) { var o = []; for (var i = 0; i < data.tasks.length; i++) { var x = data.tasks[i]; if (x.status != "Done" && (x.after || []).indexOf(t.id) >= 0) o.push(x); } return o; }
+function clashOf(t) { var h = holdOf(t); for (var i = 0; i < h.length; i++) if (h[i].due && t.due && h[i].due > t.due) return h[i]; return null; }
+function waitsOn(a, b, seen) { seen = seen || {}; if (seen[a.id]) return false; seen[a.id] = 1; for (var i = 0; i < (a.after || []).length; i++) { if (a.after[i] == b.id) return true; var p = byId(a.after[i]); if (p && waitsOn(p, b, seen)) return true; } return false; }
+/* "first" must finish before "then" (then is on hold until first is done) */
+function linkTasks(first, then, why) {
+  if (!first || !then || first === then || first.fromDelegate || then.fromDelegate) return false;
+  if ((then.after || []).indexOf(first.id) >= 0) { LT.toast(then.code + " already waits for " + first.code); return false; }
+  if (waitsOn(first, then)) { alert(first.code + " already waits for " + then.code + " (directly or through other tasks) - linking them the other way would make a loop."); return false; }
+  then.after = then.after || []; then.after.push(first.id); if (why) then.holdWhy = LT.trim(why);
+  LT.taskEvent(then, "On hold until " + first.code + " is done" + (why ? " - " + why : "")); LT.taskEvent(first, then.code + " waits for this");
+  delete then.released; save(); render();
+  var c = clashOf(then); LT.toast(then.code + " waits for " + first.code + (first.status == "Done" ? " (already done)" : " - on hold") + (c ? " · ⚠ " + c.code + " is due after " + then.code : "")); return true;
+}
+function unlink(then, first) { var i = (then.after || []).indexOf(first.id); if (i < 0) return; then.after.splice(i, 1); if (!(then.after || []).length) delete then.holdWhy; LT.taskEvent(then, "No longer waits for " + first.code); save(); render(); }
+/* B done -> the tasks that waited only for B can continue */
+function release(t) { var out = []; for (var i = 0; i < data.tasks.length; i++) { var x = data.tasks[i]; if (x.status == "Done" || (x.after || []).indexOf(t.id) < 0) continue;
+    if (!holdOf(x).length) { x.released = { by: t.code, on: LT.today() }; LT.taskEvent(x, "Can continue - " + t.code + " is done"); out.push(x.code); } }
+  if (out.length) { LT.toast("▶ Can continue now: " + out.join(", ") + " (" + t.code + " is done)"); try { if (LT.main() && LT.main().bell) LT.main().bell(); } catch (e) { } } }
+/* duplicates: the same drawings, the same My set, or (almost) the same title - open tasks only */
+function dwgsOf(t) { var o = {}, i, j; for (i = 0; i < (t.subs || []).length; i++) { var n = subNo(t.subs[i]); if (n) o[n.toUpperCase()] = 1; for (j = 0; j < (t.subs[i].refs || []).length; j++) if (t.subs[i].refs[j].kind == "drawing") o[("" + t.subs[i].refs[j].value).toUpperCase()] = 1; }
+  for (i = 0; i < (t.refs || []).length; i++) if (t.refs[i].kind == "drawing") o[("" + t.refs[i].value).toUpperCase()] = 1; return o; }
+var STOPW = { the: 1, a: 1, an: 1, and: 1, of: 1, for: 1, to: 1, in: 1, on: 1, at: 1, with: 1, by: 1, "-": 1 };
+function words(s) { var a = ("" + (s || "")).toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" "), o = []; for (var i = 0; i < a.length; i++) if (a[i] && !STOPW[a[i]]) o.push(a[i]); return o; }
+function sameTitle(a, b) { var x = words(a), y = words(b); if (!x.length || !y.length) return false; if (x.join(" ") == y.join(" ")) return true; if (x.length < 3 || y.length < 3) return false;
+  var s = {}, n = 0, i; for (i = 0; i < x.length; i++) s[x[i]] = 1; var u = {}; for (i = 0; i < y.length; i++) { if (s[y[i]] && !u[y[i]]) n++; u[y[i]] = 1; } var tot = 0; for (var k in s) if (s.hasOwnProperty(k)) tot++; for (var k2 in u) if (u.hasOwnProperty(k2) && !s[k2]) tot++; return n / tot >= 0.8; }
+function dupWhy(a, b) {
+  if (a === b || (a.notDup || []).indexOf(b.id) >= 0 || (b.notDup || []).indexOf(a.id) >= 0) return "";
+  if (a.midp && b.midp && a.midp.set && a.midp.set == b.midp.set) return "the same My set";
+  var da = dwgsOf(a), db = dwgsOf(b), n = 0, first = ""; for (var k in da) if (da.hasOwnProperty(k) && db[k]) { n++; if (!first) first = k; }
+  if (n) return n + " same drawing" + (n > 1 ? "s" : "") + " (" + first + (n > 1 ? "..." : "") + ")";
+  if (sameTitle(a.title, b.title)) return "the same task title";
+  return "";
+}
+function dupsOf(t) { var o = []; if (t.status == "Done") return o; for (var i = 0; i < data.tasks.length; i++) { var x = data.tasks[i]; if (x === t || x.status == "Done" || x.id == t.id) continue; var w = dupWhy(t, x); if (w) o.push({ t: x, why: w }); } return o; }
+var DUPS = null;
+function dupMap() { var m = {}, a = data.tasks; for (var i = 0; i < a.length; i++) { var d = dupsOf(a[i]); if (d.length) m[a[i].id] = d; } return m; }
+/* merge "from" into "into": checklist, references, notes, groups and links come along; "from" goes */
+function merge(from, into) {
+  var have = {}, i; for (i = 0; i < into.subs.length; i++) have[(subNo(into.subs[i]) || into.subs[i].title).toUpperCase()] = 1;
+  var mx = 0; for (i = 0; i < into.subs.length; i++) { var nn = +("" + (into.subs[i].code || "")).split(".").pop(); if (nn > mx) mx = nn; }
+  for (i = 0; i < from.subs.length; i++) { var s = copy(from.subs[i]), k = (subNo(s) || s.title).toUpperCase(); if (have[k]) continue; have[k] = 1; s.code = into.code + "." + (++mx); into.subs.push(s); }
+  var rk = {}; for (i = 0; i < into.refs.length; i++) rk[into.refs[i].kind + "|" + into.refs[i].value] = 1; for (i = 0; i < from.refs.length; i++) if (!rk[from.refs[i].kind + "|" + from.refs[i].value]) into.refs.push(copy(from.refs[i]));
+  if (from.notes) into.notes = LT.trim((into.notes || "") + "\n[from " + from.code + "] " + from.notes);
+  into.groups = into.groups || []; for (i = 0; i < (from.groups || []).length; i++) if (into.groups.indexOf(from.groups[i]) < 0) into.groups.push(from.groups[i]);
+  into.after = into.after || []; for (i = 0; i < (from.after || []).length; i++) if (from.after[i] != into.id && into.after.indexOf(from.after[i]) < 0) into.after.push(from.after[i]);
+  for (i = 0; i < data.tasks.length; i++) { var x = data.tasks[i], j = (x.after || []).indexOf(from.id); if (j >= 0) { x.after.splice(j, 1); if (x !== into && x.after.indexOf(into.id) < 0) x.after.push(into.id); } }
+  if (!into.due || (from.due && from.due < into.due)) into.due = from.due || into.due;
+  LT.taskEvent(into, "Merged " + from.code + " (" + from.title + (from.who ? ", " + from.who : "") + ") into this task");
+  data.tasks.splice(data.tasks.indexOf(from), 1); if (data.nodePos) delete data.nodePos[from.id];
+}
+function notDup(a, b) { a.notDup = a.notDup || []; if (a.notDup.indexOf(b.id) < 0) a.notDup.push(b.id); b.notDup = b.notDup || []; if (b.notDup.indexOf(a.id) < 0) b.notDup.push(a.id); }
+/* the warning before a task is added / given out: Merge, Keep both, Cancel. done(true) = go on */
+var DUPCB = null;
+function dupAsk(t, list, done, label) {
+  if (!list.length) { DUPCB0 = []; done("go"); return; }
+  DUPCB = { t: t, list: list, done: done };
+  var h = '<div class="muted" style="margin-bottom:8px">' + esc(label || "This task") + " looks like " + (list.length == 1 ? "a task you already have" : list.length + " tasks you already have") + ' &ndash; is it the same work given twice?</div><table class="grid nofit nonum">';
+  for (var i = 0; i < list.length; i++) { var x = list[i].t; h += '<tr><td class="tid">' + esc(x.code) + "</td><td><b>" + esc(x.title) + "</b><div class=\"muted small\">" + esc(list[i].why) + (x.who ? " &middot; given to <b>" + esc(x.who) + "</b>" : "") + (x.delegated ? " &middot; delegated (" + esc(x.delegated.code) + ")" : "") + '</div></td><td><button class="btn small primary" data-dm="' + i + '">Merge into ' + esc(x.code) + "</button></td></tr>"; }
+  $("dupT").innerHTML = h + "</table>"; $("dupH").innerHTML = "&#9888; Possible duplicate"; $("dupDlg").style.display = "block";
+}
+/* ---------- the Links view: tasks as nodes, arrows = "must finish first", boxes = groups. Drag a node to move it; drag from its dot to another node to link them ---------- */
+var NW = 190, NH = 50, GN = null, gAll = false;
+function gTasks() { var o = [], a = data.tasks, used = {}, i, j;
+  for (i = 0; i < a.length; i++) { var t = a[i]; if (t.status == "Done" && !holding(t).length) continue; if (gAll || (t.groups || []).length || (t.after || []).length || holding(t).length || (DUPS && DUPS[t.id])) { o.push(t); used[t.id] = 1; } }
+  for (i = 0; i < o.length; i++) for (j = 0; j < (o[i].after || []).length; j++) { var p = byId(o[i].after[j]); if (p && !used[p.id]) { o.push(p); used[p.id] = 1; } }
+  return o; }
+function gLayout(ts) {   // new nodes: a column per group (first group), rows by how deep they wait
+  var P = data.nodePos || (data.nodePos = {}), col = {}, cols = [], depth = function (t, s) { s = s || {}; if (s[t.id]) return 0; s[t.id] = 1; var d = 0; for (var i = 0; i < (t.after || []).length; i++) { var p = byId(t.after[i]); if (p) d = Math.max(d, 1 + depth(p, s)); } return d; };
+  var gs = groups(); for (var i = 0; i < gs.length; i++) { col[gs[i].id] = cols.length; cols.push(0); } col[""] = cols.length; cols.push(0);
+  for (var k = 0; k < ts.length; k++) { var t = ts[k]; if (P[t.id]) continue; var c = col[(t.groups || [])[0] || ""]; if (c == null) c = col[""]; var dpt = depth(t); P[t.id] = [30 + c * (NW + 70) + dpt * 22, 60 + cols[c] * (NH + 34)]; cols[c]++; } }
+/* the longest chain of open tasks waiting on each other: shown glowing */
+function gCritical(ts) { var memo = {}, best = { n: 0, id: "" }, len = function (t, s) { if (memo[t.id] != null) return memo[t.id]; s = s || {}; if (s[t.id]) return 0; s[t.id] = 1; var m = 0, h = holdOf(t); for (var i = 0; i < h.length; i++) m = Math.max(m, len(h[i], s)); return (memo[t.id] = m + 1); };
+  for (var i = 0; i < ts.length; i++) if (ts[i].status != "Done") { var n = len(ts[i]); if (n > best.n) best = { n: n, id: ts[i].id }; }
+  var crit = {}; if (best.n < 2) return crit; var cur = byId(best.id); while (cur) { var h = holdOf(cur), nx = null; for (var j = 0; j < h.length; j++) if (memo[h[j].id] == memo[cur.id] - 1) nx = h[j]; if (!nx) break; crit[nx.id + ">" + cur.id] = 1; cur = nx; } return crit; }
+function gPath(a, b) { var x1 = a[0] + NW, y1 = a[1] + NH / 2, x2 = b[0], y2 = b[1] + NH / 2; if (x2 < x1 + 20) { x1 = a[0] + NW / 2; y1 = a[1] + (b[1] > a[1] ? NH : 0); x2 = b[0] + NW / 2; y2 = b[1] + (b[1] > a[1] ? 0 : NH); var my = (y1 + y2) / 2; return "M" + x1 + "," + y1 + " C" + x1 + "," + my + " " + x2 + "," + my + " " + x2 + "," + y2; }
+  var mx = (x1 + x2) / 2; return "M" + x1 + "," + y1 + " C" + mx + "," + y1 + " " + mx + "," + y2 + " " + x2 + "," + y2; }
+function gBoxes(ts) { var P = data.nodePos, o = [], gs = groups(); for (var i = 0; i < gs.length; i++) { var b = null; for (var k = 0; k < ts.length; k++) { if ((ts[k].groups || [])[0] != gs[i].id) continue; var p = P[ts[k].id]; if (!p) continue; if (!b) b = [p[0], p[1], p[0] + NW, p[1] + NH]; else { b[0] = Math.min(b[0], p[0]); b[1] = Math.min(b[1], p[1]); b[2] = Math.max(b[2], p[0] + NW); b[3] = Math.max(b[3], p[1] + NH); } } if (b) o.push({ g: gs[i], b: [b[0] - 14, b[1] - 30, b[2] + 14, b[3] + 14] }); } return o; }
+function graph() {
+  DUPS = dupMap(); var ts = gTasks(); gLayout(ts); var P = data.nodePos, crit = gCritical(ts), W = 600, H = 300, i, j, h = [];
+  for (i = 0; i < ts.length; i++) { var p = P[ts[i].id]; W = Math.max(W, p[0] + NW + 60); H = Math.max(H, p[1] + NH + 60); }
+  GN = { ts: ts, edges: [] };
+  h.push('<div class="gbar"><label class="lbl"><input type="checkbox" id="gAll" style="height:auto"' + (gAll ? " checked" : "") + '> every open task</label><button class="btn small" id="gTidy" title="Put the nodes back in columns (one per group)">Tidy up</button><span class="lbl muted">' + ts.length + " task(s) &middot; drag a node to move it &middot; drag from a node&rsquo;s <b>&#9679;</b> to another = it must finish first &middot; click = open &middot; right-click = more</span></div>");
+  h.push('<div id="gWrap"><svg id="gSvg" xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '"><defs><marker id="gArr" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="garr"></path></marker><marker id="gArrC" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="garrc"></path></marker></defs>');
+  var bx = gBoxes(ts); for (i = 0; i < bx.length; i++) { var b = bx[i].b; h.push('<g class="gbox" data-gb="' + esc(bx[i].g.id) + '"><rect x="' + b[0] + '" y="' + b[1] + '" width="' + (b[2] - b[0]) + '" height="' + (b[3] - b[1]) + '" rx="14"></rect><text x="' + (b[0] + 12) + '" y="' + (b[1] + 19) + '">' + esc(bx[i].g.name) + "</text></g>"); }
+  for (i = 0; i < ts.length; i++) for (j = 0; j < (ts[i].after || []).length; j++) { var f = byId(ts[i].after[j]); if (!f || !P[f.id]) continue; var c = crit[f.id + ">" + ts[i].id], ok = f.status == "Done";
+    GN.edges.push({ a: f.id, b: ts[i].id }); h.push('<path id="ge' + (GN.edges.length - 1) + '" class="gedge' + (c ? " crit" : "") + (ok ? " okd" : "") + '" d="' + gPath(P[f.id], P[ts[i].id]) + '" marker-end="url(#' + (c ? "gArrC" : "gArr") + ')"></path>'); }
+  for (i = 0; i < ts.length; i++) { var t = ts[i], q = P[t.id], hold = holdOf(t).length, dup = DUPS[t.id], cls = "gnode s" + (t.status == "Done" ? "done" : t.status == "Doing" ? "doing" : "todo") + (hold ? " hold" : "") + (dup ? " dup" : "") + (clashOf(t) ? " clash" : "");
+    var tt = t.title.length > 26 ? t.title.substring(0, 25) + "…" : t.title, sub = hold ? "ON HOLD" : t.status == "Done" ? "✔ done" : (t.who ? t.who + " · " : "") + (t.due ? nice(t.due) : t.status);
+    h.push('<g class="' + cls + '" data-gn="' + esc(t.id) + '" transform="translate(' + q[0] + "," + q[1] + ')"><title>' + esc(t.code + " " + t.title + (dup ? "\n⚠ possible duplicate of " + dup[0].t.code + " (" + dup[0].why + ")" : "") + (hold ? "\nOn hold until: " + holdOf(t).map(function (x) { return x.code; }).join(", ") + (t.holdWhy ? " - " + t.holdWhy : "") : "")) + '</title><rect width="' + NW + '" height="' + NH + '" rx="12"></rect><text x="12" y="19" class="gc">' + esc(t.code) + (dup ? " ⚠" : "") + '</text><text x="12" y="36" class="gt">' + esc(tt) + '</text><text x="' + (NW - 12) + '" y="19" class="gs" text-anchor="end">' + esc(sub.length > 22 ? sub.substring(0, 21) + "…" : sub) + '</text><circle class="gdot" data-gl="' + esc(t.id) + '" cx="' + NW + '" cy="' + NH / 2 + '" r="7"></circle></g>'); }
+  h.push('<path id="gTmp" class="gedge tmp" d="M0,0" style="display:none"></path></svg></div>');
+  $("main").innerHTML = ts.length ? h.join("") : h[0] + '<div class="muted" style="padding:30px;line-height:1.8">No groups or links yet.<br>&bull; Drag a task from the list onto a <b>group</b> on the right<br>&bull; Drag a task onto <b>another task</b> in the list = link them (one must finish first)<br>&bull; Or tick <b>every open task</b> above and link them here by dragging from a node&rsquo;s <b>&#9679;</b></div>';
+  $("hint").innerHTML = "";
+  if ($("gAll")) $("gAll").onclick = function () { gAll = this.checked; render(); };
+  if ($("gTidy")) $("gTidy").onclick = function () { data.nodePos = {}; save(); render(); };
+}
+function gMoveNode(id) { var P = data.nodePos, el = $("gSvg").querySelector('[data-gn="' + id + '"]'); if (el) el.setAttribute("transform", "translate(" + P[id][0] + "," + P[id][1] + ")");
+  for (var i = 0; i < GN.edges.length; i++) { var e = GN.edges[i]; if (e.a == id || e.b == id) { var pe = $("ge" + i); if (pe) pe.setAttribute("d", gPath(P[e.a], P[e.b])); } }
+  var bx = gBoxes(GN.ts), gb = $("gSvg").querySelectorAll(".gbox"); for (var k = 0; k < gb.length; k++) { var gid = gb[k].getAttribute("data-gb"); for (var m = 0; m < bx.length; m++) if (bx[m].g.id == gid) { var b = bx[m].b, r = gb[k].getElementsByTagName("rect")[0], tx = gb[k].getElementsByTagName("text")[0];
+    r.setAttribute("x", b[0]); r.setAttribute("y", b[1]); r.setAttribute("width", b[2] - b[0]); r.setAttribute("height", b[3] - b[1]); tx.setAttribute("x", b[0] + 12); tx.setAttribute("y", b[1] + 19); } } }
+function gPt(e) { var r = $("gSvg").getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+function gNodeAt(el) { while (el && el.getAttribute) { if (el.getAttribute("data-gn")) return el.getAttribute("data-gn"); el = el.parentNode; } return null; }
+var GD = null;
+function gDown(e) { e = e || window.event; if (data.view != "links" || !$("gSvg")) return; var t = e.target || e.srcElement; if (e.button == 2) return;
+  var dot = t.getAttribute && t.getAttribute("data-gl"), id = gNodeAt(t); if (!id) return; var p = gPt(e);
+  GD = dot ? { link: dot, from: data.nodePos[dot] } : { id: id, x0: p[0], y0: p[1], p0: data.nodePos[id].slice(0), moved: false };
+  if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; }
+function gMove(e) { if (!GD) return; e = e || window.event; var p = gPt(e);
+  if (GD.link) { var f = GD.from, tmp = $("gTmp"); tmp.style.display = ""; tmp.setAttribute("d", "M" + (f[0] + NW) + "," + (f[1] + NH / 2) + " L" + p[0] + "," + p[1]); return; }
+  var dx = p[0] - GD.x0, dy = p[1] - GD.y0; if (Math.abs(dx) + Math.abs(dy) > 3) GD.moved = true; if (!GD.moved) return;
+  data.nodePos[GD.id] = [Math.max(4, GD.p0[0] + dx), Math.max(30, GD.p0[1] + dy)]; gMoveNode(GD.id); }
+function gUp(e) { if (!GD) return; e = e || window.event; var d = GD; GD = null;
+  if (d.link) { $("gTmp").style.display = "none"; var tg = gNodeAt(document.elementFromPoint ? document.elementFromPoint(e.clientX, e.clientY) : e.srcElement); if (tg && tg != d.link) { var first = byId(d.link), then = byId(tg); var why = prompt(first.code + " must finish before " + then.code + ".\n\nWhy is " + then.code + " on hold? (optional - shows in the list)", ""); if (why !== null) linkTasks(first, then, why); } return; }
+  if (d.moved) { save(); var ts = $("gSvg"); if (ts) { var W = 600, H = 300; for (var k in data.nodePos) if (data.nodePos.hasOwnProperty(k)) { W = Math.max(W, data.nodePos[k][0] + NW + 60); H = Math.max(H, data.nodePos[k][1] + NH + 60); } ts.setAttribute("width", W); ts.setAttribute("height", H); } return; }
+  var t = byId(d.id); if (t) edit(t); }
+/* the small tags under a task in the list */
+function linkChips(t) { if (t.fromDelegate) return ""; var h = "", i, w = holdOf(t), hd = holding(t), c = clashOf(t), d = DUPS && DUPS[t.id];
+  for (i = 0; i < (t.groups || []).length; i++) { var g = grpById(t.groups[i]); if (g) h += '<span class="tchip tg">&#9638; ' + esc(g.name) + "</span>"; }
+  if (w.length && t.status != "Done") h += '<span class="tchip th" title="' + esc("Waits for " + w.map(function (x) { return x.code + " " + x.title; }).join(", ") + (t.holdWhy ? "\n" + t.holdWhy : "")) + '">&#10074;&#10074; on hold &ndash; waits for ' + esc(w.map(function (x) { return x.code; }).join(", ")) + (t.holdWhy ? ": " + esc(t.holdWhy.length > 40 ? t.holdWhy.substring(0, 39) + "…" : t.holdWhy) : "") + "</span>";
+  if (hd.length && t.status != "Done") h += '<span class="tchip tk" title="' + esc(hd.map(function (x) { return x.code + " " + x.title; }).join("\n")) + '">&#9939; holds up ' + esc(hd.map(function (x) { return x.code; }).join(", ")) + "</span>";
+  if (c) h += '<span class="tchip tb" title="' + esc(c.code + " is due " + LT.fmtDate(c.due) + ", after this task (" + LT.fmtDate(t.due) + ")") + '">&#9888; ' + esc(c.code) + " is due after this</span>";
+  if (d && t.status != "Done") h += '<span class="tchip tb" title="' + esc(d.map(function (x) { return x.t.code + " - " + x.why; }).join("\n")) + '">&#9888; duplicate? ' + esc(d.map(function (x) { return x.t.code; }).join(", ")) + "</span>";
+  if (t.released && t.status != "Done") h += '<span class="tchip tok">&#9654; can continue (' + esc(t.released.by) + " done)</span>";
+  return h; }
+/* the Groups panel (right) */
+function gpDraw() {
+  var p = $("gp"); p.className = data.gpHide || data.view == "cal" ? "hide" : ""; $("bGp").className = "btn small" + (data.gpHide ? "" : " on"); if (p.className) return;
+  var gs = groups(), h = '<div class="gph"><b>Groups</b><button class="btn small" id="gpAdd" title="A building, an area, a package...">+ Group</button></div>';
+  h += '<div class="gcard gall' + (!data.gSel ? " on" : "") + '" data-gid=""><span class="gn">All tasks</span><span class="gi muted">click a group = only its tasks</span></div>';
+  for (var i = 0; i < gs.length; i++) { var g = gs[i], st = grpStats(g);
+    h += '<div class="gcard' + (data.gSel == g.id ? " on" : "") + '" data-gid="' + esc(g.id) + '" title="Drop tasks here &middot; right-click = rename, fill, delete"><span class="gn">&#9638; ' + esc(g.name) + '</span><span class="gi muted">' + st.open + " open" + (st.done ? " &middot; " + st.done + " done" : "") + (st.hold ? ' &middot; <span class="warn">' + st.hold + " on hold</span>" : "") + (st.next ? " &middot; next " + esc(nice(st.next)) : "") + "</span></div>"; }
+  if (!gs.length) h += '<div class="muted small" style="padding:4px 2px;line-height:1.6">Make a group (a building, an area, a package) and <b>drag tasks onto it</b>. A task can be in more than one group.</div>';
+  p.innerHTML = h;
+  $("gpAdd").onclick = function () { var n = prompt("Name of the group (a building, an area, a package...):", ""); if (!n) return; newGroup(n); save(); render(); };
+}
+function gpMenu(g, x, y) { LT.menu(x, y, [
+  { label: "Rename...", fn: function () { var n = prompt("New name:", g.name); if (n && LT.trim(n)) { g.name = LT.trim(n); save(); render(); } } },
+  { label: "Add the tasks with drawings in a tower...", fn: function () { var tw = prompt("Tower (e.g. T1) - every open task with a drawing of that tower goes into " + g.name + ":", ""); if (!tw) return; tw = LT.trim(tw).toUpperCase(); var n = 0;
+      for (var i = 0; i < data.tasks.length; i++) { var t = data.tasks[i]; if (t.status == "Done") continue; var ds = dwgsOf(t), hit = false; for (var k in ds) if (ds.hasOwnProperty(k)) { var f = null; try { f = LT.dwgInfo(k); } catch (e) { } if (f && LT.trim(f.tower || "").toUpperCase() == tw) hit = true; } if (hit && toGroup(t, g)) n++; }
+      save(); render(); LT.toast(n + " task(s) added to " + g.name); } },
+  "-", { label: "Delete the group (the tasks stay)", fn: function () { if (!confirm('Delete the group "' + g.name + '"? The tasks stay.')) return; for (var i = 0; i < data.tasks.length; i++) outGroup(data.tasks[i], g); data.groups.splice(data.groups.indexOf(g), 1); if (data.gSel == g.id) data.gSel = ""; save(); render(); } }]); }
+function dropOnGroup(t, gid) { var g = grpById(gid); if (!t || !g) return; if (toGroup(t, g)) { save(); render(); LT.toast(t.code + " → " + g.name, function () { outGroup(t, g); save(); render(); }); } else LT.toast(t.code + " is already in " + g.name); }
+/* a task dropped on another task in the list */
+function linkMenu(a, b, x, y) { if (!a || !b || a === b || a.fromDelegate || b.fromDelegate) return;
+  var ask = function (first, then) { return function () { var why = prompt(first.code + " must finish before " + then.code + ".\n\nWhy is " + then.code + " on hold? (optional - shows in the list)", ""); if (why !== null) linkTasks(first, then, why); }; };
+  var m = [{ label: '<span class="muted">' + esc(a.code) + " &rarr; " + esc(b.code) + "</span>", fn: function () { } },
+    { label: "&#10074;&#10074; <b>" + esc(b.code) + "</b> waits for <b>" + esc(a.code) + "</b> (" + esc(a.code) + " must finish first)", fn: ask(a, b) },
+    { label: "&#10074;&#10074; <b>" + esc(a.code) + "</b> waits for <b>" + esc(b.code) + "</b> (" + esc(b.code) + " must finish first)", fn: ask(b, a) }, "-"];
+  var gs = b.groups || []; for (var i = 0; i < gs.length; i++) (function (g) { if (g && !inGroup(a, g.id)) m.push({ label: "&#9638; Put " + esc(a.code) + " in " + esc(g.name) + " too", fn: function () { dropOnGroup(a, g.id); } }); })(grpById(gs[i]));
+  m.push({ label: "&#9638; Same building / area &ndash; a new group for both...", fn: function () { var n = prompt("Name of the group (a building, an area...):", ""); var g = newGroup(n); if (!g) return; toGroup(a, g); toGroup(b, g); save(); render(); } }, "-",
+    { label: "&#9888; The same work &ndash; merge " + esc(a.code) + " into " + esc(b.code) + "...", fn: function () { if (!confirm("Merge " + a.code + " into " + b.code + "?\n\nIts checklist, references, notes, groups and links go into " + b.code + "; " + a.code + " is removed.")) return; merge(a, b); save(); render(); LT.toast(a.code + " merged into " + b.code); } });
+  LT.menu(x, y, m); }
+/* in the task window: what it waits for and what it holds up */
+function eLinks() { var t = editing, h = ""; if (!t) { $("eLinksF").style.display = "none"; return; } $("eLinksF").style.display = "";
+  var w = (t.after || []).map(byId).filter(Boolean), hd = holding(t);
+  for (var i = 0; i < w.length; i++) h += '<span class="tchip ' + (w[i].status == "Done" ? "tok" : "th") + '">&#10074;&#10074; waits for <a href="#" data-eo="' + esc(w[i].id) + '">' + esc(w[i].code) + "</a> " + esc(w[i].title.length > 30 ? w[i].title.substring(0, 29) + "…" : w[i].title) + (w[i].status == "Done" ? " (done)" : "") + ' <span class="ex" data-eu="' + esc(w[i].id) + '" title="Remove this link">&#10005;</span></span>';
+  for (var j = 0; j < hd.length; j++) h += '<span class="tchip tk">&#9939; holds up <a href="#" data-eo="' + esc(hd[j].id) + '">' + esc(hd[j].code) + "</a> " + esc(hd[j].title.length > 30 ? hd[j].title.substring(0, 29) + "…" : hd[j].title) + "</span>";
+  h += '<button class="btn small" id="eLinkAdd" title="This task waits for another one">&#128279; Waits for...</button>' + (t.holdWhy && w.length ? '<span class="muted small"> Why: ' + esc(t.holdWhy) + "</span>" : "");
+  $("eLinks").innerHTML = h;
+  $("eLinkAdd").onclick = function () { var c = prompt("This task waits for which task? Its ID, e.g. TL-004:", ""); if (!c) return; var f = byCode(LT.trim(c).toUpperCase()); if (!f) { alert("There's no task " + c + "."); return; } var why = prompt("Why is " + t.code + " on hold? (optional)", ""); if (why === null) return; if (linkTasks(f, t, why)) { work.after = copy(t.after); work.holdWhy = t.holdWhy; eLinks(); } };
+}
+/* a task given out in Delegate already? the same drawings in another person's open work */
+function delegDups(t) { var d = LT.readJson(LT.dataPath("delegate.json"), null) || {}, mine = dwgsOf(t), out = [];
+  for (var i = 0; i < (d.tasks || []).length; i++) { var x = d.tasks[i]; if (x.status == "Completed" || (t.delegated && x.code == t.delegated.code) || x.log == t.code) continue; var n = 0, first = "";
+    var subs = x.subs || []; for (var j = 0; j < subs.length; j++) { var no = subNo(subs[j]); if (no && mine[no.toUpperCase()] && subs[j].status != "Completed") { n++; if (!first) first = no + (subs[j].who ? " (" + subs[j].who + ")" : ""); } }
+    if (n) out.push(x.code + " " + (x.title || "") + " - " + (x.who || "?") + ": " + n + " same drawing(s), e.g. " + first); }
+  return out; }
 /* ---------- edit dialog ---------- */
 function edit(t, preset) {
   if (t && t.fromDelegate) return;
@@ -510,7 +714,7 @@ function edit(t, preset) {
   $("eDeleg").style.display = work.delegated ? "none" : ""; mpButtons();
   $("eTitle").value = work.title; $("eProj").value = work.project; $("eDue").value = work.due ? (function (d) { return LT.pad(d.getDate()) + "/" + LT.pad(d.getMonth() + 1) + "/" + d.getFullYear(); })(D(work.due)) : "";
   setSel($("ePrio"), work.priority, "Normal"); setSel($("eStat"), work.status, "To do"); $("eWho").value = work.waitingOn; $("eRep").value = work.repeat || ""; $("eNotes").value = work.notes || ""; $("eAddH").value = "";
-  showTime(); $("eDel").style.display = t ? "" : "none";
+  showTime(); $("eDel").style.display = t ? "" : "none"; if (t && t.released) { delete t.released; save(); } eLinks();
   $("dlg").style.display = "block"; $("eTitle").focus();
 }
 /* ---------- task folder ---------- */
@@ -825,7 +1029,12 @@ function saveEdit() {
   if (!work.code) work.code = nextCode();
   var mx = 0; for (var k = 0; k < work.subs.length; k++) if (work.subs[k].code) { var n = +work.subs[k].code.split(".").pop(); if (n > mx) mx = n; }
   for (var k2 = 0; k2 < work.subs.length; k2++) if (!work.subs[k2].code) work.subs[k2].code = work.code + "." + (++mx);
-  var st = $("eStat").value;
+  var st = $("eStat").value, wasWho = editing ? editing.who : "";
+  /* new, or given to someone else: is it the same work as an open task? (not for a task from a template: that repeats work on purpose) */
+  if (!saveEdit.asked && !(!editing && work.fromTpl) && (!editing || (work.who && work.who != wasWho))) { var dl = dupsOf(work); if (dl.length) { dupAsk(work, dl, function (act, into) {
+      if (act == "cancel") return; if (act == "keep") for (var i = 0; i < DUPCB0.length; i++) notDup(work, DUPCB0[i].t);
+      if (act == "merge") { $("dlg").style.display = "none"; if (editing) { data.tasks[data.tasks.indexOf(editing)] = work; } else addTask(work); merge(work, into); save(); render(); LT.toast(work.code + " merged into " + into.code); return; }
+      saveEdit.asked = true; try { saveEdit(); } finally { saveEdit.asked = false; } }, editing ? editing.code + (work.who ? " (to " + work.who + ")" : "") : "The new task"); return; } }
   $("dlg").style.display = "none";
   if (!editing) { work.status = st; if (st == "Done") work.doneOn = LT.today(); if (work.fromTpl) { LT.taskEvent(work, "Created from template: " + work.fromTpl); delete work.fromTpl; } addTask(work); save(); render(); return; }
   var old = editing.status; work.status = old; data.tasks[data.tasks.indexOf(editing)] = work;
@@ -843,6 +1052,8 @@ function weekly() {
   var s = "Week " + ws.getDate() + " " + LT.MON[ws.getMonth()] + " – " + we.getDate() + " " + LT.MON[we.getMonth()] + " " + we.getFullYear() + (LT.settings().userName ? "  (" + LT.settings().userName + ")" : "") + "\r\n\r\n";
   s += "DONE (" + done.length + ")\r\n"; for (var k = 0; k < done.length; k++) s += "  • " + done[k].title + (done[k].project ? "  [" + done[k].project + "]" : "") + "\r\n";
   s += "\r\nSTILL OPEN – due this week or late (" + open.length + ")\r\n"; for (k = 0; k < open.length; k++) s += "  • " + open[k].title + "  – " + nice(open[k].due) + (open[k].project ? "  [" + open[k].project + "]" : "") + "\r\n";
+  var hl0 = []; for (var hi = 0; hi < data.tasks.length; hi++) { var ht = data.tasks[hi]; if (ht.status != "Done" && holdOf(ht).length) hl0.push(ht); }
+  if (hl0.length) { s += "\r\nON HOLD (" + hl0.length + ")\r\n"; for (var hk = 0; hk < hl0.length; hk++) s += "  • " + hl0[hk].title + " – waits for " + holdOf(hl0[hk]).map(function (x) { return x.code + " " + x.title; }).join(", ") + (hl0[hk].holdWhy ? " (" + hl0[hk].holdWhy + ")" : "") + "\r\n"; }
   if (waiting.length) { s += "\r\nWAITING ON OTHERS (" + waiting.length + ")\r\n"; for (k = 0; k < waiting.length; k++) s += "  • " + waiting[k].title + " – " + (waiting[k].waitingOn || "?") + (waiting[k].due ? ", due " + nice(waiting[k].due) : "") + "\r\n"; }
   var tot = 0, hl = ""; for (var pk in hp) if (hp.hasOwnProperty(pk)) { tot += hp[pk]; hl += "  • " + pk + ": " + Math.round(hp[pk] * 10) / 10 + " h\r\n"; }
   if (tot) s += "\r\nTIME (" + Math.round(tot * 10) / 10 + " h)\r\n" + hl;
@@ -861,6 +1072,10 @@ function exportMenu(x, y) {
 
 /* ---------- events ---------- */
 function look() { LT.applyLook([".olprev{height:110px;overflow:auto;padding:6px 10px;border:1px dashed {line};border-radius:{r}px;font-size:.92em;line-height:1.5}.olb{color:{accent};font-weight:bold;display:inline-block;min-width:18px}", "#eLink{padding:6px 8px;margin-bottom:6px;border:1px dashed {line};border-radius:{r}px}#eLink .lk{cursor:pointer;text-decoration:underline;color:{accent};margin-left:10px}#subs .lnew,#subs .lgn{display:inline-block;font-size:.72em;font-weight:bold;padding:0 5px;margin-right:4px;border-radius:{rc}px;background:{okSoft};color:{ok}}#subs .lgn{background:{badSoft};color:{bad}}#subs tr.lgone input.sT{text-decoration:line-through;opacity:.6}#subs .lnew+input,#subs .lgn+input{width:calc(100% - 60px)}", "#subs td.sinfo{font-size:.84em;color:{muted};white-space:nowrap}#subs td.sinfo .mlk{color:{accent};cursor:pointer;text-decoration:underline}#subs .sck{width:24px;padding-right:0}#subs tr.ssel td{background:{accSoft}}#subBulk{padding:6px 8px;margin-bottom:6px;border-radius:{r}px;background:{accSoft}}#subBulk input,#subBulk select{height:26px;margin:0 4px}#subBulk .btn{margin:0 8px 0 0}#subBulk .sbx{cursor:pointer;text-decoration:underline;color:{muted};margin-left:6px}", "#nd{position:fixed;right:16px;top:120px;width:330px;max-height:60%;overflow:auto;z-index:5;background:{panel};border:1px solid {line};border-radius:16px;box-shadow:{big}}#nd.fold{position:static;float:right;width:auto;max-height:none;overflow:visible;margin:0 6px 6px 0;box-shadow:none;border-radius:99px}#nd.fold #ndH{border-bottom:0;border-radius:99px}#nd.fold .ndt{margin-left:10px}#ndH{position:sticky;top:0;padding:10px 14px;cursor:pointer;background:{panel};border-bottom:1px solid {line};display:flex;align-items:center}#ndH .ndn{background:{accent};color:{accText};border-radius:99px;padding:0 8px;font-size:.8em;font-weight:700;margin-left:8px}#ndH .ndt{margin-left:auto;color:{muted};font-weight:700}",
+    "#gp{border-left:1px solid {line};background:{bg}}.gcard{background:{panel};border:1px solid {line};border-radius:{r}px}.gcard:hover{border-color:{accent}}.gcard.on{background:{accSoft};border-color:{accent}}.gcard.over{outline:2px dashed {accent};background:{accSoft}}.gcard.gall .gn{font-weight:normal}#bGp.on{background:{accSoft};color:{accent}}",
+    ".tchip{border-radius:{rc}px;background:{chip};color:{muted}}.tchip.tg{background:{accSoft};color:{accent}}.tchip.th{background:{warnSoft};color:{warn}}.tchip.tk{background:{chip};color:{text}}.tchip.tb{background:{badSoft};color:{bad}}.tchip.tok{background:{okSoft};color:{ok}}.tchip a{color:inherit}.tchip .ex{cursor:pointer;margin-left:4px}#eLinks .tchip{font-size:.85em;padding:2px 8px;margin-bottom:4px}#main tr.dropon td{background:{accSoft};box-shadow:inset 0 -2px 0 {accent}}",
+    "#gSvg .gbox rect{fill:{accSoft};stroke:{accent};stroke-dasharray:5 4;opacity:.55}#gSvg .gbox text{fill:{accent};font-weight:bold;font-size:12px}#gSvg .gnode{cursor:move}#gSvg .gnode rect{fill:{panel};stroke:{line};stroke-width:1.5}#gSvg .gnode.sdoing rect{stroke:{warn}}#gSvg .gnode.sdone rect{fill:{okSoft};stroke:{ok}}#gSvg .gnode.hold rect{stroke:{warn};stroke-width:3}#gSvg .gnode.dup rect{stroke:{bad};stroke-width:3}#gSvg .gnode.clash rect{stroke-dasharray:6 3}#gSvg .gnode:hover rect{stroke:{accent}}",
+    "#gSvg .gc{fill:{accent};font-family:Consolas,monospace;font-size:12px;font-weight:bold}#gSvg .gt{fill:{text};font-size:12px}#gSvg .gs{fill:{muted};font-size:11px}#gSvg .gdot{fill:{accent};stroke:{panel};stroke-width:2;cursor:crosshair}#gSvg .gedge{fill:none;stroke:{muted};stroke-width:2}#gSvg .gedge.okd{stroke:{ok};opacity:.6}#gSvg .gedge.crit{stroke:{accent};stroke-width:4}#gSvg .gedge.tmp{stroke:{accent};stroke-dasharray:5 4}#gSvg .garr{fill:{muted}}#gSvg .garrc{fill:{accent}}",
     ".ndhint{font-size:.82em;padding:6px 14px 2px}.ndi{padding:8px 14px;border-bottom:1px solid {line};cursor:grab}.ndi:last-child{border-bottom:0}.ndt1{display:flex}.ndt1 b{flex:1 1 auto;font-weight:600}.ndx{cursor:pointer;color:{muted};margin-left:8px}.ndx:hover{color:{bad}}.ndf{display:flex;margin-top:6px}.ndf input{width:86px;height:28px;margin:0 6px 0 0;padding:0 8px}.ndf input+input{width:96px}.ndf select{width:78px;height:28px;margin:0 6px 0 0;padding:0 6px}.ndf .btn{margin:0;height:28px}","td.today{color:{accent};font-weight:bold}", ".btn.late{color:{bad}}", ".col{background:{chip};border-radius:{r}px}", ".card2{background:{panel};border:{bw}px solid {line};border-radius:{r}px}", ".card2.hi{border-color:{bad}}", ".col.over{outline:2px dashed {accent}}", "td.todel{color:{accent};font-weight:bold}", "#subRefs{background:{bg};border:{bw}px solid {line};border-radius:{r}px}", "#subs tr.sel td{background:{hover}}", "#subs .sr:hover{color:{accent}}", ".tfn{background:{bg};border-left:3px solid {accent};border-radius:{r}px}", "#tfDrop{border:{bw}px solid {line};border-radius:{r}px;background:{bg}}", ".tfc:hover{color:{accent}}",
   "table.cal th{color:{muted};border-bottom:{bw}px solid {line}}table.cal td{border:1px solid {line}}table.cal td.cur{background:{panel}}table.cal td.cur .n{color:{text}}table.cal td.cur.we{background:{panel};box-shadow:inset 0 0 0 999px rgba(128,128,128,.04)}",
   "table.cal td.oth{background:{chip};box-shadow:inset 0 0 0 999px rgba(128,128,128,.10)}table.cal td.oth .n{color:{muted};font-weight:normal}table.cal td.oth .ev{opacity:.5}",
@@ -878,19 +1093,36 @@ $("main").onclick = function (e) { var t = e.target || e.srcElement, d = t.getAt
   if (mo) { calOpen = calOpen == mo.getAttribute("data-open") ? "" : mo.getAttribute("data-open"); render(); return; }
   if (row && row.tagName == "TR") { picked = shown[+row.getAttribute("data-i")] || null; var trs = $("main").getElementsByTagName("tr"); for (var q = 0; q < trs.length; q++) trs[q].className = trs[q].className.replace(/ ?pick/g, ""); row.className += " pick"; } if (tf) { openTF(shown[+tf.getAttribute("data-tf")]); return; } if (d != null) { var task = shown[+d]; setStatus(task, t.checked ? "Done" : "To do"); } };
 $("main").ondblclick = function (e) { var r = LT.up(e.target || e.srcElement, "data-i"); if (r) edit(shown[+r.getAttribute("data-i")]); };
-$("main").oncontextmenu = function (e) { e = e || window.event; var r = LT.up(e.target || e.srcElement, "data-i"); if (r) taskMenu(shown[+r.getAttribute("data-i")], e.clientX, e.clientY); return false; };
+$("eLinks").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, o = LT.up(t, "data-eo"), u = LT.up(t, "data-eu");
+  if (u && editing) { var f = byId(u.getAttribute("data-eu")); if (f) { unlink(editing, f); work.after = copy(editing.after || []); eLinks(); } return; }
+  if (o) { var x = byId(o.getAttribute("data-eo")); if (x) { $("dlg").style.display = "none"; edit(x); } if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } };
+$("main").oncontextmenu = function (e) { e = e || window.event; var gn = gNodeAt(e.target || e.srcElement); if (gn && byId(gn)) { taskMenu(byId(gn), e.clientX, e.clientY); return false; } var r = LT.up(e.target || e.srcElement, "data-i"); if (r) taskMenu(shown[+r.getAttribute("data-i")], e.clientX, e.clientY); return false; };
 /* board: drag a card to another column */
 var dragI = null;
 $("main").ondragstart = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-i"); if (!c) return; dragTask = null; dragI = +c.getAttribute("data-i"); try { e.dataTransfer.setData("text", "" + dragI); e.dataTransfer.effectAllowed = "copyMove"; } catch (x) { } };
 function dayOver(td, on) { if (td) td.className = td.className.replace(/ ?over/g, "") + (on ? " over" : ""); }
-$("main").ondragover = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col || day) { if (day) { try { e.dataTransfer.dropEffect = e.ctrlKey ? "copy" : "move"; } catch (x) { } } if (e.preventDefault) e.preventDefault(); e.returnValue = false; } return false; };
-$("main").ondragenter = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col) { if (e.preventDefault) e.preventDefault(); col.className = "col over"; } if (day) { if (e.preventDefault) e.preventDefault(); dayOver(day, true); } return false; };
+$("main").ondragover = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"), row = LT.up(el, "data-i"); if (row && row.tagName == "TR" && dragI != null) { if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } if (col || day) { if (day) { try { e.dataTransfer.dropEffect = e.ctrlKey ? "copy" : "move"; } catch (x) { } } if (e.preventDefault) e.preventDefault(); e.returnValue = false; } return false; };
+$("main").ondragenter = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"), row = LT.up(el, "data-i");
+  if (row && row.tagName == "TR" && dragI != null) { var rs = $("main").getElementsByTagName("tr"); for (var q = 0; q < rs.length; q++) rs[q].className = rs[q].className.replace(/ ?dropon/g, ""); if (+row.getAttribute("data-i") != dragI) row.className += " dropon"; if (e.preventDefault) e.preventDefault(); return false; } if (col) { if (e.preventDefault) e.preventDefault(); col.className = "col over"; } if (day) { if (e.preventDefault) e.preventDefault(); dayOver(day, true); } return false; };
 $("main").ondragleave = function (e) { e = e || window.event; var el = e.target || e.srcElement, col = LT.up(el, "data-st"), day = LT.up(el, "data-day"); if (col) col.className = "col"; if (day && el === day) dayOver(day, false); };
 $("main").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault();
+  var rw = LT.up(e.target || e.srcElement, "data-i"); if (rw && rw.tagName == "TR" && dragI != null) { var src = shown[dragI], dst = shown[+rw.getAttribute("data-i")]; dragI = null; rw.className = rw.className.replace(/ ?dropon/g, ""); if (src && dst && src !== dst) linkMenu(src, dst, e.clientX, e.clientY); return false; }
   var day = LT.up(e.target || e.srcElement, "data-day"); if (day) { var di = dragI, dt = dragTask; dragI = null; dragTask = null; dropDay(di != null ? shown[di] : dt, day.getAttribute("data-day"), !!e.ctrlKey && !dt); return false; }
   var col = LT.up(e.target || e.srcElement, "data-st"); if (col && dragI == null && dragTask) { var t2 = dragTask; dragTask = null; if (t2.status != col.getAttribute("data-st")) setStatus(t2, col.getAttribute("data-st")); else render(); return false; }
   if (col && dragI != null && shown[dragI]) { var st = col.getAttribute("data-st"), t = shown[dragI]; dragI = null; if (t.status != st) setStatus(t, st); else render(); } return false; };
 $("eOk").onclick = function () { saveEdit(); };
+$("bGp").onclick = function () { data.gpHide = !data.gpHide; save(); gpDraw(); };
+$("gp").onclick = function (e) { var c = LT.up((e || window.event).target || (e || window.event).srcElement, "data-gid"); if (!c) return; var id = c.getAttribute("data-gid"); data.gSel = data.gSel == id ? "" : id; save(); render(); };
+$("gp").oncontextmenu = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-gid"), g = c ? grpById(c.getAttribute("data-gid")) : null; if (g) gpMenu(g, e.clientX, e.clientY); return false; };
+$("gp").ondragover = function (e) { e = e || window.event; if (LT.up(e.target || e.srcElement, "data-gid")) { if (e.preventDefault) e.preventDefault(); e.returnValue = false; return false; } };
+$("gp").ondragenter = function (e) { e = e || window.event; var c = LT.up(e.target || e.srcElement, "data-gid"); if (c && c.getAttribute("data-gid")) { if (e.preventDefault) e.preventDefault(); var cs = $("gp").querySelectorAll(".gcard"); for (var i = 0; i < cs.length; i++) cs[i].className = cs[i].className.replace(/ ?over/g, ""); c.className += " over"; } return false; };
+$("gp").ondrop = function (e) { e = e || window.event; if (e.preventDefault) e.preventDefault(); var c = LT.up(e.target || e.srcElement, "data-gid"), t = dragI != null ? shown[dragI] : dragTask; dragI = null; dragTask = null; if (c && c.getAttribute("data-gid")) dropOnGroup(t, c.getAttribute("data-gid")); else render(); return false; };
+var DUPCB0 = [];
+$("dupT").onclick = function (e) { var b = LT.up((e || window.event).target || (e || window.event).srcElement, "data-dm"); if (!b || !DUPCB) return; var cb = DUPCB; DUPCB = null; DUPCB0 = cb.list; $("dupDlg").style.display = "none"; cb.done("merge", cb.list[+b.getAttribute("data-dm")].t); };
+$("dupKeep").onclick = function () { var cb = DUPCB; DUPCB = null; if (!cb) return; DUPCB0 = cb.list; $("dupDlg").style.display = "none"; cb.done("keep"); };
+$("dupCancel").onclick = function () { var cb = DUPCB; DUPCB = null; $("dupDlg").style.display = "none"; if (cb) cb.done("cancel"); };
+if (document.addEventListener) { $("main").addEventListener("mousedown", gDown, false); document.addEventListener("mousemove", gMove, false); document.addEventListener("mouseup", gUp, false); }
+else { $("main").attachEvent("onmousedown", gDown); document.attachEvent("onmousemove", gMove); document.attachEvent("onmouseup", gUp); }
 $("eDeleg").onclick = function () { if (!LT.trim($("eAssign").value)) { alert("Fill in who does it first (a person or a group)."); return; } saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) delegate(t); } };
 $("eTF").onclick = function () { saveEdit(); if ($("dlg").style.display == "none") { var t = byCode(work.code); if (t) openTF(t); } };
 $("bOpenTF").onclick = openTaskFolder;

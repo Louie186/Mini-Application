@@ -383,7 +383,7 @@ function whatsNew(force) {
 function reminders(force) {
   var s = LT.settings(); if (!force && (s.remind === false || s.remindOn == LT.today())) return false;
   var today = LT.today(), R0 = remindData(), mineToday = R0.mineToday, mineLate = R0.mineLate, team = R0.team, nLate = R0.nLate, i;
-  if (!mineToday.length && !mineLate.length && !nLate && !R0.incoming && !R0.report) { if (!force) { s.remindOn = today; LT.saveSettings(s); } return false; }
+  if (!mineToday.length && !mineLate.length && !nLate && !R0.incoming && !R0.report && !R0.released.length) { if (!force) { s.remindOn = today; LT.saveSettings(s); } return false; }
   var h = '<span class="rx" id="rX" title="Close">&#10005;</span><h4><span> Good ' + (new Date().getHours() < 12 ? "morning" : new Date().getHours() < 17 ? "afternoon" : "evening") + (s.userName ? ", " + LT.esc(s.userName) : "") + "</span></h4><div class=\"tx\"><ul>";
   if (mineToday.length) h += "<li><b>" + mineToday.length + "</b> of your tasks due today</li>";
   if (mineLate.length) h += '<li class="late">' + mineLate.length + " of your tasks late</li>";
@@ -393,12 +393,14 @@ function reminders(force) {
   if (ppl.length > 4) h += "<li>+ " + (ppl.length - 4) + " more people with late work</li>";
   if (R0.incoming) h += "<li><b>" + R0.incoming + "</b> new / changed file" + (R0.incoming > 1 ? "s" : "") + " in the folders you watch</li>";
   if (R0.report) h += "<li>Your <b>weekly report</b> is ready</li>";
-  h += "</ul>" + (mineToday.length || mineLate.length ? '<button class="rb" id="rMine">My tasks</button>' : "") + (R0.incoming ? '<button class="rb" id="rIn">See the new files</button>' : "") + (R0.report ? '<button class="rb" id="rRep">Open the report</button>' : "") + (nLate ? '<button class="rb" id="rChase">&#128276; Chase up (' + nLate + ")</button>" : "") + "</div>";
+  for (i = 0; i < R0.released.length && i < 4; i++) h += '<li class="go">&#9654; <b>' + LT.esc(R0.released[i].code) + "</b> can continue &ndash; " + LT.esc(R0.released[i].released.by) + " is done</li>";
+  h += "</ul>" + (mineToday.length || mineLate.length ? '<button class="rb" id="rMine">My tasks</button>' : "") + (R0.incoming ? '<button class="rb" id="rIn">See the new files</button>' : "") + (R0.report ? '<button class="rb" id="rRep">Open the report</button>' : "") + (R0.released.length ? '<button class="rb" id="rGo">Open ' + LT.esc(R0.released[0].code) + "</button>" : "") + (nLate ? '<button class="rb" id="rChase">&#128276; Chase up (' + nLate + ")</button>" : "") + "</div>";
   var box = LT.$("remind"); box.innerHTML = h; box.style.display = "block";
   var shut = function () { box.style.display = "none"; };
   LT.$("rX").onclick = shut;
   if (LT.$("rMine")) LT.$("rMine").onclick = function () { shut(); LTMain.send("tracker", "view", mineLate.length ? "overdue" : "today"); };
   if (LT.$("rIn")) LT.$("rIn").onclick = function () { shut(); show("home"); };
+  if (LT.$("rGo")) LT.$("rGo").onclick = function () { shut(); LTMain.send("tracker", "show-task", R0.released[0].code); };
   if (LT.$("rRep")) LT.$("rRep").onclick = function () { shut(); var s2 = LT.settings(); try { LT.open(s2.reportReady); } catch (e) { } s2.reportReady = ""; LT.saveSettings(s2); bell(); };
   if (LT.$("rChase")) LT.$("rChase").onclick = function () { shut(); LTMain.send("delegate", "chase", ""); };
   if (!force) { s.remindOn = today; LT.saveSettings(s); }
@@ -461,6 +463,7 @@ var REM = null;
 function remindData() {
   var s = LT.settings(), today = LT.today(), o = { mineToday: [], mineLate: [], team: {}, nLate: 0 }, i, j;
   var tr = (LT.readJson(LT.dataPath("tracker.json"), null) || {}).tasks || [];
+  o.released = []; for (i = 0; i < tr.length; i++) if (tr[i].released && tr[i].status != "Done") o.released.push(tr[i]);   // tasks that were on hold and can continue now
   for (i = 0; i < tr.length; i++) { var t = tr[i]; if (t.status == "Done" || !t.due || t.delegated) continue; if (t.due == today) o.mineToday.push(t); else if (t.due < today) o.mineLate.push(t); }
   var dj = LT.readJson(LT.dataPath("delegate.json"), null) || {}, dt = dj.tasks || [], lead = {};
   if (s.chaseLead !== false) for (i = 0; i < (dj.groups || []).length; i++) lead[LT.trim(dj.groups[i].name).toLowerCase()] = dj.groups[i].lead;   // a group's work: its lead answers for it
@@ -497,7 +500,7 @@ function autoReport(force) {
     if (!p) return; var s2 = LT.settings(); s2.lastAutoReport = wk; s2.reportReady = p; LT.saveSettings(s2); LT.$("bellB").className = "tb glow"; LT.toast("Your weekly report is ready (bell)"); bell(); try { frames.home.contentWindow.ltReload(); } catch (e) { } };
   document.body.appendChild(f);
 }
-function bell() { try { window.setTimeout(navBadges, 0); REM = remindData(); var n = REM.mineToday.length + REM.mineLate.length + REM.nLate + REM.incoming + (REM.report ? 1 : 0), b = LT.$("bellN"); LT.$("bellB").innerHTML = LT.icon("bell", 19) + '<span id="bellN"></span>'; b = LT.$("bellN"); b.innerHTML = n > 99 ? "99+" : "" + n; b.style.display = n ? "block" : "none"; } catch (e) { } }
+function bell() { try { window.setTimeout(navBadges, 0); REM = remindData(); var n = REM.mineToday.length + REM.mineLate.length + REM.nLate + REM.incoming + (REM.report ? 1 : 0) + REM.released.length, b = LT.$("bellN"); LT.$("bellB").innerHTML = LT.icon("bell", 19) + '<span id="bellN"></span>'; b = LT.$("bellN"); b.innerHTML = n > 99 ? "99+" : "" + n; b.style.display = n ? "block" : "none"; } catch (e) { } }
 
 /* ---------- window size + icon (same tricks as QuickLaunch) ---------- */
 function sizeWindow() {

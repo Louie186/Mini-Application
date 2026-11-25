@@ -146,25 +146,27 @@ def read_issue_data(doc):
                 on_sheet[i] = _txt(s.GetRevisionNumberOnSheet(make_eid(i)))
             except Exception:
                 on_sheet[i] = rev_by_id.get(i, {}).get('number', u'')
-        tb = None
+        tbs = []
         try:
-            inst = FilteredElementCollector(doc, s.Id).OfCategory(BuiltInCategory.OST_TitleBlocks) \
-                .WhereElementIsNotElementType().FirstElement()
-            if inst is not None:
+            for inst in FilteredElementCollector(doc, s.Id).OfCategory(BuiltInCategory.OST_TitleBlocks) \
+                    .WhereElementIsNotElementType():
                 sym = inst.Symbol
                 tname = sym.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()
-                tb = {'instance_id': eid_int(inst.Id), 'type_id': eid_int(sym.Id),
-                      'family': _txt(sym.FamilyName), 'type': _txt(tname),
-                      'instance_params': _yes_no_params(inst), 'type_params': _yes_no_params(sym)}
-                tb_count[tb['type_id']] = tb_count.get(tb['type_id'], 0) + 1
+                tbs.append({'instance_id': eid_int(inst.Id), 'type_id': eid_int(sym.Id),
+                            'family': _txt(sym.FamilyName), 'type': _txt(tname),
+                            'instance_params': _yes_no_params(inst), 'type_params': _yes_no_params(sym)})
         except Exception:
             pass
+        for t_id in set(t['type_id'] for t in tbs):
+            tb_count[t_id] = tb_count.get(t_id, 0) + 1
+        tb = tbs[0] if tbs else None
         sheets[s.SheetNumber] = {
             'id': eid_int(s.Id), 'name': _txt(s.Name), 'all_revs': all_ids, 'extra_revs': extra_ids,
             'cloud_revs': [i for i in all_ids if i not in extra_ids], 'current': cur,
             'current_number': on_sheet.get(cur, u'') if cur else u'',
             'current_date': rev_by_id.get(cur, {}).get('date', u'') if cur else u'',
-            'numbers_on_sheet': dict((str(k), v) for k, v in on_sheet.items()), 'titleblock': tb}
+            'numbers_on_sheet': dict((str(k), v) for k, v in on_sheet.items()), 'titleblock': tb,
+            'titleblocks': tbs}
     return {'version': model_version(doc), 'read_on': core.now(), 'revisions': revs,
             'per_sheet_numbering': _numbering_per_sheet(doc), 'sheets': sheets,
             'titleblock_type_count': dict((str(k), v) for k, v in tb_count.items())}

@@ -656,3 +656,167 @@ def report(title, started, lines, totals, do_export, missing, cad_msg, log_path)
     output.print_md('Log: `%s`' % log_path)
 
 
+# ------------------------------------------------------ PDF / CAD settings --
+class ExportSettingsMixin(object):
+    """The PDF and CAD tabs (setup drop-down + every Revit export option), shared by the buttons.
+    Needs the controls of the PDF/CAD tabs and self.state['loaded'], self.cache, self.settings."""
+
+    def _set_enabled(self, name, value):
+        c = getattr(self, name, None)
+        if c is not None:
+            c.IsEnabled = value
+
+    CUSTOM = u'(Custom - use the values below)'
+
+    def _pdf_controls(self):
+        return [self.pdf_paper_cb, self.pdf_orient_cb, self.pdf_place_cb, self.pdf_zoom_cb, self.pdf_zoom_tb,
+                self.pdf_raster_cb, self.pdf_colors_cb, self.pdf_proc_cb, self.pdf_links_blue_cb,
+                self.pdf_hide_ref_cb, self.pdf_hide_tags_cb, self.pdf_mask_cb, self.pdf_hide_scope_cb,
+                self.pdf_hide_crop_cb, self.pdf_halftone_cb]
+
+    def _dwg_controls(self):
+        return [self.dwg_version_cb, self.dwg_layers_cb, self.dwg_colors_cb, self.dwg_merged_cb, self.dwg_shared_cb]
+
+    def _show_pdf(self, v):
+        shown = lambda pairs: [d for d, _ in pairs]
+        self._combo(self.pdf_paper_cb, shown(core.PDF_PAPERS), v['paper'], keep_unknown=True)
+        self._combo(self.pdf_orient_cb, shown(core.PDF_ORIENT), v['orientation'], keep_unknown=True)
+        self._combo(self.pdf_place_cb, shown(core.PDF_PLACE), v['placement'], keep_unknown=True)
+        self._combo(self.pdf_zoom_cb, shown(core.PDF_ZOOM), v['zoom'], keep_unknown=True)
+        self.pdf_zoom_tb.Text = core.text(v.get('zoom_pct') or 100)
+        self._combo(self.pdf_raster_cb, core.PDF_RASTER, v['raster_quality'], keep_unknown=True)
+        self._combo(self.pdf_colors_cb, shown(core.PDF_COLORS), v['colors'], keep_unknown=True)
+        self._combo(self.pdf_proc_cb, ['Vector', 'Raster'], v['processing'])
+        for cb, k in ((self.pdf_links_blue_cb, 'links_blue'), (self.pdf_hide_ref_cb, 'hide_ref_planes'),
+                      (self.pdf_hide_tags_cb, 'hide_unref_tags'), (self.pdf_mask_cb, 'mask_coincident'),
+                      (self.pdf_hide_scope_cb, 'hide_scope'), (self.pdf_hide_crop_cb, 'hide_crop'),
+                      (self.pdf_halftone_cb, 'halftone_thin')):
+            cb.IsChecked = bool(v.get(k))
+        self._pdf_offsets = (v.get('offset_x', 0.0), v.get('offset_y', 0.0))
+
+    def _show_dwg(self, v):
+        self._combo(self.dwg_version_cb, core.DWG_VERSIONS, core.text(v['version']), keep_unknown=True)
+        self._combo(self.dwg_layers_cb, core.DWG_LAYERS, v['layers'], keep_unknown=True)
+        self._combo(self.dwg_colors_cb, [d for d, _ in core.DWG_COLORS],
+                    core.to_shown(core.DWG_COLORS, v.get('colors') or 'IndexColors'), keep_unknown=True)
+        self.dwg_merged_cb.IsChecked = bool(v['merged_views'])
+        self.dwg_shared_cb.IsChecked = bool(v['shared_coords'])
+
+    def _setups(self, kind):
+        """{setup name: (values, [models that have it])} over the loaded models."""
+        out = {}
+        for g in self.state.get('loaded', []):
+            e = self.cache.get(g) or {}
+            for name, vals in ((e.get('setups') or {}).get(kind) or {}).items():
+                if name not in out:
+                    out[name] = (vals, [])
+                out[name][1].append(e.get('model', '?'))
+        return out
+
+    def _fill_setup_combos(self):
+        self._filling = True
+        for kind, cb, current in (('pdf', self.pdf_setup_cb, core.pdf_settings(self.settings).get('setup')),
+                                  ('dwg', self.dwg_setup_cb, core.dwg_settings(self.settings).get('setup'))):
+            names = sorted(self._setups(kind).keys())
+            cb.Items.Clear()
+            cb.Items.Add(self.CUSTOM)
+            for n in names:
+                cb.Items.Add(n)
+            cb.SelectedItem = current if current in names else self.CUSTOM
+        self._filling = False
+        self.on_pdf_setup(None, None)
+        self.on_dwg_setup(None, None)
+
+    def on_pdf_setup(self, sender, args):
+        if getattr(self, '_filling', False):
+            return
+        name = self.pdf_setup_cb.SelectedItem
+        setups = self._setups('pdf')
+        n_loaded = len(self.state.get('loaded', []))
+        if name and name != self.CUSTOM and name in setups:
+            vals, models = setups[name]
+            self._show_pdf(vals)
+            for c in self._pdf_controls():
+                c.IsEnabled = False
+            self._set_enabled("pdf_naming_btn", bool(vals.get('naming')))
+            self.pdf_setup_info.Text = u'In %d of %d loaded model(s). Shown: its settings (read-only).%s' % (
+                len(models), n_loaded, (u'\nFile naming: ' + vals['naming']) if vals.get('naming') else u'')
+        else:
+            if sender is not None:
+                self._show_pdf(core.pdf_settings(self.settings))
+            for c in self._pdf_controls():
+                c.IsEnabled = True
+            self._set_enabled("pdf_naming_btn", False)
+            self.pdf_setup_info.Text = (u'Load drawings to list the setups saved in the models.' if not setups
+                                        else u'%d setup(s) found in the loaded models.' % len(setups))
+
+    def on_dwg_setup(self, sender, args):
+        if getattr(self, '_filling', False):
+            return
+        name = self.dwg_setup_cb.SelectedItem
+        setups = self._setups('dwg')
+        n_loaded = len(self.state.get('loaded', []))
+        if name and name != self.CUSTOM and name in setups:
+            vals, models = setups[name]
+            self._show_dwg(vals)
+            for c in self._dwg_controls():
+                c.IsEnabled = False
+            self.dwg_setup_info.Text = u'In %d of %d loaded model(s). Shown: its settings (read-only). Units: %s' % (
+                len(models), n_loaded, vals.get('units', '?'))
+        else:
+            if sender is not None:
+                self._show_dwg(core.dwg_settings(self.settings))
+            for c in self._dwg_controls():
+                c.IsEnabled = True
+            self.dwg_setup_info.Text = (u'Load drawings to list the setups saved in the models.' if not setups
+                                        else u'%d setup(s) found in the loaded models.' % len(setups))
+
+    def on_pdf_naming(self, sender, args):
+        name = self.pdf_setup_cb.SelectedItem
+        vals = self._setups('pdf').get(name, ({}, []))[0]
+        if vals.get('naming'):
+            self.naming_tb.Text = vals['naming']
+            forms.alert('File name rule copied from "%s":\n\n%s' % (name, vals['naming']))
+
+    def _combo(self, cb, items, value, keep_unknown=False):
+        cb.Items.Clear()
+        for i in items:
+            cb.Items.Add(i)
+        if keep_unknown and value and value not in items:
+            cb.Items.Add(value)
+        cb.SelectedItem = value if (value in items or keep_unknown and value) else items[0]
+
+
+    def _read_export_settings(self):
+        s = self.settings
+        pset = self.pdf_setup_cb.SelectedItem
+        try:
+            zoom_pct = int(self.pdf_zoom_tb.Text)
+        except Exception:
+            zoom_pct = 100
+        offs = getattr(self, '_pdf_offsets', (0.0, 0.0))
+        s['pdf'] = {'setup': '' if (not pset or pset == self.CUSTOM) else pset,
+                    'paper': self.pdf_paper_cb.SelectedItem, 'orientation': self.pdf_orient_cb.SelectedItem,
+                    'placement': self.pdf_place_cb.SelectedItem, 'offset_x': offs[0], 'offset_y': offs[1],
+                    'zoom': self.pdf_zoom_cb.SelectedItem, 'zoom_pct': zoom_pct,
+                    'raster_quality': self.pdf_raster_cb.SelectedItem, 'colors': self.pdf_colors_cb.SelectedItem,
+                    'processing': self.pdf_proc_cb.SelectedItem,
+                    'links_blue': bool(self.pdf_links_blue_cb.IsChecked),
+                    'hide_ref_planes': bool(self.pdf_hide_ref_cb.IsChecked),
+                    'hide_unref_tags': bool(self.pdf_hide_tags_cb.IsChecked),
+                    'mask_coincident': bool(self.pdf_mask_cb.IsChecked),
+                    'hide_scope': bool(self.pdf_hide_scope_cb.IsChecked),
+                    'hide_crop': bool(self.pdf_hide_crop_cb.IsChecked),
+                    'halftone_thin': bool(self.pdf_halftone_cb.IsChecked)}
+        dset = self.dwg_setup_cb.SelectedItem
+        s['dwg'] = {'setup': '' if (not dset or dset == self.CUSTOM) else dset,
+                    'version': self.dwg_version_cb.SelectedItem, 'layers': self.dwg_layers_cb.SelectedItem,
+                    'colors': core.to_api(core.DWG_COLORS, self.dwg_colors_cb.SelectedItem),
+                    'merged_views': bool(self.dwg_merged_cb.IsChecked),
+                    'shared_coords': bool(self.dwg_shared_cb.IsChecked),
+                    'units': core.dwg_settings(s).get('units', 'Default')}
+
+    def _fill_export_settings(self):
+        self._show_pdf(core.pdf_settings(self.settings))
+        self._show_dwg(core.dwg_settings(self.settings))
+        self._fill_setup_combos()

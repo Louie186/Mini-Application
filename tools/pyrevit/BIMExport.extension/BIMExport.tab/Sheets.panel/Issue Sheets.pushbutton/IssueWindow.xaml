@@ -216,9 +216,19 @@
 
                     <TabItem Header="  Title blocks  ">
                         <DockPanel Margin="8">
-                            <TextBlock DockPanel.Dock="Top" x:Name="tb_info_tb" FontWeight="SemiBold" Margin="0,0,0,4"/>
-                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}"
-                                       Text="Only Yes/No parameters can be changed. A TYPE parameter changes every drawing that uses that type."/>
+                            <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                <TextBlock Text="Drawing" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="tb_sheet_cb" Grid.Column="1" Margin="0,2" SelectionChanged="on_tb_sheet"/>
+                                <TextBlock Text="Title block" Grid.Row="1" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="tb_inst_cb" Grid.Row="1" Grid.Column="1" Margin="0,2" SelectionChanged="on_tb_inst"/>
+                            </Grid>
+                            <TextBlock DockPanel.Dock="Top" x:Name="tb_info_tb" Style="{StaticResource Hint}"/>
+                            <TextBlock DockPanel.Dock="Top" Text="Revisions on this drawing" FontWeight="SemiBold" Margin="0,4,0,4"/>
+                            <DataGrid x:Name="tb_revs_dg" DockPanel.Dock="Top" MaxHeight="170" IsReadOnly="True" AutoGeneratingColumn="on_autocol_plain"/>
+                            <TextBlock DockPanel.Dock="Top" Text="Title block Yes/No parameters (only these can be changed; a TYPE parameter changes every drawing using that type)"
+                                       FontWeight="SemiBold" Margin="0,10,0,4" TextWrapping="Wrap"/>
                             <DataGrid x:Name="params_dg" AutoGeneratingColumn="on_autocol_params"/>
                         </DockPanel>
                     </TabItem>
@@ -239,40 +249,130 @@
                 </TabControl>
             </Border>
 
-            <!-- 3 export settings -->
+            <!-- 3 settings: same tabs as Export Sheets -->
             <Border Grid.Column="4" Style="{StaticResource Card}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel>
-                        <TextBlock Text="3   Issue settings" Style="{StaticResource StepTitle}"/>
-                        <TextBlock Text="Detailed PDF/CAD values: Export Sheets window (same settings)." Style="{StaticResource Hint}"/>
-                        <TextBlock Text="Save to" Style="{StaticResource Label}"/>
-                        <DockPanel>
-                            <Button Content="Browse..." Style="{StaticResource Small}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="on_browse"/>
-                            <TextBox x:Name="out_tb"/>
-                        </DockPanel>
-                        <CheckBox x:Name="per_model_cb" Content="One folder per model" Margin="0,8,0,0"/>
-                        <TextBlock Text="Issue register (one CSV for every print)" Style="{StaticResource Label}"/>
-                        <DockPanel>
-                            <Button Content="Browse..." Style="{StaticResource Small}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="on_register_browse"/>
-                            <TextBox x:Name="register_tb"/>
-                        </DockPanel>
-                        <TextBlock Text="Formats" Style="{StaticResource Label}"/>
-                        <CheckBox x:Name="pdf_cb" Content="PDF"/>
-                        <CheckBox x:Name="dwg_cb" Content="DWG (CAD)"/>
-                        <TextBlock Text="PDF export setup" Style="{StaticResource Label}"/>
-                        <ComboBox x:Name="pdf_setup_cb"/>
-                        <TextBlock Text="DWG export setup" Style="{StaticResource Label}"/>
-                        <ComboBox x:Name="dwg_setup_cb"/>
-                        <TextBlock Text="Names" Style="{StaticResource Label}"/>
-                        <CheckBox x:Name="allow_norev_cb" Content="Allow drawings without a revision (name without rev)"/>
-                        <TextBlock Text="Run" Style="{StaticResource Label}"/>
-                        <CheckBox x:Name="embed_cb" Content="Embed logos in the DWGs (AutoCAD)"/>
-                        <CheckBox x:Name="skip_links_cb" Content="Faster: don't load linked models"/>
-                        <CheckBox x:Name="allow_nonws_cb" Content="Allow non-workshared models"/>
-                        <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
-                                   Text="Issue opens only the models with ticked drawings (detached, closed without saving), exports with the exact names, then writes one row per print in the issue register."/>
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top">
+                        <TextBlock Text="3   Settings" Style="{StaticResource StepTitle}"/>
+                        <TextBlock Text="Saved for next time (shared with Export Sheets)." Style="{StaticResource Hint}"/>
                     </StackPanel>
-                </ScrollViewer>
+                    <TabControl BorderBrush="{StaticResource Line}">
+                        <TabItem Header="  Output  ">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="10">
+                                    <TextBlock Text="Save to" Style="{StaticResource Label}"/>
+                                    <DockPanel>
+                                        <Button Content="Browse..." Style="{StaticResource Small}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="on_browse"/>
+                                        <TextBox x:Name="out_tb"/>
+                                    </DockPanel>
+                                    <CheckBox x:Name="per_model_cb" Content="One folder per model" Margin="0,8,0,0"/>
+                                    <TextBlock Text="Issue register (one CSV for every print)" Style="{StaticResource Label}"/>
+                                    <DockPanel>
+                                        <Button Content="Browse..." Style="{StaticResource Small}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="on_register_browse"/>
+                                        <TextBox x:Name="register_tb"/>
+                                    </DockPanel>
+                                    <TextBlock Text="Formats" Style="{StaticResource Label}"/>
+                                    <CheckBox x:Name="pdf_cb" Content="PDF"/>
+                                    <CheckBox x:Name="dwg_cb" Content="DWG (CAD)"/>
+                                    <TextBlock Text="File names" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="names_info_tb" Style="{StaticResource Hint}"/>
+                                    <CheckBox x:Name="allow_norev_cb" Content="With a MIDP: allow drawings without a revision"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="  PDF  ">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="10">
+                                    <TextBlock Text="Export setup" Style="{StaticResource Label}"/>
+                                    <ComboBox x:Name="pdf_setup_cb" SelectionChanged="on_pdf_setup"/>
+                                    <TextBlock x:Name="pdf_setup_info" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+
+                                    <TextBlock Text="Size" Style="{StaticResource Label}"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                        <TextBlock Text="Page size" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_paper_cb" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Orientation" Grid.Row="1" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_orient_cb" Grid.Row="1" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Placement" Grid.Row="2" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_place_cb" Grid.Row="2" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Zoom" Grid.Row="3" VerticalAlignment="Center"/>
+                                        <DockPanel Grid.Row="3" Grid.Column="1" Margin="0,2">
+                                            <TextBox x:Name="pdf_zoom_tb" Width="50" DockPanel.Dock="Right" Margin="6,0,0,0" ToolTip="% size when Zoom is chosen"/>
+                                            <ComboBox x:Name="pdf_zoom_cb"/>
+                                        </DockPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="Appearance" Style="{StaticResource Label}"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                        <TextBlock Text="Raster quality" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_raster_cb" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Colours" Grid.Row="1" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_colors_cb" Grid.Row="1" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Processing" Grid.Row="2" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="pdf_proc_cb" Grid.Row="2" Grid.Column="1" Margin="0,2"/>
+                                    </Grid>
+
+                                    <TextBlock Text="Options" Style="{StaticResource Label}"/>
+                                    <CheckBox x:Name="pdf_links_blue_cb" Content="View links in blue (colour prints only)"/>
+                                    <CheckBox x:Name="pdf_hide_ref_cb" Content="Hide ref/work planes"/>
+                                    <CheckBox x:Name="pdf_hide_tags_cb" Content="Hide unreferenced view tags"/>
+                                    <CheckBox x:Name="pdf_mask_cb" Content="Region edges mask coincident lines"/>
+                                    <CheckBox x:Name="pdf_hide_scope_cb" Content="Hide scope boxes"/>
+                                    <CheckBox x:Name="pdf_hide_crop_cb" Content="Hide crop boundaries"/>
+                                    <CheckBox x:Name="pdf_halftone_cb" Content="Replace halftone with thin lines"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="  CAD  ">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="10">
+                                    <TextBlock Text="Export setup" Style="{StaticResource Label}"/>
+                                    <ComboBox x:Name="dwg_setup_cb" SelectionChanged="on_dwg_setup"/>
+                                    <TextBlock x:Name="dwg_setup_info" Style="{StaticResource Hint}" Margin="0,4,0,0"/>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="100"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                        <TextBlock Text="DWG version" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="dwg_version_cb" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Layers" Grid.Row="1" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="dwg_layers_cb" Grid.Row="1" Grid.Column="1" Margin="0,2"/>
+                                        <TextBlock Text="Colours" Grid.Row="2" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="dwg_colors_cb" Grid.Row="2" Grid.Column="1" Margin="0,2"/>
+                                    </Grid>
+                                    <CheckBox x:Name="dwg_merged_cb" Content="One DWG per sheet (views not as xrefs)" Margin="0,10,0,4"/>
+                                    <CheckBox x:Name="dwg_shared_cb" Content="Shared coordinates"/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
+                                               Text="With a setup chosen, each model uses its own copy of that setup. The values shown come from the first model that has it."/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="  Run  ">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="10">
+                                    <TextBlock Text="Logos" Style="{StaticResource Label}"/>
+                                    <CheckBox x:Name="embed_cb" Content="Embed logos in the DWGs (AutoCAD)"/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
+                                               Text="AutoCAD starts while Revit is still exporting."/>
+                                    <TextBlock Text="Speed" Style="{StaticResource Label}"/>
+                                    <CheckBox x:Name="skip_links_cb" Content="Faster: don't load linked models"/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
+                                               Text="Only for drawings that do NOT show linked content."/>
+                                    <TextBlock Text="Safety" Style="{StaticResource Label}"/>
+                                    <CheckBox x:Name="allow_nonws_cb" Content="Allow non-workshared models"/>
+                                    <TextBlock Style="{StaticResource Hint}"
+                                               Text="Printing opens every model detached with ALL worksets and closes without saving."/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
+                </DockPanel>
             </Border>
         </Grid>
     </DockPanel>

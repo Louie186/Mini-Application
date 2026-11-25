@@ -37,7 +37,6 @@ ui.setup(__revit__)                     # noqa: F821
 app = ui.app
 output = script.get_output()
 XAML = os.path.join(os.path.dirname(__file__), 'IssueWindow.xaml')
-CUSTOM = u'(Same as Export Sheets)'
 
 
 def needs_check(entry):
@@ -75,7 +74,7 @@ def _bool_column(name, header, readonly=False):
     return col
 
 
-class IssueWindow(forms.WPFWindow):
+class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
 
     def __init__(self, state, settings, reg, cache, register_rows):
         forms.WPFWindow.__init__(self, XAML)
@@ -90,6 +89,7 @@ class IssueWindow(forms.WPFWindow):
         self._fill_models()
         self._build_sheets()
         self._fill_rev_models()
+        self._fill_tb_sheets()
         self._refresh_changes()
         self.header_info.Text = u'Revit %s\nIssue register: %d print(s) recorded' % (app.VersionNumber, len(register_rows))
         try:
@@ -114,21 +114,14 @@ class IssueWindow(forms.WPFWindow):
         self.skip_links_cb.IsChecked = bool(s.get('skip_links', False))
         self.allow_nonws_cb.IsChecked = bool(s.get('allow_non_workshared', False))
         self.midp_tb.Text = self.state.get('midp') or ''
-        self._fill_setups()
+        self._names_info()
+        self._fill_export_settings()               # PDF / CAD tabs: same as Export Sheets
 
-    def _fill_setups(self):
-        for kind, cb in (('pdf', self.pdf_setup_cb), ('dwg', self.dwg_setup_cb)):
-            names = set()
-            for g in self.state['loaded']:
-                names |= set((((self.cache.get(g) or {}).get('setups') or {}).get(kind) or {}).keys())
-            cur = (self.settings.get(kind) or {}).get('setup') or CUSTOM
-            cb.Items.Clear()
-            cb.Items.Add(CUSTOM)
-            for n in sorted(names):
-                cb.Items.Add(n)
-            if cur not in names:
-                cur = CUSTOM
-            cb.SelectedItem = cur
+    def _names_info(self):
+        self.names_info_tb.Text = (u'From the MIDP / LOD: its code (first 7 parts) + Revit\'s current revision. '
+                                   u'Uncertain = BLOCKED.' if self.midp else
+                                   u'No MIDP / LOD picked: files are named by sheet number (e.g. 10100.pdf). '
+                                   u'Pick one on the left to get the full drawing codes.')
 
     def _read_settings(self):
         s = self.settings
@@ -140,10 +133,7 @@ class IssueWindow(forms.WPFWindow):
         s['embed'] = bool(self.embed_cb.IsChecked)
         s['skip_links'] = bool(self.skip_links_cb.IsChecked)
         s['allow_non_workshared'] = bool(self.allow_nonws_cb.IsChecked)
-        for kind, cb in (('pdf', self.pdf_setup_cb), ('dwg', self.dwg_setup_cb)):
-            d = dict(s.get(kind) or {})
-            d['setup'] = '' if cb.SelectedItem in (None, CUSTOM) else cb.SelectedItem
-            s[kind] = d
+        self._read_export_settings()
         try:
             s['issue_col_left'] = round(self.col_left.ActualWidth)
             s['issue_col_right'] = round(self.col_right.ActualWidth)
@@ -166,6 +156,7 @@ class IssueWindow(forms.WPFWindow):
             self.state['midp'] = f
             self.midp_tb.Text = f
             self.midp = issue.midp_index(core.read_lod(f))
+            self._names_info()
             self._build_sheets()
 
     # =================================================================== sets
@@ -193,6 +184,7 @@ class IssueWindow(forms.WPFWindow):
             self.midp_tb.Text = st['midp']
             if os.path.exists(st['midp']):
                 self.midp = issue.midp_index(core.read_lod(st['midp']))
+            self._names_info()
         self.state['loaded'] = [g for g in self.state['checked_models'] if not needs_check(self.cache.get(g))]
         self._fill_models()
         self._build_sheets()
@@ -268,8 +260,12 @@ class IssueWindow(forms.WPFWindow):
                 num = s['number']
                 si = (iss.get('sheets') or {}).get(num, {})
                 rev = si.get('current_number', s.get('rev', ''))
-                name, status, note = issue.file_name_for(num, rev, self.midp, allow) if self.midp else \
-                    (None, u'BLOCKED', u'Pick the MIDP / LOD first')
+                if self.midp:
+                    name, status, note = issue.file_name_for(num, rev, self.midp, allow)
+                else:                                  # no MIDP yet: name by sheet number
+                    name, status, note = core.clean(num), u'OK', u'named by sheet number (no MIDP)'
+                    if name != num.strip():
+                        name, status, note = None, u'BLOCKED', u'sheet number has characters not allowed in a file name'
                 last = self.by_sheet.get((model.lower(), num.lower()))
                 out.append({'guid': g, 'num': num, 'model': model, 'name': s['name'],
                             'midp_title': issue.midp_title(num, self.midp), 'file': name or u'',
@@ -358,7 +354,9 @@ class IssueWindow(forms.WPFWindow):
             return
         key = it['Key']
         self._selected = key
-        self._show_titleblock(key)
+        lab = self._tb_labels_by_key.get(key) if hasattr(self, '_tb_labels_by_key') else None
+        if lab and self.tb_sheet_cb.SelectedItem != lab:
+            self.tb_sheet_cb.SelectedItem = lab
         g = key.split(u'|', 1)[0]
         name = (self.cache.get(g) or {}).get('model')
         if name and self.rev_model_cb.SelectedItem != name:
@@ -592,18 +590,83 @@ class IssueWindow(forms.WPFWindow):
         self._refresh_changes()
 
     # ============================================================ title blocks
-    def _show_titleblock(self, key):
+    def _fill_tb_sheets(self):
+        """Drawing drop-down: every drawing of the checked models."""
+        self._busy = True
+        self.tb_sheet_cb.Items.Clear()
+        self._tb_keys, self._tb_labels_by_key = {}, {}
+        for g in self.state['loaded']:
+            e = self.cache.get(g) or {}
+            for sh in e.get('sheets', []):
+                lab = u'%s   \u00b7   %s   %s' % (sh['number'], sh['name'], e.get('model', u''))
+                key = u'%s|%s' % (g, sh['number'].lower())
+                self._tb_keys[lab] = key
+                self._tb_labels_by_key[key] = lab
+                self.tb_sheet_cb.Items.Add(lab)
+        self._busy = False
+
+    def _tb_sheet_info(self, key):
         g, num_l = key.split(u'|', 1)
         iss = (self.cache.get(g) or {}).get('issue') or {}
         num = [n for n in (iss.get('sheets') or {}) if n.lower() == num_l]
-        si = (iss.get('sheets') or {}).get(num[0], {}) if num else {}
-        tb = si.get('titleblock')
-        t = _table([('Key', str), ('Parameter', str), ('Scope', str), ('Value', bool), ('Changes', str)])
-        if not tb:
-            self.tb_info_tb.Text = u'No title block found on this drawing (or Check models first).'
+        return g, iss, (num[0] if num else u''), ((iss.get('sheets') or {}).get(num[0], {}) if num else {})
+
+    def on_tb_sheet(self, sender, args):
+        if self._busy or self.tb_sheet_cb.SelectedItem is None:
+            return
+        key = self._tb_keys.get(self.tb_sheet_cb.SelectedItem)
+        g, iss, num, si = self._tb_sheet_info(key)
+        self._tb_sheet_key = key
+        # title block(s) placed on this drawing
+        tbs = si.get('titleblocks') or ([si['titleblock']] if si.get('titleblock') else [])
+        self._tb_list = {}
+        self._busy = True
+        self.tb_inst_cb.Items.Clear()
+        for tb in tbs:
+            lab = u'%s : %s   (id %s)' % (tb['family'], tb['type'], tb['instance_id'])
+            self._tb_list[lab] = tb
+            self.tb_inst_cb.Items.Add(lab)
+        self._busy = False
+        if len(tbs) > 1:
+            self.tb_info_tb.Text = u'\u26A0 This drawing has %d title blocks - pick one above.' % len(tbs)
+        elif not tbs:
+            self.tb_info_tb.Text = u'No title block on this drawing.'
         else:
+            self.tb_info_tb.Text = u''
+        # revisions on this drawing (as Revit shows them on the sheet)
+        revs = dict((str(r['id']), r) for r in iss.get('revisions', []))
+        clouds = set(str(i) for i in si.get('cloud_revs', []))
+        t = _table([('Seq', str), ('Rev on sheet', str), ('Date', str), ('Description', str), ('How', str), ('Issued', str)])
+        for rid in sorted((str(i) for i in si.get('all_revs', [])), key=lambda k: revs.get(k, {}).get('seq', 0)):
+            r = revs.get(rid, {})
+            row = t.NewRow()
+            row['Seq'] = str(r.get('seq', u''))
+            row['Rev on sheet'] = (si.get('numbers_on_sheet') or {}).get(rid) or r.get('number', u'')
+            row['Date'], row['Description'] = r.get('date', u''), r.get('description', u'')
+            row['How'] = u'revision cloud' if rid in clouds else u'added to sheet'
+            row['Issued'] = u'Yes' if r.get('issued') else u''
+            t.Rows.Add(row)
+        self.tb_revs_dg.ItemsSource = t.DefaultView
+        if tbs:
+            self.tb_inst_cb.SelectedIndex = 0
+            self._show_params(g, iss, num, tbs[0])
+        else:
+            self._show_params(g, iss, num, None)
+
+    def on_tb_inst(self, sender, args):
+        if self._busy or self.tb_inst_cb.SelectedItem is None or not getattr(self, '_tb_sheet_key', None):
+            return
+        g, iss, num, si = self._tb_sheet_info(self._tb_sheet_key)
+        self._show_params(g, iss, num, self._tb_list.get(self.tb_inst_cb.SelectedItem))
+
+    def on_autocol_plain(self, sender, e):
+        if e.PropertyName == 'Key':
+            e.Cancel = True
+
+    def _show_params(self, g, iss, num, tb):
+        t = _table([('Key', str), ('Parameter', str), ('Scope', str), ('Value', bool), ('Changes', str)])
+        if tb:
             n_type = (iss.get('titleblock_type_count') or {}).get(str(tb['type_id']), 1)
-            self.tb_info_tb.Text = u'Drawing %s  ·  %s : %s' % (num[0], tb['family'], tb['type'])
             p = self.state['pending'].get(g) or {}
             for scope, items, eid, aff in (('Instance', tb['instance_params'], tb['instance_id'], u'this drawing only'),
                                            ('Type', tb['type_params'], tb['type_id'], u'ALL %d drawing(s) using this type' % n_type)):
@@ -617,7 +680,7 @@ class IssueWindow(forms.WPFWindow):
                     row['Parameter'], row['Scope'], row['Value'] = prm['name'], scope, bool(val)
                     row['Changes'] = u'read-only' if prm['readonly'] else aff
                     t.Rows.Add(row)
-        self._tb_ctx = (g, num[0] if num else u'', tb)
+        self._tb_ctx = (g, num, tb)
         t.ColumnChanging += self._on_param_changing
         t.ColumnChanged += self._on_param_changed
         self.params_dg.ItemsSource = t.DefaultView
@@ -698,9 +761,6 @@ class IssueWindow(forms.WPFWindow):
     def _ready(self):
         self._read_settings()
         s = self.settings
-        if not self.midp:
-            forms.alert('Pick the MIDP / LOD (CSV) first - file names come from it.')
-            return False
         if not s['last_output']:
             forms.alert('Choose where to save.')
             return False

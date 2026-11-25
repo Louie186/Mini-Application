@@ -419,7 +419,8 @@ class IssueWindow(forms.WPFWindow):
                     ('Issued to', str), ('Issued by', str), ('Issued', bool)])
         for r in self._revisions(g):
             row = t.NewRow()
-            row['Key'], row['Seq'], row['Rev'] = r['key'], str(r['seq']), r.get('number', u'')
+            row['Key'], row['Seq'] = r['key'], str(r['seq'])
+            row['Rev'] = r.get('number') or (u'(per sheet)' if iss.get('per_sheet_numbering') and not r['key'].startswith('new') else u'(new)')
             row['Date'], row['Description'] = r.get('date', u''), r.get('description', u'')
             row['Issued to'], row['Issued by'], row['Issued'] = r.get('issued_to', u''), r.get('issued_by', u''), bool(r.get('issued'))
             t.Rows.Add(row)
@@ -506,7 +507,7 @@ class IssueWindow(forms.WPFWindow):
             row['Key'], row['Sheet'], row['Name'] = num, num, s['name']
             for r in revs:
                 row[u'R%s' % r['key']] = r['key'] in on
-            cur, date = self._current(g, on)
+            cur, date = self._current(g, on, num)
             row['Current rev'], row['Current date'] = cur, date
             t.Rows.Add(row)
         t.ColumnChanging += self._on_onsheet_changing
@@ -524,15 +525,25 @@ class IssueWindow(forms.WPFWindow):
             extra = [str(i) for i in si.get('extra_revs', [])]
         return set(clouds) | set(str(i) for i in extra)
 
-    def _current(self, g, on):
+    def _current(self, g, on, sheet=None):
         iss = (self.cache.get(g) or {}).get('issue') or {}
         revs = [r for r in self._revisions(g) if r['key'] in on]
         if not revs:
             return u'', u''
         top = max(revs, key=lambda r: r['seq'])
         num = top.get('number') or u''
-        if iss.get('per_sheet_numbering') and not top['key'].startswith('new'):
-            num += u' (per sheet: Revit sets it)'
+        if iss.get('per_sheet_numbering'):
+            # per-sheet numbering: the number is the one Revit shows on THIS sheet
+            si = (iss.get('sheets') or {}).get(sheet or u'', {})
+            known = (si.get('numbers_on_sheet') or {}).get(top['key']) or (
+                si.get('current_number') if str(si.get('current')) == top['key'] else None)
+            unchanged = sorted(on) == sorted(str(i) for i in si.get('all_revs', []))
+            if known and unchanged:
+                num = known
+            elif top['key'].startswith('new'):
+                num = u'(new - Revit numbers it per sheet)'
+            else:
+                num = (known or u'?') + u' (Revit renumbers this sheet after Apply)' if not unchanged else (known or u'?')
         return num, top.get('date', u'')
 
     def on_autocol_onsheet(self, sender, e):
@@ -575,7 +586,7 @@ class IssueWindow(forms.WPFWindow):
             if si.get('id') and si['id'] not in p['sheet_ids']:
                 p['sheet_ids'].append(si['id'])
         self._busy = True
-        cur, date = self._current(g, on)
+        cur, date = self._current(g, on, num)
         e.Row['Current rev'], e.Row['Current date'] = cur, date
         self._busy = False
         self._refresh_changes()

@@ -91,6 +91,19 @@ def _yes_no_params(el):
     return out
 
 
+def rev_number(r):
+    """A revision's own number. In 'per sheet' numbering Revit has none (each sheet numbers it itself)."""
+    try:
+        return _txt(r.RevisionNumber)
+    except Exception:
+        return u''
+
+
+def rev_label(r):
+    """For messages: the number, or 'seq N - date' when numbering is per sheet."""
+    return rev_number(r) or u'seq %s (%s)' % (r.SequenceNumber, _txt(r.RevisionDate))
+
+
 def _numbering_per_sheet(doc):
     try:
         rs = DB.RevisionSettings.GetRevisionSettings(doc)
@@ -105,7 +118,7 @@ def read_issue_data(doc):
     rev_by_id = {}
     for rid in DB.Revision.GetAllRevisionIds(doc):
         r = doc.GetElement(rid)
-        d = {'id': eid_int(rid), 'seq': r.SequenceNumber, 'number': _txt(r.RevisionNumber),
+        d = {'id': eid_int(rid), 'seq': r.SequenceNumber, 'number': rev_number(r),
              'date': _txt(r.RevisionDate), 'description': _txt(r.Description), 'issued': bool(r.Issued),
              'issued_by': _txt(r.IssuedBy), 'issued_to': _txt(r.IssuedTo)}
         revs.append(d)
@@ -414,12 +427,12 @@ def _apply_in_doc(doc, changes, log):
             if r is None:
                 raise ApplyError(u'Revision %s not found' % rid)
             if r.Issued:
-                raise ApplyError(u'Revision %s is marked Issued - Revit locks it' % r.RevisionNumber)
+                raise ApplyError(u'Revision %s is marked Issued - Revit locks it' % rev_label(r))
             for key, prop in (('date', 'RevisionDate'), ('description', 'Description'),
                               ('issued_by', 'IssuedBy'), ('issued_to', 'IssuedTo')):
                 if key in vals:
                     setattr(r, prop, vals[key])
-            log.append(u'Revision %s edited' % r.RevisionNumber)
+            log.append(u'Revision %s edited' % rev_label(r))
         for num, ids in changes.get('sheet_revisions', {}).items():
             s = sheets.get(num)
             if s is None:

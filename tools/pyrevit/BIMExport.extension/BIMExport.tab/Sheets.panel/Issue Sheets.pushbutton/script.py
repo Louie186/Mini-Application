@@ -15,15 +15,19 @@ __context__ = 'zero-doc'
 import os
 import time
 
+from pyrevit import forms, script      # loads pyRevit (and WPF) first
+
 import clr
-clr.AddReference('System.Data')
+for _asm in ('PresentationFramework', 'PresentationCore', 'WindowsBase', 'System.Xaml', 'System.Data'):
+    try:
+        clr.AddReference(_asm)          # make sure the WPF and DataTable libraries are loaded
+    except Exception:
+        pass
 import System
 from System.Data import DataTable
 from System.Windows import FrameworkElementFactory, DataTemplate, HorizontalAlignment, GridLength
 from System.Windows.Controls import CheckBox, DataGridTemplateColumn
 from System.Windows.Data import Binding, BindingMode, UpdateSourceTrigger
-
-from pyrevit import forms, script
 
 import bimexport_core as core
 import bimissue_core as issue

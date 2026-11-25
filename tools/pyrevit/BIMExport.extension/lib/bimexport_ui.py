@@ -9,6 +9,13 @@ import time
 
 from pyrevit import forms, script
 
+import clr
+for _asm in ('PresentationFramework', 'PresentationCore', 'WindowsBase', 'System.Xaml'):
+    try:
+        clr.AddReference(_asm)          # WPF libraries, whatever order the buttons import things in
+    except Exception:
+        pass
+
 import bimexport_core as core
 
 uiapp = None

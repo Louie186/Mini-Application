@@ -1267,10 +1267,19 @@ def request_result(state, rows, files, cache, run_cad):
 def load_request(state, settings, reg):
     """Offer the newest Toolbox request; tick its models and use its output folder."""
     reqs = issue.pending_requests()
+    asked = None
+    try:                                         # 'Open Issue Sheets now' in the Toolbox pop-up
+        asked = System.AppDomain.CurrentDomain.GetData('BIMExport.OpenRequest')
+        System.AppDomain.CurrentDomain.SetData('BIMExport.OpenRequest', None)
+    except Exception:
+        pass
     if not reqs:
         return
-    req = reqs[0]
-    if not forms.alert(u'Lew\'s Toolbox sent a request: "%s"\n%d drawing(s)%s\n\nLoad it? The drawings are ticked after '
+    hit = [r for r in reqs if asked and r['name'] == asked]
+    req = hit[0] if hit else reqs[0]
+    if hit:
+        state['auto_check'] = True               # already confirmed in the pop-up
+    elif not forms.alert(u'Lew\'s Toolbox sent a request: "%s"\n%d drawing(s)%s\n\nLoad it? The drawings are ticked after '
                        u'Check models. Names = MIDP code + Revit\'s current revision; any drawing whose Revit revision '
                        u'is not the one asked for is BLOCKED.%s' % (
                            req['name'], len(req['rows']),
@@ -1303,6 +1312,10 @@ def main():
     state = {'checked_models': set(), 'loaded': [], 'ticked': set(), 'pending': {}, 'midp': settings.get('issue_midp', ''),
              'set': None, 'request': None}
     load_request(state, settings, reg)
+    if state.pop('auto_check', False) and state['checked_models']:
+        issue.request_status(state['request'], 'checking', u'Revit is reading the models (quick open)...')
+        do_check(sorted(state['checked_models']), settings, reg, cache)
+        state['loaded'] = [g for g in state['checked_models'] if not needs_check(cache.get(g))]
     while True:
         register_rows = issue.read_register(settings.get('issue_register'))
         win = IssueWindow(state, settings, reg, cache, register_rows)

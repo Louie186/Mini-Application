@@ -158,7 +158,7 @@ function results() {
   autoRefresh(live > 0);
 }
 /* one waiting / running request: what Revit is doing now (from <name>.status.json), with Cancel */
-var STAGES = { loaded: "LOADED", checking: "CHECKING", ready: "READY", printing: "PRINTING" };
+var STAGES = { noticed: "IN REVIT", loaded: "LOADED", checking: "CHECKING", ready: "READY", printing: "PRINTING" };
 function liveRow(it) {
   var st = LT.readJson(REQ() + "\\" + it.name + ".status.json", null), cancel = fso.FileExists(REQ() + "\\" + it.name + ".cancel");
   var pill = cancel ? '<span class="pill bad">CANCELLING</span>' : st ? '<span class="pill warn">' + (STAGES[st.stage] || "IN REVIT") + "</span>" : '<span class="pill warn">WAITING</span>';

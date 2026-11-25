@@ -94,6 +94,8 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self._fill_tb_sheets()
         self._refresh_changes()
         req = state.get('request')
+        if req and state['loaded']:
+            self._request_ready()
         self.header_info.Text = u'Revit %s\nIssue register: %d print(s) recorded%s' % (
             app.VersionNumber, len(register_rows),
             (u'\nToolbox request "%s": %d drawing(s)' % (req['name'], len(req['rows']))) if req else u'')
@@ -129,6 +131,27 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             for s in (self.cache.get(g) or {}).get('sheets', []):
                 if s['number'].strip().lower() in want:
                     self.state['ticked'].add((g, s['number'].strip().lower()))
+
+    def _request_ready(self):
+        req = self.state['request']
+        want = set(r['seq'].lower() for r in req['rows'])
+        rows = [r for r in self._rowinfo.values() if r['num'].strip().lower() in want]
+        ok = len([r for r in rows if r['ok']])
+        issue.request_status(req, 'ready', u'Checked in Revit: %d ready, %d blocked, %d not found - waiting for Issue' % (
+            ok, len(rows) - ok, len(want - set(r['num'].strip().lower() for r in rows))), 0, len(want))
+
+    def _request_gone(self):
+        """Cancelled in the Toolbox while this window was open."""
+        req = self.state.get('request')
+        if req and issue.request_cancelled(req):
+            forms.alert(u'The Toolbox request "%s" was cancelled. It is unloaded - the drawings stay ticked; '
+                        u'untick them if you don\'t want them.' % req['name'])
+            self.state['request'] = None
+            issue.drop_cancelled()
+            self._load_midp()
+            self._build_sheets()
+            return True
+        return False
 
     # ================================================================ settings
     def _fill_settings(self):
@@ -270,6 +293,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
 
     def on_check(self, sender, args):
         self._read_settings()
+        self._request_gone()
         if not self.state['checked_models']:
             forms.alert('Tick at least one model.')
             return
@@ -1007,7 +1031,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             self.Close()
 
     def on_issue(self, sender, args):
-        if not self._ready():
+        if self._request_gone() or not self._ready():
             return
         rows = [self._rowinfo[u'%s|%s' % k] for k in self.state['ticked'] if u'%s|%s' % k in self._rowinfo]
         ok = [r for r in rows if r['ok']]
@@ -1118,6 +1142,28 @@ def do_issue(rows, state, settings, reg, cache, dry):
     job = {'out_root': out_root, 'do_export': True, 'run_cad': bool(run_cad), 'models': models,
            'picked': dict((g, sorted(v)) for g, v in picked.items()), 'lod_rows': None,
            '_formats': settings['_formats'], '_extra_read': read_issue_extra}
+    req = state.get('request')
+    if req:
+        n_files = len(rows) * len([1 for v in settings['_formats'].values() if v == 'Y'])
+        prog = {'done': 0, 'model': u''}
+
+        def on_progress(kind, a, b, status):
+            if issue.request_cancelled(req):
+                issue.request_status(req, 'printing', u'Cancelling - stopping after the current file...',
+                                     prog['done'], n_files)
+                return 'cancel'
+            if kind == 'model':
+                prog['model'] = a
+                issue.request_status(req, 'printing', u'Opening %s...' % a, prog['done'], n_files)
+            elif status is not None:
+                prog['done'] += 1
+                issue.request_status(req, 'printing', u'%s \u00B7 %s %s %s' % (prog['model'], b, a, status),
+                                     prog['done'], n_files)
+            else:
+                issue.request_status(req, 'printing', u'%s \u00B7 printing %s (%s)...' % (prog['model'], b, a),
+                                     prog['done'], n_files)
+        job['_on_progress'] = on_progress
+        issue.request_status(req, 'printing', u'Starting...', 0, n_files)
     log_path = core.usable_log_path(os.path.join(core.logs_dir(out_root), 'SheetExport_log.csv'))
     started, since = time.time(), core.now()
     logo_since = core.now()
@@ -1170,6 +1216,7 @@ def do_issue(rows, state, settings, reg, cache, dry):
         logo_count = len(jobs) if cad_msg.startswith('AutoCAD started') else 0
     lines.append(u'Issue register: %d row(s) added → %s' % (len(new_rows), reg_path))
     if state.get('request'):
+        state['_want_formats'] = [k.upper() for k, v in settings['_formats'].items() if v == 'Y']
         lines.append(request_result(state, rows, files, cache, run_cad))
     ui.report('Issue Sheets', started, lines, totals, True, [], cad_msg, log_path)
     pw.finish(ui.finish_title(totals, cad_msg), out_root, logo_count=logo_count, logo_since=logo_since)
@@ -1188,11 +1235,18 @@ def request_result(state, rows, files, cache, run_cad):
         base = {'DrawingNumber': q['code'], 'SheetNumber': q['seq'], 'ExpectedRev': q['expected'], 'DoneOn': core.now()}
         r = printed.get(k)
         f = files.get(((cache.get(r['guid']) or {}).get('model', r['model']).lower(), r['num'].lower())) if r else None
-        if r and f:
+        missing = [x for x in state.get('_want_formats') or [] if f is not None and x not in f]
+        if r and f and missing:
+            base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'PARTIAL', 'PDFFile': f.get('PDF', u''),
+                         'DWGFile': f.get('DWG', u''), 'Note': u'%s - no %s (cancelled or failed)' % (r['file'], u'/'.join(missing))})
+        elif r and f:
             n_ok += 1
             base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'PRINTED', 'PDFFile': f.get('PDF', u''),
                          'DWGFile': f.get('DWG', u'').replace(os.sep + '_DWG_raw' + os.sep, os.sep + 'DWG' + os.sep)
                          if run_cad else f.get('DWG', u''), 'Note': r['file']})
+        elif r and issue.request_cancelled(req):
+            base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'CANCELLED',
+                         'Note': u'cancelled from the Toolbox before it was printed'})
         elif r:
             base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'FAILED',
                          'Note': u'export failed or blocked at print time - see the report'})
@@ -1226,6 +1280,7 @@ def load_request(state, settings, reg):
         return
     state['request'] = req
     state['request_ticked'] = set()
+    issue.request_status(req, 'loaded', u'Loaded in Revit - next: Check models', 0, len(req['rows']))
     wanted = set(r['model'].strip().lower() for r in req['rows'] if r['model'].strip())
     for g, rec in reg.items():
         n = (rec.get('Name') or u'').strip().lower()
@@ -1259,6 +1314,8 @@ def main():
         if act is None:
             return
         if act[0] == 'check':
+            if state.get('request'):
+                issue.request_status(state['request'], 'checking', u'Revit is reading the models (quick open)...')
             do_check(act[1], settings, reg, cache)
             state['loaded'] = [g for g in state['checked_models'] if not needs_check(cache.get(g))]
         elif act[0] == 'apply':

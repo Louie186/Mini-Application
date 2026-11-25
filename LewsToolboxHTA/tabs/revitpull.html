@@ -135,7 +135,7 @@ function send() {
 
 /* ---------- results written back by Revit ---------- */
 function results() {
-  var h = '<div class="big" style="margin-bottom:4px">Requests <button class="btn small" id="bRef">Refresh</button></div>', items = [];
+  var h = '<div class="big" style="margin-bottom:4px">Requests <button class="btn small" id="bRef">Refresh</button> <span class="muted" style="font-weight:normal" id="ticker"></span></div>', items = [], live = 0;
   var add = function (dir, done) { if (!fso.FolderExists(dir)) return; var e = new Enumerator(fso.GetFolder(dir).Files);
     for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name; if (!/\.csv$/i.test(n)) continue;
       if (done && !/\.result\.csv$/i.test(n)) continue; if (!done && /\.result\.csv$/i.test(n)) continue;
@@ -144,10 +144,10 @@ function results() {
   items.sort(function (a, b) { return b.time - a.time; });
   if (!items.length) { $("res").innerHTML = h + '<div class="muted">Nothing sent yet.</div>'; hookRef(); return; }
   for (var i = 0; i < Math.min(items.length, 6); i++) { var it = items[i];
-    if (!it.done) { h += '<div style="margin:4px 0"><span class="pill warn">WAITING</span> ' + esc(it.name) + ' <span class="muted">- open Issue Sheets in Revit</span></div>'; continue; }
+    if (!it.done) { live++; h += liveRow(it); continue; }
     var t = []; try { t = LT.parseCsv(LT.readText(it.path)); } catch (e) { }
     var cnt = {}; for (var r = 1; r < t.length; r++) cnt[t[r][5]] = (cnt[t[r][5]] || 0) + 1;
-    h += '<div style="margin:6px 0 2px"><span class="pill ' + (cnt.PRINTED == t.length - 1 ? "ok" : "bad") + '">' + (cnt.PRINTED || 0) + " of " + (t.length - 1) + " printed</span> " + esc(it.name) + "</div>";
+    h += '<div style="margin:6px 0 2px"><span class="pill ' + (cnt.PRINTED == t.length - 1 ? "ok" : "bad") + '">' + (cnt.CANCELLED ? "CANCELLED \u00B7 " : "") + (cnt.PRINTED || 0) + " of " + (t.length - 1) + " printed</span> " + esc(it.name) + "</div>";
     if (i == 0 || cnt.PRINTED != t.length - 1) {
       h += '<table class="grid"><tr><th>Drawing</th><th>Expected</th><th>Revit</th><th>Result</th><th>Note / file</th></tr>';
       for (var q = 1; q < t.length; q++) { var c = t[q], st = c[5] || "";
@@ -155,6 +155,36 @@ function results() {
           (c[6] ? '<a href="#" class="opn" data-p="' + esc(c[6]) + '">' + esc(c[8] || c[6]) + "</a>" : esc(c[8])) + "</td></tr>"; }
       h += "</table>"; } }
   $("res").innerHTML = h; hookRef();
+  autoRefresh(live > 0);
+}
+/* one waiting / running request: what Revit is doing now (from <name>.status.json), with Cancel */
+var STAGES = { loaded: "LOADED", checking: "CHECKING", ready: "READY", printing: "PRINTING" };
+function liveRow(it) {
+  var st = LT.readJson(REQ() + "\\" + it.name + ".status.json", null), cancel = fso.FileExists(REQ() + "\\" + it.name + ".cancel");
+  var pill = cancel ? '<span class="pill bad">CANCELLING</span>' : st ? '<span class="pill warn">' + (STAGES[st.stage] || "IN REVIT") + "</span>" : '<span class="pill warn">WAITING</span>';
+  var txt = cancel ? (st ? "Revit stops after the current file" : "") : st ? esc(st.text) + ' <span class="muted">(' + esc((st.time || "").substring(11, 16)) + ")</span>"
+    : '<span class="muted">open BIMExport &gt; Issue Sheets in Revit and answer Yes</span>';
+  var bar = st && st.total ? '<div style="height:6px;margin:3px 0 0;max-width:420px;border-radius:3px;background:#ccc"><div style="height:6px;border-radius:3px;width:' +
+    Math.round(100 * Math.min(1, (st.done || 0) / st.total)) + '%;background:#2e8b57"></div></div><span class="muted" style="font-size:.85em">' + (st.done || 0) + " of " + st.total + (st.stage == "printing" ? " file(s)" : " drawing(s)") + "</span>" : "";
+  return '<div style="margin:6px 0">' + pill + " " + esc(it.name) + " &nbsp;" + txt + (cancel ? "" : ' <button class="btn small cnl" data-n="' + esc(it.name) + '">Cancel</button>') + bar + "</div>";
+}
+function cancelReq(name) {
+  var base = REQ() + "\\" + name, picked = fso.FileExists(base + ".status.json");
+  if (!confirm(picked ? "Cancel \"" + name + "\"?\n\nRevit is working on it: it stops after the current file. Files already printed stay." : "Cancel \"" + name + "\"? Revit has not started it, so nothing is printed.")) return;
+  try {
+    if (!picked) {                                   // Revit never saw it: tidy it away here
+      var dst = REQ() + "\\Done\\Cancelled"; LT.mkdirs(dst);
+      if (fso.FileExists(dst + "\\" + name + ".csv")) fso.DeleteFile(dst + "\\" + name + ".csv", true);
+      fso.MoveFile(base + ".csv", dst + "\\" + name + ".csv");
+    } else LT.writeText(base + ".cancel", "cancelled " + LT.today());
+  } catch (e) { alert("Couldn't cancel:\n" + (e.message || e)); }
+  results();
+}
+var timer = null;
+function autoRefresh(on) {                           // every 3 s while something is waiting / running
+  if (timer) { window.clearTimeout(timer); timer = null; }
+  var tk = $("ticker"); if (tk) tk.innerHTML = on ? "updates every 3 s" : "";
+  if (on) timer = window.setTimeout(results, 3000);
 }
 function hookRef() { var b = $("bRef"); if (b) b.onclick = results; }
 
@@ -170,7 +200,8 @@ $("list").onclick = function (e) { e = e || window.event; var t = e.target || e.
 $("list").onchange = function (e) { e = e || window.event; var t = e.target || e.srcElement, i = +t.getAttribute("data-i");
   if (/\brev\b/.test(t.className)) { cfg.rows[i].rev = LT.trim(t.value).toUpperCase(); save(); sumLine(); }
   if (/\bmod\b/.test(t.className)) { cfg.rows[i].model = LT.trim(t.value); save(); } };
-$("res").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (t.className == "opn") { LT.showInFolder(t.getAttribute("data-p")); return false; } };
+$("res").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (t.className == "opn") { LT.showInFolder(t.getAttribute("data-p")); return false; }
+  if (/\bcnl\b/.test(t.className)) cancelReq(t.getAttribute("data-n")); };
 /* other tabs: LT.main().send("revitpull", "add-drawings", JSON.stringify(["5013-...-10200-T2", ...])) */
 window.ltReceive = function (what, value) { if (what != "add-drawings") return; var a = []; try { a = JSON.parse(value); } catch (e) { a = ("" + value).split(/[\r\n]+/); }
   var n = 0; for (var i = 0; i < a.length; i++) if (addOne(a[i])) n++; save(); draw(); LT.toast(n + " drawing(s) added"); };

@@ -118,6 +118,8 @@ For formal issues: **what changed → fix revisions / title block switches → i
 3. The requested drawings are ticked. Any whose Revit revision isn't the expected one is **✖ BLOCKED** (fix it in the Revisions tab → Apply → Check again)
 4. **Issue.** The Toolbox tab then shows PRINTED / BLOCKED / NOT FOUND per drawing
 - Requests live in `%APPDATA%\BIMExport\Requests\` (done ones in `Done\`, with a `.result.csv`)
+- **Live progress in the Toolbox** (updates every 3 s): WAITING → LOADED → CHECKING → READY (x ready, y blocked) → PRINTING (bar, file by file) → result
+- **Cancel** in the Toolbox: not started yet = removed at once (`Done\Cancelled\`); running = Revit stops after the current file. Results then say PRINTED / PARTIAL / CANCELLED
 
 **Change check, honestly:** the sync stamp changes with every sync, so "Model synced since last issue" means something in the model changed, not necessarily on that drawing. "No change" = same revision and no sync since that drawing was last printed.
 

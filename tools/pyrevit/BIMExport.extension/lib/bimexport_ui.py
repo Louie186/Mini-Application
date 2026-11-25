@@ -298,6 +298,9 @@ class ProgressWindow(forms.WPFWindow):
         except Exception:
             pass
 
+    def cancel_now(self):
+        self.on_cancel(None, None)
+
     def on_cancel(self, sender, args):
         self.cancelled = True
         self.cancel_btn.IsEnabled = False
@@ -482,7 +485,12 @@ class ProgressUI(object):
 
     @property
     def cancelled(self):
-        return bool(getattr(self.win, 'cancelled', False))
+        return bool(getattr(self, '_stop', False) or getattr(self.win, 'cancelled', False))
+
+    def cancel_now(self):
+        """Stop after the current file (e.g. cancelled from Lew's Toolbox)."""
+        self._stop = True
+        self._call('on_cancel', None, None)
 
     def model_started(self, rec):
         self._call('model_started', rec)
@@ -558,9 +566,23 @@ def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_
             log = []
             t0 = time.time()
             pw.model_started(rec)
+            hook = job.get('_on_progress')              # e.g. tells Lew's Toolbox how far the run is
+            if hook:
+                try:
+                    if hook('model', rec.get('Name') or label, None, None) == 'cancel':
+                        pw.cancel_now()
+                        break
+                except Exception:
+                    pass
 
             def progress(i, n, fmt, num, status=None):
-                return pw.file(fmt, num, status)
+                if hook:
+                    try:
+                        if hook('file', fmt, num, status) == 'cancel':
+                            pw.cancel_now()
+                    except Exception:
+                        pass
+                return pw.file(fmt, num, status) and not pw.cancelled
 
             def work(doc):
                 pw.phase(u'Reading drawings, export setups and links...')

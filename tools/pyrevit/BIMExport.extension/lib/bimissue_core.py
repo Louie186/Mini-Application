@@ -425,6 +425,7 @@ def pending_requests():
     out = []
     if not os.path.isdir(REQUESTS_DIR):
         return out
+    drop_cancelled()                                 # cancelled in the Toolbox before Revit got to them
     for fn in os.listdir(REQUESTS_DIR):
         p = os.path.join(REQUESTS_DIR, fn)
         if not fn.lower().endswith('.csv') or not os.path.isfile(p):
@@ -485,6 +486,48 @@ def _rev_order(r):
     return ((m.group(1) or u'').upper(), int(m.group(2) or 0)) if m else (u'', 0)
 
 
+def request_status(req, stage, text, done=0, total=0):
+    """Live progress for the Toolbox: Requests\\<name>.status.json (stage: loaded / checking / ready / printing / done)."""
+    try:
+        core.ensure_dir(REQUESTS_DIR)
+        p = os.path.join(REQUESTS_DIR, u'%s.status.json' % req['name'])
+        tmp = p + u'.tmp'
+        with io.open(tmp, 'w', encoding='utf-8') as f:
+            f.write(core.text(json.dumps({'stage': stage, 'text': text, 'done': done, 'total': total,
+                                          'time': core.now(), 'by': os.environ.get('USERNAME', u'')})))
+        if os.path.exists(p):
+            os.remove(p)
+        os.rename(tmp, p)
+    except Exception:
+        pass
+
+
+def request_cancelled(req):
+    """True when the Toolbox pressed Cancel (Requests\\<name>.cancel)."""
+    return os.path.exists(os.path.join(REQUESTS_DIR, u'%s.cancel' % req['name']))
+
+
+def drop_cancelled():
+    """Requests cancelled before Revit picked them up: move them to Done\\Cancelled."""
+    if not os.path.isdir(REQUESTS_DIR):
+        return
+    for fn in os.listdir(REQUESTS_DIR):
+        if not fn.lower().endswith('.cancel'):
+            continue
+        name = fn[:-7]
+        dst = core.ensure_dir(os.path.join(REQUESTS_DIR, 'Done', 'Cancelled'))
+        for ext in (u'.csv', u'.status.json', u'.cancel'):
+            src = os.path.join(REQUESTS_DIR, name + ext)
+            try:
+                if os.path.exists(src):
+                    t = os.path.join(dst, name + ext)
+                    if os.path.exists(t):
+                        os.remove(t)
+                    os.rename(src, t)
+            except Exception:
+                pass
+
+
 def finish_request(req, results):
     """Write <name>.result.csv in Requests\\Done and move the request there. Returns the result path."""
     done = core.ensure_dir(os.path.join(REQUESTS_DIR, 'Done'))
@@ -498,6 +541,20 @@ def finish_request(req, results):
         os.rename(req['path'], dst)
     except Exception:
         pass
+    n_ok = len([r for r in results if r.get('Status') == 'PRINTED'])
+    cancelled = any(r.get('Status') == 'CANCELLED' for r in results)
+    request_status(req, 'done', u'%s%d of %d printed' % (u'Cancelled - ' if cancelled else u'', n_ok, len(results)),
+                   n_ok, len(results))
+    for ext in (u'.status.json', u'.cancel'):          # status / cancel flag go with the request
+        try:
+            st = os.path.join(REQUESTS_DIR, req['name'] + ext)
+            if os.path.exists(st):
+                dst_st = os.path.join(done, req['name'] + ext)
+                if os.path.exists(dst_st):
+                    os.remove(dst_st)
+                os.rename(st, dst_st)
+        except Exception:
+            pass
     return res
 
 

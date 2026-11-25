@@ -19,6 +19,29 @@ module.exports = async ({ page, out }) => {
   console.log('   ' + txt.split('\r\n').join('\n   '));
   ok(/^DrawingNumber,ExpectedRev,Title,Model,OutputFolder,Formats,RequestedOn/.test(txt) && txt.indexOf('5013-KEO-T1-ZZ-PLN-INT-10200-T2,T2,,T1-ARC,C:\\Sub,PDF,') > 0, 'request columns + first row (rev, model, folder, PDF only)');
   ok(await f.evaluate(() => $('res').innerText.indexOf('WAITING') >= 0), 'shows the request as waiting');
+  // Revit picked it up and is printing: live status + progress bar
+  const R0 = 'C:\\Users\\lew\\AppData\\Roaming\\BIMExport\\Requests\\';
+  const nm0 = req[0].path.replace(/^.*\\/, '').replace(/\.csv$/i, '');
+  await page.evaluate(([R, n]) => { const fs = window.__mockFs; fs.files[(R + n + '.status.json').toLowerCase()] = { path: R + n + '.status.json', time: Date.now(),
+    text: JSON.stringify({ stage: 'printing', text: '5013-KEO-ZZ-ZZ-BIM-INT-21001 \u00B7 40210 PDF OK', done: 3, total: 8, time: '2026-11-25 14:40:02' }) }; }, [R0, nm0]);
+  await f.click('#bRef'); await page.waitForTimeout(200);
+  let live = await f.evaluate(() => $('res').innerText);
+  console.log('   ' + live.split('\n').slice(0, 3).join(' | '));
+  ok(live.indexOf('PRINTING') >= 0 && live.indexOf('3 of 8 file(s)') >= 0 && live.indexOf('40210 PDF OK') >= 0, 'live progress shown while Revit prints');
+  ok(await f.evaluate(() => $('ticker').innerText.indexOf('3 s') >= 0), 'auto-refresh on while a request is running');
+  await page.screenshot({ path: out + '/h_revitpull_live.png' });
+  await f.click('.cnl'); await page.waitForTimeout(200);
+  ok(await page.evaluate(([R, n]) => !!window.__mockFs.files[(R + n + '.cancel').toLowerCase()], [R0, nm0]), 'Cancel on a running request writes the stop flag for Revit');
+  ok(await f.evaluate(() => $('res').innerText.indexOf('CANCELLING') >= 0), 'shows CANCELLING');
+  // a second request Revit never saw: Cancel tidies it away at once
+  await f.evaluate(() => { cfg.rows = [{ on: true, code: '5013-KEO-T1-ZZ-PLN-INT-40210', seq: '40210', rev: 'T1', title: '', model: '' }]; });
+  await page.waitForTimeout(1100); await f.click('#bSend'); await page.waitForTimeout(200);
+  const before = await page.evaluate(() => Object.keys(window.__mockFs.files).filter(k => /requests\\toolbox_[^\\]*\.csv$/.test(k)).length);
+  await f.evaluate(() => { const b = [...document.querySelectorAll('.cnl')]; b[0].click(); });
+  await page.waitForTimeout(200);
+  const moved = await page.evaluate(() => Object.keys(window.__mockFs.files).filter(k => /done\\cancelled\\toolbox_/.test(k)).length);
+  ok(before == 2 && moved == 1, 'Cancel on a waiting request moves it to Done\\Cancelled');
+  await page.evaluate(([R, n]) => { const fs = window.__mockFs; delete fs.files[(R + n + '.status.json').toLowerCase()]; delete fs.files[(R + n + '.cancel').toLowerCase()]; }, [R0, nm0]);
   // Revit's answer
   const name = req[0].path.replace(/^.*\\/, '').replace(/\.csv$/i, '');
   await page.evaluate((name) => { const fs = window.__mockFs, add = (p, t) => { fs.files[p.toLowerCase()] = { path: p, text: t, time: Date.now() }; let d = p.substring(0, p.lastIndexOf('\\')); while (d) { fs.dirs[d.toLowerCase()] = d; d = d.substring(0, d.lastIndexOf('\\')); } };

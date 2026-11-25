@@ -457,6 +457,49 @@ def read_request(path):
     return rows
 
 
+def _norm_model(n):
+    n = re.sub(r'\.rvt$', u'', (n or u'').strip().lower())
+    return re.sub(r'[^a-z0-9]', u'', n)
+
+
+def request_models(req, reg, cache):
+    """Which model each requested drawing is in: by the Toolbox's Model column (loose match), else by the
+    saved drawing lists (the sheet number is in exactly one model). Returns ({seq lower: guid}, {seq lower: why not})."""
+    names = {}
+    for g, rec in reg.items():
+        for n in (rec.get('Name'), (cache.get(g.lower()) or {}).get('model')):
+            if _norm_model(n):
+                names.setdefault(_norm_model(n), set()).add(g.lower())
+    by_sheet = {}
+    for g, e in cache.items():
+        if g.lower() in [x.lower() for x in reg]:
+            for sh in e.get('sheets', []):
+                by_sheet.setdefault(sh['number'].strip().lower(), set()).add(g.lower())
+    found, why = {}, {}
+    for q in req['rows']:
+        k, m = q['seq'].strip().lower(), _norm_model(q.get('model'))
+        cands = set()
+        if m:
+            cands = set(names.get(m, set()))
+            if not cands:
+                for n, gs in names.items():
+                    if len(m) >= 5 and (m in n or n in m):
+                        cands |= gs
+        has = by_sheet.get(k, set())
+        if len(cands) > 1 and len(cands & has) == 1:
+            cands = cands & has
+        if len(cands) != 1:
+            cands = has if len(has) == 1 else cands
+        if len(cands) == 1:
+            found[k] = list(cands)[0]
+        elif len(has) > 1:
+            why[k] = u'drawing %s is in %d models - put the model name in the Toolbox Model column' % (q['seq'], len(has))
+        else:
+            why[k] = (u'model "%s" not found on this PC' % q['model']) if m else \
+                u'model unknown - put the model name in the Toolbox Model column (or read the model once)'
+    return found, why
+
+
 def request_midp_rows(req):
     """The request's codes as MIDP rows, so names can be made even without a MIDP file."""
     return [{'drawingnumber': r['code'], 'sheetname': r['title'], '_listed': r['code']} for r in req['rows']

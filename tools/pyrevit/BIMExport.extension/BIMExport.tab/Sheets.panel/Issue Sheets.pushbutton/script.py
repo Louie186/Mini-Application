@@ -124,13 +124,15 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             return
         done = self.state.setdefault('request_ticked', set())
         want = set(r['seq'].lower() for r in req['rows'])
+        where = req.get('map') or {}                 # drawing -> its model (only tick it THERE)
         for g in self.state['loaded']:
             if g in done:
                 continue
             done.add(g)
             for s in (self.cache.get(g) or {}).get('sheets', []):
-                if s['number'].strip().lower() in want:
-                    self.state['ticked'].add((g, s['number'].strip().lower()))
+                k = s['number'].strip().lower()
+                if k in want and where.get(k, g) == g:
+                    self.state['ticked'].add((g, k))
 
     def _request_ready(self):
         req = self.state['request']
@@ -1391,8 +1393,8 @@ def request_result(state, rows, files, cache, run_cad):
                          'Status': 'BLOCKED' if not x['ok'] else 'NOT TICKED',
                          'Note': x['check'] if not x['ok'] else u'unticked in Revit'})
         else:
-            base.update({'Status': 'NOT FOUND', 'Note': u'not in the checked models' +
-                         (u' (Toolbox says model %s)' % q['model'] if q['model'] else u'')})
+            base.update({'Status': 'NOT FOUND', 'Note': (req.get('why') or {}).get(k) or (u'not in the checked models' +
+                         (u' (Toolbox says model %s)' % q['model'] if q['model'] else u''))})
         out.append(base)
     path = issue.finish_request(req, out)
     state['request'] = None
@@ -1410,10 +1412,17 @@ def load_request(state, settings, reg):
         pass
     if not reqs:
         return
+    mode = None
+    try:
+        mode = System.AppDomain.CurrentDomain.GetData('BIMExport.RequestMode')
+        System.AppDomain.CurrentDomain.SetData('BIMExport.RequestMode', None)
+    except Exception:
+        pass
     hit = [r for r in reqs if asked and r['name'] == asked]
     req = hit[0] if hit else reqs[0]
     if hit:
         state['auto_check'] = True               # already confirmed in the pop-up
+        state['print_now'] = (mode == 'print')
     elif not forms.alert(u'Lew\'s Toolbox sent a request: "%s"\n%d drawing(s)%s\n\nLoad it? The drawings are ticked after '
                        u'Check models. Names = MIDP code + Revit\'s current revision; any drawing whose Revit revision '
                        u'is not the one asked for is BLOCKED.%s' % (
@@ -1424,17 +1433,66 @@ def load_request(state, settings, reg):
         return
     state['request'] = req
     state['request_ticked'] = set()
-    issue.request_status(req, 'loaded', u'Loaded in Revit - next: Check models', 0, len(req['rows']))
-    wanted = set(r['model'].strip().lower() for r in req['rows'] if r['model'].strip())
-    for g, rec in reg.items():
-        n = (rec.get('Name') or u'').strip().lower()
-        if n and any(w == n or w in n or n in w for w in wanted):
-            state['checked_models'].add(g.lower())
+    found, why = issue.request_models(req, reg, core.load_sheet_cache())
+    req['map'], req['why'] = found, why
+    for g in set(found.values()):
+        state['checked_models'].add(g)
+    issue.request_status(req, 'loaded', u'Loaded in Revit: %d of %d drawing(s) placed in %d model(s)%s' % (
+        len(found), len(req['rows']), len(set(found.values())),
+        (u' - %d model unknown' % len(why)) if why else u''), 0, len(req['rows']))
     if req['out']:
         settings['last_output'] = req['out']
     f = req['formats'].upper()
     if f:
         settings['_formats'] = {'pdf': 'Y' if 'PDF' in f else 'N', 'dwg': 'Y' if 'DWG' in f else 'N'}
+
+
+def print_request_now(state, settings, reg, cache):
+    """'Print now' from the Toolbox pop-up: no window, no Check - each model opens ONCE, to print.
+    Names = MIDP code from the request + the revision the sheet shows at print time; wrong revision = BLOCKED."""
+    req = state['request']
+    found = req.get('map') or {}
+    midp = {}
+    if settings.get('issue_midp') and os.path.exists(settings['issue_midp']):
+        midp = issue.midp_index(core.read_lod(settings['issue_midp']))
+    rows = []
+    for q in req['rows']:
+        k = q['seq'].strip().lower()
+        g = found.get(k)
+        if not g or g not in reg:
+            continue
+        code = q['code']
+        parts = core.lod_parts(code)
+        if len(parts) >= 7:
+            base, mode = u'-'.join(parts[:7]), 'code'
+        else:                                   # bare number: the MIDP file gives the code, else the number
+            hits = midp.get(k, [])
+            codes = sorted(set(u'-'.join(core.lod_parts(h.get('drawingnumber', u''))[:7]) for h in hits
+                               if len(core.lod_parts(h.get('drawingnumber', u''))) >= 7))
+            base, mode = (codes[0], 'code') if len(codes) == 1 else (core.clean(q['seq']), 'number')
+        e = cache.get(g) or {}
+        num = next((s['number'] for s in e.get('sheets', []) if s['number'].strip().lower() == k), q['seq'])
+        rows.append({'guid': g, 'num': num, 'model': e.get('model') or reg[g].get('Name', u''), 'name': q.get('title', u''),
+                     'rev': q.get('expected', u''), 'date': u'', 'file': base, 'base': base, 'mode': mode,
+                     'expected': q.get('expected', u''), 'norev': bool(settings.get('allow_no_rev')),
+                     'change': u'Toolbox request', 'ok': True, 'check': u''})
+    state['all_rows'] = rows
+    if not rows:
+        issue.request_status(req, 'ready', u'Nothing to print: no drawing could be placed in a model', 0, len(req['rows']))
+        forms.alert(u'Toolbox request "%s": none of the drawings could be placed in a model on this PC.\n\n%s\n\n'
+                    u'Fill the Model column in the Toolbox, or open Issue Sheets and read the models once.'
+                    % (req['name'], u'\n'.join(u'  \u2022 %s: %s' % kv for kv in sorted((req.get('why') or {}).items())[:15])))
+        return
+    if not settings.get('last_output'):
+        settings['last_output'] = forms.pick_folder(title='Where should the drawings be saved?') or u''
+        if not settings['last_output']:
+            return
+    if not settings.get('issue_register'):
+        settings['issue_register'] = os.path.join(settings['last_output'], 'IssueRegister.csv')
+    if settings.get('embed') and settings['_formats'].get('dwg') == 'Y' and not ui.autocad_ready(settings):
+        settings['embed'] = False
+    ui.start_clock()
+    do_issue(rows, state, settings, reg, cache, False)
 
 
 def main():
@@ -1461,6 +1519,14 @@ def main():
     load_request(state, settings, reg)
     if state.get('request') and state.get('auto_check'):
         ui.start_clock()                        # opened from the Toolbox pop-up: models already picked
+    if state.get('request') and state.pop('print_now', False):
+        state.pop('auto_check', None)
+        try:
+            print_request_now(state, settings, reg, cache)
+        finally:
+            settings.pop('_names', None)
+            core.save_settings(settings)
+        return
     state['loaded'] = [g for g in state['checked_models'] if not needs_check(cache.get(g))]   # saved lists: instant
     never = [g for g in state['checked_models'] if g not in state['loaded']]
     if state.pop('auto_check', False) and never:          # only models never read need the quick open

@@ -113,9 +113,10 @@ def _candidates():
     return [n for _, n in out]
 
 
-def _open_issue_sheets(name):
+def _open_issue_sheets(name, mode='open'):
     """Start the Issue Sheets button (pyRevit) with this request; True if it started."""
     System.AppDomain.CurrentDomain.SetData('BIMExport.OpenRequest', name)   # Issue Sheets loads it without asking
+    System.AppDomain.CurrentDomain.SetData('BIMExport.RequestMode', mode)
     try:
         from pyrevit.loader import sessionmgr
         for c in sessionmgr.find_all_commands():
@@ -150,19 +151,23 @@ def on_idling(sender, args):
     try:
         td = TaskDialog("Lew's Toolbox")
         td.MainInstruction = u'Toolbox request: %d drawing(s)' % n
-        td.MainContent = (u'"%s" is waiting to be printed.%s\n\nOpen Issue Sheets with it? The models are checked for '
-                          u'you; you still press Issue. Nothing is printed or changed until then.' % (
+        td.MainContent = (u'"%s" is waiting to be printed.%s\n\nPrint now: each model opens once and only the requested '
+                          u'drawings are printed (MIDP code + the revision the sheet shows; a wrong revision is blocked). '
+                          u'The model is never changed.' % (
                               name, (u'\n(%d more request(s) after this one)' % (len(names) - 1)) if len(names) > 1 else u''))
-        td.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, u'Open Issue Sheets now')
-        td.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, u'Later', u'Ask again in 10 minutes')
-        td.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, u'Not for this request',
+        td.AddCommandLink(TaskDialogCommandLinkId.CommandLink1, u'Print now',
+                          u'Fastest: no window, no Check - one open per model')
+        td.AddCommandLink(TaskDialogCommandLinkId.CommandLink2, u'Open Issue Sheets first',
+                          u'Review the drawings, then press Issue')
+        td.AddCommandLink(TaskDialogCommandLinkId.CommandLink3, u'Later', u'Ask again in 10 minutes')
+        td.AddCommandLink(TaskDialogCommandLinkId.CommandLink4, u'Not for this request',
                           u'Leave it for another Revit window or for later (Issue Sheets still offers it)')
         res = td.Show()
-        if res == TaskDialogResult.CommandLink1:
-            if not _open_issue_sheets(name):
+        if res in (TaskDialogResult.CommandLink1, TaskDialogResult.CommandLink2):
+            if not _open_issue_sheets(name, 'print' if res == TaskDialogResult.CommandLink1 else 'open'):
                 TaskDialog.Show("Lew's Toolbox", u'Could not start Issue Sheets automatically.\n\n'
                                                  u'Click BIMExport > Issue Sheets - the request is offered there.')
-        elif res == TaskDialogResult.CommandLink3:
+        elif res == TaskDialogResult.CommandLink4:
             state['skip'].add(name)
             try:
                 os.remove(os.path.join(REQ, name + '.status.json'))   # free for other windows

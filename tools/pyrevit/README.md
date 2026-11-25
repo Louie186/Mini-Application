@@ -127,6 +127,8 @@ For formal issues: **what changed → fix revisions / title block switches → i
 4. **Issue.** The Toolbox tab then shows PRINTED / BLOCKED / NOT FOUND per drawing
 - Requests live in `%APPDATA%\BIMExport\Requests\` (done ones in `Done\`, with a `.result.csv`)
 - **Revit notices requests by itself** (v7.7): while Revit is idle it checks every few seconds and asks once: **Open Issue Sheets now** (opens it with the request loaded and the models already checked - you only press Issue) / **Later** (asks again in 10 min) / **Not for this request**. Only one Revit window asks. Turn it off: `"watch_toolbox_requests": false` in settings.json
+- **Print now** (v7.9, in Revit's pop-up): no window and no Check - each model opens ONCE and only the requested drawings print (MIDP code from the request + the revision the sheet shows; wrong revision = blocked). **Open Issue Sheets first** is still there to review
+- **Which model?** The Toolbox Model column (any part of the name, e.g. `BIM-INT-21001`; `.rvt`, spaces and case don't matter), else the saved drawing lists (if the number is in exactly one model). Not placed = NOT FOUND with the reason
 - **Live progress in the Toolbox** (updates every 3 s): WAITING → LOADED → CHECKING → READY (x ready, y blocked) → PRINTING (bar, file by file) → result
 - **Cancel** in the Toolbox: not started yet = removed at once (`Done\Cancelled\`); running = Revit stops after the current file. Results then say PRINTED / PARTIAL / CANCELLED
 

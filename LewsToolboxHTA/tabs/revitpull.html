@@ -126,6 +126,9 @@ function send() {
   for (var i = 0; i < cfg.rows.length; i++) { var r = cfg.rows[i]; if (!r.on) continue; n++;
     rows.push([r.code + (r.rev ? "-" + r.rev : ""), r.rev, r.title, r.model, n == 1 ? cfg.out : "", n == 1 ? fm : "", LT.today()]); }
   if (!n) { alert("Tick at least one drawing."); return; }
+  var nomod = 0; for (var m = 0; m < cfg.rows.length; m++) if (cfg.rows[m].on && !LT.trim(cfg.rows[m].model)) nomod++;
+  if (nomod && !confirm(nomod + " drawing(s) have no Model.\n\nRevit finds them only if it has read that model before (and the number is in ONE model). " +
+      "Fill the Model column (any part of the model name works, e.g. BIM-INT-21001) for a sure, fast print.\n\nSend anyway?")) return;
   var name = "Toolbox_" + LT.stamp().replace(/[^0-9_]/g, "") + LT.pad(now.getSeconds()), p = REQ() + "\\" + name + ".csv";
   try { LT.mkdirs(REQ()); LT.writeCsv(p, rows); } catch (e) { alert("Couldn't write the request:\n" + (e.message || e)); return; }
   alert("Sent " + n + " drawing(s) to Revit.\n\nIn Revit: BIMExport > Issue Sheets > Yes (load the request) > Check models > Issue.\n\n" +

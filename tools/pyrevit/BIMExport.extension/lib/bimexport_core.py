@@ -1285,12 +1285,87 @@ def queue_create(out_root, job, guids, first=None):
     return qd
 
 
+def _alive(pid):
+    try:
+        import System
+        System.Diagnostics.Process.GetProcessById(int(pid))
+        return True
+    except Exception:
+        return False
+
+
+def queue_info(qd):
+    """{'left': models nobody started, 'working': Revit windows printing now, 'orphans': models a closed
+    window had started (e.g. Revit closed during sleep), 'started': when the run began}"""
+    info = {'left': 0, 'working': set(), 'orphans': 0, 'started': u''}
+    try:
+        for fn in os.listdir(qd):
+            if fn.endswith('.todo'):
+                info['left'] += 1
+            elif '.taken_' in fn:
+                pid = fn.split('.taken_')[-1]
+                if _alive(pid):
+                    info['working'].add(pid)
+                else:
+                    info['orphans'] += 1
+        info['started'] = datetime.datetime.fromtimestamp(
+            os.path.getmtime(os.path.join(qd, 'job.json'))).strftime('%d/%m %H:%M')
+    except Exception:
+        pass
+    return info
+
+
+def queue_reclaim(qd):
+    """Models started by a window that no longer exists go back to the queue."""
+    try:
+        for fn in os.listdir(qd):
+            if '.taken_' in fn and not _alive(fn.split('.taken_')[-1]):
+                try:
+                    os.rename(os.path.join(qd, fn), os.path.join(qd, fn.split('.taken_')[0] + '.todo'))
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
+def queue_stop(qd):
+    """Kill switch: nobody starts another model; windows still printing stop after their current file;
+    the logo helper stops after its current AutoCAD batch."""
+    try:
+        for fn in os.listdir(qd):
+            if fn.endswith('.todo'):
+                try:
+                    os.rename(os.path.join(qd, fn), os.path.join(qd, fn[:-5] + '.stopped'))
+                except Exception:
+                    pass
+        io.open(os.path.join(qd, 'stop'), 'w').close()
+        out_root = os.path.dirname(os.path.dirname(qd))          # <out>\_Logs\_queue
+        for n in ('IMG2OLE_queue.stop', 'IMG2OLE_queue.done'):
+            io.open(os.path.join(logs_dir(out_root), n), 'w').close()
+    except Exception:
+        pass
+    try:
+        with io.open(QUEUE_POINTER, 'r', encoding='utf-8') as f:
+            same = f.read().strip() == qd
+        if same:
+            os.remove(QUEUE_POINTER)
+    except Exception:
+        pass
+
+
+def queue_stopped(qd):
+    return bool(qd) and os.path.exists(os.path.join(qd, 'stop'))
+
+
 def queue_active():
     """(queue folder, job, models left) of a running shared export, or None."""
     try:
         with io.open(QUEUE_POINTER, 'r', encoding='utf-8') as f:
             qd = f.read().strip()
-        left = [x for x in os.listdir(qd) if x.endswith('.todo')]
+        if queue_stopped(qd):
+            return None
+        queue_reclaim(qd)                             # e.g. a Revit closed while the PC was asleep
+        left = [x for x in os.listdir(qd) if x.endswith('.todo') or '.taken_' in x]
         if not left:
             return None
         with io.open(os.path.join(qd, 'job.json'), 'r', encoding='utf-8') as f:
@@ -1546,7 +1621,7 @@ def _ansi_append(path, text_):
 
 def logo_pipeline_reset(out_root):
     """Start a fresh queue in this output folder (old queue files removed)."""
-    for n in ('IMG2OLE_queue.txt', 'IMG2OLE_queue.pos', 'IMG2OLE_queue.done'):
+    for n in ('IMG2OLE_queue.txt', 'IMG2OLE_queue.pos', 'IMG2OLE_queue.done', 'IMG2OLE_queue.stop'):
         try:
             os.remove(os.path.join(logs_dir(out_root), n))
         except Exception:

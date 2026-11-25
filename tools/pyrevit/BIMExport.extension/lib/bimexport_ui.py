@@ -592,6 +592,8 @@ def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_
                     pass
 
             def progress(i, n, fmt, num, status=None):
+                if job.get('_stop_file') and os.path.exists(job['_stop_file']):
+                    pw.cancel_now()                     # kill switch pressed (any window)
                 if hook:
                     try:
                         if hook('file', fmt, num, status) == 'cancel':
@@ -671,7 +673,10 @@ def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_
             if job.get('_on_done'):
                 job['_on_done'](guid)
         if pw.cancelled:
-            lines.append('Cancelled by user (models not started are left for other windows / next run).')
+            if job.get('_stop_file') and os.path.exists(job['_stop_file']):
+                lines.append('Stopped with the kill switch - no more models are started by any window.')
+            else:
+                lines.append('Cancelled by user (models not started are left for other windows / next run).')
     core.save_register(reg)
     return lines, totals, matched_all, pw
 

@@ -24,6 +24,7 @@ $done  = Join-Path $Folder 'IMG2OLE_queue.done'
 $pos   = Join-Path $Folder 'IMG2OLE_queue.pos'
 $lock  = Join-Path $Folder 'IMG2OLE_runner.lock'
 $log   = Join-Path $Folder 'IMG2OLE_runner.log'
+$stop  = Join-Path $Folder 'IMG2OLE_queue.stop'   # kill switch from Revit
 
 function Say($t) { Add-Content -LiteralPath $log -Value ("{0}  {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $t) }
 
@@ -43,6 +44,7 @@ Say "Logo helper started (AutoCAD: $Acad)"
 
 try {
     while ($true) {
+        if (Test-Path -LiteralPath $stop) { Say 'Stopped by user (kill switch)'; break }
         $all = @()
         if (Test-Path -LiteralPath $queue) { $all = @([System.IO.File]::ReadAllLines($queue, $ansi) | Where-Object { $_.Trim() }) }
         $n = 0

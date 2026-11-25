@@ -1399,6 +1399,34 @@ def finish_issue(rows, state, settings, cache, run_cad, out_root, since, job, sh
     return lines, cad_msg, logo_count, logo_since
 
 
+def ask_running(qd, left, what):
+    """An unfinished shared run was found: 'join', 'new' or None. Holds the kill switch."""
+    info = core.queue_info(qd)
+    who = (u'%d other Revit window(s) are working on it now.' % len(info['working'])) if info['working'] else \
+        u'Nobody is working on it now (left over - e.g. Revit closed while the PC was asleep).'
+    c = forms.CommandSwitchWindow.show(
+        [u'Continue it (%d model(s) left)' % left, u'Stop it', u'Stop it and start a new one'],
+        message=u'An unfinished %s from %s was found. %s' % (what, info['started'], who))
+    if not c:
+        return None
+    if c.startswith(u'Continue'):
+        return 'join'
+    core.queue_stop(qd)
+    forms.alert(u'Stopped. No window starts another model. Windows still printing stop after their current file; '
+                u'AutoCAD stops after its current batch.\n\nFiles already made stay in the output folder.')
+    return 'new' if u'new' in c else None
+
+
+def offer_stop_all(qd, pw):
+    """After Cancel in a shared run: stop it for every window too?"""
+    if pw.cancelled and not core.queue_stopped(qd) and not core.queue_finished(qd):
+        if forms.alert(u'Stop the whole run for EVERY Revit window too?\n\nNo = the models not started stay in the queue '
+                       u'(another window, or this one later, can continue them).', yes=True, no=True):
+            core.queue_stop(qd)
+            return True
+    return False
+
+
 def run_issue_queue(qd, qjob, settings, reg, cache, window_name, job=None):
     """Print the models of a shared issue until none is left (any number of Revit windows).
     The LAST window to finish writes the issue register, finishes the logos and answers the Toolbox."""
@@ -1414,6 +1442,7 @@ def run_issue_queue(qd, qjob, settings, reg, cache, window_name, job=None):
                'picked': qjob['picked'], 'lod_rows': None, '_formats': qjob['_formats'],
                '_extra_read': read_issue_extra, '_logo_pipeline': run_cad}
     job['_on_done'] = lambda g: core.queue_done(qd, g)
+    job['_stop_file'] = os.path.join(qd, 'stop')
     claimed = []
 
     def next_rec():
@@ -1429,8 +1458,11 @@ def run_issue_queue(qd, qjob, settings, reg, cache, window_name, job=None):
                                             u'Issuing  \u00B7  %s (shared)' % window_name)
     for g in claimed:                              # a model this window took but did not finish: give it back
         core.queue_release(qd, g)
+    if offer_stop_all(qd, pw):
+        lines.append(u'Stopped for every window (kill switch). The issue register lists what was printed.')
     cad_msg, logo_count, logo_since = '', 0, None
-    if core.queue_finished(qd) and _take(qd, 'issue.finish'):
+    if (core.queue_finished(qd) or (core.queue_stopped(qd) and not core.queue_info(qd)['working'])) \
+            and _take(qd, 'issue.finish'):
         cache.update(core.load_sheet_cache())      # what the other windows read while printing
         st = {'request': qjob.get('request'), 'all_rows': qjob.get('all_rows') or []}
         more, cad_msg, logo_count, logo_since = finish_issue(qjob['rows'], st, settings, cache, run_cad, out_root,
@@ -1599,12 +1631,10 @@ def main():
     active = core.queue_active()
     if active and (active[1] or {}).get('kind') == 'issue':
         qd, qjob, left = active
-        choice = forms.CommandSwitchWindow.show(
-            [u'Join the running issue (%d model(s) left)' % left, u'Start a new issue'],
-            message=u'An issue is printing in another Revit window. Join it to finish sooner?')
-        if not choice:
+        choice = ask_running(qd, left, u'issue')
+        if choice is None:
             return
-        if choice.startswith(u'Join'):
+        if choice == 'join':
             ui.start_clock()
             run_issue_queue(qd, qjob, settings, reg, cache, u'Helper window')
             return

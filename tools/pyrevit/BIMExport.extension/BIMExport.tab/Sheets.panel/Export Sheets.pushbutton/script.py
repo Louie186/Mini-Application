@@ -834,6 +834,9 @@ class ProgressWindow(forms.WPFWindow):
         except Exception:
             pass
 
+    def cancel_now(self):
+        self.on_cancel(None, None)
+
     def on_cancel(self, sender, args):
         self.cancelled = True
         self.cancel_btn.IsEnabled = False
@@ -1018,7 +1021,11 @@ class ProgressUI(object):
 
     @property
     def cancelled(self):
-        return bool(getattr(self.win, 'cancelled', False))
+        return bool(getattr(self, '_stop', False) or getattr(self.win, 'cancelled', False))
+
+    def cancel_now(self):
+        self._stop = True
+        self._call('on_cancel', None, None)
 
     def model_started(self, rec):
         self._call('model_started', rec)
@@ -1096,7 +1103,9 @@ def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_
             pw.model_started(rec)
 
             def progress(i, n, fmt, num, status=None):
-                return pw.file(fmt, num, status)
+                if job.get('_stop_file') and os.path.exists(job['_stop_file']):
+                    pw.cancel_now()                     # kill switch pressed (any window)
+                return pw.file(fmt, num, status) and not pw.cancelled
 
             def work(doc):
                 pw.phase(u'Reading drawings, export setups and links...')
@@ -1146,7 +1155,10 @@ def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_
             if job.get('_on_done'):
                 job['_on_done'](guid)
         if pw.cancelled:
-            lines.append('Cancelled by user (models not started are left for other windows / next run).')
+            if job.get('_stop_file') and os.path.exists(job['_stop_file']):
+                lines.append('Stopped with the kill switch - no more models are started by any window.')
+            else:
+                lines.append('Cancelled by user (models not started are left for other windows / next run).')
     core.save_register(reg)
     return lines, totals, matched_all, pw
 
@@ -1169,6 +1181,34 @@ def report(title, started, lines, totals, do_export, missing, cad_msg, log_path)
     output.print_md('Log: `%s`' % log_path)
 
 
+def ask_running(qd, left, what):
+    """An unfinished shared run was found: 'join', 'new' or None. Holds the kill switch."""
+    info = core.queue_info(qd)
+    who = (u'%d other Revit window(s) are working on it now.' % len(info['working'])) if info['working'] else \
+        u'Nobody is working on it now (left over - e.g. Revit closed while the PC was asleep).'
+    c = forms.CommandSwitchWindow.show(
+        [u'Continue it (%d model(s) left)' % left, u'Stop it', u'Stop it and start a new one'],
+        message=u'An unfinished %s from %s was found. %s' % (what, info['started'], who))
+    if not c:
+        return None
+    if c.startswith(u'Continue'):
+        return 'join'
+    core.queue_stop(qd)
+    forms.alert(u'Stopped. No window starts another model. Windows still printing stop after their current file; '
+                u'AutoCAD stops after its current batch.\n\nFiles already made stay in the output folder.')
+    return 'new' if u'new' in c else None
+
+
+def offer_stop_all(qd, pw):
+    """After Cancel in a shared run: stop it for every window too?"""
+    if pw.cancelled and not core.queue_stopped(qd) and not core.queue_finished(qd):
+        if forms.alert(u'Stop the whole run for EVERY Revit window too?\n\nNo = the models not started stay in the queue '
+                       u'(another window, or this one later, can continue them).', yes=True, no=True):
+            core.queue_stop(qd)
+            return True
+    return False
+
+
 def run_queue(qd, job, settings, reg, cache, window_name):
     """Work on a shared export until no model is left. Any number of Revit windows can do this."""
     models = dict((m['ModelGUID'].lower(), m) for m in job['models'])
@@ -1177,6 +1217,7 @@ def run_queue(qd, job, settings, reg, cache, window_name):
             settings[k] = job[k]
     log_path = core.usable_log_path(os.path.join(core.logs_dir(job['out_root']), 'SheetExport_log.csv'))
     job['_on_done'] = lambda g: core.queue_done(qd, g)
+    job['_stop_file'] = os.path.join(qd, 'stop')
     claimed = []
 
     def next_rec():
@@ -1192,6 +1233,8 @@ def run_queue(qd, job, settings, reg, cache, window_name):
                                          u'Exporting  \u00b7  %s (shared)' % window_name)
     for g in list(KEPT.keys()):                 # kept models another window took: close ours
         close_model(KEPT.pop(g)[0])
+    if offer_stop_all(qd, pw):
+        lines.append('Stopped for every window (kill switch).')
     cad_msg, logo_count, logo_since = '', 0, None
     if core.queue_finished(qd):
         if job.get('run_cad') and core.queue_claim_logos(qd):
@@ -1217,12 +1260,11 @@ def main():
     active = core.queue_active()
     if active and (active[1] or {}).get('kind') != 'issue':        # a shared Issue Sheets run is joined there
         qd, job, left = active
-        choice = forms.CommandSwitchWindow.show(
-            ['Join the running export (%d model(s) left)' % left, 'Start a new export'],
-            message='An export is running in another Revit window.')
-        if not choice:
+        choice = ask_running(qd, left, u'export')
+        if choice is None:
             return
-        if choice.startswith('Join'):
+        if choice == 'join':
+            start_clock()
             run_queue(qd, job, settings, reg, cache, 'Helper window')
             return
 

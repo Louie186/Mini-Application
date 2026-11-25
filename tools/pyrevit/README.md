@@ -50,6 +50,8 @@ Settings are saved for next time. Before exporting, the tool warns you if two dr
 - 64 GB memory: 2–3 windows are fine
 - Cancel in one window: models it hasn't started stay in the queue for the others
 - The queue lives in `<Output folder>\_Logs\_queue\`
+- **Unfinished run found** (e.g. the PC slept and Revit closed): Export Sheets / Issue Sheets asks **Continue it** / **Stop it** / **Stop it and start a new one**, and says whether another Revit is still working on it. Models a closed Revit had started go back to the queue
+- **Kill switch:** **Stop it** (from any Revit window) = no window starts another model, windows still printing stop after their current file, AutoCAD stops after its current batch. **Cancel** in a shared run's progress window also asks "Stop for every window?" 
 
 ## Safety: what the tool does to your models
 

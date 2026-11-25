@@ -1339,3 +1339,57 @@ def start_img2ole(jobs, out_root, settings):
     import System
     System.Diagnostics.Process.Start(acad, u'/nologo /b "%s"' % starter)
     return u'AutoCAD started to embed logos in %d DWG(s). Leave it until it says "IMG2OLE finished".' % len(jobs)
+
+
+# ------------------------------------------- logos WHILE Revit exports --
+def _ansi_append(path, text_):
+    for enc in ('mbcs', 'cp1252', 'utf-8'):
+        try:
+            with io.open(path, 'a', encoding=enc) as f:
+                f.write(text_)
+            return
+        except (LookupError, UnicodeEncodeError):
+            continue
+
+
+def logo_pipeline_reset(out_root):
+    """Start a fresh queue in this output folder (old queue files removed)."""
+    for n in ('IMG2OLE_queue.txt', 'IMG2OLE_queue.pos', 'IMG2OLE_queue.done'):
+        try:
+            os.remove(os.path.join(out_root, n))
+        except Exception:
+            pass
+
+
+def logo_queue_add(out_root, jobs):
+    """jobs: [(raw dwg, final DWG folder)] -> appended for the background helper."""
+    if jobs:
+        _ansi_append(os.path.join(out_root, u'IMG2OLE_queue.txt'),
+                     u''.join(u'%s|%s\n' % (a, b if b.endswith('\\') else b + u'\\') for a, b in jobs))
+
+
+def logo_queue_done(out_root):
+    with io.open(os.path.join(out_root, u'IMG2OLE_queue.done'), 'w', encoding='utf-8') as f:
+        f.write(now())
+
+
+def logo_runner_start(out_root, settings):
+    """Start the background helper (one per output folder). Returns (started, message)."""
+    lsp = img2ole_path(settings)
+    acad = find_acad(settings)
+    if not lsp or not acad:
+        return False, u'IMG2OLE or AutoCAD not found'
+    ps1 = os.path.join(os.path.dirname(lsp), u'IMG2OLE_runner.ps1')
+    if not os.path.exists(ps1):
+        return False, u'IMG2OLE_runner.ps1 missing'
+    try:
+        import System
+        psi = System.Diagnostics.ProcessStartInfo('powershell.exe')
+        psi.Arguments = (u'-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "%s" '
+                         u'-Folder "%s" -Acad "%s" -Lsp "%s"' % (ps1, out_root.rstrip(u'\\'), acad, lsp))
+        psi.UseShellExecute = False
+        psi.CreateNoWindow = True
+        System.Diagnostics.Process.Start(psi)
+        return True, u'Logo helper started: AutoCAD embeds logos while Revit exports'
+    except Exception as e:
+        return False, text(e)

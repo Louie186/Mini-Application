@@ -747,31 +747,47 @@ def do_check(guids, settings, reg, cache):
 
 
 def do_apply(guids, state, settings, reg, cache):
-    import System.Diagnostics as D
-    others = len(D.Process.GetProcessesByName('Revit')) - 1
-    names = [(cache.get(g) or {}).get('model', g) for g in guids]
-    if not forms.alert(u'Apply the changes to %d model(s)?\n\n%s\n\n%sEach model: local copy → ownership check → one '
-                       u'change step → read back → sync + give back everything borrowed. Any problem: nothing is saved.'
-                       % (len(guids), u'\n'.join(u'  • ' + n for n in names),
-                          (u'⚠ %d other Revit window(s) are open. Make sure NONE of them has these models open.\n\n' % others)
-                          if others > 0 else u''), yes=True, no=True):
+    others = issue.other_revit_windows()
+    if others:
+        forms.alert(u'Apply needs this to be the ONLY Revit window.\n\n%d other Revit window(s) are running. Close them '
+                    u'(two Revit windows on one PC share the same local copy, which causes sync problems), then Apply '
+                    u'again. Your changes are kept.' % others)
         return
+    names = [(cache.get(g) or {}).get('model', g) for g in guids]
+    if not forms.alert(u'Apply the changes to %d model(s)?\n\n%s\n\nEach model: your local copy (your own worksets) '
+                       u'\u2192 ownership check \u2192 one change step \u2192 read back \u2192 sync + give back everything '
+                       u'borrowed. Any problem: nothing is saved. Revit messages are NOT clicked away for you.'
+                       % (len(guids), u'\n'.join(u'  \u2022 ' + n for n in names)), yes=True, no=True):
+        return
+    rule = settings.get('naming_rule') or '{DrawingNumber}'
+
+    def fresh(doc):
+        e = core.read_sheet_list(doc, rule)
+        e['issue'] = issue.read_issue_data(doc)
+        return e
+
     results = []
-    with core.QuietRevit(ui.uiapp):
-        for g in guids:
-            ch = state['pending'][g]
-            try:
-                ok, log, undo = issue.apply_changes(app, reg[g], ch, settings,
-                                                    u'Issue Sheets by Lew: %d change(s)' % sum(
-                                                        len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions',
-                                                                                     'sheet_revisions', 'params')))
-                undo_file = issue.save_undo(undo)
-                results.append(u'✔ %s\n     %s\n     Undo log: %s' % (cache[g]['model'], u'\n     '.join(log), undo_file))
-                state['pending'].pop(g, None)
-            except Exception as e:
-                results.append(u'✖ %s: NOT changed - %s' % ((cache.get(g) or {}).get('model', g), core.text(e)))
+    for g in guids:
+        ch = state['pending'][g]
+        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params'))
+        try:
+            ok, log, undo, entry = issue.apply_changes(app, reg[g], ch, settings,
+                                                       u'Issue Sheets by Lew: %d change(s)' % n_changes, after=fresh)
+            undo_file = issue.save_undo(undo)
+            if entry:                                   # read in the same open: no second open needed
+                entry['guid'] = g
+                cache[g] = entry
+                try:
+                    core.save_sheet_entry(g, entry)
+                except Exception:
+                    pass
+            results.append(u'\u2714 %s\n     %s\n     Undo log: %s' % (cache[g].get('model', g), u'\n     '.join(log), undo_file))
+            state['pending'].pop(g, None)
+            if not entry:
+                do_check([g], settings, reg, cache)
+        except Exception as e:
+            results.append(u'\u2716 %s: NOT changed - %s' % ((cache.get(g) or {}).get('model', g), core.text(e)))
     forms.alert(u'Apply finished:\n\n' + u'\n\n'.join(results))
-    do_check([g for g in guids if g not in state['pending']], settings, reg, cache)   # re-read what changed
 
 
 def do_revert(settings, reg, cache):
@@ -786,12 +802,11 @@ def do_revert(settings, reg, cache):
     f = [x for x in files if os.path.basename(x) == pick][0]
     if not forms.alert('Put back the old values of %s and sync?' % pick, yes=True, no=True):
         return
-    with core.QuietRevit(ui.uiapp):
-        try:
-            ok, log = issue.revert(app, f, settings)
-            forms.alert(u'Reverted:\n' + u'\n'.join(log))
-        except Exception as e:
-            forms.alert(u'Revert NOT done: %s' % core.text(e))
+    try:
+        ok, log = issue.revert(app, f, settings)
+        forms.alert(u'Reverted:\n' + u'\n'.join(log))
+    except Exception as e:
+        forms.alert(u'Revert NOT done: %s' % core.text(e))
 
 
 def do_issue(rows, state, settings, reg, cache, dry):
@@ -814,6 +829,10 @@ def do_issue(rows, state, settings, reg, cache, dry):
            '_formats': settings['_formats'], '_extra_read': read_issue_extra}
     log_path = core.usable_log_path(os.path.join(out_root, 'SheetExport_log.csv'))
     started, since = time.time(), core.now()
+    logo_since = core.now()
+    if run_cad:                                   # logos start while Revit is still exporting
+        core.logo_pipeline_reset(out_root)
+        job['_logo_pipeline'] = True
     queue = list(models)
     lines, totals, _, pw = ui.export_models(lambda: queue.pop(0) if queue else None, list(models), job, settings,
                                             reg, cache, log_path, u'Issuing')
@@ -846,11 +865,17 @@ def do_issue(rows, state, settings, reg, cache, dry):
                                                        by_sheet, by_model),
                          'ModelVersion': iss.get('version', u''), 'Note': u''})
     reg_path = issue.write_register(settings['issue_register'], new_rows) if new_rows else settings['issue_register']
-    cad_msg, logo_count, logo_since = '', 0, None
-    if run_cad:
+    cad_msg, logo_count = '', 0
+    if run_cad and job.get('_logo_pipeline') and job.get('_logo_runner'):
+        core.logo_queue_done(out_root)            # the helper finishes the last DWGs, then stops
+        logo_count = job.get('_logo_jobs', 0)
+        cad_msg = u'AutoCAD started earlier by the logo helper (%d DWG(s)); it finishes in the background.' % logo_count
+    elif run_cad:                                 # helper not possible (e.g. PowerShell blocked): old way, at the end
         jobs = core.find_raw_dwgs(out_root)
         logo_since = core.now()
         cad_msg = core.start_img2ole(jobs, out_root, settings) if jobs else 'No DWG files to process.'
+        if job.get('_logo_runner_msg') and not job.get('_logo_runner'):
+            cad_msg += u'  (Logo helper not used: %s)' % job['_logo_runner_msg']
         logo_count = len(jobs) if cad_msg.startswith('AutoCAD started') else 0
     lines.append(u'Issue register: %d row(s) added → %s' % (len(new_rows), reg_path))
     ui.report('Issue Sheets', started, lines, totals, True, [], cad_msg, log_path)

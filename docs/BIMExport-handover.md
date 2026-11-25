@@ -227,6 +227,8 @@
   - **Issue register**: one CSV (`settings['issue_register']`, default `<output>\IssueRegister.csv`), one row per print, sorted by drawing then date. Columns: DrawingCode, Model, SheetNumber, SheetName, Revision, RevisionDate, RevisionDescription, PrintedOn, PrintedBy, Formats, PDFFile, DWGFile, Change, ModelVersion, Note
   - Saved sets: `%APPDATA%\BIMExport\IssueSets.json`
 - Bug fixed at the same time: new `SheetExport_log.csv` files were written **without a header** (the "file open in Excel" check created an empty file first)
+- v7.1 safety fixes for Apply/Revert: refuse while any other Revit process runs; open the local copy with `OpenLastViewed` worksets (printing still opens ALL worksets, detached); no automatic dialog clicking (`StrictRevit`: warnings accepted + logged, errors roll back); `SaveLocalBefore=False` / `SaveLocalAfter=True`; fresh data read from the same open after sync (no second open); issue register `.backup` before each rewrite
+- v7.1 speed: logo **pipeline** for Issue Sheets: `IMG2OLE_runner.ps1` (bundled) takes `<out>\IMG2OLE_queue.txt` lines appended after each model, runs one AutoCAD per batch (`i2o:*quit-after*` makes the batch QUIT), stops on `IMG2OLE_queue.done`; lock/pos/log files in the output folder; falls back to end-of-run start. Export Sheets still starts AutoCAD at the end
 - To verify tomorrow: GetDocumentVersion on a detached quick open; DataGrid single-click checkboxes; Apply/sync on a test model; per-sheet numbering display; Revision.Create + SetAdditionalRevisionIds
 
 ## 8. Version history (short)

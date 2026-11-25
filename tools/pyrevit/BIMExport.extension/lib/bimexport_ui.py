@@ -603,6 +603,22 @@ def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_
                     ('%d file(s) exported, %d failed' % (counts['ok'], counts['failed'])) if do_export
                     else ('%d file(s) would export' % counts['would']),
                     timing, ('  [%s]' % '; '.join(extra)) if extra else ''))
+                if job.get('_logo_pipeline') and do_export:
+                    try:                                   # hand this model's DWGs to AutoCAD right away
+                        final_dir = os.path.join(os.path.dirname(raw_dir), 'DWG')
+                        new_jobs = [(row[7], final_dir) for row in log
+                                    if len(row) > 8 and row[6] == u'DWG' and row[8] == u'OK']
+                        if new_jobs:
+                            core.logo_queue_add(out_root, new_jobs)
+                            job['_logo_jobs'] = job.get('_logo_jobs', 0) + len(new_jobs)
+                            if not job.get('_logo_runner'):
+                                ok_, msg_ = core.logo_runner_start(out_root, settings)
+                                job['_logo_runner'] = ok_
+                                job['_logo_runner_msg'] = msg_
+                                if not ok_:
+                                    job['_logo_pipeline'] = False        # fall back: start AutoCAD at the end
+                    except Exception:
+                        job['_logo_pipeline'] = False
                 pw.model_done(guid, counts['failed'] == 0,
                               u'%d file(s), %s' % (counts['ok'], time.strftime('%M:%S', time.gmtime(total)))
                               if counts['failed'] == 0 else u'%d failed - see report' % counts['failed'])

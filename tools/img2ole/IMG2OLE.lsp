@@ -493,6 +493,7 @@
        (write-line "_.QSAVE" f)
        (write-line "_.CLOSE" f))
      (write-line (strcat "(i2o:finish \"" (i2o:fwd logdir) "\" \"" mode "\" " (itoa fd) ")") f)
+     (if i2o:*quit-after* (write-line "_.QUIT" f))      ; background helper: close AutoCAD when done
      (close f)
      (princ (strcat "\n" (itoa (length copies)) " drawing(s) queued. Mode: " mode
                     "\nPlease do not use AutoCAD until it says 'IMG2OLE finished'."))

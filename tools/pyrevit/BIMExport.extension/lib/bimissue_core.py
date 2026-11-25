@@ -243,6 +243,12 @@ def write_register(path, new_rows):
     rows.sort(key=lambda r: ((r.get('DrawingCode') or r.get('Model', u'') + u'|' + r.get('SheetNumber', u'')).lower(),
                              r.get('PrintedOn', u'')))
     data = [[r.get(c, u'') for c in REGISTER_COLS] for r in rows]
+    if path and os.path.exists(path):
+        try:
+            import shutil
+            shutil.copy2(path, path + u'.backup')          # previous version kept next to it
+        except Exception:
+            pass
     try:
         core.write_csv(path, REGISTER_COLS, data)
         return path
@@ -274,23 +280,72 @@ class ApplyError(Exception):
     pass
 
 
+def other_revit_windows():
+    """How many OTHER Revit programs are running on this PC."""
+    try:
+        import System
+        return max(0, len(System.Diagnostics.Process.GetProcessesByName('Revit')) - 1)
+    except Exception:
+        return 0
+
+
 def _open_for_edit(app, rec, settings):
-    """A normal LOCAL copy (not detached), all user worksets closed: sheets, revisions and title blocks
-    live on system worksets, so this is enough and fast."""
+    """Your normal LOCAL copy (not detached), opened with YOUR last-used worksets, so nothing about your
+    local copy changes. Refused when the model is open here or any other Revit window is running
+    (two windows on one PC share the same local file - that causes sync problems)."""
     if core.find_open_doc(app, rec['ModelGUID'].lower()) is not None:
         raise ApplyError(u'The model is open in this Revit window. Close it first, then Apply again.')
+    n = other_revit_windows()
+    if n:
+        raise ApplyError(u'%d other Revit window(s) are running. Close them first - two Revit windows on one PC '
+                         u'share the same local copy, which causes sync problems.' % n)
     errors = []
     for reg in core._regions(rec.get('Region') or settings.get('region')):
         try:
             path = ModelPathUtils.ConvertCloudGUIDsToCloudPath(reg, Guid(rec['ProjectGUID']), Guid(rec['ModelGUID']))
             opts = OpenOptions()
             opts.DetachFromCentralOption = DetachFromCentralOption.DoNotDetach
-            opts.SetOpenWorksetsConfiguration(WorksetConfiguration(WorksetConfigurationOption.CloseAllWorksets))
+            opts.SetOpenWorksetsConfiguration(WorksetConfiguration(WorksetConfigurationOption.OpenLastViewed))
             return core._open(app, path, opts)
         except Exception as e:
             msg = core.text(e)
             errors.append(u'%s: %s' % (reg, u'not found in this region' if 'central model is missing' in msg.lower() else msg))
     raise ApplyError(u'Could not open: ' + u' | '.join(errors))
+
+
+class StrictRevit(object):
+    """For Apply/Revert: NO automatic clicking of Revit dialogs. Plain warnings are noted and accepted;
+    any ERROR makes Revit roll the whole change back."""
+
+    def __init__(self, app, log):
+        self.app, self.log = app, log
+
+    def _failures(self, sender, args):
+        try:
+            fa = args.GetFailuresAccessor()
+            errors = False
+            for m in list(fa.GetFailureMessages()):
+                if m.GetSeverity() == DB.FailureSeverity.Warning:
+                    self.log.append(u'Revit warning accepted: %s' % core.text(m.GetDescriptionText()))
+                    fa.DeleteWarning(m)
+                else:
+                    errors = True
+                    self.log.append(u'Revit ERROR: %s' % core.text(m.GetDescriptionText()))
+            args.SetProcessingResult(DB.FailureProcessingResult.ProceedWithRollBack if errors
+                                     else DB.FailureProcessingResult.Continue)
+        except Exception:
+            pass
+
+    def __enter__(self):
+        self.app.FailuresProcessing += self._failures
+        return self
+
+    def __exit__(self, *a):
+        try:
+            self.app.FailuresProcessing -= self._failures
+        except Exception:
+            pass
+        return False
 
 
 def _owned_by_others(doc, ids):
@@ -414,11 +469,18 @@ def _verify(doc, changes, created):
 
 
 def _sync(doc, comment):
+    """Sync + give back everything borrowed. The local file is NOT saved before syncing, so a failed sync
+    (e.g. network) leaves no unsynced changes in your local copy - closing then discards them."""
     if doc.IsWorkshared:
         twc = DB.TransactWithCentralOptions()
         swc = DB.SynchronizeWithCentralOptions()
         swc.SetRelinquishOptions(DB.RelinquishOptions(True))
         swc.Comment = comment
+        try:
+            swc.SaveLocalBefore = False
+            swc.SaveLocalAfter = True          # local matches central again after a good sync
+        except Exception:
+            pass
         doc.SynchronizeWithCentral(twc, swc)
     else:
         doc.Save()
@@ -431,30 +493,39 @@ def touched_ids(changes):
     return ids
 
 
-def apply_changes(app, rec, changes, settings, comment):
-    """Open a local copy, check ownership, apply in one transaction, verify, sync + relinquish, close.
-    Nothing reaches the central model unless every step succeeds. Returns (ok, log lines, undo record)."""
+def apply_changes(app, rec, changes, settings, comment, after=None):
+    """Open your local copy, check ownership, apply in one transaction, verify, sync + relinquish, close.
+    Nothing reaches the central model unless every step succeeds.
+    after(doc) (optional) reads fresh data from the same open model, so no second open is needed.
+    Returns (ok, log lines, undo record, after-result)."""
     log = []
     doc = _open_for_edit(app, rec, settings)
     try:
-        if not doc.IsWorkshared and not settings.get('allow_non_workshared'):
-            raise ApplyError(u'Not workshared - changes would be saved straight into the model. '
-                             u'Allow non-workshared models in the Run tab only if nobody has it open.')
-        owned = _owned_by_others(doc, touched_ids(changes))
-        if owned:
-            raise ApplyError(u'Owned by other users (ask them to sync and relinquish): ' + u'; '.join(owned))
-        snap = _snapshot(doc, changes)
-        created = _apply_in_doc(doc, changes, log)
-        bad = _verify(doc, changes, created)
-        if bad:
-            raise ApplyError(u'Check after the change failed - NOT synced, nothing saved: ' + u'; '.join(bad))
-        _sync(doc, comment)
-        log.append(u'Synced with central (all borrowed elements given back)')
+        with StrictRevit(app, log):
+            if not doc.IsWorkshared and not settings.get('allow_non_workshared'):
+                raise ApplyError(u'Not workshared - changes would be saved straight into the model. '
+                                 u'Allow non-workshared models in the Run tab only if nobody has it open.')
+            owned = _owned_by_others(doc, touched_ids(changes))
+            if owned:
+                raise ApplyError(u'Owned by other users (ask them to sync and relinquish): ' + u'; '.join(owned))
+            snap = _snapshot(doc, changes)
+            created = _apply_in_doc(doc, changes, log)
+            bad = _verify(doc, changes, created)
+            if bad:
+                raise ApplyError(u'Check after the change failed - NOT synced, nothing saved: ' + u'; '.join(bad))
+            _sync(doc, comment)
+            log.append(u'Synced with central (all borrowed elements given back)')
         undo = {'model': rec, 'when': core.now(), 'before': snap, 'created': created, 'changes': changes}
-        return True, log, undo
+        fresh = None
+        if after is not None:
+            try:
+                fresh = after(doc)
+            except Exception:
+                fresh = None
+        return True, log, undo, fresh
     finally:
         try:
-            doc.Close(False)            # after a sync there is nothing unsaved; on failure this discards everything
+            doc.Close(False)            # after a good sync nothing is unsaved; on any failure this discards everything
         except Exception:
             pass
 
@@ -484,6 +555,8 @@ def revert(app, undo_file, settings):
             'sheet_ids': undo['changes'].get('sheet_ids', [])}
     log = []
     doc = _open_for_edit(app, undo['model'], settings)
+    strict = StrictRevit(app, log)
+    strict.__enter__()
     try:
         owned = _owned_by_others(doc, touched_ids(back) | set(int(v) for v in created.values()))
         if owned:
@@ -508,6 +581,7 @@ def revert(app, undo_file, settings):
         os.rename(undo_file, undo_file + u'.reverted')
         return True, log
     finally:
+        strict.__exit__()
         try:
             doc.Close(False)
         except Exception:

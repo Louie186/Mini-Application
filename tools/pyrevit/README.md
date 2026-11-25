@@ -90,7 +90,7 @@ For formal issues: **what changed → fix revisions / title block switches → i
    - **Tick changed** ticks everything that changed and isn't blocked. Optional **Title block** column
 4. **Revisions tab** (like Revit's Sheet Issues/Revisions + Revisions on Sheet):
    - All revisions with Rev, Date, Description, Issued to/by. Edit dates/descriptions (not Issued ones). **+ Add revision**
-   - Tick revisions per drawing: **Current rev and date update straight away**. Clouded revisions can't be removed here
+   - Tick revisions per drawing: **Current rev and date update straight away**. Untick a **clouded** revision to remove its revision clouds from that drawing (asks first, warns if the view is on other drawings too). **Remove clouds...** does it for one revision on all drawings shown. Deleted at Apply, Revert draws them again; Issued revisions are locked
    - **Numbering** drop-down (same as Revit's Sheet Issues/Revisions > Numbering, one setting per model):
      - **Per project:** a revision has ONE number everywhere. T0 + T2 ticked on a drawing = current rev **T2**
      - **Per sheet:** each drawing counts only its own revisions, per sequence. T0 + T2 ticked = **T0, T1**, current rev **T1**

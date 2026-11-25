@@ -192,6 +192,37 @@ def _rev_numbered(r):
         return True
 
 
+def read_clouds(doc, sheets):
+    """{sheet number: [cloud]} - every revision cloud that shows on a sheet: drawn on the sheet itself or in a view
+    placed on it. cloud = {id, rev, view, view_name, on_sheet, also_on: [other sheet numbers showing that view]}."""
+    view_sheets = {}
+    for s in sheets:
+        try:
+            ids = [eid_int(i) for i in s.GetAllPlacedViews()]
+        except Exception:
+            ids = []
+        for v in ids + [eid_int(s.Id)]:
+            view_sheets.setdefault(v, []).append(s.SheetNumber)
+    out = {}
+    try:
+        clouds = list(FilteredElementCollector(doc).OfClass(DB.RevisionCloud))
+    except Exception:
+        return out
+    for c in clouds:
+        try:
+            vid, rid = eid_int(c.OwnerViewId), eid_int(c.RevisionId)
+            v = doc.GetElement(c.OwnerViewId)
+            vname = _txt(getattr(v, 'Name', u''))
+        except Exception:
+            continue
+        nums = view_sheets.get(vid, [])
+        for n in nums:
+            out.setdefault(n, []).append({'id': eid_int(c.Id), 'rev': rid, 'view': vid, 'view_name': vname,
+                                          'on_sheet': isinstance(v, ViewSheet),
+                                          'also_on': [x for x in nums if x != n]})
+    return out
+
+
 def read_issue_data(doc):
     """Everything the Issue window shows for one model (works with all worksets closed)."""
     revs = []
@@ -206,9 +237,9 @@ def read_issue_data(doc):
         rev_by_id[d['id']] = d
     sheets = {}
     tb_count = {}
-    for s in FilteredElementCollector(doc).OfClass(ViewSheet):
-        if s.IsPlaceholder:
-            continue
+    all_sheets = [s for s in FilteredElementCollector(doc).OfClass(ViewSheet) if not s.IsPlaceholder]
+    clouds_by_sheet = read_clouds(doc, all_sheets)
+    for s in all_sheets:
         try:
             all_ids = [eid_int(i) for i in s.GetAllRevisionIds()]
             extra_ids = [eid_int(i) for i in s.GetAdditionalRevisionIds()]
@@ -247,9 +278,10 @@ def read_issue_data(doc):
             'current_number': on_sheet.get(cur, u'') if cur else u'',
             'current_date': rev_by_id.get(cur, {}).get('date', u'') if cur else u'',
             'numbers_on_sheet': dict((str(k), v) for k, v in on_sheet.items()), 'titleblock': tb,
+            'clouds': clouds_by_sheet.get(s.SheetNumber, []),
             'titleblocks': tbs}
     return {'version': model_version(doc), 'read_on': core.now(), 'revisions': revs,
-            'per_sheet_numbering': _numbering_per_sheet(doc), 'sheets': sheets,
+            'per_sheet_numbering': _numbering_per_sheet(doc), 'sheets': sheets, 'clouds_read': True,
             'sequences': dict((str(k), _seq_values(doc, k)) for k in set(r['nseq'] for r in revs if r.get('nseq') not in (None, -1))),
             'titleblock_type_count': dict((str(k), v) for k, v in tb_count.items()),
             'titleblock_types': read_titleblock_types(doc)}
@@ -701,9 +733,57 @@ def _set_yes_no(el, name, value):
     p.Set(1 if value else 0)
 
 
+def _xyz(p):
+    return [p.X, p.Y, p.Z]
+
+
+def _cloud_record(doc, cid):
+    """Everything needed to draw the cloud again (Revert): view, revision, sketch curves, comments, mark."""
+    c = doc.GetElement(make_eid(cid))
+    if c is None:
+        return None
+    curves = []
+    for cv in c.GetSketchCurves():
+        if isinstance(cv, DB.Arc):
+            curves.append(['A', _xyz(cv.GetEndPoint(0)), _xyz(cv.GetEndPoint(1)), _xyz(cv.Evaluate(0.5, True))])
+        else:
+            curves.append(['L', _xyz(cv.GetEndPoint(0)), _xyz(cv.GetEndPoint(1))])
+    rec = {'id': cid, 'view': eid_int(c.OwnerViewId), 'rev': eid_int(c.RevisionId), 'curves': curves}
+    for key, bip in (('comments', 'ALL_MODEL_INSTANCE_COMMENTS'), ('mark', 'ALL_MODEL_MARK')):
+        try:
+            p = c.get_Parameter(getattr(BuiltInParameter, bip))
+            rec[key] = _txt(p.AsString()) if p is not None else u''
+        except Exception:
+            rec[key] = u''
+    return rec
+
+
+def _draw_cloud(doc, rec):
+    pts = lambda v: DB.XYZ(v[0], v[1], v[2])
+    curves = List[DB.Curve]()
+    for cv in rec['curves']:
+        if cv[0] == 'A':
+            curves.Add(DB.Arc.Create(pts(cv[1]), pts(cv[2]), pts(cv[3])))
+        else:
+            curves.Add(DB.Line.CreateBound(pts(cv[1]), pts(cv[2])))
+    c = DB.RevisionCloud.Create(doc, doc.GetElement(make_eid(rec['view'])), make_eid(rec['rev']), curves)
+    for key, bip in (('comments', 'ALL_MODEL_INSTANCE_COMMENTS'), ('mark', 'ALL_MODEL_MARK')):
+        if rec.get(key):
+            try:
+                c.get_Parameter(getattr(BuiltInParameter, bip)).Set(rec[key])
+            except Exception:
+                pass
+    return c
+
+
 def _snapshot(doc, changes):
     """Old values of everything the changes touch (for verification and Revert)."""
-    snap = {'revisions': {}, 'sheets': {}, 'params': [], 'tb_types': []}
+    snap = {'revisions': {}, 'sheets': {}, 'params': [], 'tb_types': [], 'clouds': []}
+    for dc in changes.get('delete_clouds', []):
+        r = _cloud_record(doc, dc['id'])
+        if r is not None:
+            r['label'] = dc.get('label', u'')
+            snap['clouds'].append(r)
     if changes.get('numbering'):
         snap['numbering'] = u'PerSheet' if _numbering_per_sheet(doc) else u'PerProject'
     for rid in changes.get('edit_revisions', {}):
@@ -740,6 +820,18 @@ def _apply_in_doc(doc, changes, log):
             rs = DB.RevisionSettings.GetRevisionSettings(doc)
             rs.RevisionNumbering = getattr(DB.RevisionNumbering, changes['numbering'])
             log.append(u'Revision numbering set to %s' % (u'per sheet' if changes['numbering'] == 'PerSheet' else u'per project'))
+        for rc in changes.get('create_clouds', []):           # Revert: draw deleted clouds again
+            _draw_cloud(doc, rc)
+            log.append(u'Revision cloud drawn again in "%s"' % rc.get('label', rc['view']))
+        for dc in changes.get('delete_clouds', []):
+            el = doc.GetElement(make_eid(dc['id']))
+            if el is None:
+                raise ApplyError(u'Revision cloud %s not found (already removed?)' % dc['id'])
+            r = doc.GetElement(el.RevisionId)
+            if r is not None and r.Issued:
+                raise ApplyError(u'Revision %s is marked Issued - Revit locks its clouds' % rev_label(r))
+            doc.Delete(make_eid(dc['id']))
+            log.append(u'Revision cloud removed (%s)' % dc.get('label', dc['id']))
         for nr in changes.get('new_revisions', []):
             r = DB.Revision.Create(doc)
             r.RevisionDate = nr.get('date', u'')
@@ -804,6 +896,9 @@ def _apply_in_doc(doc, changes, log):
 def _verify(doc, changes, created):
     """Read back. Returns a list of differences (empty = all good)."""
     bad = []
+    for dc in changes.get('delete_clouds', []):
+        if doc.GetElement(make_eid(dc['id'])) is not None:
+            bad.append(u'Revision cloud %s is still there' % dc['id'])
     if changes.get('numbering') and (u'PerSheet' if _numbering_per_sheet(doc) else u'PerProject') != changes['numbering']:
         bad.append(u'Revision numbering not as expected')
     for nr in changes.get('new_revisions', []):
@@ -854,6 +949,7 @@ def touched_ids(changes):
     ids |= set(pc['element_id'] for pc in changes.get('params', []))
     ids |= set(int(s) for s in changes.get('sheet_ids', []))
     ids |= set(int(tc['instance_id']) for tc in changes.get('tb_types', []))
+    ids |= set(int(dc['id']) for dc in changes.get('delete_clouds', []))
     return ids
 
 
@@ -923,6 +1019,7 @@ def revert(app, undo_file, settings):
             'sheet_revisions': before.get('sheets', {}),
             'params': [p for p in before.get('params', []) if p.get('value') is not None],
             'tb_types': before.get('tb_types', []), 'numbering': before.get('numbering'),
+            'create_clouds': before.get('clouds', []),
             'sheet_ids': undo['changes'].get('sheet_ids', [])}
     log = []
     doc = _open_for_edit(app, undo['model'], settings)

@@ -475,9 +475,101 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
 
     def _pend(self, g):
         p = self.state['pending'].setdefault(g, {'new_revisions': [], 'edit_revisions': {}, 'sheet_revisions': {},
-                                                 'params': [], 'sheet_ids': [], 'tb_types': []})
+                                                 'params': [], 'sheet_ids': [], 'tb_types': [], 'delete_clouds': []})
         p.setdefault('tb_types', [])
+        p.setdefault('delete_clouds', [])
         return p
+
+    # ---- revision clouds
+    def _cloud_revs(self, g, num):
+        """Revisions that come from clouds on this drawing, minus clouds waiting to be deleted."""
+        si = (((self.cache.get(g) or {}).get('issue') or {}).get('sheets') or {}).get(num, {})
+        if 'clouds' not in si:
+            return set(str(i) for i in si.get('cloud_revs', []))
+        gone = set(dc['id'] for dc in (self.state['pending'].get(g) or {}).get('delete_clouds', []))
+        return set(str(c['rev']) for c in si['clouds'] if c['id'] not in gone)
+
+    def _queue_cloud_delete(self, g, num, rev_key, ask=True):
+        """Queue deleting the clouds of one revision on one drawing. False if not possible / not confirmed."""
+        iss = (self.cache.get(g) or {}).get('issue') or {}
+        si = (iss.get('sheets') or {}).get(num, {})
+        if 'clouds' not in si:
+            forms.alert(u'The revision clouds of this model have not been read yet.\n\nPress Check models once '
+                        u'(or print once) - then you can remove them here.')
+            return False
+        p = self._pend(g)
+        gone = set(dc['id'] for dc in p['delete_clouds'])
+        mine = [c for c in si['clouds'] if str(c['rev']) == rev_key and c['id'] not in gone]
+        if not mine:
+            return True
+        others = sorted(set(x for c in mine for x in c.get('also_on', [])))
+        where = sorted(set(u'on the sheet' if c['on_sheet'] else u'in view "%s"' % c['view_name'] for c in mine))
+        if ask and not forms.alert(u'Remove %d revision cloud(s) of this revision from drawing %s?\n\n%s%s\n\n'
+                                   u'The clouds are deleted from the model at Apply (Revert draws them again).' % (
+                                       len(mine), num, u'\n'.join(u'  \u2022 ' + w for w in where),
+                                       (u'\n\n\u26A0 These views are also on drawing(s) %s - the clouds disappear there '
+                                        u'too.' % u', '.join(others[:15])) if others else u''), yes=True, no=True):
+            return False
+        rlab = next((r.get('number') or u'seq %s' % r['seq'] for r in iss.get('revisions', []) if str(r['id']) == rev_key), rev_key)
+        for c in mine:
+            p['delete_clouds'].append({'id': c['id'], 'rev': c['rev'], 'sheet': num,
+                                       'label': u'rev %s, drawing %s, %s' % (
+                                           rlab, num, u'on the sheet' if c['on_sheet'] else u'view "%s"' % c['view_name'])})
+            if si.get('id') and si['id'] not in p['sheet_ids']:
+                p['sheet_ids'].append(si['id'])
+        return True
+
+    def _unqueue_cloud_delete(self, g, num, rev_key):
+        p = self._pend(g)
+        si = (((self.cache.get(g) or {}).get('issue') or {}).get('sheets') or {}).get(num, {})
+        ids = set(c['id'] for c in si.get('clouds', []) if str(c['rev']) == rev_key)
+        p['delete_clouds'] = [dc for dc in p['delete_clouds'] if dc['id'] not in ids]
+
+    def on_remove_clouds(self, sender, args):
+        g = getattr(self, '_rev_g', None)
+        if not g:
+            forms.alert('Pick a model in the Revisions tab first.')
+            return
+        iss = (self.cache.get(g) or {}).get('issue') or {}
+        if not iss.get('clouds_read'):
+            forms.alert(u'The revision clouds of this model have not been read yet.\n\nPress Check models once (or print once).')
+            return
+        shown = [row['Key'] for row in self._onsheet_table.Rows]
+        counts = {}
+        for num in shown:
+            for rk in self._cloud_revs(g, num):
+                counts[rk] = counts.get(rk, 0) + 1
+        revs = [r for r in iss.get('revisions', []) if str(r['id']) in counts]
+        if not revs:
+            forms.alert(u'No revision clouds on the drawings shown.')
+            return
+        labels = dict((u'%s \u00B7 %s  %s  (%s)  -  clouds on %d drawing(s)%s' % (
+            r['seq'], r.get('number') or u'-', r.get('date', u''), r.get('description', u''), counts[str(r['id'])],
+            u'  [ISSUED - locked]' if r.get('issued') else u''), r) for r in revs)
+        pick = forms.SelectFromList.show(sorted(labels.keys()), title='Remove the clouds of which revision?',
+                                         button_name='Remove its clouds')
+        if not pick:
+            return
+        r = labels[pick]
+        if r.get('issued'):
+            forms.alert('This revision is marked Issued, so Revit locks its clouds.')
+            return
+        nums = [n for n in shown if str(r['id']) in self._cloud_revs(g, n)]
+        others = set()
+        si_all = iss.get('sheets') or {}
+        for n in nums:
+            for c in si_all.get(n, {}).get('clouds', []):
+                if str(c['rev']) == str(r['id']):
+                    others |= set(x for x in c.get('also_on', []) if x not in nums)
+        if not forms.alert(u'Remove the clouds of revision %s from %d drawing(s)?\n\n%s%s\n\nDeleted at Apply; Revert '
+                           u'draws them again.' % (r.get('number') or r['seq'], len(nums), u', '.join(nums[:30]),
+                                                   (u'\n\n\u26A0 Some are in views also placed on: %s' % u', '.join(sorted(others)[:15]))
+                                                   if others else u''), yes=True, no=True):
+            return
+        for n in nums:
+            self._queue_cloud_delete(g, n, str(r['id']), ask=False)
+        self._build_onsheet(g)
+        self._refresh_changes()
 
     def _revisions(self, g):
         """Existing revisions with pending edits + pending new ones, in sequence order."""
@@ -672,7 +764,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         si = (((self.cache.get(g) or {}).get('issue') or {}).get('sheets') or {}).get(num, {})
         p = (self.state['pending'].get(g) or {}).get('sheet_revisions') or {}
         extra = p.get(num)
-        clouds = [str(i) for i in si.get('cloud_revs', [])]
+        clouds = self._cloud_revs(g, num)
         if extra is None:
             extra = [str(i) for i in si.get('extra_revs', [])]
         return set(clouds) | set(str(i) for i in extra)
@@ -709,12 +801,15 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         key = e.Column.ColumnName[1:]
         si = (((self.cache.get(g) or {}).get('issue') or {}).get('sheets') or {}).get(e.Row['Key'], {})
         rev = [r for r in self._onsheet_revs if r['key'] == key]
-        if key in [str(i) for i in si.get('cloud_revs', [])] and not e.ProposedValue:
-            e.ProposedValue = True
-            forms.alert('This revision comes from a revision cloud on the sheet - remove the cloud in Revit instead.')
-        elif rev and rev[0].get('issued'):
+        if rev and rev[0].get('issued'):
             e.ProposedValue = e.Row[e.Column]
             forms.alert('This revision is marked Issued, so Revit locks it on sheets.')
+        elif key in self._cloud_revs(g, e.Row['Key']) and not e.ProposedValue:
+            if not self._queue_cloud_delete(g, e.Row['Key'], key):
+                e.ProposedValue = True                     # keep the clouds
+        elif e.ProposedValue and any(dc.get('sheet') == e.Row['Key'] and str(dc['rev']) == key
+                                     for dc in (self.state['pending'].get(g) or {}).get('delete_clouds', [])):
+            self._unqueue_cloud_delete(g, e.Row['Key'], key)    # ticked again: keep the clouds after all
 
     def _on_onsheet_changed(self, sender, e):
         if self._busy or not e.Column.ColumnName.startswith('R'):
@@ -723,7 +818,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         iss = (self.cache.get(g) or {}).get('issue') or {}
         si = (iss.get('sheets') or {}).get(num, {})
         on = set(k for k in [r['key'] for r in self._onsheet_revs] if e.Row[u'R%s' % k])
-        clouds = set(str(i) for i in si.get('cloud_revs', []))
+        clouds = self._cloud_revs(g, num)
         extra = sorted(on - clouds)
         p = self._pend(g)
         if sorted(str(i) for i in si.get('extra_revs', [])) == extra:
@@ -980,7 +1075,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         p = self.state['pending'].get(g) or {}
         return (len(p.get('new_revisions', [])) + len(p.get('edit_revisions', {})) +
                 len(p.get('sheet_revisions', {})) + len(p.get('params', [])) + len(p.get('tb_types', [])) +
-                (1 if p.get('numbering') else 0))
+                (1 if p.get('numbering') else 0) + len(p.get('delete_clouds', [])))
 
     def _refresh_changes(self):
         lines = []
@@ -991,6 +1086,8 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             if p.get('numbering'):
                 lines.append(u'   ~ Revision numbering \u2192 %s  (ALL drawings of this model)' % (
                     u'per sheet' if p['numbering'] == u'PerSheet' else u'per project'))
+            for dc in p.get('delete_clouds', []):
+                lines.append(u'   - DELETE revision cloud: %s' % dc.get('label', dc['id']))
             for nr in p['new_revisions']:
                 lines.append(u'   + NEW revision   %s   %s' % (nr.get('date', u''), nr.get('description', u'')))
             for rid, ed in p['edit_revisions'].items():
@@ -1117,7 +1214,7 @@ def do_apply(guids, state, settings, reg, cache):
     results = []
     for g in guids:
         ch = state['pending'][g]
-        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types')) + (1 if ch.get('numbering') else 0)
+        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types', 'delete_clouds')) + (1 if ch.get('numbering') else 0)
         try:
             ok, log, undo, entry = issue.apply_changes(app, reg[g], ch, settings,
                                                        u'Issue Sheets by Lew: %d change(s)' % n_changes, after=fresh)

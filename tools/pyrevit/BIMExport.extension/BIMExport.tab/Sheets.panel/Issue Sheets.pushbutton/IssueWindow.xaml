@@ -203,6 +203,8 @@
                                 <TextBlock Text="Model  " VerticalAlignment="Center" FontWeight="SemiBold"/>
                                 <ComboBox x:Name="rev_model_cb" MinWidth="260" SelectionChanged="on_rev_model"/>
                                 <Button Content="+ Add revision" Style="{StaticResource Small}" Margin="10,0,0,0" Click="on_add_rev"/>
+                                <Button Content="Remove clouds..." Style="{StaticResource Small}" Margin="6,0,0,0" Click="on_remove_clouds"
+                                        ToolTip="Delete the revision clouds of one revision on the drawings shown below (waits for Apply; Revert puts them back)."/>
                                 <TextBlock Text="Numbering:" Margin="14,0,4,0" VerticalAlignment="Center"/>
                                 <ComboBox x:Name="numbering_cb" MinWidth="110" SelectionChanged="on_numbering"
                                           ToolTip="Same as Revit's Sheet Issues/Revisions 'Numbering'. Per sheet: each drawing counts only its own revisions (T0, T2 ticked = T0, T1)."/>

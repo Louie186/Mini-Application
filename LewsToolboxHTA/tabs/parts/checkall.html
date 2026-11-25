@@ -32,7 +32,7 @@
 <div id="app">
   <div class="step bar" id="saved"></div>
   <div class="step bar">
-    <span class="num">1</span><span class="lbl"><b>Checklist</b></span><button class="btn" id="bSrc">Pick &#9662;</button><span class="path" id="srcLbl"></span>
+    <span class="num">1</span><span class="lbl"><b>Checklist</b></span><button class="btn" id="bSrc">Pick &#9662;</button><button class="btn" id="bSetQ" title="Use one of My sets (Drawing Register) as the checklist">&#128193; My set &#9662;</button><span class="path" id="srcLbl"></span>
     <span class="lbl">Each drawing needs:</span><input type="text" id="need" style="width:110px;margin:0 8px 6px 0" placeholder="pdf, dwg" title="File types every drawing must have (empty = any). A Format column in the list wins.">
   </div>
   <div class="step bar">
@@ -45,6 +45,7 @@
     <label class="lbl" id="nmBox"><input type="checkbox" id="names" checked style="height:auto"> names <span class="muted" id="nmRule"></span></label>
     <button class="btn" id="bCollect" title="Copy what's missing in Folder 2 from Folder 1 (the right revision and file types)">&#128229; Collect from Folder 1...</button>
     <button class="btn" id="bOld" title="Move older revisions out of Folder 2 into Folder 2\_Superseded">&#128465; Move old revisions out...</button>
+    <span class="lbl">Group:</span><select id="gBy" style="width:200px;height:26px;margin:0 6px 6px 0" title="See the checklist per Tower / Typology / Model - what's OK and what's missing in each"><option value="">No groups</option><option value="tower,typo,model">Tower &rsaquo; Typology &rsaquo; Model</option><option value="tower,typo">Tower &rsaquo; Typology</option><option value="typo,model">Typology &rsaquo; Model</option><option value="model">Model</option><option value="tower">Tower</option></select><span id="gBtns" style="display:none"><button class="btn small" id="gOpen">&#9662; Open all</button><button class="btn small" id="gShut">&#9656; Close all</button></span>
     <span style="float:right"><button class="btn" id="bRep">Report &#9662;</button></span>
   </div>
   <div id="cards"></div>
@@ -182,6 +183,17 @@ function render() {
   $("cards").innerHTML = h;
   var q = R.qty, tl = []; for (var ty in q.types) if (q.types.hasOwnProperty(ty)) tl.push(ty + " " + q.types[ty]);
   $("qty").innerHTML = "<b>Quantity:</b> checklist <b>" + q.items + "</b> drawings &middot; <b>" + q.ok + "</b> complete &middot; Folder 2 has <b>" + R.f2.length + "</b> files (" + esc(tl.sort().join(", ") || "none") + ") &middot; expected about <b>" + q.expect + "</b>" + (R.f2.length == q.expect ? ' <span class="ok">&#10004; count matches</span>' : ' <span class="warn">(' + (R.f2.length > q.expect ? "+" : "") + (R.f2.length - q.expect) + ")</span>");
+  $("gBtns").style.display = cfg.gBy ? "" : "none";
+  if (cfg.gBy && filter != "extra") { var xs = []; for (var gi = 0; gi < R.rows.length; gi++) if (inCard(R.rows[gi], filter)) xs.push(R.rows[gi]);
+    LT.grpRender($("res"), xs, { by: cfg.gBy, cols: R.hasF1 ? 8 : 7, open: GOPEN, noneLabel: "Not in the MIDP",
+      head: '<table class="grid nofit"><tr><th>Drawing</th>' + LT.dwgHead() + "<th>Rev wanted</th><th>Found</th><th>Types</th><th>Result</th><th>Notes</th>" + (R.hasF1 ? "<th>Folder 1</th>" : "") + "</tr>",
+      info: function (x) { var f = LT.dwgInfo(x.it.base) || LT.dwgInfo(x.it.num); return f ? { tower: f.tower, typo: f.typo, model: f.model } : { none: true }; },
+      st: function (x) { return x.lv == 0 ? "ok" : x.lv == 1 ? "warn" : "bad"; },
+      row: function (x) { return '<tr><td style="padding-left:40px"><b>' + esc(x.it.num) + "</b>" + (x.it.title ? '<div class="muted" style="font-size:.85em">' + esc(x.it.title) + "</div>" : "") + "</td>" + LT.dwgCells(x.it.base) + "<td>" + esc(x.it.rev || "(latest)") + "</td><td>" + esc(x.rev) + "</td><td>" + esc(x.types.join(", ")) + '</td><td class="st ' + (x.lv == 0 ? "ok" : x.lv == 1 ? "warn" : "bad") + '">' + (x.lv == 0 ? "&#10004; " : x.lv == 1 ? "&#9888; " : "&#10006; ") + esc(x.st) + '</td><td class="muted">' + esc(x.notes.join(" \u00b7 ")) + "</td>" +
+        (R.hasF1 ? "<td>" + (x.f1 && x.f1.length ? esc(x.f1rev || "-") : '<span class="muted">&ndash;</span>') + "</td>" : "") + "</tr>"; },
+      empty: '<div class="ok" style="padding:24px;font-weight:bold">&#10004; Nothing here.</div>' });
+    if (filter == "all" && R.extra.length) $("res").insertAdjacentHTML("beforeend", '<div class="muted" style="padding:10px 4px 4px"><b>&#10133; ' + R.extra.length + " file(s) not on the checklist</b> &ndash; the card &ldquo;Not on the checklist&rdquo; lists them</div>");
+    return; }
   var t = ['<table class="grid"><tr><th>Drawing</th>' + LT.dwgHead() + "<th>Rev wanted</th><th>Found</th><th>Types</th><th>Result</th><th>Notes</th>" + (R.hasF1 ? "<th>Folder 1</th>" : "") + "</tr>"], shown = 0;
   if (filter != "extra") for (var r = 0; r < R.rows.length; r++) { var x = R.rows[r]; if (!inCard(x, filter)) continue; shown++;
     t.push("<tr><td><b>" + esc(x.it.num) + "</b>" + (x.it.title ? '<div class="muted" style="font-size:.85em">' + esc(x.it.title) + "</div>" : "") + "</td>" + LT.dwgCells(x.it.base) + "<td>" + esc(x.it.rev || "(latest)") + "</td><td>" + esc(x.rev) + "</td><td>" + esc(x.types.join(", ")) + '</td><td class="st ' + (x.lv == 0 ? "ok" : x.lv == 1 ? "warn" : "bad") + '">' + (x.lv == 0 ? "&#10004; " : x.lv == 1 ? "&#9888; " : "&#10006; ") + esc(x.st) + "</td><td class=\"muted\">" + esc(x.notes.join(" · ")) + "</td>" +
@@ -238,6 +250,13 @@ function srcMenu(x, y) {
   try { var reg = LT.register(), ss = reg ? reg.sets() : []; if (ss.length) { m.push("-"); for (var i = 0; i < ss.length; i++) (function (s) { m.push({ label: "&#128193; My set: " + esc(s.name) + ' <span class="muted">' + s.keys.length + "</span>", fn: function () { cfg.src = { kind: "set", id: s.id, name: s.name }; save(); show(); } }); })(ss[i]); } } catch (e) { }
   LT.menu(x, y, m);
 }
+var GOPEN = {};
+$("gBy").onchange = function () { cfg.gBy = this.value; save(); render(); };
+$("gOpen").onclick = function () { LT.grpAll($("res"), true); }; $("gShut").onclick = function () { LT.grpAll($("res"), false); };
+$("bSetQ").onclick = function (e) { var m = [], r = this.getBoundingClientRect(); try { var reg = LT.register(), ss = reg ? reg.sets() : [];
+    for (var i = 0; i < ss.length; i++) (function (S) { m.push({ label: esc(S.name) + ' <span class="muted">' + S.keys.length + " drawings</span>", on: cfg.src && cfg.src.kind == "set" && cfg.src.id == S.id, fn: function () { cfg.src = { kind: "set", id: S.id, name: S.name }; save(); show(); } }); })(ss[i]); } catch (x) { }
+  if (!m.length) m.push({ label: '<span class="muted">No sets yet &ndash; make one in Drawing Register &gt; My sets</span>', fn: function () { } });
+  LT.menu(r.left, r.bottom + 2, m); (e || window.event).cancelBubble = true; };
 var at = function (b) { var r = b.getBoundingClientRect(); return [r.left, r.bottom + 2]; };
 $("bSrc").onclick = function (e) { var a = at(this); srcMenu(a[0], a[1]); (e || window.event).cancelBubble = true; };
 $("bRep").onclick = function (e) { var a = at(this); reportMenu(a[0] - 220, a[1]); (e || window.event).cancelBubble = true; };
@@ -252,14 +271,14 @@ $("saved").onclick = function (e) { var t = e.target || e.srcElement, x = LT.up(
   if (v) runSaved(+v.getAttribute("data-sv")); };
 $("pCancel").onclick = function () { $("pasteDlg").style.display = "none"; };
 $("pOk").onclick = function () { var ls = $("pText").value.split(/\r?\n/), o = []; for (var i = 0; i < ls.length; i++) if (LT.trim(ls[i])) o.push(LT.trim(ls[i])); if (!o.length) return; cfg.src = { kind: "paste", lines: o }; save(); show(); $("pasteDlg").style.display = "none"; };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{background:{panel}}", "#qty{border-bottom:1px solid {line}}",
+function look() { LT.applyLook(LT.GRP_CSS.concat([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{background:{panel}}", "#qty{border-bottom:1px solid {line}}",
   "#saved .sv{display:inline-block;margin:0 8px 6px 0;padding:5px 8px 5px 14px;border-radius:99px;cursor:pointer;font-weight:600;background:{panel};border:1px solid {line};vertical-align:middle}#saved .sv:hover{border-color:{accent}}#saved .sv.on{background:{pill};color:{pillText};border-color:{pill}}#saved .sv small{font-weight:400;opacity:.75;margin-left:6px}#saved .sv i{font-style:normal;margin-left:8px;opacity:.45;font-size:.85em;padding:0 4px}#saved .sv i:hover{opacity:1;color:{bad}}",
-  ".cd{background:{panel};border:{bw}px solid {line};border-radius:{r}px}.cd:hover{border-color:{accent}}.cd.on{box-shadow:inset 0 -3px 0 {accent};border-color:{accent}}.cd.c-ok b{color:{ok}}.cd.c-bad b{color:{bad}}.cd.c-warn b{color:{warn}}.cd.c-zero b{color:{muted}}"]); }
+  ".cd{background:{panel};border:{bw}px solid {line};border-radius:{r}px}.cd:hover{border-color:{accent}}.cd.on{box-shadow:inset 0 -3px 0 {accent};border-color:{accent}}.cd.c-ok b{color:{ok}}.cd.c-bad b{color:{bad}}.cd.c-warn b{color:{warn}}.cd.c-zero b{color:{muted}}"])); }
 window.ltTheme = function () { look(); render(); };
 window.ltReload = function () { load(); show(); };
 /* from Folder Check: a folder picked in another view = Folder 2 (when none yet) */
 window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value) && !cfg.f2) { cfg.f2 = value; save(); show(); } };
-look(); load(); show(); savedRow(); render(); LT.tabKeys();
+look(); load(); if (cfg.gBy) $("gBy").value = cfg.gBy; show(); savedRow(); render(); LT.tabKeys();
 </script>
 </body>
 </html>

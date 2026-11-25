@@ -755,8 +755,11 @@ var LT = (function () {
     return o; };
 
   /* ---------- version + "What's new" (shown once after an update; newest first) ---------- */
-  L.VERSION = "2026.11.59";
+  L.VERSION = "2026.11.60";
   L.WHATS_NEW = [
+    { v: "2026.11.60", items: [
+      "Folder Check > Contents and Checklist: Group: Tower \u203a Typology \u203a Model (or Tower, Typology, Model...) - one line per group with how many are finished / missing and a bar; click a group (or Open all) to see its drawings. The grouping is kept",
+      "Folder Check > Contents and Checklist: a \ud83d\udcc1 My set \u25be button - use one of your My sets as the checklist straight away"] },
     { v: "2026.11.59", items: [
       "Folder Check > Groups: Copy into folders - makes Tower / Typology / Model folders (as you group them) and copies or moves the drawings into them. Rename any folder first (kept for next time), the latest revision only if you like, drawings not in the MIDP into Others. Never overwrites; Undo",
       "Bulk Files: a link \"Sort into Tower / Typology / Model folders\" opens it with the same folder"] },
@@ -921,6 +924,42 @@ var LT = (function () {
      L.dwgInfo(name) -> { tower, typo, model, short, link, title } or null (name can carry a revision / file type).
      L.dwgHead() + L.dwgCells(name) = three compact columns (Twr · Typo · Model); the model opens with a click when it has a link. */
   var DWG = null;
+  /* ---------- a list shown in groups (Tower > Typology > Model): a row per group with what's done / missing, arrows open a group in place ----------
+     L.grpRender(box, items, { by: "tower,typo,model", info: fn(item) -> { tower, typo, model, none }, st: fn(item) -> "ok" | "warn" | "bad",
+       row: fn(item, i) -> "<tr...>...</tr>", head: "<tr><th>...</tr>", cols: n, open: {} (kept by the page), empty: "html" }) */
+  var GRP_LV = { tower: "Tower", typo: "Typology", model: "Model" };
+  L.grpRender = function (box, items, o) {
+    var lv = (o.by || "tower,typo,model").split(","), root = { kids: {}, order: [], items: [] }, OPEN = o.open || (o.open = {});
+    var nat = function (a, b) { var ea = a.charAt(0) == "\u0001", eb = b.charAt(0) == "\u0001"; if (ea != eb) return ea ? 1 : -1; var x = a.replace(/\d+/g, function (n) { return ("0000000000" + n).slice(-10); }), y = b.replace(/\d+/g, function (n) { return ("0000000000" + n).slice(-10); }); return x < y ? -1 : x > y ? 1 : 0; };
+    for (var i = 0; i < items.length; i++) { var f = o.info(items[i]) || {}, node = root;
+      if (f.none) { var nk = "\u0002"; if (!root.kids[nk]) root.kids[nk] = { label: o.noneLabel || "Not in the MIDP", kind: "", kids: {}, order: [], items: [], miss: 1 }; root.kids[nk].items.push(i); continue; }
+      for (var l = 0; l < lv.length; l++) { var v = L.trim(f[lv[l]] || ""), k = v || "\u0001" + lv[l]; if (!node.kids[k]) { node.kids[k] = { label: v || "(no " + GRP_LV[lv[l]].toLowerCase() + ")", kind: GRP_LV[lv[l]], kids: {}, order: [], items: [] }; node.order.push(k); } node = node.kids[k]; }
+      node.items.push(i); }
+    var srt = function (n) { n.order.sort(nat); for (var j = 0; j < n.order.length; j++) srt(n.kids[n.order[j]]); }; srt(root); if (root.kids["\u0002"]) root.order.push("\u0002");
+    var cnt = function (n) { var c = { n: 0, ok: 0, warn: 0, bad: 0 }, add = function (m) { for (var a = 0; a < m.items.length; a++) { c.n++; c[o.st(items[m.items[a]])]++; } for (var b = 0; b < m.order.length; b++) add(m.kids[m.order[b]]); }; add(n); return c; };
+    var h = [o.head], gid = 0, ON = {}, allOpen = function (ids) { for (var a = 0; a < ids.length; a++) if (!ON[ids[a]]) return false; return true; };
+    var walk = function (node, depth, ids, lp) {
+      for (var q = 0; q < node.order.length; q++) { var k = node.order[q], g = node.kids[k], id = "gg" + (++gid), key = o.by + ":" + lp.concat([k]).join("/"), c = cnt(g); ON[id] = !!OPEN[key];
+        var pc = c.n ? Math.round(c.ok / c.n * 100) : 0;
+        h.push('<tr class="grow lv' + depth + (g.miss ? " gmiss" : "") + (c.bad ? " gbad" : c.warn ? " gwarn" : " gok") + '" data-gg="' + id + '" data-gk="' + L.esc(key) + '"' + (ids.length ? ' data-ga="' + ids.join(" ") + '"' : "") + (allOpen(ids) ? "" : ' style="display:none"') + '><td colspan="' + o.cols + '" style="padding-left:' + (8 + depth * 22) + 'px"><span class="gar">' + (ON[id] ? "&#9660;" : "&#9654;") + "</span> " +
+          (g.kind ? '<span class="gkd">' + g.kind + "</span> " : "") + "<b>" + L.esc(g.label) + '</b> <span class="gct">' + c.n + " drawing" + (c.n == 1 ? "" : "s") + "</span> " +
+          '<span class="gbar2"><i style="width:' + pc + '%"></i></span> <span class="gok2">&#10004; ' + c.ok + "</span>" + (c.warn ? ' <span class="gw2">&#9888; ' + c.warn + "</span>" : "") + (c.bad ? ' <span class="gb2">&#10006; ' + c.bad + "</span>" : "") + "</td></tr>");
+        var path = ids.concat([id]); walk(g, depth + 1, path, lp.concat([k]));
+        for (var r = 0; r < g.items.length; r++) { var rh = o.row(items[g.items[r]], g.items[r]); if (!rh) continue; h.push(rh.replace(/^<tr/, '<tr data-ga="' + path.join(" ") + '"' + (allOpen(path) ? "" : ' style="display:none"'))); } } };
+    walk(root, 0, [], []);
+    box.innerHTML = items.length ? h.join("") + "</table>" : (o.empty || "");
+    if (!box.__grp) { box.__grp = 1; var tog = function (e) { e = e || window.event; var t = e.target || e.srcElement; while (t && t !== box && !(t.getAttribute && t.getAttribute("data-gg"))) t = t.parentNode; if (!t || t === box) return;
+        var st = box.__grpO || {}, k2 = t.getAttribute("data-gk"); st[k2] = !st[k2]; L.grpShow(box); };
+      if (box.addEventListener) box.addEventListener("click", tog, false); else box.attachEvent("onclick", tog); }
+    box.__grpO = OPEN;
+  };
+  /* rows show when every group above them is open */
+  L.grpShow = function (box) { var O = box.__grpO || {}, rows = box.getElementsByTagName("tr"), on = {}, i;
+    for (i = 0; i < rows.length; i++) { var g = rows[i].getAttribute("data-gg"); if (g) { on[g] = !!O[rows[i].getAttribute("data-gk")]; var a = rows[i].getElementsByTagName("span")[0]; if (a && a.className == "gar") a.innerHTML = on[g] ? "&#9660;" : "&#9654;"; } }
+    for (i = 0; i < rows.length; i++) { var ga = rows[i].getAttribute("data-ga"), vis = true; if (ga) { var ids = ga.split(" "); for (var k = 0; k < ids.length; k++) if (!on[ids[k]]) { vis = false; break; } } rows[i].style.display = vis ? "" : "none"; } };
+  L.grpAll = function (box, open) { var O = box.__grpO || (box.__grpO = {}), rows = box.getElementsByTagName("tr"); for (var i = 0; i < rows.length; i++) { var k = rows[i].getAttribute("data-gk"); if (k) O[k] = !!open; } L.grpShow(box); };
+  L.GRP_CSS = ["tr.grow td{cursor:pointer;background:{panel}}tr.grow.lv0 td{background:{accSoft}}tr.grow:hover td{color:{accent}}tr.grow.gmiss td{background:{warnSoft}}.gar{display:inline-block;width:16px;color:{accent};font-size:11px}.gkd{font-size:11px;color:{muted}}.gct{font-size:12px;color:{muted};margin:0 6px}",
+    ".gbar2{display:inline-block;width:90px;height:7px;border-radius:4px;background:{chip};vertical-align:middle;overflow:hidden;margin-right:6px}.gbar2 i{display:block;height:100%;background:{ok}}.gok2{color:{ok};font-weight:bold;font-size:12px}.gw2{color:{warn};font-weight:bold;font-size:12px}.gb2{color:{bad};font-weight:bold;font-size:12px}"];
   L.dwgInfo = function (name) {
     var now = L.now(); if (!DWG || now - DWG.at > 4000) { var R = null; try { R = L.register(); } catch (e) { } DWG = { R: R, at: now, c: {} }; }
     if (!DWG.R || !name) return null; var k = ("" + name).toUpperCase(); if (DWG.c.hasOwnProperty(k)) return DWG.c[k];

@@ -41,7 +41,7 @@
     <button class="btn small" id="bRescan">&#8635; Read again</button>
   </div>
   <div class="step">
-    <span class="num">2</span><button class="btn" id="bRef">&#128203; Checklist &#9662;</button><span class="path big" id="refLbl"></span>
+    <span class="num">2</span><button class="btn" id="bRef">&#128203; Checklist &#9662;</button><button class="btn" id="bSetQ" title="Use one of My sets (Drawing Register) as the checklist">&#128193; My set &#9662;</button><span class="path big" id="refLbl"></span>
     <span id="needBox" style="display:none"><span class="lbl">Each drawing needs:</span><input type="text" id="need" placeholder="any file (or e.g. pdf, dwg)" title="File types every drawing must have to count as finished, e.g.  pdf, dwg   (empty = any file is enough)" style="width:190px;margin:0 8px 6px 0"></span>
     <div id="cols" style="margin-left:32px;display:none">
       <span id="sheetBox"><span class="lbl">Sheet:</span><select id="cSheet"></select></span>
@@ -58,6 +58,7 @@
     <span id="fBox"><span class="lbl">Tower:</span><select id="fTower" style="width:110px;height:26px;margin:0 8px 6px 0"></select><span class="lbl">Typology:</span><select id="fTypo" style="width:110px;height:26px;margin:0 8px 6px 0"></select></span>
     <span class="lbl">File type:</span><select id="fType" style="width:90px;height:26px;margin:0 8px 6px 0"></select>
     <input type="text" id="search" placeholder="Search" style="width:150px;margin:0 8px 6px 0">
+    <span class="lbl">Group:</span><select id="gBy" style="width:200px;height:26px;margin:0 6px 6px 0" title="See the drawings per Tower / Typology / Model - how many are finished and missing in each"><option value="">No groups</option><option value="tower,typo,model">Tower &rsaquo; Typology &rsaquo; Model</option><option value="tower,typo">Tower &rsaquo; Typology</option><option value="typo,model">Typology &rsaquo; Model</option><option value="model">Model</option><option value="tower">Tower</option></select><span id="gBtns" style="display:none"><button class="btn small" id="gOpen">&#9662; Open all</button><button class="btn small" id="gShut">&#9656; Close all</button></span>
     <span class="right"><button class="btn" id="bExport">Export &#9662;</button></span>
   </div>
   <div id="sum"><div id="prog"><div id="progTxt" class="big"></div><div id="bar"></div><div id="chips"></div></div><div id="sumTxt" class="muted">Pick a folder to see what's inside.</div><div id="types"></div></div>
@@ -260,6 +261,7 @@ function pass(r) {
 }
 function badge(t) { var a = typeList(t), h = ""; for (var i = 0; i < a.length; i++) h += '<span class="ty">' + esc(a[i]) + (t[a[i]] > 1 ? " &times;" + t[a[i]] : "") + "</span>"; return h; }
 function render() {
+  $("gBtns").style.display = grpOn() ? "" : "none";
   if (!result) { $("res").innerHTML = ""; return; }
   var mode = $("show").value; shown = [];
   if (mode == "groups") { groups(); return; }
@@ -267,6 +269,13 @@ function render() {
   if (mode == "other") { var o = ['<table class="grid"><tr><th>File</th><th>Folder</th><th>Type</th></tr>'];
     for (var k = 0; k < result.other.length; k++) { var f = result.other[k]; if ($("fType").value && f.ext != $("fType").value) continue; shown.push({ files: [f] }); o.push('<tr data-s="' + (shown.length - 1) + '"><td>' + esc(f.name) + '</td><td class="muted">' + esc(f.folder || "(top)") + "</td><td>" + esc(f.ext) + "</td></tr>"); }
     $("res").innerHTML = shown.length ? o.join("") + "</table>" : '<div class="muted" style="padding:24px">No other files.</div>'; return; }
+  if (grpOn()) { var rs = []; for (var gi = 0; gi < result.rows.length; gi++) { var gr = result.rows[gi]; if (!pass(gr)) continue; if (mode == "noref" && (!refMap || (result.items ? gr.inList : gr.ref))) continue; if (mode == "multi" && gr.revs.length < 2) continue; rs.push(gr); }
+    var inf = function (r) { var f = r.ref || LT.dwgInfo(r.base) || {}; return { tower: f.tower || "", typo: f.typo || "", model: f.model || "", none: !r.ref && !LT.dwgInfo(r.base) }; };
+    LT.grpRender($("res"), rs, { by: grpOn(), cols: 6, open: GOPEN, head: '<table class="grid nofit"><tr><th>Drawing</th><th>Revision</th><th>File types</th><th>Description</th><th>Folder</th><th>Note</th></tr>', info: inf,
+      st: function (r) { return refMap && !(result.items ? r.inList : r.ref) ? "warn" : r.revs.length > 1 ? "warn" : "ok"; },
+      row: function (r) { shown.push(r); var note = []; if (refMap && !(result.items ? r.inList : r.ref)) note.push('<span class="bad">not on the checklist</span>'); if (r.revs.length > 1) note.push('<span class="warn">' + r.revs.length + " revisions here</span>");
+        return '<tr data-s="' + (shown.length - 1) + '"><td style="padding-left:40px"><b>' + esc(r.base) + "</b></td><td>" + esc(r.revs.join(", ")) + "</td><td>" + badge(r.types) + "</td><td>" + esc(r.ref ? r.ref.title : (LT.dwgInfo(r.base) || {}).title || "") + '</td><td class="muted">' + esc(r.folders.join(", ") || "(top)") + "</td><td>" + note.join(" &middot; ") + "</td></tr>"; },
+      empty: '<div class="muted" style="padding:24px">Nothing to show here.</div>' }); return; }
   var ref = !!refMap || regUsed > 0, h = ['<table class="grid"><tr><th>Drawing</th><th>Revision</th><th>File types</th>' + (ref ? "<th>Description</th><th>Tower &middot; Typology &middot; Model</th>" : LT.dwgHead()) + "<th>Folder</th><th>Note</th></tr>"];
   for (var i = 0; i < result.rows.length; i++) { var r = result.rows[i];
     if (!pass(r)) continue; if (mode == "noref" && (!refMap || (result.items ? r.inList : r.ref))) continue; if (mode == "multi" && r.revs.length < 2) continue;
@@ -287,7 +296,17 @@ function passItem(x) {
   return true;
 }
 function stHtml(x) { return x.st == "done" ? '<span class="st sd">&#10004; Finished</span>' : x.st == "lacking" ? '<span class="st sl">&#9680; Lacking ' + esc(x.lack.join(", ")) + "</span>" : '<span class="st sm">&#10006; Missing</span>'; }
+var GOPEN = {};
+function grpOn() { return $("gBy").value; }
 function checklistView(mode) {
+  if (grpOn()) { var xs = []; for (var gi = 0; gi < result.items.length; gi++) { var gx = result.items[gi]; if (mode == "left" && gx.st == "done") continue; if (mode == "done" && gx.st != "done") continue; if (!passItem(gx)) continue; xs.push(gx); }
+    LT.grpRender($("res"), xs, { by: grpOn(), cols: 7, open: GOPEN, noneLabel: "No Tower / Typology / Model",
+      head: '<table class="grid nofit"><tr><th>Drawing</th><th>Status</th><th>Description</th><th>Tower &middot; Typology &middot; Model</th><th>Revision</th><th>File types</th><th>Folder</th></tr>',
+      info: function (x) { var m = x.it.model || (LT.dwgInfo(x.it.number) || {}).model || ""; return { tower: x.it.tower, typo: x.it.typo, model: m, none: !x.it.tower && !x.it.typo && !m }; },
+      st: function (x) { return x.st == "done" ? "ok" : x.st == "lacking" ? "warn" : "bad"; },
+      row: function (x) { shown.push(x.row || { files: [] }); var r = x.row;
+        return '<tr data-s="' + (shown.length - 1) + '"><td style="padding-left:40px"><b>' + esc(x.it.number) + "</b></td><td>" + stHtml(x) + "</td><td>" + esc(x.it.title) + "</td>" + ttm({ tower: x.it.tower, typo: x.it.typo, model: x.it.model || (LT.dwgInfo(x.it.number) || {}).model || "" }) + "<td>" + (r ? esc(r.revs.join(", ")) : "") + "</td><td>" + (r ? badge(r.types) : "") + '</td><td class="muted">' + (r ? esc(r.folders.join(", ") || "(top)") : "") + "</td></tr>"; },
+      empty: '<div class="muted" style="padding:24px">Nothing to show here.</div>' }); return; }
   var it = result.items, h = ['<table class="grid"><tr><th>Drawing</th><th>Status</th><th>Description</th><th>Tower &middot; Typology &middot; Model</th><th>Revision</th><th>File types</th><th>Folder</th></tr>'];
   for (var i = 0; i < it.length; i++) { var x = it[i];
     if (mode == "left" && x.st == "done") continue; if (mode == "done" && x.st != "done") continue; if (!passItem(x)) continue;
@@ -360,6 +379,11 @@ $("bRef").onclick = function (e) { var r = this.getBoundingClientRect(), c = che
   { label: "None &ndash; drawings and file types only", fn: function () { useRef("none"); } }]); (e || window.event).cancelBubble = true; };
 $("aCheck").onclick = function () { useRef("check"); }; $("aReg").onclick = function () { useRef("register"); }; $("aNone").onclick = function () { useRef("none"); };
 function openPaste() { $("ask").style.display = "none"; $("pText").value = cfg.refKind == "paste" ? cfg.pasted : ""; $("pasteDlg").style.display = "block"; try { $("pText").focus(); } catch (x) { } }
+$("gBy").onchange = function () { cfg.gBy = this.value; save(); render(); };
+$("gOpen").onclick = function () { LT.grpAll($("res"), true); }; $("gShut").onclick = function () { LT.grpAll($("res"), false); };
+$("bSetQ").onclick = function (e) { var R = reg(), ss = R ? R.sets() : [], m = [], r = this.getBoundingClientRect(); if (!ss.length) m.push({ label: '<span class="muted">No sets yet &ndash; make one in Drawing Register &gt; My sets</span>', fn: function () { } });
+  for (var i = 0; i < ss.length; i++) (function (S) { m.push({ label: esc(S.name) + ' <span class="muted">' + S.keys.length + " drawings</span>", on: cfg.refKind == "set" && cfg.ref == S.id, fn: function () { useRef("set", S.id); } }); })(ss[i]);
+  LT.menu(r.left, r.bottom + 2, m); (e || window.event).cancelBubble = true; };
 $("aSet").onclick = function (e) { var R = reg(), ss = R ? R.sets() : [], m = [], r = this.getBoundingClientRect(); if (!ss.length) m.push({ label: '<span class="muted">No sets yet &ndash; make one in Drawing Register &gt; My sets</span>', fn: function () { } });
   for (var i = 0; i < ss.length; i++) (function (S) { m.push({ label: esc(S.name) + ' <span class="muted">' + S.keys.length + "</span>", fn: function () { useRef("set", S.id); } }); })(ss[i]);
   LT.menu(r.left, r.bottom + 2, m); (e || window.event).cancelBubble = true; };
@@ -376,13 +400,13 @@ $("show").onchange = function () { cfg.show = this.value; save(); if (result) su
 $("types").onclick = function (e) { var t = LT.up(e.target || e.srcElement, "data-t"); if (t) { $("fType").value = t.getAttribute("data-t"); render(); } };
 $("bExport").onclick = function (e) { var r = this.getBoundingClientRect(); exportMenu(r.left - 150, r.bottom + 2); (e || window.event).cancelBubble = true; };
 $("res").ondblclick = function (e) { var tr = LT.up(e.target || e.srcElement, "data-s"); if (tr) { var r = shown[+tr.getAttribute("data-s")]; try { LT.showInFolder(r.files[0].full); } catch (x) { } } };
-function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".ty{background:{chip};color:{text};border-radius:{r}px}", "#types span:hover{color:{accent}}",
+function look() { LT.applyLook(LT.GRP_CSS.concat([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#sum{border-bottom:1px solid {line}}", "#res{background:{panel}}", ".ty{background:{chip};color:{text};border-radius:{r}px}", "#types span:hover{color:{accent}}",
   "#bar{background:{chip};border-radius:6px}#bar .bd{background:{ok}}#bar .bl{background:{warn}}#bar .bm{background:{badSoft}}",
   "#chips .cbtn{background:{chip};color:{text};border:{bw}px solid transparent;border-radius:{rc}px}#chips .cbtn:hover{border-color:{line}}#chips .cbtn.on{border-color:{accent};background:{hover}}",
-  ".st{border-radius:{rc}px}.st.sd{background:{okSoft};color:{ok}}.st.sl{background:{warnSoft};color:{warn}}.st.sm{background:{badSoft};color:{bad}}"]); }
+  ".st{border-radius:{rc}px}.st.sd{background:{okSoft};color:{ok}}.st.sl{background:{warnSoft};color:{warn}}.st.sm{background:{badSoft};color:{bad}}"])); }
 window.ltTheme = look; window.ltReload = function () { load(); paths(); };
 window.ltReceive = function (what, value) { if (what == "open-folder" && fso.FolderExists(value)) { cfg.folder = value; save(); paths(); if (!cfg.refKind) askRef(); else run(); } };
-look(); load(); paths(); LT.tabKeys();
+look(); load(); if (cfg.gBy) $("gBy").value = cfg.gBy; paths(); LT.tabKeys();
 </script>
 </body>
 </html>

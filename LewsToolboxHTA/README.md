@@ -499,6 +499,14 @@ For drawings someone sends you **to check**: the folder's own contents become yo
 - Remembered: stop any time, carry on later – **Recent ▾** lists every review with its progress. A folder picked in another Folder Check view is *offered* (**Review this folder**), not started by itself
 - **Report ▾**: copy as text for email / Teams (Not OK, Comments, Still to check) · **HTML report** (saved in the reviewed folder as `_Review <date>.html`, with links to the drawings) · Excel (CSV) · mark everything shown as Checked · start again
 
+### Contents and Checklist: per group, and My sets
+
+- **📁 My set ▾** (step 2 in Contents, step 1 in Checklist) – one of your **My sets** is the checklist, straight away (it follows the set)
+- **Group:** *Tower › Typology › Model* (or Tower › Typology, Typology › Model, Model, Tower) – the result in groups: one line per group with **how many drawings**, a bar, **✔ finished / ⚠ lacking / ✖ missing**
+  - Click a group's **▶** to open it (its typologies, models, then the drawings with their status); **Open all / Close all**
+  - Works with every Show option – e.g. **Checklist: remaining** grouped = what's still missing per tower / typology
+  - In Checklist, the cards still filter (e.g. ✖ Missing, grouped). The grouping is kept for next time
+
 ### Groups
 
 - **What a folder holds, grouped** by the drawing details from the MIDP: **Tower › Typology › Model** (or Tower › Model, Typology › Model, Model, Tower)

@@ -562,16 +562,78 @@ def build_name(rule, vals, sheet_param, project_param):
     return clean(re.sub(r'\{([^}]+)\}', rep, rule)), missing
 
 
+def drawing_code(listed):
+    """The list's code without any revision: its first 7 parts (5013-KEO-T1-ZZ-PLN-INT-10100)."""
+    p = lod_parts(listed)
+    return u'-'.join(p[:7]) if len(p) >= 7 else (listed or u'').strip()
+
+
 def make_name(doc, sheet, rule, row, model):
+    rev = sheet_revision(sheet)
+    listed = row.get('drawingnumber') or u''
+    code = drawing_code(listed) if listed else sheet.SheetNumber
+    # {DrawingNumber} = the list's code + the revision Revit shows on the sheet NOW (never the list's revision),
+    # so the file name always matches the title block. If the rule adds a revision itself, the code alone.
+    rule_has_rev = bool(re.search(r'\{\s*(list\s*)?revision\s*\}', rule or u'', re.I))
+    if listed and len(lod_parts(listed)) >= 7 and not rule_has_rev:
+        dn = code + (u'-' + rev if rev else u'')
+    elif listed and len(lod_parts(listed)) >= 7:
+        dn = code
+    else:
+        dn = listed or sheet.SheetNumber
     vals = {
         'sheetnumber': sheet.SheetNumber, 'sheetname': sheet.Name,
-        'revision': sheet_revision(sheet), 'model': model,
+        'revision': rev, 'model': model,
         'date': datetime.date.today().strftime('%Y%m%d'),
-        'drawingnumber': row.get('drawingnumber') or sheet.SheetNumber,
+        'drawingnumber': dn, 'drawingcode': code,
         'listrevision': list_revision(row),
     }
     return build_name(rule, vals, lambda n: _param(sheet, n),
                       lambda n: _param(doc.ProjectInformation, n))
+
+
+def _sheet_texts(sheet):
+    """(name, value) of the sheet's text parameters (e.g. a 'Drawing Number' shown in the title block)."""
+    out = []
+    try:
+        for p in sheet.Parameters:
+            try:
+                if p.StorageType == DB.StorageType.String and p.HasValue:
+                    v = p.AsString()
+                    if v:
+                        out.append((text(p.Definition.Name), text(v).strip()))
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return out
+
+
+def name_guard(sheet, name, rev, texts=None):
+    """Last check before a file is written: does the file name match what the sheet shows?
+    Returns None (fine) or the reason to BLOCK it. Only names shaped like a drawing code are checked:
+    ...-<sheet number>-<revision>."""
+    parts = [x.strip() for x in (name or u'').split(u'-')]
+    num = (sheet.SheetNumber or u'').strip().lower()
+    idx = [i for i, x in enumerate(parts) if x.lower() == num]
+    if not idx:
+        return None
+    i = idx[-1]
+    tail = parts[i + 1:]
+    if len(tail) > 1:
+        return None                                          # not a code + revision shape: leave it
+    if tail:
+        if not rev:
+            return u'the file name has revision %s, but the sheet has NO revision in Revit' % tail[0]
+        if tail[0].lower() != rev.strip().lower():
+            return u'the file name has revision %s, but the sheet shows %s' % (tail[0], rev)
+    base = u'-'.join(parts[:i + 1]).lower()
+    for pname, v in (texts if texts is not None else _sheet_texts(sheet)):
+        # a text on the sheet that holds the full drawing number (code + revision) must say the same as the file
+        vp = [x.strip() for x in v.split(u'-')]
+        if tail and len(vp) == i + 2 and u'-'.join(vp[:i + 1]).lower() == base and v.lower() != name.lower():
+            return u'the sheet\'s "%s" shows %s, the file would be %s' % (pname, v, name)
+    return None
 
 
 # ------------------------------------------------------ saved sheet lists --
@@ -980,7 +1042,7 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
     mdir = model_folder(out_root, model, settings)
     pdf_dir = os.path.join(mdir, 'PDF')
     raw_dir = os.path.join(mdir, '_DWG_raw')
-    counts = {'ok': 0, 'failed': 0, 'would': 0}
+    counts = {'ok': 0, 'failed': 0, 'would': 0, 'blocked': 0}
     if not jobs:
         return set(), counts, notes, raw_dir
 
@@ -1013,8 +1075,23 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
             name, missing = make_name(doc, sheet, settings.get('naming_rule') or u'{DrawingNumber}', row, model)
         if missing:
             note.append(u'Unknown token(s): ' + u', '.join(missing))
+        if not rev and lrev:
+            note.append(u'named WITHOUT a revision (the sheet has none in Revit)')
         if not name:
             name = clean(sheet.SheetNumber)
+        guard = name_guard(sheet, name, rev)                 # live check: file name vs what the sheet shows
+        if guard:
+            counts['blocked'] = counts.get('blocked', 0) + 1
+            counts['failed'] += 1
+            notes.append(u'BLOCKED %s: %s - not exported' % (sheet.SheetNumber, guard))
+            log.append([now(), mode, model, listed, sheet.Name, rev, u'', name, u'BLOCKED', u'',
+                        u'; '.join(note + [guard])])
+            if progress:
+                try:
+                    progress(job_i + 1, len(jobs), u'PDF', sheet.SheetNumber, u'FAILED')
+                except Exception:
+                    pass
+            continue
 
         fmts = settings.get('_formats') or {}
         formats = []

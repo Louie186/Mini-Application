@@ -26,6 +26,7 @@ No install, no build step.
 | 📋 Delegate | Tasks to people: Excel sheet / HTML task pack out, replies back, Team view |
 | 📘 Drawing Register | Load each new MIDP: new / removed / retitled drawings, and every drawing's Tower / Typology / Model |
 | ✅ Submission Check | Folder vs your list: missing, wrong revision, missing type, extra files |
+| 📥 Pull from Revit | Missing drawings → a request for the BIMExport **Issue Sheets** button in Revit (exact MIDP name + Revit's revision, wrong revision = blocked); shows what Revit printed |
 | 🔎 Find Drawings | Where is this drawing? Every file of it in one or more folders: revision, type, location |
 | 🔍 Folder Contents | Pick a folder: every drawing once, its revisions, file types, and Tower / Typology / Model from your list |
 | 🏷 Naming Checker | Every file name vs your naming rule (ISO 19650 style), part by part |

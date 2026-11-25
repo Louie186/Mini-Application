@@ -234,6 +234,10 @@
   - **Title block type change**: Title blocks tab → "Change to" (every title block type loaded in the model, with sheet size from SHEET_WIDTH/HEIGHT). "Change this drawing" or "Change all ticked" (same family/type name matched per model; sheets with 2+ title blocks skipped). Queued as `tb_types` → `FamilyInstance.ChangeTypeId` in the Apply transaction; "Keep Yes/No switches" copies same-named Yes/No instance params. Size-change warning (views are not moved). Snapshot/verify/Revert cover it
   - **AutoCAD closes the last file**: `i2o:close-batch-docs` + `i2o:close-self-if-batch` at the end of `i2o:finish` (QSAVE, then QUIT if `i2o:*quit-after*`, else CLOSE). Batch copies listed in `IMG2OLE_open.txt`
   - **All logs in `<out>\_Logs\`** (`core.logs_dir`): SheetExport_log.csv, IMG2OLE_* (files/images CSV, jobs, start scripts, queue/pos/done/lock, runner log, open list) and the shared-export `_queue\`. `img2ole_summary` still reads old-location files. Drawings and IssueRegister.csv stay in the export folder
+- v7.4 (user found a PDF named `-T1` while the sheet showed T2: Export Sheets used the LOD's revision):
+  - `make_name`: `{DrawingNumber}` = LOD code first 7 parts + `SHEET_CURRENT_REVISION` (code alone if the rule has its own `{Revision}`/`{ListRevision}`); new `{DrawingCode}`
+  - `name_guard(sheet, name, rev)` in `export_model` for EVERY file (rule or Issue fixed name): name shaped `…-<sheet no>-<rev>` must have the live sheet revision, and any sheet text parameter shaped `<same code>-<rev>` must equal the name. Fail = `BLOCKED` log row + model note, counted as failed, nothing written
+  - **Toolbox requests**: `LewsToolboxHTA/tabs/revitpull.html` writes `%APPDATA%\BIMExport\Requests\Toolbox_*.csv` (DrawingNumber, ExpectedRev, Title, Model, OutputFolder, Formats, RequestedOn). Issue Sheets `load_request` offers the newest, ticks models by name, sets folder/formats; `_load_midp` merges request codes (7+ parts) into the MIDP; `_tick_request` ticks drawings after Check; `issue.request_check` blocks rev mismatches; `request_result` writes `Requests\Done\<name>.result.csv` (PRINTED / FAILED / BLOCKED / NOT TICKED / NOT FOUND) and moves the request to Done. Tab test: `LewsToolboxHTA/tests/t13-revitpull.js`
 - To verify tomorrow: GetDocumentVersion on a detached quick open; DataGrid single-click checkboxes; Apply/sync on a test model; per-sheet numbering display; Revision.Create + SetAdditionalRevisionIds
 
 ## 8. Version history (short)
@@ -249,3 +253,4 @@
 | v6–6.2 | Threaded animated progress window + logo tracking, IMG2OLE bundled, AutoCAD setup check (+ fallback), quick open for drawing lists, optional skip of link worksets |
 | v7.0 | **Issue Sheets** button (sets, change check, revisions, title block Yes/No, Apply/Revert, exact MIDP names, issue register); log header bug fixed |
 | v7.1–7.3 | Safer Apply, logo pipeline, optional MIDP, full PDF/CAD tabs in Issue Sheets, per-sheet numbering, title block type change, AutoCAD auto-close, logs in `_Logs` |
+| v7.4 | File name revision always from Revit + last-moment name guard (BLOCKED on mismatch); Toolbox "Pull from Revit" requests |

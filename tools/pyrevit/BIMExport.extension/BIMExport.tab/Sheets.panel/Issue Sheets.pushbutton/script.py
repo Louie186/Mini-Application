@@ -84,7 +84,8 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self.action = None
         self._busy = False
         self._headers = {}
-        self.midp = issue.midp_index(core.read_lod(state['midp'])) if state.get('midp') and os.path.exists(state['midp']) else {}
+        self._load_midp()
+        self._tick_request()
         self._fill_settings()
         self._fill_sets()
         self._fill_models()
@@ -92,7 +93,10 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self._fill_rev_models()
         self._fill_tb_sheets()
         self._refresh_changes()
-        self.header_info.Text = u'Revit %s\nIssue register: %d print(s) recorded' % (app.VersionNumber, len(register_rows))
+        req = state.get('request')
+        self.header_info.Text = u'Revit %s\nIssue register: %d print(s) recorded%s' % (
+            app.VersionNumber, len(register_rows),
+            (u'\nToolbox request "%s": %d drawing(s)' % (req['name'], len(req['rows']))) if req else u'')
         try:
             if settings.get('issue_col_left'):
                 self.col_left.Width = GridLength(float(settings['issue_col_left']))
@@ -100,6 +104,31 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
                 self.col_right.Width = GridLength(float(settings['issue_col_right']))
         except Exception:
             pass
+
+    def _load_midp(self):
+        """MIDP file + the codes of a Toolbox request (so a request works even without a MIDP file)."""
+        rows = []
+        m = self.state.get('midp')
+        if m and os.path.exists(m):
+            rows = core.read_lod(m)
+        if self.state.get('request'):
+            rows = rows + issue.request_midp_rows(self.state['request'])
+        self.midp = issue.midp_index(rows) if rows else {}
+
+    def _tick_request(self):
+        """Tick the requested drawings in each model once it has been checked."""
+        req = self.state.get('request')
+        if not req:
+            return
+        done = self.state.setdefault('request_ticked', set())
+        want = set(r['seq'].lower() for r in req['rows'])
+        for g in self.state['loaded']:
+            if g in done:
+                continue
+            done.add(g)
+            for s in (self.cache.get(g) or {}).get('sheets', []):
+                if s['number'].strip().lower() in want:
+                    self.state['ticked'].add((g, s['number'].strip().lower()))
 
     # ================================================================ settings
     def _fill_settings(self):
@@ -156,7 +185,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         if f:
             self.state['midp'] = f
             self.midp_tb.Text = f
-            self.midp = issue.midp_index(core.read_lod(f))
+            self._load_midp()
             self._names_info()
             self._build_sheets()
 
@@ -183,8 +212,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         if st.get('midp'):
             self.state['midp'] = st['midp']
             self.midp_tb.Text = st['midp']
-            if os.path.exists(st['midp']):
-                self.midp = issue.midp_index(core.read_lod(st['midp']))
+            self._load_midp()
             self._names_info()
         self.state['loaded'] = [g for g in self.state['checked_models'] if not needs_check(self.cache.get(g))]
         self._fill_models()
@@ -267,6 +295,11 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
                     name, status, note = core.clean(num), u'OK', u'named by sheet number (no MIDP)'
                     if name != num.strip():
                         name, status, note = None, u'BLOCKED', u'sheet number has characters not allowed in a file name'
+                rq = issue.request_check(num, rev, self.state['request']) if self.state.get('request') else None
+                if rq and status == u'OK' and not rq[0]:
+                    status, note = u'BLOCKED', rq[1]          # revision is not the one the Toolbox asked for
+                elif rq and status == u'OK':
+                    note = (note + u'; ' if note else u'') + rq[1]
                 last = self.by_sheet.get((model.lower(), num.lower()))
                 out.append({'guid': g, 'num': num, 'model': model, 'name': s['name'],
                             'midp_title': issue.midp_title(num, self.midp), 'file': name or u'',
@@ -922,6 +955,8 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
                                (u'\n%d BLOCKED drawing(s) are skipped.' % (len(rows) - len(ok))) if len(rows) != len(ok) else u'',
                                u'\n'.join(u'  • ' + m for m in models)), yes=True, no=True):
             return
+        # every row of the loaded models (for the Toolbox result: printed / blocked / not found)
+        self.state['all_rows'] = list(self._rowinfo.values())
         self.action = ('issue', ok)
         self.Close()
 
@@ -1071,8 +1106,73 @@ def do_issue(rows, state, settings, reg, cache, dry):
             cad_msg += u'  (Logo helper not used: %s)' % job['_logo_runner_msg']
         logo_count = len(jobs) if cad_msg.startswith('AutoCAD started') else 0
     lines.append(u'Issue register: %d row(s) added → %s' % (len(new_rows), reg_path))
+    if state.get('request'):
+        lines.append(request_result(state, rows, files, cache, run_cad))
     ui.report('Issue Sheets', started, lines, totals, True, [], cad_msg, log_path)
     pw.finish(ui.finish_title(totals, cad_msg), out_root, logo_count=logo_count, logo_since=logo_since)
+
+
+def request_result(state, rows, files, cache, run_cad):
+    """Tell the Toolbox what happened to each requested drawing; returns a report line."""
+    req = state['request']
+    by_num = {}
+    for r in state.get('all_rows') or []:
+        by_num.setdefault(r['num'].strip().lower(), []).append(r)
+    printed = dict((r['num'].strip().lower(), r) for r in rows)
+    out, n_ok = [], 0
+    for q in req['rows']:
+        k = q['seq'].lower()
+        base = {'DrawingNumber': q['code'], 'SheetNumber': q['seq'], 'ExpectedRev': q['expected'], 'DoneOn': core.now()}
+        r = printed.get(k)
+        f = files.get(((cache.get(r['guid']) or {}).get('model', r['model']).lower(), r['num'].lower())) if r else None
+        if r and f:
+            n_ok += 1
+            base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'PRINTED', 'PDFFile': f.get('PDF', u''),
+                         'DWGFile': f.get('DWG', u'').replace(os.sep + '_DWG_raw' + os.sep, os.sep + 'DWG' + os.sep)
+                         if run_cad else f.get('DWG', u''), 'Note': r['file']})
+        elif r:
+            base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'FAILED',
+                         'Note': u'export failed or blocked at print time - see the report'})
+        elif by_num.get(k):
+            x = by_num[k][0]
+            base.update({'RevitRev': x['rev'], 'Model': x['model'],
+                         'Status': 'BLOCKED' if not x['ok'] else 'NOT TICKED',
+                         'Note': x['check'] if not x['ok'] else u'unticked in Revit'})
+        else:
+            base.update({'Status': 'NOT FOUND', 'Note': u'not in the checked models' +
+                         (u' (Toolbox says model %s)' % q['model'] if q['model'] else u'')})
+        out.append(base)
+    path = issue.finish_request(req, out)
+    state['request'] = None
+    return u'Toolbox request "%s": %d of %d printed → result %s' % (req['name'], n_ok, len(out), path)
+
+
+def load_request(state, settings, reg):
+    """Offer the newest Toolbox request; tick its models and use its output folder."""
+    reqs = issue.pending_requests()
+    if not reqs:
+        return
+    req = reqs[0]
+    if not forms.alert(u'Lew\'s Toolbox sent a request: "%s"\n%d drawing(s)%s\n\nLoad it? The drawings are ticked after '
+                       u'Check models. Names = MIDP code + Revit\'s current revision; any drawing whose Revit revision '
+                       u'is not the one asked for is BLOCKED.%s' % (
+                           req['name'], len(req['rows']),
+                           (u'\nOutput: %s' % req['out']) if req['out'] else u'',
+                           (u'\n\n(%d older request(s) wait after this one.)' % (len(reqs) - 1)) if len(reqs) > 1 else u''),
+                       yes=True, no=True):
+        return
+    state['request'] = req
+    state['request_ticked'] = set()
+    wanted = set(r['model'].strip().lower() for r in req['rows'] if r['model'].strip())
+    for g, rec in reg.items():
+        n = (rec.get('Name') or u'').strip().lower()
+        if n and any(w == n or w in n or n in w for w in wanted):
+            state['checked_models'].add(g.lower())
+    if req['out']:
+        settings['last_output'] = req['out']
+    f = req['formats'].upper()
+    if f:
+        settings['_formats'] = {'pdf': 'Y' if 'PDF' in f else 'N', 'dwg': 'Y' if 'DWG' in f else 'N'}
 
 
 def main():
@@ -1083,7 +1183,8 @@ def main():
         forms.alert('No ACC models found on this PC (open each model once in Revit first).')
         return
     state = {'checked_models': set(), 'loaded': [], 'ticked': set(), 'pending': {}, 'midp': settings.get('issue_midp', ''),
-             'set': None}
+             'set': None, 'request': None}
+    load_request(state, settings, reg)
     while True:
         register_rows = issue.read_register(settings.get('issue_register'))
         win = IssueWindow(state, settings, reg, cache, register_rows)

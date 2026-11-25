@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Pull from Revit</title>
+<meta name="lt-order" content="5.5">
+<meta name="lt-icon" content="&#128229;">
+<meta name="lt-desc" content="Missing drawings? List them here and send them to Revit. Issue Sheets (pyRevit) prints them with the MIDP name and Revit's own revision, and blocks any drawing whose revision is not the one you expect.">
+<!--
+  Lew's Toolbox - Pull from Revit: hands a list of drawings to the BIMExport "Issue Sheets" button in Revit.
+  Writes  %APPDATA%\BIMExport\Requests\Toolbox_<date>.csv  (DrawingNumber, ExpectedRev, Title, Model, OutputFolder, Formats, RequestedOn).
+  Revit moves it to Requests\Done and writes <name>.result.csv next to it (PRINTED / BLOCKED / NOT FOUND per drawing).
+  This tab never opens Revit and never names files: Revit decides the name (MIDP code + its current revision).
+  Settings in revitpull.json.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+.num{display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;font-weight:bold;margin:0 8px 6px 0;vertical-align:middle}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.big{font-weight:bold}
+.path{display:inline-block;max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;margin:0 8px 6px 0}
+#body{flex:1 1 auto;display:flex;min-height:0;padding:0 14px 10px}
+#left{flex:0 0 300px;display:flex;flex-direction:column;margin-right:12px}
+#paste{flex:1 1 auto;width:100%;font-family:Consolas,'Lucida Console',monospace;font-size:.95em;resize:none}
+#right{flex:1 1 auto;overflow:auto;min-width:0}
+#res{flex:none;max-height:34%;overflow:auto;padding:6px 14px 10px}
+td input.rev{width:52px}
+td input.mod{width:120px}
+.pill{display:inline-block;padding:1px 8px;border-radius:9px;font-size:.85em;font-weight:bold}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="num">1</span><span class="lbl big">Drawings to pull</span>
+    <button class="btn" id="bList">&#128196; From a list (Excel / CSV)...</button>
+    <button class="btn" id="bAdd">&#10133; Add the pasted ones</button>
+    <button class="btn small" id="bClear">Clear</button>
+    <span class="lbl muted">Paste one drawing per line - full code or file name (5013-KEO-...-10200-T2.pdf) or just the number (10200).</span>
+  </div>
+  <div id="body">
+    <div id="left"><textarea id="paste" spellcheck="false" placeholder="5013-KEO-T1-ZZ-PLN-INT-10200-T2&#13;&#10;5013-KEO-T1-ZZ-PLN-INT-10201-T2.pdf&#13;&#10;10202"></textarea></div>
+    <div id="right"><div id="list"></div></div>
+  </div>
+  <div class="step bar" style="border-top-width:1px;border-top-style:solid">
+    <span class="num">2</span><span class="lbl big">Save to</span>
+    <button class="btn" id="bOut">&#128194; Folder...</button><span class="path" id="outLbl"></span>
+    <label class="lbl"><input type="checkbox" id="fPdf" style="height:auto"> PDF</label>
+    <label class="lbl"><input type="checkbox" id="fDwg" style="height:auto"> DWG</label>
+    <span class="num">3</span><button class="btn primary" id="bSend">&#128229; Send to Revit</button>
+    <span class="lbl muted" id="sum"></span>
+  </div>
+  <div id="res"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, cfg;
+var REV = /^([A-Z]{1,2}\d{1,3}|\d{2,3})$/i;
+function CFG() { return LT.dataPath("revitpull.json"); }
+function REQ() { return LT.env("%APPDATA%") + "\\BIMExport\\Requests"; }
+function load() { cfg = LT.readJson(CFG(), null) || {}; if (!cfg.rows) cfg.rows = []; if (cfg.pdf === undefined) cfg.pdf = true; if (cfg.dwg === undefined) cfg.dwg = true; if (!cfg.out) cfg.out = ""; }
+function save() { try { LT.saveJson(CFG(), cfg); } catch (e) { } }
+
+/* "5013-KEO-T1-ZZ-PLN-INT-10200-T2.pdf" -> { code: "5013-KEO-T1-ZZ-PLN-INT-10200", rev: "T2" } */
+function split(s) {
+  s = LT.trim(s).replace(/^.*[\\\/]/, "").replace(/\.(pdf|dwg|dwf|dxf|xlsx?)$/i, "");
+  var p = s.split("-"), rev = "";
+  if (p.length >= 8 && REV.test(p[p.length - 1])) rev = p.pop();
+  return { code: p.join("-"), rev: rev };
+}
+function addOne(text, revGiven, titleGiven) {
+  var x = split(text); if (!x.code) return false;
+  var rev = LT.trim(revGiven) || x.rev, reg = null;
+  try { var R = LT.register(); if (R) reg = R.find(x.code); } catch (e) { }
+  var code = x.code;
+  if (reg && reg.number && x.code.split("-").length < 7) { var r2 = split(reg.number); code = r2.code; if (!rev) rev = r2.rev; }
+  var seq = code.split("-").length >= 7 ? code.split("-")[6] : code;
+  for (var i = 0; i < cfg.rows.length; i++) if (cfg.rows[i].seq.toUpperCase() == seq.toUpperCase()) { cfg.rows[i].rev = rev || cfg.rows[i].rev; return false; }
+  cfg.rows.push({ on: true, code: code, seq: seq, rev: rev, title: titleGiven || (reg ? reg.title : ""), model: reg ? reg.model || "" : "",
+                  note: code.split("-").length < 7 ? "no full code - Revit needs your MIDP to name it" : "" });
+  return true;
+}
+function addPasted() {
+  var lines = $("paste").value.split(/[\r\n,;\t]+/), n = 0;
+  for (var i = 0; i < lines.length; i++) if (LT.trim(lines[i]) && addOne(lines[i])) n++;
+  $("paste").value = ""; save(); draw(); if (n) LT.toast(n + " drawing(s) added");
+}
+function fromList() {
+  LT.pickFile(function (p) {
+    try {
+      var L = LT.readList(p), t = L.table, c = L.numCol, n = 0;
+      if (c < 0) { alert("No drawing numbers found in that list."); return; }
+      var revC = -1, titC = -1;
+      for (var h = 0; h < L.head.length; h++) { var hn = L.head[h].toLowerCase(); if (revC < 0 && /^rev/.test(hn)) revC = h; if (titC < 0 && /title|name/.test(hn) && h != c) titC = h; }
+      for (var r = L.headRow + 1; r < t.length; r++) { var v = LT.cell(t[r], c); if (v && LT.isDocNo(v) && addOne(v, LT.cell(t[r], revC), LT.cell(t[r], titC))) n++; }
+      save(); draw(); LT.toast(n + " drawing(s) added from " + fso.GetFileName(p));
+    } catch (e) { alert("Couldn't read that list:\n" + (e.message || e)); }
+  });
+}
+function draw() {
+  if (!cfg.rows.length) { $("list").innerHTML = '<div class="muted" style="padding:20px">No drawings yet. Paste them on the left, or load a list.<br><br>' +
+      'Tip: in Submission Check, copy the MISSING drawings and paste them here.</div>'; sumLine(); return; }
+  var h = '<table class="grid"><tr><th><input type="checkbox" id="all" style="height:auto"' + (allOn() ? " checked" : "") + '></th><th>Drawing code</th><th>Expected rev</th><th>Title</th><th>Model</th><th></th></tr>';
+  for (var i = 0; i < cfg.rows.length; i++) { var r = cfg.rows[i];
+    h += '<tr><td><input type="checkbox" data-i="' + i + '" class="on" style="height:auto"' + (r.on ? " checked" : "") + '></td><td>' + esc(r.code) +
+      (r.note ? '<br><span class="warn" style="font-size:.85em">' + esc(r.note) + '</span>' : "") + '</td>' +
+      '<td><input class="rev" data-i="' + i + '" value="' + esc(r.rev) + '" title="The revision the sheet must show in Revit. Blank = no check."></td>' +
+      '<td>' + esc(r.title) + '</td><td><input class="mod" data-i="' + i + '" value="' + esc(r.model) + '" title="Revit model name (ticks the model in Revit). Blank = tick it yourself."></td>' +
+      '<td><button class="btn small del" data-i="' + i + '" title="Take off the list">&#10005;</button></td></tr>'; }
+  $("list").innerHTML = h + "</table>";
+  sumLine();
+}
+function allOn() { for (var i = 0; i < cfg.rows.length; i++) if (!cfg.rows[i].on) return false; return cfg.rows.length > 0; }
+function sumLine() {
+  var on = 0, norev = 0; for (var i = 0; i < cfg.rows.length; i++) if (cfg.rows[i].on) { on++; if (!cfg.rows[i].rev) norev++; }
+  $("sum").innerHTML = on + " drawing(s) ticked" + (norev ? ' &middot; <span class="warn">' + norev + " without an expected revision (not checked)</span>" : "");
+  $("outLbl").innerHTML = cfg.out ? esc(cfg.out) : '<span class="muted">Revit\'s last output folder</span>';
+  $("fPdf").checked = !!cfg.pdf; $("fDwg").checked = !!cfg.dwg;
+}
+function send() {
+  var rows = [["DrawingNumber", "ExpectedRev", "Title", "Model", "OutputFolder", "Formats", "RequestedOn"]], n = 0, now = new Date();
+  var fm = (cfg.pdf ? "PDF" : "") + (cfg.pdf && cfg.dwg ? "+" : "") + (cfg.dwg ? "DWG" : "");
+  if (!fm) { alert("Tick PDF and/or DWG."); return; }
+  for (var i = 0; i < cfg.rows.length; i++) { var r = cfg.rows[i]; if (!r.on) continue; n++;
+    rows.push([r.code + (r.rev ? "-" + r.rev : ""), r.rev, r.title, r.model, n == 1 ? cfg.out : "", n == 1 ? fm : "", LT.today()]); }
+  if (!n) { alert("Tick at least one drawing."); return; }
+  var name = "Toolbox_" + LT.stamp().replace(/[^0-9_]/g, "") + LT.pad(now.getSeconds()), p = REQ() + "\\" + name + ".csv";
+  try { LT.mkdirs(REQ()); LT.writeCsv(p, rows); } catch (e) { alert("Couldn't write the request:\n" + (e.message || e)); return; }
+  alert("Sent " + n + " drawing(s) to Revit.\n\nIn Revit: BIMExport > Issue Sheets > Yes (load the request) > Check models > Issue.\n\n" +
+        "Revit names each file: MIDP code + the revision the sheet shows. A drawing whose revision is not the one you expect is BLOCKED, never printed with a wrong name.\n\nThe result shows up at the bottom of this tab.");
+  results();
+}
+
+/* ---------- results written back by Revit ---------- */
+function results() {
+  var h = '<div class="big" style="margin-bottom:4px">Requests <button class="btn small" id="bRef">Refresh</button></div>', items = [];
+  var add = function (dir, done) { if (!fso.FolderExists(dir)) return; var e = new Enumerator(fso.GetFolder(dir).Files);
+    for (; !e.atEnd(); e.moveNext()) { var f = e.item(), n = "" + f.Name; if (!/\.csv$/i.test(n)) continue;
+      if (done && !/\.result\.csv$/i.test(n)) continue; if (!done && /\.result\.csv$/i.test(n)) continue;
+      items.push({ path: "" + f.Path, name: n.replace(/(\.result)?\.csv$/i, ""), done: done, time: new Date(f.DateLastModified).getTime() }); } };
+  try { add(REQ(), false); add(REQ() + "\\Done", true); } catch (e) { }
+  items.sort(function (a, b) { return b.time - a.time; });
+  if (!items.length) { $("res").innerHTML = h + '<div class="muted">Nothing sent yet.</div>'; hookRef(); return; }
+  for (var i = 0; i < Math.min(items.length, 6); i++) { var it = items[i];
+    if (!it.done) { h += '<div style="margin:4px 0"><span class="pill warn">WAITING</span> ' + esc(it.name) + ' <span class="muted">- open Issue Sheets in Revit</span></div>'; continue; }
+    var t = []; try { t = LT.parseCsv(LT.readText(it.path)); } catch (e) { }
+    var cnt = {}; for (var r = 1; r < t.length; r++) cnt[t[r][5]] = (cnt[t[r][5]] || 0) + 1;
+    h += '<div style="margin:6px 0 2px"><span class="pill ' + (cnt.PRINTED == t.length - 1 ? "ok" : "bad") + '">' + (cnt.PRINTED || 0) + " of " + (t.length - 1) + " printed</span> " + esc(it.name) + "</div>";
+    if (i == 0 || cnt.PRINTED != t.length - 1) {
+      h += '<table class="grid"><tr><th>Drawing</th><th>Expected</th><th>Revit</th><th>Result</th><th>Note / file</th></tr>';
+      for (var q = 1; q < t.length; q++) { var c = t[q], st = c[5] || "";
+        h += "<tr><td>" + esc(c[0]) + "</td><td>" + esc(c[2]) + "</td><td>" + esc(c[3]) + '</td><td class="' + (st == "PRINTED" ? "ok" : "bad") + '"><b>' + esc(st) + "</b></td><td>" +
+          (c[6] ? '<a href="#" class="opn" data-p="' + esc(c[6]) + '">' + esc(c[8] || c[6]) + "</a>" : esc(c[8])) + "</td></tr>"; }
+      h += "</table>"; } }
+  $("res").innerHTML = h; hookRef();
+}
+function hookRef() { var b = $("bRef"); if (b) b.onclick = results; }
+
+/* ---------- events ---------- */
+$("bAdd").onclick = addPasted; $("bList").onclick = fromList; $("bSend").onclick = send;
+$("bClear").onclick = function () { if (cfg.rows.length && confirm("Clear the list?")) { cfg.rows = []; save(); draw(); } };
+$("bOut").onclick = function () { var f = LT.pickFolder("Where should Revit save the drawings? (Cancel = Revit's last folder)"); cfg.out = f || ""; save(); sumLine(); };
+$("fPdf").onclick = function () { cfg.pdf = this.checked; save(); }; $("fDwg").onclick = function () { cfg.dwg = this.checked; save(); };
+$("list").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement, i = +t.getAttribute("data-i");
+  if (t.id == "all") { for (var k = 0; k < cfg.rows.length; k++) cfg.rows[k].on = t.checked; save(); draw(); return; }
+  if (/\bon\b/.test(t.className)) { cfg.rows[i].on = t.checked; save(); sumLine(); }
+  if (/\bdel\b/.test(t.className)) { cfg.rows.splice(i, 1); save(); draw(); } };
+$("list").onchange = function (e) { e = e || window.event; var t = e.target || e.srcElement, i = +t.getAttribute("data-i");
+  if (/\brev\b/.test(t.className)) { cfg.rows[i].rev = LT.trim(t.value).toUpperCase(); save(); sumLine(); }
+  if (/\bmod\b/.test(t.className)) { cfg.rows[i].model = LT.trim(t.value); save(); } };
+$("res").onclick = function (e) { e = e || window.event; var t = e.target || e.srcElement; if (t.className == "opn") { LT.showInFolder(t.getAttribute("data-p")); return false; } };
+/* other tabs: LT.main().send("revitpull", "add-drawings", JSON.stringify(["5013-...-10200-T2", ...])) */
+window.ltReceive = function (what, value) { if (what != "add-drawings") return; var a = []; try { a = JSON.parse(value); } catch (e) { a = ("" + value).split(/[\r\n]+/); }
+  var n = 0; for (var i = 0; i < a.length; i++) if (addOne(a[i])) n++; save(); draw(); LT.toast(n + " drawing(s) added"); };
+function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{border-top:1px solid {line};background:{panel}}", ".pill.ok{background:{ok};color:#fff}.pill.bad{background:{bad};color:#fff}.pill.warn{background:{warn};color:#fff}"]); }
+window.ltTheme = look; window.ltShown = results; window.ltReload = function () { load(); draw(); results(); };
+look(); load(); draw(); results(); LT.tabKeys();
+</script>
+</body>
+</html>

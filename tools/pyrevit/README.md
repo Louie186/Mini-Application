@@ -100,6 +100,21 @@ For formal issues: **what changed → fix revisions / title block switches → i
    - Apply only runs when this is the **only Revit window** (two windows share one local copy). It opens your local copy with **your own last-used worksets**, never clicks Revit messages away, and doesn't save the local file before syncing (a failed sync leaves nothing behind)
 7. **Issue:** with "Embed logos" ticked, a small **background helper** starts AutoCAD as soon as the first model's DWGs are ready and keeps feeding it while Revit exports the next models (one AutoCAD at a time; falls back to "AutoCAD at the end" if PowerShell is blocked). Then it exports the ticked drawings (detached, closed without saving) with the exact names, embeds logos if ticked, and writes **one row per print** in the **issue register** CSV (each drawing's prints grouped together, newest under the older ones)
 
+### File name = what the sheet shows (both buttons)
+
+- The revision in a file name **always comes from Revit** (the sheet's current revision, the one in the title block). Never from the LOD / MIDP list
+  - `{DrawingNumber}` = the list's code (first 7 parts) + Revit's revision. A list saying `…-10200-T1` while the sheet shows T2 gives `…-10200-T2.pdf`
+  - `{DrawingCode}` = the code without a revision
+- **Last check before each file is written**, with the model open: if the name's revision isn't the sheet's revision, or a text on the sheet holding the full drawing number (e.g. a "Drawing Number" parameter) says something else, the drawing is **BLOCKED**: not exported, and the report says why
+
+### Pull from Revit (Lew's Toolbox)
+
+1. Toolbox → **Pull from Revit** tab: paste the missing drawings (or load a list), check the **Expected rev**, pick the folder → **Send to Revit**
+2. Revit → **Issue Sheets** → **Yes** to "Lew's Toolbox sent a request" (it ticks the models and uses the folder) → **Check models**
+3. The requested drawings are ticked. Any whose Revit revision isn't the expected one is **✖ BLOCKED** (fix it in the Revisions tab → Apply → Check again)
+4. **Issue.** The Toolbox tab then shows PRINTED / BLOCKED / NOT FOUND per drawing
+- Requests live in `%APPDATA%\BIMExport\Requests\` (done ones in `Done\`, with a `.result.csv`)
+
 **Change check, honestly:** the sync stamp changes with every sync, so "Model synced since last issue" means something in the model changed, not necessarily on that drawing. "No change" = same revision and no sync since that drawing was last printed.
 
 ## Output
@@ -126,7 +141,7 @@ Saved in `%APPDATA%\BIMExport\settings.json` (open it in Notepad):
 
 | Setting | What it does | Default |
 |---|---|---|
-| `naming_rule` | File name. Tokens: `{DrawingNumber}` `{ListRevision}` `{SheetNumber}` `{SheetName}` `{Revision}` `{Model}` `{Date}` `{P:param}` `{Project:param}` | `{DrawingNumber}` |
+| `naming_rule` | File name. Tokens: `{DrawingNumber}` (code + Revit's revision) `{DrawingCode}` `{ListRevision}` `{SheetNumber}` `{SheetName}` `{Revision}` `{Model}` `{Date}` `{P:param}` `{Project:param}` | `{DrawingNumber}` |
 | `dwg_setup` | Name of a saved DWG export setup in the models | blank = Revit default |
 | `pdf_setup` | Name of a saved PDF export setup in the models | blank = Revit default |
 | `region` | ACC region tried first (`EMEA`, `US`, `AUS`) | `EMEA` |

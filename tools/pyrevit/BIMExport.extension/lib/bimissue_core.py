@@ -324,6 +324,101 @@ def save_sets(sets):
         f.write(core.text(json.dumps(sets, indent=1)))
 
 
+# ------------------------------------------------- requests from the Toolbox --
+# Lew's Toolbox (HTA) "Pull from Revit" writes  %APPDATA%\BIMExport\Requests\<name>.csv  with columns
+#   DrawingNumber, ExpectedRev, Title, Model, OutputFolder, Formats, RequestedOn
+# Issue Sheets loads it, ticks those drawings, BLOCKS any whose Revit revision is not the expected one,
+# and after the issue moves it to Requests\Done with a <name>.result.csv next to it.
+REQUESTS_DIR = os.path.join(core.SETTINGS_DIR, 'Requests')
+REQUEST_RESULT_COLS = ['DrawingNumber', 'SheetNumber', 'ExpectedRev', 'RevitRev', 'Model', 'Status', 'PDFFile',
+                       'DWGFile', 'Note', 'DoneOn']
+
+
+def _req_key(s):
+    return core.key(s)
+
+
+def pending_requests():
+    """Newest first: [{'path', 'name', 'rows': [...], 'out', 'formats'}]"""
+    out = []
+    if not os.path.isdir(REQUESTS_DIR):
+        return out
+    for fn in os.listdir(REQUESTS_DIR):
+        p = os.path.join(REQUESTS_DIR, fn)
+        if not fn.lower().endswith('.csv') or not os.path.isfile(p):
+            continue
+        try:
+            rows = read_request(p)
+        except Exception:
+            continue
+        if rows:
+            out.append({'path': p, 'name': fn[:-4], 'rows': rows, 'mtime': os.path.getmtime(p),
+                        'out': next((r['out'] for r in rows if r['out']), u''),
+                        'formats': next((r['formats'] for r in rows if r['formats']), u'')})
+    out.sort(key=lambda r: -r['mtime'])
+    return out
+
+
+def read_request(path):
+    rows = []
+    for r in core.read_csv(path):
+        k = dict((_req_key(a), (b or u'').strip()) for a, b in r.items())
+        code = k.get('drawingnumber') or k.get('drawingno') or k.get('sheetnumber') or u''
+        if not code:
+            continue
+        parts = core.lod_parts(code)
+        seq = parts[6] if len(parts) >= 7 else code
+        exp = k.get('expectedrev') or k.get('revision') or k.get('rev') or (parts[7] if len(parts) >= 8 else u'')
+        rows.append({'code': code, 'seq': seq.strip(), 'expected': exp.strip(), 'title': k.get('title', u''),
+                     'model': k.get('model', u''), 'out': k.get('outputfolder', u''), 'formats': k.get('formats', u'')})
+    return rows
+
+
+def request_midp_rows(req):
+    """The request's codes as MIDP rows, so names can be made even without a MIDP file."""
+    return [{'drawingnumber': r['code'], 'sheetname': r['title'], '_listed': r['code']} for r in req['rows']
+            if len(core.lod_parts(r['code'])) >= 7]          # a bare number needs the MIDP file for its code
+
+
+def request_check(num, revit_rev, req):
+    """None when the drawing is not in the request, else (ok, note)."""
+    hit = [r for r in req['rows'] if r['seq'].lower() == num.strip().lower()]
+    if not hit:
+        return None
+    exp = hit[0]['expected']
+    if not exp:
+        return True, u'Toolbox request (no revision given)'
+    if not revit_rev:
+        return False, u'Toolbox expects %s, the sheet has NO revision in Revit' % exp
+    if exp.lower() == revit_rev.strip().lower():
+        return True, u'matches the Toolbox request (%s)' % exp
+    behind = _rev_order(revit_rev) < _rev_order(exp)
+    return False, (u'Toolbox expects %s, Revit has %s - add the %s revision (Revisions tab), Apply, Check again'
+                   % (exp, revit_rev, exp)) if behind else (
+        u'Toolbox expects %s, Revit is already at %s - update the list in the Toolbox and send it again' % (exp, revit_rev))
+
+
+def _rev_order(r):
+    m = re.match(r'^\s*([A-Za-z]*)(\d*)', r or u'')
+    return ((m.group(1) or u'').upper(), int(m.group(2) or 0)) if m else (u'', 0)
+
+
+def finish_request(req, results):
+    """Write <name>.result.csv in Requests\\Done and move the request there. Returns the result path."""
+    done = core.ensure_dir(os.path.join(REQUESTS_DIR, 'Done'))
+    stamp = time.strftime('%Y%m%d_%H%M%S')
+    res = os.path.join(done, u'%s.result.csv' % req['name'])
+    core.write_csv(res, REQUEST_RESULT_COLS, [[r.get(c, u'') for c in REQUEST_RESULT_COLS] for r in results])
+    try:
+        dst = os.path.join(done, os.path.basename(req['path']))
+        if os.path.exists(dst):
+            dst = os.path.join(done, u'%s_%s.csv' % (req['name'], stamp))
+        os.rename(req['path'], dst)
+    except Exception:
+        pass
+    return res
+
+
 # ------------------------------------------------------- apply / revert --
 class ApplyError(Exception):
     pass

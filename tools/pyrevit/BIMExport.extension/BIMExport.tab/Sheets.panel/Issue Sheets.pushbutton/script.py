@@ -448,7 +448,13 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         g = self._rev_models.get(self.rev_model_cb.SelectedItem)
         self._rev_g = g
         iss = (self.cache.get(g) or {}).get('issue') or {}
-        self.rev_info_tb.Text = u'Numbering: %s' % (u'per sheet' if iss.get('per_sheet_numbering') else u'per project')
+        self._busy = True
+        self.numbering_cb.Items.Clear()
+        for n in (u'per project', u'per sheet'):
+            self.numbering_cb.Items.Add(n)
+        self.numbering_cb.SelectedItem = u'per sheet' if self._per_sheet(g) else u'per project'
+        self._busy = False
+        self._numbering_info(g)
         t = _table([('Key', str), ('Seq', str), ('Rev', str), ('Date', str), ('Description', str),
                     ('Issued to', str), ('Issued by', str), ('Issued', bool)])
         for r in self._revisions(g):
@@ -463,6 +469,63 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self._revs_table = t
         self.revs_dg.ItemsSource = t.DefaultView
         self._build_onsheet(g)
+
+    def _per_sheet(self, g):
+        """Numbering in effect for this model, including a change waiting for Apply."""
+        iss = (self.cache.get(g) or {}).get('issue') or {}
+        want = (self.state['pending'].get(g) or {}).get('numbering')
+        return (want == u'PerSheet') if want else bool(iss.get('per_sheet_numbering'))
+
+    def _numbering_info(self, g):
+        p = self.state['pending'].get(g) or {}
+        self.rev_info_tb.Text = (u'\u26A0 Waiting for Apply - changes the revision number on ALL drawings of this model'
+                                 if p.get('numbering') else u'As set in the model')
+
+    def _sheet_numbers(self, g, num, on):
+        """{rev key: number on this sheet} with the numbering in effect (and pending ticks)."""
+        iss = (self.cache.get(g) or {}).get('issue') or {}
+        revs = [r for r in self._revisions(g) if r['key'] in on]
+        return issue.predict_numbers(revs, iss, self._per_sheet(g))
+
+    def on_numbering(self, sender, args):
+        g = getattr(self, '_rev_g', None)
+        if self._busy or not g or self.numbering_cb.SelectedItem is None:
+            return
+        iss = (self.cache.get(g) or {}).get('issue') or {}
+        want = u'PerSheet' if self.numbering_cb.SelectedItem == u'per sheet' else u'PerProject'
+        now = u'PerSheet' if iss.get('per_sheet_numbering') else u'PerProject'
+        p = self._pend(g)
+        if want == now:
+            p.pop('numbering', None)
+        else:
+            # preview: which drawings get a different revision number
+            changed = []
+            for s in (self.cache.get(g) or {}).get('sheets', []):
+                si = (iss.get('sheets') or {}).get(s['number'], {})
+                on = self._on_sheet(g, s['number'])
+                revs = [r for r in self._revisions(g) if r['key'] in on]
+                if not revs:
+                    continue
+                top = max(revs, key=lambda r: r['seq'])
+                new = issue.predict_numbers(revs, iss, want == u'PerSheet').get(top['key'], u'')
+                old = si.get('current_number', u'')
+                if new != old:
+                    changed.append(u'%s: %s \u2192 %s' % (s['number'], old or u'-', new or u'-'))
+            if not forms.alert(u'Change revision numbering to %s?\n\nLike Revit\'s Sheet Issues/Revisions > Numbering, this is ONE '
+                               u'setting for the whole model. %d drawing(s) would show a different current revision:\n\n%s%s\n\n'
+                               u'Drawings already issued would print with the new number next time. Nothing changes until Apply '
+                               u'(Revert can undo it).' % (
+                                   u'PER SHEET' if want == u'PerSheet' else u'PER PROJECT', len(changed),
+                                   u'\n'.join(changed[:25]), (u'\n... and %d more' % (len(changed) - 25)) if len(changed) > 25 else u''),
+                               yes=True, no=True):
+                self._busy = True
+                self.numbering_cb.SelectedItem = u'per sheet' if self._per_sheet(g) else u'per project'
+                self._busy = False
+                return
+            p['numbering'] = want
+        self._numbering_info(g)
+        self._build_onsheet(g)
+        self._refresh_changes()
 
     def on_autocol_revs(self, sender, e):
         n = e.PropertyName
@@ -526,7 +589,8 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self._headers = {}
         for r in revs:
             cn = u'R%s' % r['key']
-            self._headers[cn] = u'%s · %s' % (r['seq'], r.get('number') or u'?')
+            self._headers[cn] = u'%s · %s' % (r['seq'], r.get('number') or u'?') if not self._per_sheet(g) or r.get('number') \
+                else u'%s · %s' % (r['seq'], r.get('date', u'')[:5] or u'?')
             cols.append((cn, bool))
         t = _table(cols)
         ticked_here = [n for (gg, n) in self.state['ticked'] if gg == g]
@@ -560,24 +624,19 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         return set(clouds) | set(str(i) for i in extra)
 
     def _current(self, g, on, sheet=None):
+        """Current revision of a sheet as Revit will show it: the highest sequence on the sheet, numbered
+        per project (its own number) or per sheet (counted on this sheet only, per numbering sequence)."""
         iss = (self.cache.get(g) or {}).get('issue') or {}
         revs = [r for r in self._revisions(g) if r['key'] in on]
         if not revs:
             return u'', u''
         top = max(revs, key=lambda r: r['seq'])
-        num = top.get('number') or u''
-        if iss.get('per_sheet_numbering'):
-            # per-sheet numbering: the number is the one Revit shows on THIS sheet
-            si = (iss.get('sheets') or {}).get(sheet or u'', {})
-            known = (si.get('numbers_on_sheet') or {}).get(top['key']) or (
-                si.get('current_number') if str(si.get('current')) == top['key'] else None)
-            unchanged = sorted(on) == sorted(str(i) for i in si.get('all_revs', []))
-            if known and unchanged:
-                num = known
-            elif top['key'].startswith('new'):
-                num = u'(new - Revit numbers it per sheet)'
-            else:
-                num = (known or u'?') + u' (Revit renumbers this sheet after Apply)' if not unchanged else (known or u'?')
+        si = (iss.get('sheets') or {}).get(sheet or u'', {})
+        unchanged = (sorted(on) == sorted(str(i) for i in si.get('all_revs', []))
+                     and not (self.state['pending'].get(g) or {}).get('numbering'))
+        if unchanged and si.get('current_number') and str(si.get('current')) == top['key']:
+            return si['current_number'], top.get('date', u'')          # exactly what Revit shows now
+        num = self._sheet_numbers(g, sheet, on).get(top['key'], u'') or u'?'
         return num, top.get('date', u'')
 
     def on_autocol_onsheet(self, sender, e):
@@ -866,7 +925,8 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
     def _count_changes(self, g):
         p = self.state['pending'].get(g) or {}
         return (len(p.get('new_revisions', [])) + len(p.get('edit_revisions', {})) +
-                len(p.get('sheet_revisions', {})) + len(p.get('params', [])) + len(p.get('tb_types', [])))
+                len(p.get('sheet_revisions', {})) + len(p.get('params', [])) + len(p.get('tb_types', [])) +
+                (1 if p.get('numbering') else 0))
 
     def _refresh_changes(self):
         lines = []
@@ -874,6 +934,9 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             if not self._count_changes(g):
                 continue
             lines.append(u'■ %s' % ((self.cache.get(g) or {}).get('model', g)))
+            if p.get('numbering'):
+                lines.append(u'   ~ Revision numbering \u2192 %s  (ALL drawings of this model)' % (
+                    u'per sheet' if p['numbering'] == u'PerSheet' else u'per project'))
             for nr in p['new_revisions']:
                 lines.append(u'   + NEW revision   %s   %s' % (nr.get('date', u''), nr.get('description', u'')))
             for rid, ed in p['edit_revisions'].items():
@@ -997,7 +1060,7 @@ def do_apply(guids, state, settings, reg, cache):
     results = []
     for g in guids:
         ch = state['pending'][g]
-        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types'))
+        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types')) + (1 if ch.get('numbering') else 0)
         try:
             ok, log, undo, entry = issue.apply_changes(app, reg[g], ch, settings,
                                                        u'Issue Sheets by Lew: %d change(s)' % n_changes, after=fresh)

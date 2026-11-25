@@ -203,6 +203,9 @@
                                 <TextBlock Text="Model  " VerticalAlignment="Center" FontWeight="SemiBold"/>
                                 <ComboBox x:Name="rev_model_cb" MinWidth="260" SelectionChanged="on_rev_model"/>
                                 <Button Content="+ Add revision" Style="{StaticResource Small}" Margin="10,0,0,0" Click="on_add_rev"/>
+                                <TextBlock Text="Numbering:" Margin="14,0,4,0" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="numbering_cb" MinWidth="110" SelectionChanged="on_numbering"
+                                          ToolTip="Same as Revit's Sheet Issues/Revisions 'Numbering'. Per sheet: each drawing counts only its own revisions (T0, T2 ticked = T0, T1)."/>
                                 <TextBlock x:Name="rev_info_tb" Style="{StaticResource Hint}" Margin="10,0,0,0" VerticalAlignment="Center"/>
                             </DockPanel>
                             <TextBlock DockPanel.Dock="Top" Text="Sheet Issues / Revisions (Revit's own numbering). Issued revisions are locked by Revit."

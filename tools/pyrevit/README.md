@@ -91,6 +91,10 @@ For formal issues: **what changed → fix revisions / title block switches → i
 4. **Revisions tab** (like Revit's Sheet Issues/Revisions + Revisions on Sheet):
    - All revisions with Rev, Date, Description, Issued to/by. Edit dates/descriptions (not Issued ones). **+ Add revision**
    - Tick revisions per drawing: **Current rev and date update straight away**. Clouded revisions can't be removed here
+   - **Numbering** drop-down (same as Revit's Sheet Issues/Revisions > Numbering, one setting per model):
+     - **Per project:** a revision has ONE number everywhere. T0 + T2 ticked on a drawing = current rev **T2**
+     - **Per sheet:** each drawing counts only its own revisions, per sequence. T0 + T2 ticked = **T0, T1**, current rev **T1**
+     - Changing it shows which drawings get a different current revision first, then waits for **Apply** (Revert undoes it). File names then follow what Revit shows
 5. **Title blocks tab:** pick a **drawing** at the top (or click one in Drawings) → the **title block(s)** it really uses (a second drop-down if there's more than one), the **revisions on that drawing** (number on the sheet, date, cloud or added, issued), and the title block's **Yes/No** parameters (instance = this drawing, type = ALL drawings of that type). Only Yes/No can be changed
    - **Change the title block:** pick the new one in **Change to** (any title block type loaded in that model, with its sheet size) → **Change this drawing**, or tick drawings in the Drawings tab → **Change all ticked**. **Keep Yes/No switches** copies the switches across. If the sheet size changes you get a warning (views are not moved). **Undo** removes it before Apply. Nothing changes in Revit until **Apply**, and **Revert** puts the old title block back
    - **Settings** on the right: the same **Output / PDF / CAD / Run** tabs as Export Sheets (setup drop-down + every Revit export option), shared between both buttons

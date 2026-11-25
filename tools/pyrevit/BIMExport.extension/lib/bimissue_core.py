@@ -104,12 +104,92 @@ def rev_label(r):
     return rev_number(r) or u'seq %s (%s)' % (r.SequenceNumber, _txt(r.RevisionDate))
 
 
+def _group_of(r):
+    """Which counter a revision uses: its numbering sequence, else the letters of its number (T0 -> 'T')."""
+    if r.get('nseq') not in (None, -1, u''):
+        return u'seq:%s' % r['nseq']
+    m = re.match(r'^\s*([^\d]*)', r.get('number') or u'')
+    return u'pre:%s' % (m.group(1) if m else u'')
+
+
+def sequence_values(iss):
+    """{group: [numbers in order]} - from the model's numbering sequences, else from the per-project numbers."""
+    vals = {}
+    for k, v in (iss.get('sequences') or {}).items():
+        if v:
+            vals[u'seq:%s' % k] = v
+    by_group = {}
+    for r in sorted(iss.get('revisions', []), key=lambda x: x['seq']):
+        if r.get('numbered', True) and r.get('number'):
+            by_group.setdefault(_group_of(r), []).append(r['number'])
+    for g, nums in by_group.items():
+        vals.setdefault(g, nums)          # fallback: the per-project numbers in order (T0, T1, T2 ...)
+    return vals
+
+
+def predict_numbers(revs, iss, per_sheet):
+    """{revision key: number shown on ONE sheet} for the revisions on it (revs = dicts with key/seq/number/nseq).
+    Per project: each revision keeps its own number. Per sheet: like Revit, each sheet counts only its own
+    revisions, separately for each numbering sequence (T0 + T2 ticked -> T0, T1)."""
+    out = {}
+    if not per_sheet:
+        for r in revs:
+            out[r['key']] = r.get('number') or u''
+        return out
+    vals = sequence_values(iss)
+    last_group = None
+    for r in sorted(iss.get('revisions', []), key=lambda x: x['seq']):
+        last_group = _group_of(r)
+    count = {}
+    for r in sorted(revs, key=lambda x: x['seq']):
+        if not r.get('numbered', True):
+            out[r['key']] = u''
+            continue
+        g = _group_of(r) if not r['key'].startswith('new') else (last_group or u'pre:')
+        i = count.get(g, 0)
+        count[g] = i + 1
+        seq = vals.get(g) or []
+        out[r['key']] = seq[i] if i < len(seq) else u'?'
+    return out
+
+
 def _numbering_per_sheet(doc):
     try:
         rs = DB.RevisionSettings.GetRevisionSettings(doc)
         return _txt(rs.RevisionNumbering) == 'PerSheet'
     except Exception:
         return False
+
+
+def _seq_values(doc, sid):
+    """The numbers a Revision Numbering Sequence gives out, in order (first 200)."""
+    try:
+        sq = doc.GetElement(make_eid(sid))
+        kind = _txt(sq.NumberType)
+        if kind == 'Alphanumeric':
+            a = sq.GetAlphanumericRevisionSettings()
+            return [_txt(a.Prefix) + _txt(x) + _txt(a.Suffix) for x in a.GetSequence()][:200]
+        if kind == 'Numeric':
+            n = sq.GetNumericRevisionSettings()
+            d = int(n.MinimumDigits or 0)
+            return [_txt(n.Prefix) + str(int(n.StartNumber) + k).zfill(d) + _txt(n.Suffix) for k in range(200)]
+    except Exception:
+        pass
+    return None
+
+
+def _rev_seq_id(r):
+    try:
+        return eid_int(r.RevisionNumberingSequenceId)
+    except Exception:
+        return None
+
+
+def _rev_numbered(r):
+    try:
+        return _txt(r.NumberType) != 'None'
+    except Exception:
+        return True
 
 
 def read_issue_data(doc):
@@ -120,7 +200,8 @@ def read_issue_data(doc):
         r = doc.GetElement(rid)
         d = {'id': eid_int(rid), 'seq': r.SequenceNumber, 'number': rev_number(r),
              'date': _txt(r.RevisionDate), 'description': _txt(r.Description), 'issued': bool(r.Issued),
-             'issued_by': _txt(r.IssuedBy), 'issued_to': _txt(r.IssuedTo)}
+             'issued_by': _txt(r.IssuedBy), 'issued_to': _txt(r.IssuedTo),
+             'nseq': _rev_seq_id(r), 'numbered': _rev_numbered(r)}
         revs.append(d)
         rev_by_id[d['id']] = d
     sheets = {}
@@ -169,6 +250,7 @@ def read_issue_data(doc):
             'titleblocks': tbs}
     return {'version': model_version(doc), 'read_on': core.now(), 'revisions': revs,
             'per_sheet_numbering': _numbering_per_sheet(doc), 'sheets': sheets,
+            'sequences': dict((str(k), _seq_values(doc, k)) for k in set(r['nseq'] for r in revs if r.get('nseq') not in (None, -1))),
             'titleblock_type_count': dict((str(k), v) for k, v in tb_count.items()),
             'titleblock_types': read_titleblock_types(doc)}
 
@@ -522,6 +604,8 @@ def _set_yes_no(el, name, value):
 def _snapshot(doc, changes):
     """Old values of everything the changes touch (for verification and Revert)."""
     snap = {'revisions': {}, 'sheets': {}, 'params': [], 'tb_types': []}
+    if changes.get('numbering'):
+        snap['numbering'] = u'PerSheet' if _numbering_per_sheet(doc) else u'PerProject'
     for rid in changes.get('edit_revisions', {}):
         r = doc.GetElement(make_eid(rid))
         snap['revisions'][str(rid)] = {'date': _txt(r.RevisionDate), 'description': _txt(r.Description),
@@ -552,6 +636,10 @@ def _apply_in_doc(doc, changes, log):
     t = Transaction(doc, 'Issue Sheets by Lew')
     t.Start()
     try:
+        if changes.get('numbering'):
+            rs = DB.RevisionSettings.GetRevisionSettings(doc)
+            rs.RevisionNumbering = getattr(DB.RevisionNumbering, changes['numbering'])
+            log.append(u'Revision numbering set to %s' % (u'per sheet' if changes['numbering'] == 'PerSheet' else u'per project'))
         for nr in changes.get('new_revisions', []):
             r = DB.Revision.Create(doc)
             r.RevisionDate = nr.get('date', u'')
@@ -616,6 +704,8 @@ def _apply_in_doc(doc, changes, log):
 def _verify(doc, changes, created):
     """Read back. Returns a list of differences (empty = all good)."""
     bad = []
+    if changes.get('numbering') and (u'PerSheet' if _numbering_per_sheet(doc) else u'PerProject') != changes['numbering']:
+        bad.append(u'Revision numbering not as expected')
     for nr in changes.get('new_revisions', []):
         r = doc.GetElement(make_eid(created.get(nr['temp'], -1)))
         if r is None or _txt(r.RevisionDate) != nr.get('date', u''):
@@ -679,7 +769,13 @@ def apply_changes(app, rec, changes, settings, comment, after=None):
             if not doc.IsWorkshared and not settings.get('allow_non_workshared'):
                 raise ApplyError(u'Not workshared - changes would be saved straight into the model. '
                                  u'Allow non-workshared models in the Run tab only if nobody has it open.')
-            owned = _owned_by_others(doc, touched_ids(changes))
+            ids = touched_ids(changes)
+            if changes.get('numbering'):
+                try:
+                    ids.add(eid_int(DB.RevisionSettings.GetRevisionSettings(doc).Id))
+                except Exception:
+                    pass
+            owned = _owned_by_others(doc, ids)
             if owned:
                 raise ApplyError(u'Owned by other users (ask them to sync and relinquish): ' + u'; '.join(owned))
             snap = _snapshot(doc, changes)
@@ -726,7 +822,7 @@ def revert(app, undo_file, settings):
     back = {'edit_revisions': dict((k, v) for k, v in before.get('revisions', {}).items()),
             'sheet_revisions': before.get('sheets', {}),
             'params': [p for p in before.get('params', []) if p.get('value') is not None],
-            'tb_types': before.get('tb_types', []),
+            'tb_types': before.get('tb_types', []), 'numbering': before.get('numbering'),
             'sheet_ids': undo['changes'].get('sheet_ids', [])}
     log = []
     doc = _open_for_edit(app, undo['model'], settings)

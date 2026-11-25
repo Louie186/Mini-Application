@@ -1106,6 +1106,16 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
                 except Exception:
                     pass
             batch = _batch_pdf(doc, [p[2] for p in todo], out_root, model, settings, notes)
+    dbatch = {}
+    if do_export and settings.get('batch_dwg', True):
+        todo = [p for p in plan if not p[7] and u'DWG' in p[8]]
+        if len(todo) > 1:
+            if progress:
+                try:
+                    progress(1, len(jobs), u'DWG', u'%d drawings in one go' % len(todo), None)
+                except Exception:
+                    pass
+            dbatch = _batch_dwg(doc, [p[2] for p in todo], raw_dir, dwg_opts, notes)
 
     # ---- 3) write the files
     for (job_i, row, sheet, listed, rev, name, note, guard, formats) in plan:
@@ -1142,9 +1152,9 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
             try:
                 if os.path.exists(target):
                     os.remove(target)
-                done_early = batch.get(sheet.SheetNumber.strip().lower())
-                if fmt == u'PDF' and done_early and os.path.exists(done_early):
-                    os.rename(done_early, target)          # printed in the one-go export: just give it its name
+                done_early = (batch if fmt == u'PDF' else dbatch).get(sheet.SheetNumber.strip().lower())
+                if done_early and os.path.exists(done_early):
+                    os.rename(done_early, target)          # made in the one-go export: just give it its name
                 else:
                     ids = List[ElementId]([sheet.Id])
                     if fmt == u'PDF':
@@ -1218,6 +1228,30 @@ def _batch_cleanup(out_root, model):
             os.rmdir(parent)
     except Exception:
         pass
+
+
+def _batch_dwg(doc, sheets, raw_dir, opts, notes):
+    """All DWGs of a model in ONE Revit export, straight into _DWG_raw (so logo images and xrefs stay where the
+    DWG expects them). Revit names them <prefix>-...<sheet number>...; each sheet's main file is found and renamed
+    later. Anything not found for sure is exported one by one. Returns {sheet number lower: file}."""
+    prefix = u'_one%d' % int(time.time() * 10 % 100000000)
+    try:
+        before = set(os.listdir(raw_dir))
+        doc.Export(raw_dir, prefix, List[ElementId]([s.Id for s in sheets]), opts)
+    except Exception as e:
+        notes.append(u'DWGs one by one (one-go export not possible: %s)' % text(e))
+        return {}
+    new = [f for f in os.listdir(raw_dir) if f not in before and f.lower().endswith(u'.dwg') and f.startswith(prefix)]
+    out = {}
+    for s in sheets:
+        num = s.SheetNumber.strip()
+        pat = re.compile(u'(^|[\\s_\\-])' + re.escape(num) + u'([\\s_\\-.]|$)', re.I)
+        cands = sorted([f for f in new if pat.search(f[len(prefix):])], key=len)
+        if cands and (len(cands) == 1 or len(cands[0]) < len(cands[1])):      # the sheet itself (xrefs are longer)
+            out[num.lower()] = os.path.join(raw_dir, cands[0])
+    if len(out) < len(sheets):
+        notes.append(u'%d DWG(s) exported one by one (not found for sure in the one-go export)' % (len(sheets) - len(out)))
+    return out
 
 
 def _batch_pdf(doc, sheets, out_root, model, settings, notes):

@@ -40,7 +40,8 @@ XAML = os.path.join(os.path.dirname(__file__), 'IssueWindow.xaml')
 
 
 def needs_check(entry):
-    return not entry or 'issue' not in entry or 'orgs' not in entry
+    return (not entry or 'issue' not in entry or 'orgs' not in entry
+            or 'titleblock_types' not in (entry.get('issue') or {}))
 
 
 def read_issue_extra(doc, guid, entry):
@@ -386,8 +387,10 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             self.on_rev_model(None, None)
 
     def _pend(self, g):
-        return self.state['pending'].setdefault(g, {'new_revisions': [], 'edit_revisions': {}, 'sheet_revisions': {},
-                                                    'params': [], 'sheet_ids': []})
+        p = self.state['pending'].setdefault(g, {'new_revisions': [], 'edit_revisions': {}, 'sheet_revisions': {},
+                                                 'params': [], 'sheet_ids': [], 'tb_types': []})
+        p.setdefault('tb_types', [])
+        return p
 
     def _revisions(self, g):
         """Existing revisions with pending edits + pending new ones, in sequence order."""
@@ -647,6 +650,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             row['Issued'] = u'Yes' if r.get('issued') else u''
             t.Rows.Add(row)
         self.tb_revs_dg.ItemsSource = t.DefaultView
+        self._fill_tb_change(g, iss, tbs[0] if tbs else None)
         if tbs:
             self.tb_inst_cb.SelectedIndex = 0
             self._show_params(g, iss, num, tbs[0])
@@ -657,7 +661,118 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         if self._busy or self.tb_inst_cb.SelectedItem is None or not getattr(self, '_tb_sheet_key', None):
             return
         g, iss, num, si = self._tb_sheet_info(self._tb_sheet_key)
-        self._show_params(g, iss, num, self._tb_list.get(self.tb_inst_cb.SelectedItem))
+        tb = self._tb_list.get(self.tb_inst_cb.SelectedItem)
+        self._fill_tb_change(g, iss, tb)
+        self._show_params(g, iss, num, tb)
+
+    @staticmethod
+    def _type_label(t):
+        return u'%s : %s%s' % (t['family'], t['type'], (u'   (%s)' % t['size']) if t.get('size') else u'')
+
+    def _fill_tb_change(self, g, iss, tb):
+        """'Change to' list: every title block type loaded in this model."""
+        self._busy = True
+        self.tb_change_cb.Items.Clear()
+        self._tb_types = {}
+        for t in iss.get('titleblock_types', []):
+            lab = self._type_label(t)
+            self._tb_types[lab] = t
+            self.tb_change_cb.Items.Add(lab)
+        cur = None
+        if tb:
+            pend = [tc for tc in (self.state['pending'].get(g) or {}).get('tb_types', [])
+                    if tc['instance_id'] == tb['instance_id']]
+            want = pend[0]['type_id'] if pend else tb['type_id']
+            for lab, t in self._tb_types.items():
+                if t['id'] == want:
+                    cur = lab
+        if cur:
+            self.tb_change_cb.SelectedItem = cur
+        self._busy = False
+
+    def _queue_tb_change(self, g, num, tb, new_t, keep):
+        """Add (or remove, if it's back to the current type) one title block change."""
+        p = self._pend(g)
+        p['tb_types'] = [tc for tc in p['tb_types'] if tc['instance_id'] != tb['instance_id']]
+        if new_t['id'] == tb['type_id']:
+            return
+        p['tb_types'].append({'instance_id': tb['instance_id'], 'type_id': new_t['id'], 'old_type_id': tb['type_id'],
+                              'label': u'drawing %s' % num, 'new_label': u'%s : %s' % (new_t['family'], new_t['type']),
+                              'old_label': u'%s : %s' % (tb['family'], tb['type']), 'copy_switches': bool(keep)})
+        sid = (((self.cache.get(g) or {}).get('issue') or {}).get('sheets') or {}).get(num, {}).get('id')
+        if sid and sid not in p['sheet_ids']:
+            p['sheet_ids'].append(sid)
+
+    def _size_of(self, g, type_id):
+        for t in ((self.cache.get(g) or {}).get('issue') or {}).get('titleblock_types', []):
+            if t['id'] == type_id:
+                return t.get('size', u'')
+        return u''
+
+    def on_tb_change_one(self, sender, args):
+        if not getattr(self, '_tb_sheet_key', None) or self.tb_change_cb.SelectedItem is None:
+            forms.alert('Pick a drawing, then the title block to change to.')
+            return
+        g, iss, num, si = self._tb_sheet_info(self._tb_sheet_key)
+        tb = self._tb_list.get(self.tb_inst_cb.SelectedItem)
+        if tb is None and len(self._tb_list) == 1:
+            tb = list(self._tb_list.values())[0]          # only one title block on the drawing
+        new_t = self._tb_types.get(self.tb_change_cb.SelectedItem)
+        if not tb or not new_t:
+            return
+        old_size, new_size = self._size_of(g, tb['type_id']), new_t.get('size', u'')
+        if old_size and new_size and old_size != new_size and not forms.alert(
+                u'The sheet size changes: %s \u2192 %s.\n\nViews are NOT moved - some may end up outside the border. '
+                u'Continue?' % (old_size, new_size), yes=True, no=True):
+            return
+        self._queue_tb_change(g, num, tb, new_t, self.tb_keep_cb.IsChecked)
+        self._refresh_changes()
+
+    def on_tb_change_ticked(self, sender, args):
+        if self.tb_change_cb.SelectedItem is None:
+            forms.alert('Pick the title block to change to first (any drawing of a model that has it).')
+            return
+        new_t = self._tb_types.get(self.tb_change_cb.SelectedItem)
+        fam, typ = new_t['family'], new_t['type']
+        done, skipped, sizes = 0, [], set()
+        for (g, num_l) in sorted(self.state['ticked']):
+            if g not in self.state['loaded']:
+                continue
+            iss = (self.cache.get(g) or {}).get('issue') or {}
+            match = [t for t in iss.get('titleblock_types', []) if t['family'] == fam and t['type'] == typ]
+            sheets = iss.get('sheets') or {}
+            num = [n for n in sheets if n.lower() == num_l]
+            if not num:
+                continue
+            si = sheets[num[0]]
+            tbs = si.get('titleblocks') or ([si['titleblock']] if si.get('titleblock') else [])
+            label = u'%s (%s)' % (num[0], (self.cache.get(g) or {}).get('model', u''))
+            if not match:
+                skipped.append(label + u': this model does not have that title block')
+                continue
+            if len(tbs) != 1:
+                skipped.append(label + u': %d title blocks on the sheet - change it on its own' % len(tbs))
+                continue
+            old_size = self._size_of(g, tbs[0]['type_id'])
+            if old_size and match[0].get('size') and old_size != match[0]['size']:
+                sizes.add(u'%s \u2192 %s' % (old_size, match[0]['size']))
+            self._queue_tb_change(g, num[0], tbs[0], match[0], self.tb_keep_cb.IsChecked)
+            done += 1
+        self._refresh_changes()
+        forms.alert(u'%d drawing(s) set to change to %s : %s.%s%s\n\nNothing changes in Revit until Apply.' % (
+            done, fam, typ,
+            (u'\n\n\u26A0 Sheet size changes: ' + u', '.join(sorted(sizes)) + u' - views are NOT moved.') if sizes else u'',
+            (u'\n\nSkipped:\n' + u'\n'.join(skipped[:20])) if skipped else u''))
+
+    def on_tb_change_undo(self, sender, args):
+        if not getattr(self, '_tb_sheet_key', None):
+            return
+        g, iss, num, si = self._tb_sheet_info(self._tb_sheet_key)
+        ids = set(t['instance_id'] for t in (si.get('titleblocks') or ([si['titleblock']] if si.get('titleblock') else [])))
+        p = self._pend(g)
+        p['tb_types'] = [tc for tc in p['tb_types'] if tc['instance_id'] not in ids]
+        self.on_tb_sheet(None, None)
+        self._refresh_changes()
 
     def on_autocol_plain(self, sender, e):
         if e.PropertyName == 'Key':
@@ -718,7 +833,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
     def _count_changes(self, g):
         p = self.state['pending'].get(g) or {}
         return (len(p.get('new_revisions', [])) + len(p.get('edit_revisions', {})) +
-                len(p.get('sheet_revisions', {})) + len(p.get('params', [])))
+                len(p.get('sheet_revisions', {})) + len(p.get('params', [])) + len(p.get('tb_types', [])))
 
     def _refresh_changes(self):
         lines = []
@@ -732,6 +847,9 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
                 lines.append(u'   ~ revision %s: %s' % (rid, u', '.join(u'%s = %s' % kv for kv in ed.items())))
             for num, ids in sorted(p['sheet_revisions'].items()):
                 lines.append(u'   ~ sheet %s: manual revisions = %s' % (num, u', '.join(str(i) for i in ids) or u'(none)'))
+            for tc in p.get('tb_types', []):
+                lines.append(u'   ~ %s: title block %s \u2192 %s%s' % (tc['label'], tc.get('old_label', u''), tc['new_label'],
+                                                                   u'  (keep switches)' if tc.get('copy_switches') else u''))
             for pc in p['params']:
                 lines.append(u'   ~ %s "%s" = %s   (%s)' % (pc['scope'], pc['name'], u'Yes' if pc['value'] else u'No', pc['label']))
         self.changes_tb.Text = u'\n'.join(lines) or u'No changes waiting.'
@@ -844,7 +962,7 @@ def do_apply(guids, state, settings, reg, cache):
     results = []
     for g in guids:
         ch = state['pending'][g]
-        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params'))
+        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types'))
         try:
             ok, log, undo, entry = issue.apply_changes(app, reg[g], ch, settings,
                                                        u'Issue Sheets by Lew: %d change(s)' % n_changes, after=fresh)
@@ -902,7 +1020,7 @@ def do_issue(rows, state, settings, reg, cache, dry):
     job = {'out_root': out_root, 'do_export': True, 'run_cad': bool(run_cad), 'models': models,
            'picked': dict((g, sorted(v)) for g, v in picked.items()), 'lod_rows': None,
            '_formats': settings['_formats'], '_extra_read': read_issue_extra}
-    log_path = core.usable_log_path(os.path.join(out_root, 'SheetExport_log.csv'))
+    log_path = core.usable_log_path(os.path.join(core.logs_dir(out_root), 'SheetExport_log.csv'))
     started, since = time.time(), core.now()
     logo_since = core.now()
     if run_cad:                                   # logos start while Revit is still exporting

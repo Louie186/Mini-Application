@@ -480,8 +480,10 @@
             (setq names  (cons (strcase dest) names)
                   copies (cons (list dest (vl-filename-directory (car j))) copies))
             (princ (strcat "\n  Could not copy, skipped: " (car j)))))))
-     (setq copies (reverse copies)
-           lsp    (i2o:fwd (strcat home "\\IMG2OLE.lsp"))
+     (setq copies (reverse copies))
+     (if (setq f (open (strcat logdir "IMG2OLE_open.txt") "w"))   ; for the final clean-up
+       (progn (foreach c copies (write-line (car c) f)) (close f)))
+     (setq lsp    (i2o:fwd (strcat home "\\IMG2OLE.lsp"))
            scr    (strcat logdir "IMG2OLE_batch.scr")
            fd     (getvar "FILEDIA")
            f      (open scr "w"))
@@ -539,15 +541,56 @@
   (princ))
 
 ;; last line of the batch script
-(defun i2o:finish (outdir mode fd / tmp)
+(defun i2o:close-batch-docs (logdir / f l paths act docs n)
+  "Close drawings of this batch that are still open (saving them first if they have unsaved changes)."
+  (setq n 0)
+  (if (setq f (open (strcat logdir "IMG2OLE_open.txt") "r"))
+    (progn
+      (while (setq l (read-line f)) (setq paths (cons (strcase (vl-string-translate "/" "\\" l)) paths)))
+      (close f)))
+  (if (and paths (i2o:com-p))
+    (progn
+      (setq act (vla-get-ActiveDocument (vlax-get-acad-object)))
+      (vlax-for d (vla-get-Documents (vlax-get-acad-object))
+        (if (and (not (equal d act))
+                 (member (strcase (vl-string-translate "/" "\\" (vla-get-FullName d))) paths))
+          (setq docs (cons d docs))))
+      (foreach d docs
+        (if (not (vl-catch-all-error-p
+                   (vl-catch-all-apply
+                     '(lambda ()
+                        (if (= (vla-get-Saved d) :vlax-false) (vla-Save d))
+                        (vla-Close d :vlax-false)))))
+          (setq n (1+ n))))))
+  n)
+
+(defun i2o:close-self-if-batch (logdir / f l paths me)
+  ;; If the batch ended while one of ITS drawings is the active one, save and close it too
+  ;; (the background helper quits AutoCAD instead, which also closes it).
+  (if (setq f (open (strcat logdir "IMG2OLE_open.txt") "r"))
+    (progn
+      (while (setq l (read-line f)) (setq paths (cons (strcase (vl-string-translate "/" "\\" l)) paths)))
+      (close f)))
+  (setq me (strcase (strcat (getvar "DWGPREFIX") (getvar "DWGNAME"))))
+  (if (member me paths)
+    (progn
+      (princ "\nIMG2OLE: saving and closing the last drawing.")
+      (command "_.QSAVE")
+      (if i2o:*quit-after* (command "_.QUIT") (command "_.CLOSE")))))
+
+(defun i2o:finish (outdir mode fd / tmp n)
   (setvar "FILEDIA" fd)
   (setq outdir (i2o:dir outdir))
+  (setq n (vl-catch-all-apply 'i2o:close-batch-docs (list outdir)))
+  (if (and (= (type n) 'INT) (> n 0))
+    (princ (strcat "\nIMG2OLE: closed " (itoa n) " drawing(s) that were still open (saved).")))
   (if (= (strcase mode) "DRYRUN")
     (progn
       (setq tmp (strcat outdir "_dryrun_temp\\"))
       (foreach pat '("*.dwg" "*.bak" "*.dwl" "*.dwl2")
         (foreach f (vl-directory-files tmp pat 1) (vl-file-delete (strcat tmp f))))))
   (princ (strcat "\nIMG2OLE finished (" mode "). Logs: " outdir "IMG2OLE_files.csv and IMG2OLE_images.csv"))
+  (i2o:close-self-if-batch outdir)                  ; last: may close this very drawing
   (princ))
 
 (princ "\nIMG2OLE loaded. Commands: IMG2OLE1 (this drawing), IMG2OLE (many drawings).")

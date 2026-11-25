@@ -49,7 +49,7 @@ Settings are saved for next time. Before exporting, the tool warns you if two dr
 
 - 64 GB memory: 2–3 windows are fine
 - Cancel in one window: models it hasn't started stay in the queue for the others
-- The queue lives in `<Output folder>\_queue\`
+- The queue lives in `<Output folder>\_Logs\_queue\`
 
 ## Safety: what the tool does to your models
 
@@ -92,6 +92,7 @@ For formal issues: **what changed → fix revisions / title block switches → i
    - All revisions with Rev, Date, Description, Issued to/by. Edit dates/descriptions (not Issued ones). **+ Add revision**
    - Tick revisions per drawing: **Current rev and date update straight away**. Clouded revisions can't be removed here
 5. **Title blocks tab:** pick a **drawing** at the top (or click one in Drawings) → the **title block(s)** it really uses (a second drop-down if there's more than one), the **revisions on that drawing** (number on the sheet, date, cloud or added, issued), and the title block's **Yes/No** parameters (instance = this drawing, type = ALL drawings of that type). Only Yes/No can be changed
+   - **Change the title block:** pick the new one in **Change to** (any title block type loaded in that model, with its sheet size) → **Change this drawing**, or tick drawings in the Drawings tab → **Change all ticked**. **Keep Yes/No switches** copies the switches across. If the sheet size changes you get a warning (views are not moved). **Undo** removes it before Apply. Nothing changes in Revit until **Apply**, and **Revert** puts the old title block back
    - **Settings** on the right: the same **Output / PDF / CAD / Run** tabs as Export Sheets (setup drop-down + every Revit export option), shared between both buttons
 6. **Changes tab → Apply to the models** (only if you changed revisions or Yes/No):
    - Local copy (not detached) → nobody else owns the items → **one change step** → read back → **sync + give back everything borrowed** → close
@@ -105,13 +106,19 @@ For formal issues: **what changed → fix revisions / title block switches → i
 
 ```
 <Output folder>\
-  SheetExport_log.csv          one row per file (OK / FAILED / WOULD_EXPORT / NOT_IN_CHOSEN_MODELS)
+  IssueRegister.csv            Issue Sheets only: one row per print
   <Model name>\
     PDF\        5013-KEO-T1-ZZ-PLN-INT-10100-T1.pdf
     _DWG_raw\   Revit's DWG + the logo PNGs (input for IMG2OLE)
     DWG\        final DWGs with embedded logos (made by AutoCAD)
-  IMG2OLE_files.csv / IMG2OLE_images.csv   logo logs
+  _Logs\                       ALL logs and helper files, in one place
+    SheetExport_log.csv        one row per file (OK / FAILED / WOULD_EXPORT / NOT_IN_CHOSEN_MODELS)
+    IMG2OLE_files.csv / IMG2OLE_images.csv   logo results
+    IMG2OLE_runner.log, IMG2OLE_queue.*, IMG2OLE_jobs_*, IMG2OLE_start_*   background helper files
+    _queue\                    shared export between Revit windows
 ```
+
+- When the logos are done, AutoCAD **saves and closes the last drawing** by itself
 
 ## Settings
 

@@ -65,6 +65,14 @@ def text(v):
         return u'%r' % (v,)
 
 
+LOGS_FOLDER = u'_Logs'
+
+
+def logs_dir(out_root):
+    """<export folder>\\_Logs: every log, queue and script file of a run (drawings stay outside)."""
+    return ensure_dir(os.path.join(out_root, LOGS_FOLDER))
+
+
 def ensure_dir(d):
     if d and not os.path.isdir(d):
         os.makedirs(d)
@@ -1077,7 +1085,7 @@ def _pid():
 
 def queue_create(out_root, job, guids, first=None):
     """One file per model in <out_root>\\_queue. Claiming = renaming the file (atomic)."""
-    qd = os.path.join(out_root, '_queue')
+    qd = os.path.join(logs_dir(out_root), '_queue')
     ensure_dir(qd)
     for fn in os.listdir(qd):
         try:
@@ -1302,7 +1310,9 @@ def find_raw_dwgs(out_root):
 
 def img2ole_summary(out_root):
     """Latest IMG2OLE result per drawing from IMG2OLE_files.csv: (counts by result, problem lines)."""
-    path = os.path.join(out_root, 'IMG2OLE_files.csv')
+    path = os.path.join(logs_dir(out_root), 'IMG2OLE_files.csv')
+    if not os.path.exists(path) and os.path.exists(os.path.join(out_root, 'IMG2OLE_files.csv')):
+        path = os.path.join(out_root, 'IMG2OLE_files.csv')          # older runs (before _Logs)
     if not os.path.exists(path):
         return None, []
     latest = {}
@@ -1327,14 +1337,15 @@ def start_img2ole(jobs, out_root, settings):
     acad = find_acad(settings)
     if not acad:
         return u'AutoCAD not found - logos NOT embedded. Set acad_exe in settings.'
-    jobs_file = os.path.join(out_root, u'IMG2OLE_jobs.txt')
+    ld = logs_dir(out_root)
+    jobs_file = os.path.join(ld, u'IMG2OLE_jobs.txt')
     write_ansi(jobs_file, u''.join(u'%s|%s\n' % (src, dst if dst.endswith('\\') else dst + u'\\')
                                    for src, dst in jobs))
-    starter = os.path.join(out_root, u'IMG2OLE_start.scr')
+    starter = os.path.join(ld, u'IMG2OLE_start.scr')
     fwd = lambda p: p.replace(u'\\', u'/')
     body = (u'(setenv "IMG2OLE_HOME" "%s")\n' % os.path.dirname(lsp).replace(u'\\', u'\\\\') +
             u'(load "%s")\n' % fwd(lsp) +
-            u'(i2o:batch-file "%s" "RUN" "EMF" "%s/")\n' % (fwd(jobs_file), fwd(out_root).rstrip(u'/')))
+            u'(i2o:batch-file "%s" "RUN" "EMF" "%s/")\n' % (fwd(jobs_file), fwd(ld).rstrip(u'/')))
     write_ansi(starter, body)
     import System
     System.Diagnostics.Process.Start(acad, u'/nologo /b "%s"' % starter)
@@ -1356,7 +1367,7 @@ def logo_pipeline_reset(out_root):
     """Start a fresh queue in this output folder (old queue files removed)."""
     for n in ('IMG2OLE_queue.txt', 'IMG2OLE_queue.pos', 'IMG2OLE_queue.done'):
         try:
-            os.remove(os.path.join(out_root, n))
+            os.remove(os.path.join(logs_dir(out_root), n))
         except Exception:
             pass
 
@@ -1364,12 +1375,12 @@ def logo_pipeline_reset(out_root):
 def logo_queue_add(out_root, jobs):
     """jobs: [(raw dwg, final DWG folder)] -> appended for the background helper."""
     if jobs:
-        _ansi_append(os.path.join(out_root, u'IMG2OLE_queue.txt'),
+        _ansi_append(os.path.join(logs_dir(out_root), u'IMG2OLE_queue.txt'),
                      u''.join(u'%s|%s\n' % (a, b if b.endswith('\\') else b + u'\\') for a, b in jobs))
 
 
 def logo_queue_done(out_root):
-    with io.open(os.path.join(out_root, u'IMG2OLE_queue.done'), 'w', encoding='utf-8') as f:
+    with io.open(os.path.join(logs_dir(out_root), u'IMG2OLE_queue.done'), 'w', encoding='utf-8') as f:
         f.write(now())
 
 
@@ -1386,7 +1397,7 @@ def logo_runner_start(out_root, settings):
         import System
         psi = System.Diagnostics.ProcessStartInfo('powershell.exe')
         psi.Arguments = (u'-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "%s" '
-                         u'-Folder "%s" -Acad "%s" -Lsp "%s"' % (ps1, out_root.rstrip(u'\\'), acad, lsp))
+                         u'-Folder "%s" -Acad "%s" -Lsp "%s"' % (ps1, logs_dir(out_root).rstrip(u'\\'), acad, lsp))
         psi.UseShellExecute = False
         psi.CreateNoWindow = True
         System.Diagnostics.Process.Start(psi)

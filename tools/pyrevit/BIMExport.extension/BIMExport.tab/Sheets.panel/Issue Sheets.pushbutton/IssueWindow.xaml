@@ -218,7 +218,17 @@
                         <DockPanel Margin="8">
                             <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="90"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                <Grid.RowDefinitions><RowDefinition/><RowDefinition/><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
+                                <TextBlock Text="Change to" Grid.Row="2" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <ComboBox x:Name="tb_change_cb" Grid.Row="2" Grid.Column="1" Margin="0,2"
+                                          ToolTip="Any title block type loaded in this model (same family or another family)"/>
+                                <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,4,0,0">
+                                    <Button Content="Change this drawing" Style="{StaticResource Small}" Click="on_tb_change_one"/>
+                                    <Button Content="Change all ticked drawings" Style="{StaticResource Small}" Click="on_tb_change_ticked"/>
+                                    <Button Content="Undo for this drawing" Style="{StaticResource Small}" Click="on_tb_change_undo"/>
+                                    <CheckBox x:Name="tb_keep_cb" Content="Keep Yes/No switches with the same name" IsChecked="True"
+                                              VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                </StackPanel>
                                 <TextBlock Text="Drawing" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <ComboBox x:Name="tb_sheet_cb" Grid.Column="1" Margin="0,2" SelectionChanged="on_tb_sheet"/>
                                 <TextBlock Text="Title block" Grid.Row="1" FontWeight="SemiBold" VerticalAlignment="Center"/>

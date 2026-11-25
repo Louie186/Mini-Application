@@ -378,7 +378,7 @@ class ProgressWindow(forms.WPFWindow):
         self.sheet_pb.IsIndeterminate = False
         self.title_tb.Text = headline
         self.current_tb.Text = u'Finished' if not self.cancelled else u'Stopped'
-        self.phase_tb.Text = u'Full details: SheetExport_log.csv in the output folder.'
+        self.phase_tb.Text = u'Full details: _Logs\\SheetExport_log.csv in the output folder.'
         self.cancel_btn.Visibility = Visibility.Collapsed
         self.open_btn.Visibility = Visibility.Visible
         self.close_btn.Visibility = Visibility.Visible
@@ -404,7 +404,7 @@ class ProgressWindow(forms.WPFWindow):
     def _logo_tick(self, sender, args):
         """Follow AutoCAD: count the drawings IMG2OLE has finished since the export."""
         try:
-            rows = [r for r in core.read_csv(os.path.join(self._out, 'IMG2OLE_files.csv'))
+            rows = [r for r in core.read_csv(os.path.join(core.logs_dir(self._out), 'IMG2OLE_files.csv'))
                     if r.get('Mode') == 'RUN' and r.get('Timestamp', '') >= self._logo_since]
         except Exception:
             rows = []

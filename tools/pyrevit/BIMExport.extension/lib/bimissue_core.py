@@ -169,7 +169,41 @@ def read_issue_data(doc):
             'titleblocks': tbs}
     return {'version': model_version(doc), 'read_on': core.now(), 'revisions': revs,
             'per_sheet_numbering': _numbering_per_sheet(doc), 'sheets': sheets,
-            'titleblock_type_count': dict((str(k), v) for k, v in tb_count.items())}
+            'titleblock_type_count': dict((str(k), v) for k, v in tb_count.items()),
+            'titleblock_types': read_titleblock_types(doc)}
+
+
+def _size(sym):
+    out = []
+    for bip in ('SHEET_WIDTH', 'SHEET_HEIGHT'):
+        try:
+            p = sym.get_Parameter(getattr(BuiltInParameter, bip))
+            out.append(p.AsValueString() if p is not None else u'')
+        except Exception:
+            out.append(u'')
+    return u' x '.join(x for x in out if x)
+
+
+def read_titleblock_types(doc):
+    """Every title block type loaded in the model: [{id, family, type, size}] (family, then type)."""
+    out = []
+    try:
+        for sym in FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_TitleBlocks).WhereElementIsElementType():
+            try:
+                out.append({'id': eid_int(sym.Id), 'family': _txt(sym.FamilyName),
+                            'type': _txt(sym.get_Parameter(BuiltInParameter.SYMBOL_NAME_PARAM).AsString()),
+                            'size': _size(sym)})
+            except Exception:
+                pass
+    except Exception:
+        pass
+    out.sort(key=lambda t: (t['family'].lower(), t['type'].lower()))
+    return out
+
+
+def _yes_no_values(el):
+    """{name: True/False} of an element's changeable Yes/No parameters."""
+    return dict((p['name'], p['value']) for p in _yes_no_params(el) if not p['readonly'])
 
 
 # ------------------------------------------------------------ file names --
@@ -392,7 +426,7 @@ def _set_yes_no(el, name, value):
 
 def _snapshot(doc, changes):
     """Old values of everything the changes touch (for verification and Revert)."""
-    snap = {'revisions': {}, 'sheets': {}, 'params': []}
+    snap = {'revisions': {}, 'sheets': {}, 'params': [], 'tb_types': []}
     for rid in changes.get('edit_revisions', {}):
         r = doc.GetElement(make_eid(rid))
         snap['revisions'][str(rid)] = {'date': _txt(r.RevisionDate), 'description': _txt(r.Description),
@@ -406,6 +440,13 @@ def _snapshot(doc, changes):
         el = doc.GetElement(make_eid(pc['element_id']))
         p = el.LookupParameter(pc['name']) if el is not None else None
         snap['params'].append(dict(pc, value=(p.AsInteger() == 1) if p is not None else None))
+    for tc in changes.get('tb_types', []):
+        inst = doc.GetElement(make_eid(tc['instance_id']))
+        if inst is not None:
+            snap['tb_types'].append({'instance_id': tc['instance_id'], 'type_id': eid_int(inst.GetTypeId()),
+                                     'restore': _yes_no_values(inst), 'label': tc.get('label', u''),
+                                     'new_label': tc.get('old_label') or u'the original title block',
+                                     'copy_switches': False})
     return snap
 
 
@@ -442,6 +483,24 @@ def _apply_in_doc(doc, changes, log):
             real = [created[i] if i in created else int(i) for i in ids]
             s.SetAdditionalRevisionIds(List[ElementId]([make_eid(i) for i in real]))
             log.append(u'Sheet %s: revisions set' % num)
+        for tc in changes.get('tb_types', []):
+            inst = doc.GetElement(make_eid(tc['instance_id']))
+            if inst is None:
+                raise ApplyError(u'Title block %s not found' % tc['instance_id'])
+            old_vals = _yes_no_values(inst)
+            inst.ChangeTypeId(make_eid(tc['type_id']))
+            log.append(u'%s: title block changed to %s' % (tc.get('label', u''), tc.get('new_label', tc['type_id'])))
+            keep = tc.get('restore') if tc.get('restore') is not None else (old_vals if tc.get('copy_switches') else {})
+            missing = []
+            for name, val in keep.items():
+                p = inst.LookupParameter(name)
+                if p is None or p.IsReadOnly or p.StorageType != StorageType.Integer:
+                    missing.append(name)
+                    continue
+                p.Set(1 if val else 0)
+            if keep:
+                log.append(u'   switches kept: %d%s' % (len(keep) - len(missing), (
+                    u'; not in the new title block: ' + u', '.join(sorted(missing))) if missing else u''))
         for pc in changes.get('params', []):
             el = doc.GetElement(make_eid(pc['element_id']))
             if el is None:
@@ -476,6 +535,10 @@ def _verify(doc, changes, created):
         got = sorted(eid_int(i) for i in sheets[num].GetAdditionalRevisionIds())
         if want != got:
             bad.append(u'Sheet %s revisions not as expected' % num)
+    for tc in changes.get('tb_types', []):
+        inst = doc.GetElement(make_eid(tc['instance_id']))
+        if inst is None or eid_int(inst.GetTypeId()) != int(tc['type_id']):
+            bad.append(u'%s: title block type not as expected' % tc.get('label', tc['instance_id']))
     for pc in changes.get('params', []):
         p = doc.GetElement(make_eid(pc['element_id'])).LookupParameter(pc['name'])
         if p is None or (p.AsInteger() == 1) != bool(pc['value']):
@@ -505,6 +568,7 @@ def touched_ids(changes):
     ids = set(int(i) for i in changes.get('edit_revisions', {}))
     ids |= set(pc['element_id'] for pc in changes.get('params', []))
     ids |= set(int(s) for s in changes.get('sheet_ids', []))
+    ids |= set(int(tc['instance_id']) for tc in changes.get('tb_types', []))
     return ids
 
 
@@ -567,6 +631,7 @@ def revert(app, undo_file, settings):
     back = {'edit_revisions': dict((k, v) for k, v in before.get('revisions', {}).items()),
             'sheet_revisions': before.get('sheets', {}),
             'params': [p for p in before.get('params', []) if p.get('value') is not None],
+            'tb_types': before.get('tb_types', []),
             'sheet_ids': undo['changes'].get('sheet_ids', [])}
     log = []
     doc = _open_for_edit(app, undo['model'], settings)

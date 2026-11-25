@@ -228,8 +228,12 @@
   - Saved sets: `%APPDATA%\BIMExport\IssueSets.json`
 - Bug fixed at the same time: new `SheetExport_log.csv` files were written **without a header** (the "file open in Excel" check created an empty file first)
 - v7.1 safety fixes for Apply/Revert: refuse while any other Revit process runs; open the local copy with `OpenLastViewed` worksets (printing still opens ALL worksets, detached); no automatic dialog clicking (`StrictRevit`: warnings accepted + logged, errors roll back); `SaveLocalBefore=False` / `SaveLocalAfter=True`; fresh data read from the same open after sync (no second open); issue register `.backup` before each rewrite
-- v7.1 speed: logo **pipeline** for Issue Sheets: `IMG2OLE_runner.ps1` (bundled) takes `<out>\IMG2OLE_queue.txt` lines appended after each model, runs one AutoCAD per batch (`i2o:*quit-after*` makes the batch QUIT), stops on `IMG2OLE_queue.done`; lock/pos/log files in the output folder; falls back to end-of-run start. Export Sheets still starts AutoCAD at the end
+- v7.1 speed: logo **pipeline** for Issue Sheets: `IMG2OLE_runner.ps1` (bundled) takes `<out>\IMG2OLE_queue.txt` lines appended after each model, runs one AutoCAD per batch (`i2o:*quit-after*` makes the batch QUIT), stops on `IMG2OLE_queue.done`; lock/pos/log files in the logs folder (`_Logs` since v7.3); falls back to end-of-run start. Export Sheets still starts AutoCAD at the end
 - v7.2 (user feedback): MIDP is optional (no MIDP = file named by sheet number); Issue Sheets has the same Output/PDF/CAD/Run tabs as Export Sheets (shared `ExportSettingsMixin` in `bimexport_ui.py`, a copy of the Export window code); Title blocks tab has a drawing drop-down + title block drop-down (all title blocks per sheet are read into `titleblocks`) + the revisions on that drawing; per-sheet revision numbering supported (`rev_number()` never calls `Revision.RevisionNumber` blindly)
+- v7.3 (user feedback):
+  - **Title block type change**: Title blocks tab → "Change to" (every title block type loaded in the model, with sheet size from SHEET_WIDTH/HEIGHT). "Change this drawing" or "Change all ticked" (same family/type name matched per model; sheets with 2+ title blocks skipped). Queued as `tb_types` → `FamilyInstance.ChangeTypeId` in the Apply transaction; "Keep Yes/No switches" copies same-named Yes/No instance params. Size-change warning (views are not moved). Snapshot/verify/Revert cover it
+  - **AutoCAD closes the last file**: `i2o:close-batch-docs` + `i2o:close-self-if-batch` at the end of `i2o:finish` (QSAVE, then QUIT if `i2o:*quit-after*`, else CLOSE). Batch copies listed in `IMG2OLE_open.txt`
+  - **All logs in `<out>\_Logs\`** (`core.logs_dir`): SheetExport_log.csv, IMG2OLE_* (files/images CSV, jobs, start scripts, queue/pos/done/lock, runner log, open list) and the shared-export `_queue\`. `img2ole_summary` still reads old-location files. Drawings and IssueRegister.csv stay in the export folder
 - To verify tomorrow: GetDocumentVersion on a detached quick open; DataGrid single-click checkboxes; Apply/sync on a test model; per-sheet numbering display; Revision.Create + SetAdditionalRevisionIds
 
 ## 8. Version history (short)
@@ -244,3 +248,4 @@
 | v5 | Progress window with per-model and per-drawing status |
 | v6–6.2 | Threaded animated progress window + logo tracking, IMG2OLE bundled, AutoCAD setup check (+ fallback), quick open for drawing lists, optional skip of link worksets |
 | v7.0 | **Issue Sheets** button (sets, change check, revisions, title block Yes/No, Apply/Revert, exact MIDP names, issue register); log header bug fixed |
+| v7.1–7.3 | Safer Apply, logo pipeline, optional MIDP, full PDF/CAD tabs in Issue Sheets, per-sheet numbering, title block type change, AutoCAD auto-close, logs in `_Logs` |

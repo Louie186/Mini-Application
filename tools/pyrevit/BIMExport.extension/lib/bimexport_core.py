@@ -1249,6 +1249,13 @@ def _batch_dwg(doc, sheets, raw_dir, opts, notes):
         cands = sorted([f for f in new if pat.search(f[len(prefix):])], key=len)
         if cands and (len(cands) == 1 or len(cands[0]) < len(cands[1])):      # the sheet itself (xrefs are longer)
             out[num.lower()] = os.path.join(raw_dir, cands[0])
+    if not out:                                      # nothing usable: remove what the one-go export made
+        for f in os.listdir(raw_dir):
+            if f not in before and f.startswith(prefix):
+                try:
+                    os.remove(os.path.join(raw_dir, f))
+                except Exception:
+                    pass
     if len(out) < len(sheets):
         notes.append(u'%d DWG(s) exported one by one (not found for sure in the one-go export)' % (len(sheets) - len(out)))
     return out

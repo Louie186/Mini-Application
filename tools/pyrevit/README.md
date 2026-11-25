@@ -104,6 +104,14 @@ For formal issues: **what changed → fix revisions / title block switches → i
    - Apply only runs when this is the **only Revit window** (two windows share one local copy). It opens your local copy with **your own last-used worksets**, never clicks Revit messages away, and doesn't save the local file before syncing (a failed sync leaves nothing behind)
 7. **Issue:** with "Embed logos" ticked, a small **background helper** starts AutoCAD as soon as the first model's DWGs are ready and keeps feeding it while Revit exports the next models (one AutoCAD at a time; falls back to "AutoCAD at the end" if PowerShell is blocked). Then it exports the ticked drawings (detached, closed without saving) with the exact names, embeds logos if ticked, and writes **one row per print** in the **issue register** CSV (each drawing's prints grouped together, newest under the older ones)
 
+### Speed (v7.8): each model opens ONCE
+
+- **No Check needed for models read before.** Ticking a model loads its saved list straight away ("from saved lists, oldest 25/11 14:20"). Every print refreshes the saved list for free, so press **Check models** only for a model never read, or to see the very latest changes before printing
+- **Names are finished at print time** with the revision the sheet shows then (MIDP code + live revision), so a saved list never gives a wrong name. If the revision changed since the list was read, the report and register say so ("revision changed since Check: T1 -> T2")
+- **All PDFs of a model in one Revit export** (same settings and quality), then each gets its exact name. Falls back to one by one if Revit can't
+- **Share with other Revit windows** (Run tab): open a 2nd/3rd Revit, click Issue Sheets → **Join**. Each window prints the next model; the last one writes the issue register and finishes the logos. 2–3 windows ≈ 2–3x faster (64 GB is fine for 3)
+- **Elapsed time counts from when you picked the models** (first Check / Issue press), so it shows the whole job
+
 ### File name = what the sheet shows (both buttons)
 
 - The revision in a file name **always comes from Revit** (the sheet's current revision, the one in the title block). Never from the LOD / MIDP list

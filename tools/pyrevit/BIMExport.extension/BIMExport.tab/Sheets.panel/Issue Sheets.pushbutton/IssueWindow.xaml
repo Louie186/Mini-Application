@@ -374,6 +374,9 @@
                                     <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
                                                Text="AutoCAD starts while Revit is still exporting."/>
                                     <TextBlock Text="Speed" Style="{StaticResource Label}"/>
+                                    <CheckBox x:Name="share_cb" Content="Share with other Revit windows"/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0" TextWrapping="Wrap"
+                                               Text="Open another Revit, click Issue Sheets there and choose Join. Each window prints the next model (2-3 windows = 2-3x faster)."/>
                                     <CheckBox x:Name="skip_links_cb" Content="Faster: don't load linked models"/>
                                     <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
                                                Text="Only for drawings that do NOT show linked content."/>

@@ -165,6 +165,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self.allow_norev_cb.IsChecked = bool(s.get('allow_no_rev', False))
         self.embed_cb.IsChecked = bool(s.get('embed', True))
         self.skip_links_cb.IsChecked = bool(s.get('skip_links', False))
+        self.share_cb.IsChecked = bool(s.get('issue_share', False))
         self.allow_nonws_cb.IsChecked = bool(s.get('allow_non_workshared', False))
         self.midp_tb.Text = self.state.get('midp') or ''
         self._names_info()
@@ -185,6 +186,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         s['allow_no_rev'] = bool(self.allow_norev_cb.IsChecked)
         s['embed'] = bool(self.embed_cb.IsChecked)
         s['skip_links'] = bool(self.skip_links_cb.IsChecked)
+        s['issue_share'] = bool(self.share_cb.IsChecked)
         s['allow_non_workshared'] = bool(self.allow_nonws_cb.IsChecked)
         self._read_export_settings()
         try:
@@ -281,17 +283,34 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self._model_info()
 
     def _on_model_click(self, sender, args):
-        (self.state['checked_models'].add if sender.IsChecked else self.state['checked_models'].discard)(sender.Tag)
+        g = sender.Tag
+        (self.state['checked_models'].add if sender.IsChecked else self.state['checked_models'].discard)(g)
+        # saved list (refreshed by every print): use it straight away - no opening needed
+        if sender.IsChecked and g not in self.state['loaded'] and not needs_check(self.cache.get(g)):
+            self.state['loaded'].append(g)
+        elif not sender.IsChecked and g in self.state['loaded']:
+            self.state['loaded'].remove(g)
+        self._tick_request()
+        self._build_sheets()
+        self._fill_rev_models()
+        self._fill_tb_sheets()
         self._model_info()
 
     def _model_info(self):
         n = len(self.state['checked_models'])
-        self.model_info_tb.Text = u'%d model(s) ticked. Check models reads drawings, revisions, title blocks and the last sync (quick open, no links).' % n
+        saved = [g for g in self.state['checked_models'] if g in self.state['loaded']]
+        when = sorted((self.cache.get(g) or {}).get('updated', u'') for g in saved)
+        need = n - len(saved)
+        self.model_info_tb.Text = u'%d model(s) ticked%s%s' % (
+            n, (u' \u00B7 %d from saved lists (oldest %s) - Issue straight away; names use the revision the sheet shows '
+                u'at print time. Check models only to see the latest changes.' % (len(saved), when[0][:16])) if saved else u'',
+            (u' \u00B7 %d never read: Check models (quick open).' % need) if need else u'')
 
     def on_model_search(self, sender, args):
         self._fill_models()
 
     def on_check(self, sender, args):
+        ui.start_clock()                    # elapsed time counts from when the models were picked
         self._read_settings()
         self._request_gone()
         if not self.state['checked_models']:
@@ -325,7 +344,16 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
                 elif rq and status == u'OK':
                     note = (note + u'; ' if note else u'') + rq[1]
                 last = self.by_sheet.get((model.lower(), num.lower()))
-                out.append({'guid': g, 'num': num, 'model': model, 'name': s['name'],
+                if not self.midp:
+                    base, mode = core.clean(num), 'number'
+                else:
+                    base, mode = (name[:-(len(rev) + 1)] if name and rev and name.endswith(u'-' + rev) else name), 'code'
+                exp = u''
+                if self.state.get('request'):
+                    exp = next((q['expected'] for q in self.state['request']['rows']
+                                if q['seq'].lower() == num.strip().lower()), u'')
+                out.append({'guid': g, 'num': num, 'model': model, 'name': s['name'], 'base': base or u'',
+                            'mode': mode, 'expected': exp, 'norev': allow,
                             'midp_title': issue.midp_title(num, self.midp), 'file': name or u'',
                             'rev': rev, 'date': si.get('current_date', u''),
                             'last': (last.get('Revision', u'') + u'  ' + last.get('PrintedOn', u'')[:10]) if last else u'-',
@@ -976,6 +1004,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self._status()
 
     def on_apply(self, sender, args):
+        ui.start_clock()                    # elapsed time counts from when the models were picked
         todo = [g for g in self.state['pending'] if self._count_changes(g)]
         if not todo:
             forms.alert('No changes waiting.')
@@ -1026,11 +1055,13 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         return True
 
     def on_dryrun(self, sender, args):
+        ui.start_clock()                    # elapsed time counts from when the models were picked
         if self._ready():
             self.action = ('dryrun', None)
             self.Close()
 
     def on_issue(self, sender, args):
+        ui.start_clock()                    # elapsed time counts from when the models were picked
         if self._request_gone() or not self._ready():
             return
         rows = [self._rowinfo[u'%s|%s' % k] for k in self.state['ticked'] if u'%s|%s' % k in self._rowinfo]
@@ -1129,7 +1160,11 @@ def do_issue(rows, state, settings, reg, cache, dry):
     core.ensure_dir(out_root)
     names, picked = {}, {}
     for r in rows:
-        names[u'%s|%s' % (r['guid'], r['num'].strip().lower())] = r['file']
+        # the name is finished at print time with the revision the sheet shows THEN (exact even if the
+        # model changed since Check / since the saved list was read)
+        names[u'%s|%s' % (r['guid'], r['num'].strip().lower())] = {
+            'base': r.get('base') or r['file'], 'mode': r.get('mode', 'code'), 'shown': r['rev'],
+            'expected': r.get('expected', u''), 'norev': bool(r.get('norev'))}
         picked.setdefault(r['guid'], set()).add(r['num'].strip().lower())
     settings['_names'] = names
     if dry:
@@ -1164,20 +1199,59 @@ def do_issue(rows, state, settings, reg, cache, dry):
                                      prog['done'], n_files)
         job['_on_progress'] = on_progress
         issue.request_status(req, 'printing', u'Starting...', 0, n_files)
-    log_path = core.usable_log_path(os.path.join(core.logs_dir(out_root), 'SheetExport_log.csv'))
-    started, since = time.time(), core.now()
-    logo_since = core.now()
+    since = core.now()
     if run_cad:                                   # logos start while Revit is still exporting
         core.logo_pipeline_reset(out_root)
         job['_logo_pipeline'] = True
+    if settings.get('issue_share') and len(models) > 1:
+        # several Revit windows: each takes the next model nobody has started
+        qjob = {'kind': 'issue', 'out_root': out_root, 'run_cad': bool(run_cad), 'models': models,
+                'picked': job['picked'], '_formats': settings['_formats'], '_names': names, 'rows': rows,
+                'all_rows': state.get('all_rows') or [], 'request': state.get('request'), 'since': since,
+                'issue_register': settings['issue_register'],
+                'settings': dict((k, settings.get(k)) for k in SHARE_KEYS)}
+        qd = core.queue_create(out_root, qjob, [m['ModelGUID'].lower() for m in models])
+        open(os.path.join(qd, 'issue.finish'), 'w').close()      # taken by the LAST window to finish
+        run_issue_queue(qd, qjob, settings, reg, cache, u'Main window', job)
+        return
+    log_path = core.usable_log_path(os.path.join(core.logs_dir(out_root), 'SheetExport_log.csv'))
+    started = time.time()
     queue = list(models)
     lines, totals, _, pw = ui.export_models(lambda: queue.pop(0) if queue else None, list(models), job, settings,
                                             reg, cache, log_path, u'Issuing')
-    # one register row per printed drawing
+    more, cad_msg, logo_count, logo_since = finish_issue(rows, state, settings, cache, bool(run_cad), out_root, since, job)
+    lines.extend(more)
+    ui.report('Issue Sheets', started, lines, totals, True, [], cad_msg, log_path)
+    pw.finish(ui.finish_title(totals, cad_msg), out_root, logo_count=logo_count, logo_since=logo_since)
+
+
+SHARE_KEYS = ('pdf', 'dwg', 'per_model_folder', 'allow_non_workshared', 'skip_links', 'link_pattern', 'region',
+              'batch_pdf', 'embed', 'acad_exe', 'img2ole_lsp', 'allow_no_rev')
+
+
+def printed_files(out_root, since):
+    """{(model, sheet): {'PDF': file, 'DWG': file, '_rev': revision}} printed OK since 'since' (every window's log)."""
     files = {}
-    for lr in core.read_csv(log_path):
-        if lr.get('Mode') == 'EXPORT' and lr.get('Status') == 'OK' and lr.get('Timestamp', '') >= since:
-            files.setdefault((lr['Model'].lower(), lr['ListedNumber'].lower()), {})[lr['Format']] = lr['File']
+    d = core.logs_dir(out_root)
+    for fn in os.listdir(d):
+        if not (fn.lower().startswith('sheetexport_log') and fn.lower().endswith('.csv')):
+            continue
+        try:
+            rows = core.read_csv(os.path.join(d, fn))
+        except Exception:
+            continue
+        for lr in rows:
+            if lr.get('Mode') == 'EXPORT' and lr.get('Status') == 'OK' and lr.get('Timestamp', '') >= since:
+                ff = files.setdefault((lr['Model'].lower(), lr['ListedNumber'].lower()), {})
+                ff[lr['Format']] = lr['File']
+                ff['_rev'] = lr.get('Revision', u'')
+    return files
+
+
+def finish_issue(rows, state, settings, cache, run_cad, out_root, since, job, shared=False):
+    """After printing: issue register rows, logos, Toolbox result. Returns (lines, cad msg, logo count, logo since)."""
+    lines = []
+    files = printed_files(out_root, since)
     reg_rows_before = issue.read_register(settings['issue_register'])
     by_sheet, by_model = issue.last_issues(reg_rows_before)
     new_rows = []
@@ -1188,24 +1262,29 @@ def do_issue(rows, state, settings, reg, cache, dry):
         f = files.get((e.get('model', r['model']).lower(), r['num'].lower()))
         if not f:
             continue
-        rev = si.get('current_number', r['rev'])
+        rev = f.get('_rev') or si.get('current_number', r['rev'])         # what was printed
+        first = f.get('PDF') or f.get('DWG') or u''
+        code = os.path.splitext(os.path.basename(first))[0] if first else r['file']
         revrec = [x for x in iss.get('revisions', []) if x['id'] == si.get('current')]
-        new_rows.append({'DrawingCode': r['file'], 'Model': e.get('model', r['model']), 'SheetNumber': r['num'],
+        new_rows.append({'DrawingCode': code, 'Model': e.get('model', r['model']), 'SheetNumber': r['num'],
                          'SheetName': si.get('name', r['name']), 'Revision': rev,
                          'RevisionDate': si.get('current_date', r['date']),
                          'RevisionDescription': revrec[0]['description'] if revrec else u'',
                          'PrintedOn': core.now(), 'PrintedBy': getattr(app, 'Username', u''),
-                         'Formats': u'+'.join(sorted(f.keys())), 'PDFFile': f.get('PDF', u''),
+                         'Formats': u'+'.join(sorted(k for k in f.keys() if not k.startswith('_'))),
+                         'PDFFile': f.get('PDF', u''),
                          'DWGFile': f.get('DWG', u'').replace(os.sep + '_DWG_raw' + os.sep, os.sep + 'DWG' + os.sep)
                          if run_cad else f.get('DWG', u''),
                          'Change': issue.change_status(e.get('model', r['model']), r['num'], rev, iss.get('version', u''),
                                                        by_sheet, by_model),
-                         'ModelVersion': iss.get('version', u''), 'Note': u''})
+                         'ModelVersion': iss.get('version', u''),
+                         'Note': (u'revision changed since Check (%s -> %s)' % (r['rev'], rev)) if r['rev'] and rev != r['rev'] else u''})
     reg_path = issue.write_register(settings['issue_register'], new_rows) if new_rows else settings['issue_register']
-    cad_msg, logo_count = '', 0
-    if run_cad and job.get('_logo_pipeline') and job.get('_logo_runner'):
+    cad_msg, logo_count, logo_since = '', 0, core.now()
+    helper_running = shared and os.path.exists(os.path.join(core.logs_dir(out_root), 'IMG2OLE_runner.lock'))
+    if run_cad and ((job.get('_logo_pipeline') and job.get('_logo_runner')) or helper_running):
         core.logo_queue_done(out_root)            # the helper finishes the last DWGs, then stops
-        logo_count = job.get('_logo_jobs', 0)
+        logo_count = len([r for r in new_rows if r['DWGFile']])
         cad_msg = u'AutoCAD started earlier by the logo helper (%d DWG(s)); it finishes in the background.' % logo_count
     elif run_cad:                                 # helper not possible (e.g. PowerShell blocked): old way, at the end
         jobs = core.find_raw_dwgs(out_root)
@@ -1218,8 +1297,62 @@ def do_issue(rows, state, settings, reg, cache, dry):
     if state.get('request'):
         state['_want_formats'] = [k.upper() for k, v in settings['_formats'].items() if v == 'Y']
         lines.append(request_result(state, rows, files, cache, run_cad))
-    ui.report('Issue Sheets', started, lines, totals, True, [], cad_msg, log_path)
-    pw.finish(ui.finish_title(totals, cad_msg), out_root, logo_count=logo_count, logo_since=logo_since)
+    return lines, cad_msg, logo_count, logo_since
+
+
+def run_issue_queue(qd, qjob, settings, reg, cache, window_name, job=None):
+    """Print the models of a shared issue until none is left (any number of Revit windows).
+    The LAST window to finish writes the issue register, finishes the logos and answers the Toolbox."""
+    for k, v in (qjob.get('settings') or {}).items():
+        if v is not None:
+            settings[k] = v
+    out_root, run_cad = qjob['out_root'], bool(qjob.get('run_cad'))
+    settings.update({'_formats': qjob['_formats'], '_names': qjob['_names'], 'last_output': out_root,
+                     'issue_register': qjob['issue_register']})
+    models = dict((m['ModelGUID'].lower(), m) for m in qjob['models'])
+    if job is None:
+        job = {'out_root': out_root, 'do_export': True, 'run_cad': run_cad, 'models': qjob['models'],
+               'picked': qjob['picked'], 'lod_rows': None, '_formats': qjob['_formats'],
+               '_extra_read': read_issue_extra, '_logo_pipeline': run_cad}
+    job['_on_done'] = lambda g: core.queue_done(qd, g)
+    claimed = []
+
+    def next_rec():
+        g = core.queue_claim(qd)
+        if g is None:
+            return None
+        claimed.append(g)
+        return models.get(g)
+
+    log_path = core.usable_log_path(os.path.join(core.logs_dir(out_root), u'SheetExport_log_%s.csv' % core._pid()))
+    started = time.time()
+    lines, totals, _, pw = ui.export_models(next_rec, qjob['models'], job, settings, reg, cache, log_path,
+                                            u'Issuing  \u00B7  %s (shared)' % window_name)
+    for g in claimed:                              # a model this window took but did not finish: give it back
+        core.queue_release(qd, g)
+    cad_msg, logo_count, logo_since = '', 0, None
+    if core.queue_finished(qd) and _take(qd, 'issue.finish'):
+        cache.update(core.load_sheet_cache())      # what the other windows read while printing
+        st = {'request': qjob.get('request'), 'all_rows': qjob.get('all_rows') or []}
+        more, cad_msg, logo_count, logo_since = finish_issue(qjob['rows'], st, settings, cache, run_cad, out_root,
+                                                             qjob['since'], job, shared=True)
+        lines.extend([u'All models of the shared issue are finished.'] + more)
+    else:
+        lines.append(u'Other Revit window(s) are still printing. The LAST one to finish writes the issue register '
+                     u'and finishes the logos.')
+    ui.report(u'Issue Sheets - %s (%d model(s) printed here)' % (window_name, len(claimed)), started, lines, totals,
+              True, [], cad_msg, log_path)
+    pw.finish(ui.finish_title(totals, cad_msg), out_root, other_windows=True, logo_count=logo_count,
+              logo_since=logo_since)
+
+
+def _take(qd, name):
+    """Atomic: only one window gets it."""
+    try:
+        os.rename(os.path.join(qd, name), os.path.join(qd, name + u'.taken'))
+        return True
+    except Exception:
+        return False
 
 
 def request_result(state, rows, files, cache, run_cad):
@@ -1243,7 +1376,9 @@ def request_result(state, rows, files, cache, run_cad):
             n_ok += 1
             base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'PRINTED', 'PDFFile': f.get('PDF', u''),
                          'DWGFile': f.get('DWG', u'').replace(os.sep + '_DWG_raw' + os.sep, os.sep + 'DWG' + os.sep)
-                         if run_cad else f.get('DWG', u''), 'Note': r['file']})
+                         if run_cad else f.get('DWG', u''),
+                         'RevitRev': f.get('_rev') or r['rev'],
+                         'Note': os.path.splitext(os.path.basename(f.get('PDF') or f.get('DWG') or r['file']))[0]})
         elif r and issue.request_cancelled(req):
             base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'CANCELLED',
                          'Note': u'cancelled from the Toolbox before it was printed'})
@@ -1306,15 +1441,31 @@ def main():
     settings = core.load_settings()
     reg = core.refresh_register(app.VersionNumber)
     cache = core.load_sheet_cache()
+    active = core.queue_active()
+    if active and (active[1] or {}).get('kind') == 'issue':
+        qd, qjob, left = active
+        choice = forms.CommandSwitchWindow.show(
+            [u'Join the running issue (%d model(s) left)' % left, u'Start a new issue'],
+            message=u'An issue is printing in another Revit window. Join it to finish sooner?')
+        if not choice:
+            return
+        if choice.startswith(u'Join'):
+            ui.start_clock()
+            run_issue_queue(qd, qjob, settings, reg, cache, u'Helper window')
+            return
     if not reg:
         forms.alert('No ACC models found on this PC (open each model once in Revit first).')
         return
     state = {'checked_models': set(), 'loaded': [], 'ticked': set(), 'pending': {}, 'midp': settings.get('issue_midp', ''),
              'set': None, 'request': None}
     load_request(state, settings, reg)
-    if state.pop('auto_check', False) and state['checked_models']:
-        issue.request_status(state['request'], 'checking', u'Revit is reading the models (quick open)...')
-        do_check(sorted(state['checked_models']), settings, reg, cache)
+    if state.get('request') and state.get('auto_check'):
+        ui.start_clock()                        # opened from the Toolbox pop-up: models already picked
+    state['loaded'] = [g for g in state['checked_models'] if not needs_check(cache.get(g))]   # saved lists: instant
+    never = [g for g in state['checked_models'] if g not in state['loaded']]
+    if state.pop('auto_check', False) and never:          # only models never read need the quick open
+        issue.request_status(state['request'], 'checking', u'Revit is reading %d new model(s) (quick open)...' % len(never))
+        do_check(never, settings, reg, cache)
         state['loaded'] = [g for g in state['checked_models'] if not needs_check(cache.get(g))]
     while True:
         register_rows = issue.read_register(settings.get('issue_register'))

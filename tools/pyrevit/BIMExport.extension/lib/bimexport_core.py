@@ -1055,6 +1055,8 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
 
     matched = set()
     stopped = False
+    # ---- 1) decide every file name first (live revision) and block anything that does not match the sheet
+    plan = []
     for job_i, (row, sheet) in enumerate(jobs):
         listed = row['_listed']
         matched.add(listed.lower())
@@ -1068,18 +1070,45 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
             note.append(u'Revision differs: LOD %s, Revit %s' % (lrev, rev))
         elif lrev and not rev:
             note.append(u'LOD has revision %s, Revit sheet has none' % lrev)
+        block = None
         fixed = fixed_name(settings, settings.get('_current_guid') or model_guid(doc), sheet.SheetNumber)
-        if fixed:                                 # exact file name decided beforehand (Issue Sheets: MIDP code + Revit rev)
-            name, missing = fixed, []
+        if fixed:                                 # Issue Sheets: MIDP code + the revision the sheet shows NOW
+            name, fnote, block = resolve_fixed(fixed, sheet, rev)
+            missing = []
+            if fnote:
+                note.append(fnote)
+                notes.append(u'%s: %s' % (sheet.SheetNumber, fnote))     # shown in the report too
         else:
             name, missing = make_name(doc, sheet, settings.get('naming_rule') or u'{DrawingNumber}', row, model)
+            if not rev and lrev:
+                note.append(u'named WITHOUT a revision (the sheet has none in Revit)')
         if missing:
             note.append(u'Unknown token(s): ' + u', '.join(missing))
-        if not rev and lrev:
-            note.append(u'named WITHOUT a revision (the sheet has none in Revit)')
         if not name:
             name = clean(sheet.SheetNumber)
-        guard = name_guard(sheet, name, rev)                 # live check: file name vs what the sheet shows
+        guard = block or name_guard(sheet, name, rev)      # live check: file name vs what the sheet shows
+        fmts = settings.get('_formats') or {}
+        formats = []
+        if yes(row.get('pdf') or fmts.get('pdf')) and yes(fmts.get('pdf')):
+            formats.append(u'PDF')
+        if yes(row.get('dwg') or fmts.get('dwg')) and yes(fmts.get('dwg')):
+            formats.append(u'DWG')
+        plan.append((job_i, row, sheet, listed, rev, name, note, guard, formats))
+
+    # ---- 2) all PDFs of this model in ONE Revit export (same settings, much less overhead per drawing)
+    batch = {}
+    if do_export and settings.get('batch_pdf', True):
+        todo = [p for p in plan if not p[7] and u'PDF' in p[8]]
+        if len(todo) > 1:
+            if progress:
+                try:
+                    progress(1, len(jobs), u'PDF', u'%d drawings in one go' % len(todo), None)
+                except Exception:
+                    pass
+            batch = _batch_pdf(doc, [p[2] for p in todo], out_root, model, settings, notes)
+
+    # ---- 3) write the files
+    for (job_i, row, sheet, listed, rev, name, note, guard, formats) in plan:
         if guard:
             counts['blocked'] = counts.get('blocked', 0) + 1
             counts['failed'] += 1
@@ -1092,14 +1121,6 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
                 except Exception:
                     pass
             continue
-
-        fmts = settings.get('_formats') or {}
-        formats = []
-        if yes(row.get('pdf') or fmts.get('pdf')) and yes(fmts.get('pdf')):
-            formats.append(u'PDF')
-        if yes(row.get('dwg') or fmts.get('dwg')) and yes(fmts.get('dwg')):
-            formats.append(u'DWG')
-
         for fmt in formats:
             folder = pdf_dir if fmt == u'PDF' else raw_dir
             target = os.path.join(folder, name + u'.' + fmt.lower())
@@ -1121,12 +1142,16 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
             try:
                 if os.path.exists(target):
                     os.remove(target)
-                ids = List[ElementId]([sheet.Id])
-                if fmt == u'PDF':
-                    pdf_opts.FileName = name
-                    doc.Export(folder, ids, pdf_opts)
+                done_early = batch.get(sheet.SheetNumber.strip().lower())
+                if fmt == u'PDF' and done_early and os.path.exists(done_early):
+                    os.rename(done_early, target)          # printed in the one-go export: just give it its name
                 else:
-                    doc.Export(folder, name, ids, dwg_opts)
+                    ids = List[ElementId]([sheet.Id])
+                    if fmt == u'PDF':
+                        pdf_opts.FileName = name
+                        doc.Export(folder, ids, pdf_opts)
+                    else:
+                        doc.Export(folder, name, ids, dwg_opts)
                 if os.path.exists(target):
                     status = u'OK'
                 else:
@@ -1145,7 +1170,86 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
         if stopped:
             notes.append(u'Cancelled - remaining drawings of this model were not exported')
             break
+    _batch_cleanup(out_root, model)
     return matched, counts, notes, raw_dir
+
+
+def resolve_fixed(fixed, sheet, rev):
+    """Issue Sheets names, finished at print time with the revision the sheet shows NOW.
+    fixed: old style text, or {'base', 'mode': 'code'|'number', 'shown', 'expected', 'norev'}.
+    Returns (name, note, block reason)."""
+    if not isinstance(fixed, dict):
+        return fixed, u'', None
+    if fixed.get('mode') == 'number':
+        return clean(sheet.SheetNumber), u'', None
+    base, note = fixed.get('base') or u'', u''
+    shown, exp = (fixed.get('shown') or u'').strip(), (fixed.get('expected') or u'').strip()
+    if exp and (rev or u'').strip().lower() != exp.lower():
+        return base, u'', u'Toolbox expects %s, the sheet shows %s' % (exp, rev or u'no revision')
+    if not rev:
+        if not fixed.get('norev'):
+            return base, u'', u'the sheet has no revision in Revit'
+        name = base
+    else:
+        name = u'%s-%s' % (base, rev)
+    if shown and rev and shown.lower() != rev.strip().lower():
+        note = u'revision changed since Check: %s -> %s (named %s)' % (shown, rev, rev)
+    if clean(name) != name:
+        return name, note, u'characters not allowed in a file name: "%s"' % name
+    return name, note, None
+
+
+def _batch_dir(out_root, model):
+    return os.path.join(logs_dir(out_root), u'_pdf_batch', clean(model))
+
+
+def _batch_cleanup(out_root, model):
+    d = _batch_dir(out_root, model)
+    try:
+        if os.path.isdir(d):
+            for fn in os.listdir(d):
+                try:
+                    os.remove(os.path.join(d, fn))
+                except Exception:
+                    pass
+            os.rmdir(d)
+        parent = os.path.dirname(d)
+        if os.path.isdir(parent) and not os.listdir(parent):
+            os.rmdir(parent)
+    except Exception:
+        pass
+
+
+def _batch_pdf(doc, sheets, out_root, model, settings, notes):
+    """Export many sheets as separate PDFs in ONE call, named by sheet number in a work folder.
+    Returns {sheet number lower: file}. Anything missing is simply exported one by one afterwards."""
+    d = _batch_dir(out_root, model)
+    _batch_cleanup(out_root, model)
+    ensure_dir(d)
+    try:
+        opts = pdf_options(doc, settings, [])
+        opts.Combine = False
+        rule = DB.TableCellCombinedParameterData.Create()
+        rule.ParamId = ElementId(BuiltInParameter.SHEET_NUMBER)
+        rule.CategoryId = ElementId(DB.BuiltInCategory.OST_Sheets)
+        try:
+            rule.Prefix, rule.Suffix, rule.Separator = u'', u'', u''
+        except Exception:
+            pass
+        opts.SetNamingRule(List[DB.TableCellCombinedParameterData]([rule]))
+        doc.Export(d, List[ElementId]([s.Id for s in sheets]), opts)
+    except Exception as e:
+        notes.append(u'PDFs one by one (one-go export not possible: %s)' % text(e))
+        return {}
+    want = dict((clean(s.SheetNumber).strip().lower(), s.SheetNumber.strip().lower()) for s in sheets)
+    out = {}
+    for fn in os.listdir(d):
+        stem, ext = os.path.splitext(fn)
+        if ext.lower() == u'.pdf' and stem.strip().lower() in want:
+            out[want[stem.strip().lower()]] = os.path.join(d, fn)
+    if len(out) < len(sheets):
+        notes.append(u'%d PDF(s) printed one by one (not found in the one-go export)' % (len(sheets) - len(out)))
+    return out
 
 
 # ------------------------------------------------- shared queue (N windows) --

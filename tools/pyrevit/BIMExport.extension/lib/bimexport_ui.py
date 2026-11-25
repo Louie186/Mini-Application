@@ -35,6 +35,22 @@ KEPT = {}            # models read for their sheet list and kept open for the ex
 OPEN_SECS = {}       # guid -> seconds it took to open
 
 
+RUN_T0 = {'t': None}     # when the models were picked (first Check / Load / Issue / Export press)
+
+
+def start_clock():
+    if RUN_T0['t'] is None:
+        RUN_T0['t'] = time.time()
+
+
+def _time_line(started):
+    t0 = RUN_T0['t']
+    if t0 and t0 < started - 5:
+        return 'Time: %.1f min since the models were picked (this run %.1f min)' % (
+            (time.time() - t0) / 60.0, (time.time() - started) / 60.0)
+    return 'Time: %.1f min' % ((time.time() - started) / 60.0)
+
+
 def open_model(rec, settings, reg, worksets=None):
     """Returns (doc, close_after, note, error)."""
     guid = rec['ModelGUID'].lower()
@@ -253,7 +269,7 @@ class ProgressWindow(forms.WPFWindow):
         forms.WPFWindow.__init__(self, PXAML, set_owner=not own_thread)
         self.own_thread = own_thread
         self.cancelled = False
-        self.t0 = time.time()
+        self.t0 = RUN_T0['t'] or time.time()          # the clock runs from when the models were picked
         self.files_ok = self.files_bad = 0
         self.formats = formats                 # ['PDF', 'DWG']
         self.skip_links = skip_links
@@ -662,7 +678,7 @@ def _export_loop(pw, next_rec, job, settings, reg, cache, log_path, picked, lod_
 
 def report(title, started, lines, totals, do_export, missing, cad_msg, log_path):
     output.print_md('## %s' % title)
-    output.print_md('Time: %.1f min' % ((time.time() - started) / 60.0))
+    output.print_md(_time_line(started))
     for l in lines:
         output.print_md('- ' + l)
     output.print_md('**Files %s: %d%s**' % (

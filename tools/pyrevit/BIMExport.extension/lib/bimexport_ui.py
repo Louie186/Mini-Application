@@ -35,20 +35,26 @@ KEPT = {}            # models read for their sheet list and kept open for the ex
 OPEN_SECS = {}       # guid -> seconds it took to open
 
 
-RUN_T0 = {'t': None}     # when the models were picked (first Check / Load / Issue / Export press)
+RUN_T0 = {'t': None}     # kept for older calls
+WORK = {'secs': 0.0}     # time the tool spent WORKING before this run (reading lists, Apply) - not your clicking
 
 
 def start_clock():
-    if RUN_T0['t'] is None:
-        RUN_T0['t'] = time.time()
+    """Older name: the clock now counts working time only (see add_work)."""
+    return None
+
+
+def add_work(secs):
+    WORK['secs'] += max(0.0, float(secs or 0))
 
 
 def _time_line(started):
-    t0 = RUN_T0['t']
-    if t0 and t0 < started - 5:
-        return 'Time: %.1f min since the models were picked (this run %.1f min)' % (
-            (time.time() - t0) / 60.0, (time.time() - started) / 60.0)
-    return 'Time: %.1f min' % ((time.time() - started) / 60.0)
+    run = (time.time() - started) / 60.0
+    before = WORK['secs'] / 60.0
+    if WORK['secs'] > 5:
+        return 'Time: %.1f min of work (%.1f reading lists / applying + %.1f this run). Time spent choosing in the window is not counted.' % (
+            before + run, before, run)
+    return 'Time: %.1f min (counted from when the work started - not your time choosing)' % run
 
 
 def open_model(rec, settings, reg, worksets=None):
@@ -269,7 +275,7 @@ class ProgressWindow(forms.WPFWindow):
         forms.WPFWindow.__init__(self, PXAML, set_owner=not own_thread)
         self.own_thread = own_thread
         self.cancelled = False
-        self.t0 = RUN_T0['t'] or time.time()          # the clock runs from when the models were picked
+        self.t0 = time.time() - WORK['secs']          # working time only: earlier reading + this run
         self.files_ok = self.files_bad = 0
         self.formats = formats                 # ['PDF', 'DWG']
         self.skip_links = skip_links

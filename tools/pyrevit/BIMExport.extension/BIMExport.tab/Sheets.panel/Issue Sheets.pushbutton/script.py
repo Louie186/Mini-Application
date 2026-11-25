@@ -131,7 +131,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             done.add(g)
             for s in (self.cache.get(g) or {}).get('sheets', []):
                 k = s['number'].strip().lower()
-                if k in want and where.get(k, g) == g:
+                if k in want and (k not in where or g in where[k]):
                     self.state['ticked'].add((g, k))
 
     def _request_ready(self):
@@ -1489,15 +1489,27 @@ def _take(qd, name):
 def request_result(state, rows, files, cache, run_cad):
     """Tell the Toolbox what happened to each requested drawing; returns a report line."""
     req = state['request']
+    def rkey(r):            # full code when there is one (the same number can be in two towers), else the number
+        b = (r.get('base') or u'').strip().lower()
+        return b if r.get('mode', 'code') == 'code' and len(core.lod_parts(b)) >= 7 else r['num'].strip().lower()
+
+    def qkey(q):
+        p = core.lod_parts(q['code'])
+        return u'-'.join(p[:7]).lower() if len(p) >= 7 else q['seq'].strip().lower()
+
     by_num = {}
     for r in state.get('all_rows') or []:
+        by_num.setdefault(rkey(r), []).append(r)
         by_num.setdefault(r['num'].strip().lower(), []).append(r)
-    printed = dict((r['num'].strip().lower(), r) for r in rows)
+    printed = {}
+    for r in rows:
+        printed[rkey(r)] = r
+        printed.setdefault(r['num'].strip().lower(), r)
     out, n_ok = [], 0
     for q in req['rows']:
-        k = q['seq'].lower()
+        k = qkey(q)
         base = {'DrawingNumber': q['code'], 'SheetNumber': q['seq'], 'ExpectedRev': q['expected'], 'DoneOn': core.now()}
-        r = printed.get(k)
+        r = printed.get(k) or (printed.get(q['seq'].strip().lower()) if k == q['seq'].strip().lower() else None)
         f = files.get(((cache.get(r['guid']) or {}).get('model', r['model']).lower(), r['num'].lower())) if r else None
         missing = [x for x in state.get('_want_formats') or [] if f is not None and x not in f]
         if r and f and missing:
@@ -1516,13 +1528,14 @@ def request_result(state, rows, files, cache, run_cad):
         elif r:
             base.update({'RevitRev': r['rev'], 'Model': r['model'], 'Status': 'FAILED',
                          'Note': u'export failed or blocked at print time - see the report'})
-        elif by_num.get(k):
+        elif by_num.get(k) or by_num.get(q['seq'].strip().lower()):
+            k = k if by_num.get(k) else q['seq'].strip().lower()
             x = by_num[k][0]
             base.update({'RevitRev': x['rev'], 'Model': x['model'],
                          'Status': 'BLOCKED' if not x['ok'] else 'NOT TICKED',
                          'Note': x['check'] if not x['ok'] else u'unticked in Revit'})
         else:
-            base.update({'Status': 'NOT FOUND', 'Note': (req.get('why') or {}).get(k) or (u'not in the checked models' +
+            base.update({'Status': 'NOT FOUND', 'Note': (req.get('why') or {}).get(q['seq'].strip().lower()) or (u'not in the checked models' +
                          (u' (Toolbox says model %s)' % q['model'] if q['model'] else u''))})
         out.append(base)
     path = issue.finish_request(req, out)
@@ -1563,7 +1576,10 @@ def load_request(state, settings, reg):
     state['request'] = req
     state['request_ticked'] = set()
     found, why = issue.request_models(req, reg, core.load_sheet_cache())
-    req['map'], req['why'] = found, why
+    req['map'] = {}                                   # sheet number -> the model(s) it was asked for in
+    for i, g in found.items():
+        req['map'].setdefault(req['rows'][i]['seq'].strip().lower(), []).append(g)
+    req['why'] = dict((req['rows'][i]['seq'].strip().lower(), w) for i, w in why.items())
     for g in set(found.values()):
         state['checked_models'].add(g)
     issue.request_status(req, 'loaded', u'Loaded in Revit: %d of %d drawing(s) placed in %d model(s)%s' % (
@@ -1580,14 +1596,14 @@ def print_request_now(state, settings, reg, cache):
     """'Print now' from the Toolbox pop-up: no window, no Check - each model opens ONCE, to print.
     Names = MIDP code from the request + the revision the sheet shows at print time; wrong revision = BLOCKED."""
     req = state['request']
-    found = req.get('map') or {}
+    found, _ = issue.request_models(req, reg, cache)
     midp = {}
     if settings.get('issue_midp') and os.path.exists(settings['issue_midp']):
         midp = issue.midp_index(core.read_lod(settings['issue_midp']))
     rows = []
-    for q in req['rows']:
+    for i, q in enumerate(req['rows']):
         k = q['seq'].strip().lower()
-        g = found.get(k)
+        g = found.get(i)
         if not g or g not in reg:
             continue
         code = q['code']
@@ -1658,7 +1674,9 @@ def main():
     never = [g for g in state['checked_models'] if g not in state['loaded']]
     if state.pop('auto_check', False) and never:          # only models never read need the quick open
         issue.request_status(state['request'], 'checking', u'Revit is reading %d new model(s) (quick open)...' % len(never))
+        t_w = time.time()
         do_check(never, settings, reg, cache)
+        ui.add_work(time.time() - t_w)
         state['loaded'] = [g for g in state['checked_models'] if not needs_check(cache.get(g))]
     while True:
         register_rows = issue.read_register(settings.get('issue_register'))
@@ -1673,10 +1691,14 @@ def main():
         if act[0] == 'check':
             if state.get('request'):
                 issue.request_status(state['request'], 'checking', u'Revit is reading the models (quick open)...')
+            t_w = time.time()
             do_check(act[1], settings, reg, cache)
+            ui.add_work(time.time() - t_w)
             state['loaded'] = [g for g in state['checked_models'] if not needs_check(cache.get(g))]
         elif act[0] == 'apply':
+            t_w = time.time()
             do_apply(act[1], state, settings, reg, cache)
+            ui.add_work(time.time() - t_w)
         elif act[0] == 'revert':
             do_revert(settings, reg, cache)
         elif act[0] == 'dryrun':

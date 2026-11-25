@@ -110,9 +110,9 @@ For formal issues: **what changed → fix revisions / title block switches → i
 
 - **No Check needed for models read before.** Ticking a model loads its saved list straight away ("from saved lists, oldest 25/11 14:20"). Every print refreshes the saved list for free, so press **Check models** only for a model never read, or to see the very latest changes before printing
 - **Names are finished at print time** with the revision the sheet shows then (MIDP code + live revision), so a saved list never gives a wrong name. If the revision changed since the list was read, the report and register say so ("revision changed since Check: T1 -> T2")
-- **All PDFs of a model in one Revit export** (same settings and quality), then each gets its exact name. Falls back to one by one if Revit can't
+- **All PDFs (and all DWGs) of a model in one Revit export each** (same settings and quality), then each gets its exact name. Falls back to one by one if Revit can't
 - **Share with other Revit windows** (Run tab): open a 2nd/3rd Revit, click Issue Sheets → **Join**. Each window prints the next model; the last one writes the issue register and finishes the logos. 2–3 windows ≈ 2–3x faster (64 GB is fine for 3)
-- **Elapsed time counts from when you picked the models** (first Check / Issue press), so it shows the whole job
+- **Elapsed time counts working time only**: reading lists, Apply and printing. Your time choosing in the window is not counted
 
 ### File name = what the sheet shows (both buttons)
 
@@ -135,6 +135,27 @@ For formal issues: **what changed → fix revisions / title block switches → i
 - **Cancel** in the Toolbox: not started yet = removed at once (`Done\Cancelled\`); running = Revit stops after the current file. Results then say PRINTED / PARTIAL / CANCELLED
 
 **Change check, honestly:** the sync stamp changes with every sync, so "Model synced since last issue" means something in the model changed, not necessarily on that drawing. "No change" = same revision and no sync since that drawing was last printed.
+
+## Quick Print (new button)
+
+Print the drawings of a list **as they are**: no checks, no changes.
+
+1. **BIMExport → Quick Print** → pick your list (CSV UTF-8)
+2. It shows where each drawing is: *"14 drawing(s) in 3 model(s) · 1 NOT placed"* → **Print now** (or another folder)
+3. Each model opens **once** (detached, ALL worksets, links), prints the listed drawings with your saved PDF / CAD settings, closes **without saving**
+
+**List** (only *Drawing Number* is required):
+
+| Model | Drawing Number | Expected Rev | Formats |
+|---|---|---|---|
+| BIM-INT-21001 | 5013-KEO-T1-ZZ-PLN-INT-10170 | T2 | PDF+DWG |
+| | 30170 | | |
+
+- **Model:** any part of the name (`21001`). Empty = found from the saved lists when the number is in ONE model. Needed when a model was never read, or the same number is in several models (e.g. two towers)
+- **Drawing Number:** full code (named code + the sheet's live revision), code + revision, or just the number (named by your MIDP if picked, else the number)
+- **Expected Rev:** optional - a different revision on the sheet = skipped and reported
+- **Formats:** optional per drawing
+- Not placed / not found drawings are listed in the report. Same output layout and `_Logs`; not written to the Issue register
 
 ## Output
 

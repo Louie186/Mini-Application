@@ -495,8 +495,8 @@ def _norm_model(n):
 
 
 def request_models(req, reg, cache):
-    """Which model each requested drawing is in: by the Toolbox's Model column (loose match), else by the
-    saved drawing lists (the sheet number is in exactly one model). Returns ({seq lower: guid}, {seq lower: why not})."""
+    """Which model each requested drawing is in: by the Model column (loose match), else by the saved drawing
+    lists (the sheet number is in exactly one model). Returns ({row index: guid}, {row index: why not})."""
     names = {}
     for g, rec in reg.items():
         for n in (rec.get('Name'), (cache.get(g.lower()) or {}).get('model')):
@@ -508,7 +508,7 @@ def request_models(req, reg, cache):
             for sh in e.get('sheets', []):
                 by_sheet.setdefault(sh['number'].strip().lower(), set()).add(g.lower())
     found, why = {}, {}
-    for q in req['rows']:
+    for i, q in enumerate(req['rows']):
         k, m = q['seq'].strip().lower(), _norm_model(q.get('model'))
         cands = set()
         if m:
@@ -523,13 +523,15 @@ def request_models(req, reg, cache):
         if len(cands) != 1:
             cands = has if len(has) == 1 else cands
         if len(cands) == 1:
-            found[k] = list(cands)[0]
+            found[i] = list(cands)[0]
+        elif len(cands) > 1:
+            why[i] = u'"%s" fits %d models - write more of the model name' % (q['model'], len(cands))
         elif len(has) > 1:
-            why[k] = u'drawing %s is in %d models - put the model name in the Toolbox Model column' % (q['seq'], len(has))
+            why[i] = u'drawing %s is in %d models - put the model name in the Model column' % (q['seq'], len(has))
         else:
-            why[k] = (u'model "%s" not found on this PC' % q['model']) if m else \
-                u'model unknown - put the model name in the Toolbox Model column (or read the model once)'
-    return found, why
+            why[i] = (u'model "%s" not found on this PC' % q['model']) if m else \
+                u'model unknown - put the model name in the Model column (or read the model once)'
+    return found, why          # keyed by ROW (the same sheet number can be in two models, e.g. two towers)
 
 
 def request_midp_rows(req):

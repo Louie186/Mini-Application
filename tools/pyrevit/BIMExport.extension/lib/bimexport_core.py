@@ -1024,9 +1024,11 @@ def export_model(doc, lod_rows, out_root, settings, do_export, log, picked=None,
     jobs = []                       # (row, sheet)
     if picked is not None:
         fmts = settings.get('_formats') or {}
+        cur = (settings.get('_current_guid') or model_guid(doc) or u'').lower()
         for k in sorted(picked):
             if k in sheets:
                 row = dict(fmts)
+                row.update((settings.get('_row_formats') or {}).get(u'%s|%s' % (cur, k)) or {})   # Quick Print list
                 row['_listed'] = sheets[k].SheetNumber
                 jobs.append((row, sheets[k]))
     elif lod_rows is None:
@@ -1195,7 +1197,7 @@ def resolve_fixed(fixed, sheet, rev):
     base, note = fixed.get('base') or u'', u''
     shown, exp = (fixed.get('shown') or u'').strip(), (fixed.get('expected') or u'').strip()
     if exp and (rev or u'').strip().lower() != exp.lower():
-        return base, u'', u'Toolbox expects %s, the sheet shows %s' % (exp, rev or u'no revision')
+        return base, u'', u'the list expects %s, the sheet shows %s' % (exp, rev or u'no revision')
     if not rev:
         if not fixed.get('norev'):
             return base, u'', u'the sheet has no revision in Revit'

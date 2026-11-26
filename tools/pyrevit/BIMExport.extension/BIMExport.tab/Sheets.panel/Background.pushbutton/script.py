@@ -108,6 +108,18 @@ class BackgroundWindow(forms.WPFWindow):
         (self.watch.add if sender.IsChecked else self.watch.discard)(sender.Tag)
         self.saved_tb.Text = u'Not saved yet - press Save.'
 
+    def _tick_shown(self, on):
+        for cb in self.models_lb.Items:
+            (self.watch.add if on else self.watch.discard)(cb.Tag)
+        self.saved_tb.Text = u'Not saved yet - press Save.'
+        self._fill_models()
+
+    def on_tick_all(self, sender, args):
+        self._tick_shown(True)
+
+    def on_untick_all(self, sender, args):
+        self._tick_shown(False)
+
     def on_search(self, sender, args):
         self._fill_models()
 

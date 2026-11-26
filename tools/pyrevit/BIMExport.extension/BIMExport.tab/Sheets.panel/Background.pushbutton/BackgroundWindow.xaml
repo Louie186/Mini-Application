@@ -162,6 +162,10 @@
                         <TextBox x:Name="search_tb" TextChanged="on_search" ToolTip="Filter the list by name"/>
                     </DockPanel>
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="Tick all" Style="{StaticResource Small}" Click="on_tick_all"
+                                ToolTip="Tick every model shown (respects the search and the Show filter)"/>
+                        <Button Content="Untick all" Style="{StaticResource Small}" Click="on_untick_all"
+                                ToolTip="Untick every model shown (respects the search and the Show filter)"/>
                         <Button Content="What changed" Style="{StaticResource Small}" Click="on_changes"
                                 ToolTip="Per model: the drawings that changed since their last issue, and why."/>
                         <Button Content="Reload selected now" Style="{StaticResource Small}" Click="on_reload"

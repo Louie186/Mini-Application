@@ -250,6 +250,7 @@
 - v8.4: REAL-REVIT FIX: `SaveLocalBefore=True` is mandatory for cloud (server-based) models (user got "Saving local before first reload latest ... is mandatory"); sync failure now keeps an undo record and says the local copy may hold the change. Background Apply: `send_apply_job` → Engine runs apply jobs first (`run_apply_job`: `_bg_apply` lets ONE other Revit run if it does not have the model open), then `request_reload` (front) so the kept copy is fresh; `next_print_job` holds a print job while its model has an Apply / reload waiting or the kept copy is older than the last Apply. `ui.wait_background_applies` makes local printing (Issue / Quick Print) wait too. `fast_print_offer` skips models open with unsynced edits in the user's Revit
 - v8.5: `Background.pushbutton/BackgroundWindow.xaml` (Models list with last check + attention, When: times/days/schedule on/keep N open, Save, Check now, Reload selected now, What changed, Pause/Resume, Stop; DispatcherTimer refresh 3 s). Hidden defaults: min_free_gb 8, close_when_done False. `starting.txt` marker (python + ps1) so a second start within 4 min is skipped
 - v8.5.1 FIX (user: Check now did nothing): python wrote `starting.txt` then ran bg_start.ps1, which saw the fresh marker and skipped Start-Process. Now python passes `-Force` (it already did the alive/starting check) and rewrites bg_start.ps1 every time; the schedule (no -Force) still skips while a start is in progress
+- v8.5.4: `prune_todo` (unticked models leave an unfinished check: on Save / Check now and before every merge; reloads stay). `background.log` (engine start, each model, open failures, tracebacks, pulse start failure) + `pulse.txt` (written by the 3 s ExternalEvent pulse). Idling `SetRaiseWithoutDelay` after a 'work' step so a sequence continues even without the pulse. `stalled()` = heartbeat old but its pid alive → red STALLED badge
 - To verify tomorrow: GetDocumentVersion on a detached quick open; DataGrid single-click checkboxes; Apply/sync on a test model; per-sheet numbering display; Revision.Create + SetAdditionalRevisionIds
 
 ## 8. Version history (short)
@@ -265,6 +266,7 @@
 | v6–6.2 | Threaded animated progress window + logo tracking, IMG2OLE bundled, AutoCAD setup check (+ fallback), quick open for drawing lists, optional skip of link worksets |
 | v7.0 | **Issue Sheets** button (sets, change check, revisions, title block Yes/No, Apply/Revert, exact MIDP names, issue register); log header bug fixed |
 | v7.1–7.3 | Safer Apply, logo pipeline, optional MIDP, full PDF/CAD tabs in Issue Sheets, per-sheet numbering, title block type change, AutoCAD auto-close, logs in `_Logs` |
+| v8.5.4 | Unticked models leave unfinished checks, background log, STALLED badge |
 | v8.5.1 | Fix: Check now / Reload did not start the background Revit |
 | v8.5 | Background window redesigned (Issue Sheets style, fewer options, live status), never two background Revits |
 | v8.4 | Apply sync fix for ACC (save local before sync), Apply in the background with prints waiting for it, Issue offers Apply-first |

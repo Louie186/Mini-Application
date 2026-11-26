@@ -166,7 +166,11 @@ def _maybe_become_background():
         return
     BGSTATE['checked_claim'] = True
     bg.set_control('run')
-    BGSTATE['engine'] = bg.Engine(UIAPP)
+    try:
+        BGSTATE['engine'] = bg.Engine(UIAPP)
+    except Exception:
+        import traceback
+        bg.log(u'ERROR starting the background engine:\n' + traceback.format_exc())
 
 
 def _exit_revit():
@@ -186,7 +190,14 @@ def _background_tick():
         r = BGSTATE['engine'].tick()
     except Exception:
         r = 'wait'
+        try:
+            import traceback
+            import bimbackground as bg
+            bg.log(u'ERROR in a background step:\n' + traceback.format_exc())
+        except Exception:
+            pass
     BGSTATE['next'] = time.time() + (0.5 if r == 'work' else 5.0)
+    BGSTATE['last'] = r
     if r == 'exit':
         BGSTATE['engine'] = None
         _exit_revit()
@@ -195,6 +206,11 @@ def _background_tick():
 def on_idling(sender, args):
     if BGSTATE['engine'] is not None:
         _background_tick()
+        if args is not None and BGSTATE.get('last') == 'work':
+            try:                                         # more to do: ask Revit for the next idle moment now
+                args.SetRaiseWithoutDelay()
+            except Exception:
+                pass
         return                                           # the background Revit never shows pop-ups
     _maybe_become_background()
     if BGSTATE['engine'] is not None:
@@ -280,6 +296,13 @@ def _install():
                     on_idling(None, None)
                 except Exception:
                     pass
+                if BGSTATE.get('engine') is not None:
+                    try:                         # proof the 3-second pulse works (see background.log folder)
+                        import bimbackground as bg
+                        with io.open(os.path.join(bg.BG, 'pulse.txt'), 'w') as f:
+                            f.write(u'%s' % time.strftime('%Y-%m-%d %H:%M:%S'))
+                    except Exception:
+                        pass
 
             def GetName(self):
                 return 'BIMExport background'
@@ -292,7 +315,12 @@ def _install():
         dom.SetData(KEY + '.timer', timer)
         dom.SetData(KEY + '.event', ev)
     except Exception:
-        pass
+        try:
+            import traceback
+            import bimbackground as bg
+            bg.log(u'ERROR: the 3-second pulse could not start (checks would stall):\n' + traceback.format_exc())
+        except Exception:
+            pass
 
 
 try:

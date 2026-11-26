@@ -32,7 +32,7 @@ app = ui.app
 output = script.get_output()
 XAML = os.path.join(os.path.dirname(__file__), 'BackgroundWindow.xaml')
 _BC = BrushConverter()
-STATE_COLOURS = {'checking': '#2E8B57', 'printing': '#2E8B57', 'applying': '#2E8B57', 'idle': '#1F5FA8',
+STATE_COLOURS = {'stalled': '#C0392B', 'checking': '#2E8B57', 'printing': '#2E8B57', 'applying': '#2E8B57', 'idle': '#1F5FA8',
                  'paused': '#D98E04', 'needs sign-in': '#C0392B', 'stopped': '#6B7785'}
 
 
@@ -118,7 +118,7 @@ class BackgroundWindow(forms.WPFWindow):
     # ---------------------------------------------------------------- status
     def _refresh(self, sender, args):
         st, alive = bg.status(), bg.alive()
-        state = (st.get('state') or u'') if alive else u'not running'
+        state = (st.get('state') or u'') if alive else (u'stalled' if bg.stalled() else u'not running')
         self.state_tb.Text = state.upper()
         try:
             self.state_bd.Background = _BC.ConvertFromString(STATE_COLOURS.get(state, '#6B7785'))
@@ -128,10 +128,14 @@ class BackgroundWindow(forms.WPFWindow):
         left = len([i for i in t.get('items', []) if i['state'] == 'waiting'])
         if alive:
             msg = st.get('message') or u''
+        elif state == u'stalled':
+            msg = u'The background Revit is open but not working - look at it (a message may be waiting), or press Stop'
+        elif bg.starting():
+            msg = u'Starting the background Revit (1-2 minutes)...'
         else:
             msg = u'Starts at the next check time, or press Check now'
         if left and not alive:
-            msg = u'Unfinished check: %d model(s) left - continues where it stopped' % left
+            msg = u'Unfinished check: %d model(s) left - continues where it stopped (press Check now)' % left
         self.state_msg_tb.Text = msg
         kept = st.get('kept') or {}
         self.footer_tb.Text = u'Last check: %s%s   ·   %s' % (
@@ -166,6 +170,7 @@ class BackgroundWindow(forms.WPFWindow):
     def on_save(self, sender, args):
         self._read()
         bg.save_config(self.cfg)
+        bg.prune_todo(self.cfg)                   # unticked models leave an unfinished check straight away
         ok, msg = bg.install_schedule(self.cfg)
         self.times_tb.Text = u', '.join(self.cfg['times'])
         self.saved_tb.Text = (u'Saved. ' + msg) if ok else (u'Saved, but: ' + msg)
@@ -174,6 +179,7 @@ class BackgroundWindow(forms.WPFWindow):
     def on_check_now(self, sender, args):
         self._read()
         bg.save_config(self.cfg)
+        bg.prune_todo(self.cfg)
         if not self.cfg['models']:
             forms.alert('Tick at least one model.')
             return

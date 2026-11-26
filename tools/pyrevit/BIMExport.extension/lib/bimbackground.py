@@ -44,6 +44,7 @@ ISSUED_DIR = os.path.join(BG, 'issued')
 JOBS_DIR = os.path.join(BG, 'print_jobs')
 APPLY_DIR = os.path.join(BG, 'apply_jobs')
 TASK_NAME = u'BIMExport Background'
+LOG = os.path.join(BG, 'background.log')
 
 DEFAULTS = {'enabled': True, 'models': [], 'times': ['07:00', '12:30', '18:00'], 'days': [1, 2, 3, 4, 5],
             'keep_open': 3, 'min_free_gb': 8, 'close_when_done': False, 'revit_exe': u''}
@@ -67,6 +68,18 @@ def _wj(path, obj):
     if os.path.exists(path):
         os.remove(path)
     os.rename(tmp, path)
+
+
+def log(msg):
+    """One line in Background\\background.log (kept short): what the background Revit did, and any error."""
+    try:
+        core.ensure_dir(BG)
+        if os.path.exists(LOG) and os.path.getsize(LOG) > 500000:
+            os.rename(LOG, LOG + u'.old') if not os.path.exists(LOG + u'.old') else os.remove(LOG)
+        with io.open(LOG, 'a', encoding='utf-8') as f:
+            f.write(u'%s  %s\n' % (core.now(), core.text(msg)))
+    except Exception:
+        pass
 
 
 def load_config():
@@ -101,6 +114,20 @@ def set_control(state):
     _wj(CONTROL, {'state': state, 'when': core.now()})
 
 
+def stalled():
+    """The background Revit is still open (its process exists) but has stopped answering."""
+    try:
+        if alive():
+            return False
+        with io.open(HEART, 'r') as f:
+            pid = int(f.read().strip() or 0)
+        import System
+        System.Diagnostics.Process.GetProcessById(pid)
+        return True
+    except Exception:
+        return False
+
+
 def alive(max_age=45):
     """Is a background Revit running? (its heartbeat is recent)"""
     try:
@@ -132,7 +159,7 @@ def save_todo(t):
 def merge_requests(cfg):
     """Turn new flags into lines of the to-do list. An unfinished list is KEPT: a new check only adds the
     models that are not already waiting, so a stopped check continues where it stopped."""
-    t = load_todo()
+    t = prune_todo(cfg)
     items = t.get('items') or []
     waiting = set(i['guid'] for i in items if i['state'] == 'waiting')
     changed = False
@@ -166,6 +193,17 @@ def merge_requests(cfg):
         changed = True
     if changed:
         t['items'] = items
+        save_todo(t)
+    return t
+
+
+def prune_todo(cfg, t=None):
+    """Models you UNticked leave an unfinished check at once (a reload you asked for stays)."""
+    t = t if t is not None else load_todo()
+    watch = set(g.lower() for g in (cfg.get('models') or []))
+    before = len(t.get('items', []))
+    t['items'] = [i for i in t.get('items', []) if i['kind'] == 'reload' or i['state'] != 'waiting' or i['guid'] in watch]
+    if len(t['items']) != before:
         save_todo(t)
     return t
 
@@ -500,6 +538,7 @@ class Engine(object):
         self.app = uiapp.Application
         self.kept = {}             # guid -> {'doc', 'as_of', 'used'}
         self.started_by_schedule = True
+        log(u'This Revit (pid %s) is now the background Revit' % os.getpid())
 
     # ---- helpers
     def _keep(self, guid, doc, cfg):
@@ -540,6 +579,7 @@ class Engine(object):
         cfg = load_config()
         st = control()
         if st == 'stop':
+            log(u'Stop pressed: closing')
             self.shutdown()
             return 'exit'
         if st == 'pause':
@@ -595,6 +635,7 @@ class Engine(object):
             self._finish(item, t, 'failed', u'not in the model list of this PC')
             return
         self._drop(guid)                                   # always read a FRESH copy
+        log(u'%s %s' % (u'Reload' if item['kind'] == 'reload' else u'Check', name))
         settings = core.load_settings()
         try:
             with core.QuietRevit(self.uiapp):
@@ -604,6 +645,7 @@ class Engine(object):
         except Exception as e:
             doc, err = None, core.text(e)
         if doc is None:
+            log(u'  could not open %s: %s' % (name, err))
             if _looks_like_login(err) or not signed_in(self.app):
                 set_status(state='needs sign-in', message=u'Sign in to Autodesk to continue (%d model(s) left)' % left)
                 return                                     # stays 'waiting': continues here after sign-in
@@ -632,7 +674,10 @@ class Engine(object):
             n_att = len([1 for c in entry['bg_changes'].values() if c['since_issue'] is None or c['since_issue']])
             self._keep(guid, doc, cfg)
             self._finish(item, t, 'done', u'%d drawing(s), %d need attention' % (len(fps), n_att))
+            log(u'  done: %d drawing(s), %d need attention' % (len(fps), n_att))
         except Exception as e:
+            import traceback
+            log(u'  ERROR reading %s: %s\n%s' % (name, core.text(e), traceback.format_exc()))
             core_close(doc)
             self._finish(item, t, 'failed', core.text(e))
 

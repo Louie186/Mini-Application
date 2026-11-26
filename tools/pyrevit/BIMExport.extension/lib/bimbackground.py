@@ -206,13 +206,13 @@ def task_xml(cfg, ps1):
 
 def starter_ps1(cfg):
     """The small script the schedule runs: 'check now' + start the background Revit if none is running."""
-    return (u'param([switch]$NoCheck)\r\n'
+    return (u'param([switch]$NoCheck, [switch]$Force)\r\n'
             u'$bg = "%s"\r\n'
             u'if (-not $NoCheck) { Set-Content -LiteralPath "$bg\\check_now.flag" -Value \'{"models": null}\' }\r\n'
             u'$hb = "$bg\\heartbeat.txt"\r\n'
             u'$alive = $false\r\n'
             u'if (Test-Path -LiteralPath $hb) { if (((Get-Date) - (Get-Item -LiteralPath $hb).LastWriteTime).TotalSeconds -lt 60) { $alive = $true } }\r\n'
-            u'if (Test-Path -LiteralPath "$bg\\starting.txt") { if (((Get-Date) - (Get-Item -LiteralPath "$bg\\starting.txt").LastWriteTime).TotalSeconds -lt 240) { $alive = $true } }\r\n'
+            u'if ((-not $Force) -and (Test-Path -LiteralPath "$bg\\starting.txt")) { if (((Get-Date) - (Get-Item -LiteralPath "$bg\\starting.txt").LastWriteTime).TotalSeconds -lt 240) { $alive = $true } }\r\n'
             u'if (-not $alive) {\r\n'
             u'  Set-Content -LiteralPath "$bg\\starting.txt" -Value (Get-Date -Format s)\r\n'
             u'  Set-Content -LiteralPath "$bg\\claim.flag" -Value (Get-Date -Format s)\r\n'
@@ -256,10 +256,11 @@ def start_background_revit(cfg, check=False):
         return False
     import subprocess
     ps1 = os.path.join(BG, u'bg_start.ps1')
-    if not os.path.exists(ps1):
-        with io.open(ps1, 'w', encoding='utf-8-sig') as f:
-            f.write(starter_ps1(cfg))
-    args = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ps1]
+    core.ensure_dir(BG)
+    with io.open(ps1, 'w', encoding='utf-8-sig') as f:   # always the current version of the starter
+        f.write(starter_ps1(cfg))
+    # -Force: this check (alive / starting) was just done here, so the starter must not skip the start
+    args = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ps1, '-Force']
     if not check:
         args.append('-NoCheck')
     try:

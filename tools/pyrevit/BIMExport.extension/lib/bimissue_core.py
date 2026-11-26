@@ -785,9 +785,54 @@ def _draw_cloud(doc, rec):
     return c
 
 
+def _families_named(doc, name):
+    return [f for f in FilteredElementCollector(doc).OfClass(DB.Family) if _txt(f.Name).lower() == name.lower()]
+
+
+def _family_load_options(overwrite):
+    """Answers Revit's 'family already exists' question without a dialog."""
+    class _Opts(DB.IFamilyLoadOptions):
+        def OnFamilyFound(self, familyInUse, overwriteParameterValues):
+            try:
+                overwriteParameterValues.Value = bool(overwrite)
+            except Exception:
+                pass
+            return True
+
+        def OnSharedFamilyFound(self, sharedFamily, familyInUse, source, overwriteParameterValues):
+            try:
+                source.Value = DB.FamilySource.Family
+                overwriteParameterValues.Value = bool(overwrite)
+            except Exception:
+                pass
+            return True
+    return _Opts()
+
+
+def _backup_family(doc, fam, stem):
+    """Save the model's current version of a family as .rfa (so Revert can load it back)."""
+    # Revit names a loaded family after its FILE: the backup keeps the exact family name, in its own dated folder
+    folder = core.ensure_dir(os.path.join(APPLY_DIR, u'family_backups', time.strftime('%Y%m%d_%H%M%S')))
+    path = os.path.join(folder, u'%s.rfa' % stem)
+    fd = doc.EditFamily(fam)
+    try:
+        o = DB.SaveAsOptions()
+        o.OverwriteExistingFile = True
+        fd.SaveAs(path, o)
+    finally:
+        fd.Close(False)
+    return path
+
+
 def _snapshot(doc, changes):
     """Old values of everything the changes touch (for verification and Revert)."""
-    snap = {'revisions': {}, 'sheets': {}, 'params': [], 'tb_types': [], 'clouds': []}
+    snap = {'revisions': {}, 'sheets': {}, 'params': [], 'tb_types': [], 'clouds': [], 'families': []}
+    for lf in changes.get('load_families', []):
+        old = _families_named(doc, lf['name'])
+        if old:                                    # update: keep the model's current version for Revert
+            snap['families'].append({'name': lf['name'], 'mode': 'update', 'backup': _backup_family(doc, old[0], lf['name'])})
+        else:
+            snap['families'].append({'name': lf['name'], 'mode': 'add'})
     for dc in changes.get('delete_clouds', []):
         r = _cloud_record(doc, dc['id'])
         if r is not None:
@@ -829,6 +874,24 @@ def _apply_in_doc(doc, changes, log):
             rs = DB.RevisionSettings.GetRevisionSettings(doc)
             rs.RevisionNumbering = getattr(DB.RevisionNumbering, changes['numbering'])
             log.append(u'Revision numbering set to %s' % (u'per sheet' if changes['numbering'] == 'PerSheet' else u'per project'))
+        for lf in changes.get('load_families', []):         # title block family from a .rfa file
+            if not os.path.exists(lf['path']):
+                raise ApplyError(u'Family file not found: %s' % lf['path'])
+            ok = doc.LoadFamily(lf['path'], _family_load_options(lf.get('overwrite')))
+            ok = ok[0] if isinstance(ok, tuple) else ok
+            if not _families_named(doc, lf['name']):
+                raise ApplyError(u'Revit did not load %s (newer Revit version, or not a family file?)' % lf['path'])
+            log.append(u'Title block family %s: %s%s' % (lf['name'], u'updated' if lf.get('mode') == 'update' else u'added',
+                                                         u' (type values from the file)' if lf.get('overwrite') else u''))
+        for name in changes.get('delete_families', []):     # Revert of an added family
+            for f in _families_named(doc, name):
+                ids = list(f.GetFamilySymbolIds())
+                used = [1 for i in ids for _ in FilteredElementCollector(doc).OfCategory(BuiltInCategory.OST_TitleBlocks)
+                        .WhereElementIsNotElementType() if eid_int(_.GetTypeId()) == eid_int(i)]
+                if used:
+                    raise ApplyError(u'Family %s is still used on %d sheet(s) - change those back first' % (name, len(used)))
+                doc.Delete(f.Id)
+                log.append(u'Title block family %s removed' % name)
         for rc in changes.get('create_clouds', []):           # Revert: draw deleted clouds again
             _draw_cloud(doc, rc)
             log.append(u'Revision cloud drawn again in "%s"' % rc.get('label', rc['view']))
@@ -905,6 +968,12 @@ def _apply_in_doc(doc, changes, log):
 def _verify(doc, changes, created):
     """Read back. Returns a list of differences (empty = all good)."""
     bad = []
+    for lf in changes.get('load_families', []):
+        if not _families_named(doc, lf['name']):
+            bad.append(u'Family %s is not in the model' % lf['name'])
+    for name in changes.get('delete_families', []):
+        if _families_named(doc, name):
+            bad.append(u'Family %s is still in the model' % name)
     for dc in changes.get('delete_clouds', []):
         if doc.GetElement(make_eid(dc['id'])) is not None:
             bad.append(u'Revision cloud %s is still there' % dc['id'])
@@ -975,6 +1044,8 @@ def apply_changes(app, rec, changes, settings, comment, after=None):
                 raise ApplyError(u'Not workshared - changes would be saved straight into the model. '
                                  u'Allow non-workshared models in the Run tab only if nobody has it open.')
             ids = touched_ids(changes)
+            for lf in changes.get('load_families', []):     # updating a family: nobody else may own it
+                ids |= set(eid_int(f.Id) for f in _families_named(doc, lf['name']))
             if changes.get('numbering'):
                 try:
                     ids.add(eid_int(DB.RevisionSettings.GetRevisionSettings(doc).Id))
@@ -1041,6 +1112,9 @@ def revert(app, undo_file, settings):
             'params': [p for p in before.get('params', []) if p.get('value') is not None],
             'tb_types': before.get('tb_types', []), 'numbering': before.get('numbering'),
             'create_clouds': before.get('clouds', []),
+            'load_families': [{'path': f['backup'], 'name': f['name'], 'mode': 'update', 'overwrite': True}
+                              for f in before.get('families', []) if f.get('mode') == 'update' and f.get('backup')],
+            'delete_families': [f['name'] for f in before.get('families', []) if f.get('mode') == 'add'],
             'sheet_ids': undo['changes'].get('sheet_ids', [])}
     log = []
     doc = _open_for_edit(app, undo['model'], settings)

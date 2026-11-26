@@ -1357,6 +1357,48 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             (u'\n\n\u26A0 Sheet size changes: ' + u', '.join(sorted(sizes)) + u' - views are NOT moved.') if sizes else u'',
             (u'\n\nSkipped:\n' + u'\n'.join(skipped[:20])) if skipped else u''))
 
+    def on_tb_load(self, sender, args):
+        """Load a title block .rfa into the ticked models: same family name = update, new name = add."""
+        gs = [g for g in sorted(self.state['checked_models']) if g in self.state['loaded']]
+        if not gs:
+            forms.alert('Tick the models (and Check them / use their saved lists) first.')
+            return
+        path = forms.pick_file(file_ext='rfa', title='Title block family (.rfa)')
+        if not path:
+            return
+        stem = os.path.splitext(os.path.basename(path))[0]
+        upd = [g for g in gs if any(t['family'].lower() == stem.lower() for t in
+                                    ((self.cache.get(g) or {}).get('issue') or {}).get('titleblock_types', []))]
+        add = [g for g in gs if g not in upd]
+        nm = lambda g: (self.cache.get(g) or {}).get('model') or g[:8]
+        msg = u''
+        if upd:
+            msg += u'UPDATE "%s" in %d model(s) - every sheet using it follows:\n%s\n\n' % (
+                stem, len(upd), u'\n'.join(u'  \u2022 ' + nm(g) for g in upd))
+        if add:
+            msg += u'ADD "%s" to %d model(s) - after Apply it is in "Change to":\n%s\n\n' % (
+                stem, len(add), u'\n'.join(u'  \u2022 ' + nm(g) for g in add))
+        overwrite = False
+        if upd:
+            c = forms.CommandSwitchWindow.show([u'Keep the type values of the models', u'Use the type values from the file'],
+                                               message=msg + u'Type parameters (e.g. Yes/No switches set for the whole type):')
+            if not c:
+                return
+            overwrite = c.startswith(u'Use')
+        elif not forms.alert(msg + u'Tip: Revit names a family after its FILE. To UPDATE an existing title block instead, '
+                                   u'the file must be named exactly like the family in the model (e.g. "%s.rfa").\n\nContinue?'
+                             % (sorted(set(t['family'] for g in gs for t in ((self.cache.get(g) or {}).get('issue') or {})
+                                           .get('titleblock_types', [])))[:1] or [u'KEO A0 Title'])[0], yes=True, no=True):
+            return
+        for g in gs:
+            p = self._pend(g)
+            p.setdefault('load_families', [])
+            p['load_families'] = [lf for lf in p['load_families'] if lf['name'].lower() != stem.lower()]
+            p['load_families'].append({'path': path, 'name': stem, 'mode': 'update' if g in upd else 'add',
+                                       'overwrite': overwrite})
+        self._refresh_changes()
+        forms.alert(u'Waiting for Apply (Changes tab). A backup of the current family is kept, so Revert can undo it.')
+
     def on_tb_change_undo(self, sender, args):
         if not getattr(self, '_tb_sheet_key', None):
             return
@@ -1427,7 +1469,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         p = self.state['pending'].get(g) or {}
         return (len(p.get('new_revisions', [])) + len(p.get('edit_revisions', {})) +
                 len(p.get('sheet_revisions', {})) + len(p.get('params', [])) + len(p.get('tb_types', [])) +
-                (1 if p.get('numbering') else 0) + len(p.get('delete_clouds', [])))
+                (1 if p.get('numbering') else 0) + len(p.get('delete_clouds', [])) + len(p.get('load_families', [])))
 
     def _refresh_changes(self):
         lines = []
@@ -1438,6 +1480,10 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             if p.get('numbering'):
                 lines.append(u'   ~ Revision numbering \u2192 %s  (ALL drawings of this model)' % (
                     u'per sheet' if p['numbering'] == u'PerSheet' else u'per project'))
+            for lf in p.get('load_families', []):
+                lines.append(u'   + %s title block family "%s" from %s%s' % (
+                    u'UPDATE' if lf['mode'] == 'update' else u'ADD', lf['name'], os.path.basename(lf['path']),
+                    u'  (type values from the file)' if lf.get('overwrite') else u''))
             for dc in p.get('delete_clouds', []):
                 lines.append(u'   - DELETE revision cloud: %s' % dc.get('label', dc['id']))
             for nr in p['new_revisions']:
@@ -1564,7 +1610,7 @@ def apply_in_background(guids, state, settings, reg, cache):
     for g in guids:
         ch = state['pending'][g]
         n = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types',
-                                             'delete_clouds')) + (1 if ch.get('numbering') else 0)
+                                             'delete_clouds', 'load_families')) + (1 if ch.get('numbering') else 0)
         bg.send_apply_job({'guid': g, 'rec': reg[g], 'changes': ch, 'n_changes': n, 'user_open': mine,
                            'comment': u'Issue Sheets by Lew: %d change(s) (background)' % n,
                            'settings': dict((k, settings.get(k)) for k in ('region', 'allow_non_workshared', 'naming_rule'))})
@@ -1607,7 +1653,7 @@ def do_apply(guids, state, settings, reg, cache):
     results = []
     for g in guids:
         ch = state['pending'][g]
-        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types', 'delete_clouds')) + (1 if ch.get('numbering') else 0)
+        n_changes = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types', 'delete_clouds', 'load_families')) + (1 if ch.get('numbering') else 0)
         try:
             ok, log, undo, entry = issue.apply_changes(app, reg[g], ch, settings,
                                                        u'Issue Sheets by Lew: %d change(s)' % n_changes, after=fresh)
@@ -2225,7 +2271,7 @@ def main():
             if state.pop('apply_then_issue', False):
                 todo = [g for g in state['pending'] if any(state['pending'][g].get(k) for k in
                         ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types', 'delete_clouds',
-                         'numbering'))]
+                         'numbering', 'load_families'))]
                 t_w = time.time()
                 if bg is not None and bg.alive():
                     apply_in_background(todo, state, settings, reg, cache)       # the print waits for it below

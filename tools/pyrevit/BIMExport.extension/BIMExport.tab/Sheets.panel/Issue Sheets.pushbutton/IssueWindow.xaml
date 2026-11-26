@@ -247,6 +247,8 @@
                                     <Button Content="Change this drawing" Style="{StaticResource Small}" Click="on_tb_change_one"/>
                                     <Button Content="Change all ticked drawings" Style="{StaticResource Small}" Click="on_tb_change_ticked"/>
                                     <Button Content="Undo for this drawing" Style="{StaticResource Small}" Click="on_tb_change_undo"/>
+                                    <Button Content="Load title block (.rfa)..." Style="{StaticResource Small}" Click="on_tb_load"
+                                            ToolTip="Load a title block family file into the ticked models: same name = update it (all sheets follow), new name = add it (then switch drawings with Change to). Goes in with Apply; Revert undoes it."/>
                                     <CheckBox x:Name="tb_keep_cb" Content="Keep Yes/No switches with the same name" IsChecked="True"
                                               VerticalAlignment="Center" Margin="6,0,0,0"/>
                                 </StackPanel>

@@ -143,6 +143,11 @@ def main():
         core.logo_pipeline_reset(out)
         job['_logo_pipeline'] = True
     log_path = core.usable_log_path(os.path.join(core.logs_dir(out), 'SheetExport_log.csv'))
+    failed = ui.wait_background_applies(list(picked.keys()), cache)
+    if failed and not forms.alert(u'These background Applies did NOT go through - the prints would NOT include those '
+                                  u'changes:\n\n%s\n\nPrint anyway?' % u'\n'.join(u'  \u2022 %s: %s' % f for f in failed),
+                                  yes=True, no=True):
+        return
     left, jid, fast_txt = ui.fast_print_offer(picked, names, settings, out, run_cad, 'quick',
                                               ('pdf', 'dwg', 'per_model_folder', 'batch_pdf', 'batch_dwg', 'embed',
                                                'acad_exe', 'img2ole_lsp'), row_formats=row_fmt, cache=cache)

@@ -1209,7 +1209,40 @@ def do_check(guids, settings, reg, cache):
         forms.alert('Could not read these models:\n\n' + '\n'.join(failed))
 
 
+def apply_in_background(guids, state, settings, reg, cache):
+    """Send the changes to the background Revit: it applies + syncs, then reloads the model fresh. Every print of
+    these models waits for it, so the exports always include the changes."""
+    mine = [g for g in reg if core.find_open_doc(app, g) is not None]
+    blocked = [g for g in guids if g in mine]
+    if blocked:
+        forms.alert(u'Close these models in THIS Revit first (sync your own edits), then Apply again:\n\n' +
+                    u'\n'.join(u'  \u2022 ' + ((cache.get(g) or {}).get('model') or g) for g in blocked))
+        return
+    sent = []
+    for g in guids:
+        ch = state['pending'][g]
+        n = sum(len(ch.get(k, [])) for k in ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types',
+                                             'delete_clouds')) + (1 if ch.get('numbering') else 0)
+        bg.send_apply_job({'guid': g, 'rec': reg[g], 'changes': ch, 'n_changes': n, 'user_open': mine,
+                           'comment': u'Issue Sheets by Lew: %d change(s) (background)' % n,
+                           'settings': dict((k, settings.get(k)) for k in ('region', 'allow_non_workshared', 'naming_rule'))})
+        state['pending'].pop(g, None)
+        sent.append((cache.get(g) or {}).get('model') or g)
+    forms.alert(u'Sent to the background Revit (it applies, syncs, then reloads each model fresh):\n\n%s\n\n'
+                u'Keep working. Any print of these models WAITS until the change is synced, so the exports include it. '
+                u'Progress and results: BIMExport \u2192 Background.\n\nDo not open these models in your Revit until '
+                u'it is done.' % u'\n'.join(u'  \u2022 ' + n for n in sent))
+
+
 def do_apply(guids, state, settings, reg, cache):
+    if bg is not None and bg.alive():
+        c = forms.CommandSwitchWindow.show([u'Apply in the background Revit (keep working)', u'Apply here now'],
+                                           message=u'The background Revit is running.')
+        if not c:
+            return
+        if c.startswith(u'Apply in the background'):
+            apply_in_background(guids, state, settings, reg, cache)
+            return
     others = issue.other_revit_windows()
     if others:
         forms.alert(u'Apply needs this to be the ONLY Revit window.\n\n%d other Revit window(s) are running. Close them '
@@ -1332,6 +1365,11 @@ def do_issue(rows, state, settings, reg, cache, dry):
         run_issue_queue(qd, qjob, settings, reg, cache, u'Main window', job)
         return
     log_path = core.usable_log_path(os.path.join(core.logs_dir(out_root), 'SheetExport_log.csv'))
+    failed = ui.wait_background_applies(list(job['picked'].keys()), cache)
+    if failed and not forms.alert(u'These background Applies did NOT go through - printing them now would NOT include '
+                                  u'those changes:\n\n%s\n\nPrint anyway?' % u'\n'.join(u'  \u2022 %s: %s' % f for f in failed),
+                                  yes=True, no=True):
+        return
     left, jid, fast_txt = ui.fast_print_offer(dict((g, set(v)) for g, v in job['picked'].items()), names, settings,
                                               out_root, run_cad, 'issue', SHARE_KEYS, cache=cache)
     if jid:                                       # the background Revit prints its open models at the same time

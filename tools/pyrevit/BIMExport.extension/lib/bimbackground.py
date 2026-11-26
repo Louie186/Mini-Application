@@ -41,6 +41,7 @@ CLAIM_FLAG = os.path.join(BG, 'claim.flag')
 RELOAD_DIR = os.path.join(BG, 'reload')
 ISSUED_DIR = os.path.join(BG, 'issued')
 JOBS_DIR = os.path.join(BG, 'print_jobs')
+APPLY_DIR = os.path.join(BG, 'apply_jobs')
 TASK_NAME = u'BIMExport Background'
 
 DEFAULTS = {'enabled': True, 'models': [], 'times': ['07:00', '12:30', '18:00'], 'days': [1, 2, 3, 4, 5],
@@ -531,11 +532,18 @@ class Engine(object):
                 set_status(state='paused', message=u'Paused: only %.1f GB memory free (limit %s GB)' % (
                     free_gb(), cfg.get('min_free_gb')), kept=self.kept_info(), free_gb=round(free_gb(), 1))
                 return 'wait'
-        job = next_print_job()
+        aj = next_apply_job()                     # changes first: everything printed later includes them
+        if aj:
+            if not signed_in(self.app):
+                set_status(state='needs sign-in', message=u'Sign in to Autodesk to continue (an Apply is waiting)')
+                return 'wait'
+            run_apply_job(self, aj)
+            return 'work'
+        t = merge_requests(cfg)
+        job = next_print_job(self, t)
         if job:
             run_print_job(self, job)
             return 'work'
-        t = merge_requests(cfg)
         item = next_item(t)
         if item is None:
             done = [i for i in t.get('items', []) if i['state'] == 'done']
@@ -664,13 +672,109 @@ def print_job_result(jid):
     return _rj(os.path.join(JOBS_DIR, jid + u'.done.json'), None)
 
 
-def next_print_job():
+def next_print_job(engine=None, t=None):
+    """The next print job whose models are READY: no Apply waiting for them, no reload waiting, and the open copy
+    is newer than their last Apply (so the export always includes the applied changes)."""
     if not os.path.isdir(JOBS_DIR):
         return None
+    busy = pending_applies()
+    if t is not None:
+        busy |= set(i['guid'] for i in t.get('items', []) if i['state'] == 'waiting' and i['kind'] == 'reload')
+    applied = status().get('applied') or {}
     for fn in sorted(os.listdir(JOBS_DIR)):
         if fn.endswith('.json') and not fn.endswith('.done.json') and not fn.endswith('.tmp'):
-            return _rj(os.path.join(JOBS_DIR, fn), None)
+            job = _rj(os.path.join(JOBS_DIR, fn), None)
+            if not job:
+                continue
+            ready = True
+            for g in (job.get('picked') or {}):
+                k = engine.kept.get(g) if engine is not None else None
+                if g in busy or (k is not None and applied.get(g, u'') > k.get('as_of', u'')):
+                    ready = False
+            if ready:
+                return job
     return None
+
+
+# ------------------------------------------------------------ apply ----
+def send_apply_job(job):
+    core.ensure_dir(APPLY_DIR)
+    jid = u'%s_%s' % (time.strftime('%Y%m%d_%H%M%S'), job['guid'][:8])
+    job['id'] = jid
+    _wj(os.path.join(APPLY_DIR, jid + u'.json'), job)
+    return jid
+
+
+def apply_result(jid):
+    return _rj(os.path.join(APPLY_DIR, jid + u'.done.json'), None)
+
+
+def pending_applies():
+    """Models with an Apply sent to the background Revit and not finished yet."""
+    out = set()
+    if os.path.isdir(APPLY_DIR):
+        for fn in os.listdir(APPLY_DIR):
+            if fn.endswith('.json') and not fn.endswith('.done.json'):
+                j = _rj(os.path.join(APPLY_DIR, fn), None)
+                if j:
+                    out.add(j['guid'].lower())
+    return out
+
+
+def next_apply_job():
+    if not os.path.isdir(APPLY_DIR):
+        return None
+    for fn in sorted(os.listdir(APPLY_DIR)):
+        if fn.endswith('.json') and not fn.endswith('.done.json') and not fn.endswith('.tmp'):
+            return _rj(os.path.join(APPLY_DIR, fn), None)
+    return None
+
+
+def run_apply_job(engine, job):
+    """Apply in the background Revit: your local copy, one change step, read back, sync + give back, close.
+    Then the model is reloaded fresh (front of the list) so every later print includes the change."""
+    import bimissue_core as issue
+    jid, guid = job['id'], job['guid'].lower()
+    rec = core.load_register().get(guid) or job.get('rec')
+    set_status(state='applying', message=u'Applying %d change(s) to %s and syncing...' % (
+        job.get('n_changes', 0), (rec or {}).get('Name', guid)))
+    engine._drop(guid)                              # the open detached copy is about to be out of date
+    settings = core.load_settings()
+    settings.update(job.get('settings') or {})
+    settings['_bg_apply'] = True
+    settings['_user_open_guids'] = job.get('user_open') or []
+    res = {'guid': guid, 'done': u''}
+
+    def fresh(doc):
+        e = core.read_sheet_list(doc, settings.get('naming_rule') or u'{DrawingNumber}')
+        e['issue'] = issue.read_issue_data(doc)
+        return e
+    try:
+        with core.QuietRevit(engine.uiapp):
+            ok, log, undo, entry = issue.apply_changes(engine.app, rec, job['changes'], settings,
+                                                       job.get('comment') or u'Issue Sheets by Lew (background)',
+                                                       after=fresh)
+        res.update({'ok': True, 'log': log, 'undo': issue.save_undo(undo)})
+        if entry:
+            old = core.load_sheet_cache().get(guid) or {}
+            for k in ('fp', 'bg_changes', 'bg_checked', 'bg_kind'):
+                if k in old:
+                    entry[k] = old[k]
+            entry['guid'] = guid
+            core.save_sheet_entry(guid, entry)
+        st = status()
+        applied = st.get('applied') or {}
+        applied[guid] = core.now()
+        set_status(applied=applied)
+        request_reload(guid)                        # fresh copy WITH the synced change, before any print of it
+    except Exception as e:
+        res.update({'ok': False, 'error': core.text(e)})
+    res['done'] = core.now()
+    try:
+        os.remove(os.path.join(APPLY_DIR, jid + u'.json'))
+    except Exception:
+        pass
+    _wj(os.path.join(APPLY_DIR, jid + u'.done.json'), res)
 
 
 def run_print_job(engine, job):

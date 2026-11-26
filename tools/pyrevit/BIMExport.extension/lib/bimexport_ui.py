@@ -874,13 +874,21 @@ class ExportSettingsMixin(object):
 # ------------------------------------------------- background fast printing --
 def fast_print_offer(picked, names, settings, out_root, run_cad, kind, keys, row_formats=None, cache=None):
     """Models the background Revit keeps open can be printed THERE (no opening). Returns (picked left for this
-    Revit, job id or None, text). Asks first and always says 'as of' (the open copy is the model at its last check)."""
+    Revit, job id or None, text). Asks first and always says 'as of' (the open copy is the model at its last check).
+    A model open in THIS Revit with unsynced changes is never sent: it prints here, from your open copy."""
     try:
         import bimbackground as bg
     except Exception:
         return picked, None, u''
     kept = bg.kept_models()
-    fast = [g for g in picked if g in kept]
+    fast = []
+    for g in picked:
+        if g not in kept:
+            continue
+        mine = core.find_open_doc(app, g) if app is not None else None
+        if mine is not None and getattr(mine, 'IsModified', False):
+            continue                                # your unsynced edits: print from your own open copy
+        fast.append(g)
     if not fast:
         return picked, None, u''
     names_txt = u'\n'.join(u'  • %s (as of %s)' % (((cache or {}).get(g) or {}).get('model') or g[:8],
@@ -917,3 +925,35 @@ def fast_print_wait(jid, timeout=3600):
                 pass
             time.sleep(1.0)
     return res
+
+
+def wait_background_applies(guids, cache=None):
+    """Printing waits for changes still being applied in the background Revit (so the export includes them).
+    Returns [(model, error)] of applies that failed."""
+    try:
+        import bimbackground as bg
+    except Exception:
+        return []
+    waiting = [g for g in guids if g in bg.pending_applies()]
+    if not waiting:
+        return []
+    t0 = time.time()
+    with forms.ProgressBar(title='Waiting for the background Apply + sync of %d model(s) so the prints include '
+                                 'the changes... {value} s' % len(waiting), indeterminate=True, cancellable=True) as pb:
+        while bg.pending_applies() & set(waiting) and time.time() - t0 < 3600 and not pb.cancelled:
+            time.sleep(1.0)
+            try:
+                pb.update_progress(int(time.time() - t0), 3600)
+            except Exception:
+                pass
+    failed = []
+    if os.path.isdir(bg.APPLY_DIR):
+        for fn in sorted(os.listdir(bg.APPLY_DIR)):
+            if fn.endswith('.done.json'):
+                r = bg._rj(os.path.join(bg.APPLY_DIR, fn), {})
+                if r.get('guid') in waiting and not r.get('ok') and r.get('done', '') >= core.now()[:10]:
+                    failed.append((((cache or {}).get(r['guid']) or {}).get('model', r['guid'][:8]), r.get('error', '')))
+    still = bg.pending_applies() & set(waiting)
+    for g in still:
+        failed.append((((cache or {}).get(g) or {}).get('model', g[:8]), u'still waiting (you stopped the wait)'))
+    return failed

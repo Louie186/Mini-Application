@@ -656,9 +656,16 @@ def _open_for_edit(app, rec, settings):
     if core.find_open_doc(app, rec['ModelGUID'].lower()) is not None:
         raise ApplyError(u'The model is open in this Revit window. Close it first, then Apply again.')
     n = other_revit_windows()
-    if n:
+    if settings.get('_bg_apply'):                 # the background Revit: only YOUR Revit may run next to it,
+        if rec['ModelGUID'].lower() in [g.lower() for g in settings.get('_user_open_guids') or []]:
+            raise ApplyError(u'The model is open in your Revit. Close it there (sync first), then Apply again.')
+        if n > 1:                                 # and it must not have this model open
+            raise ApplyError(u'%d other Revit windows are running. Close all but yours - Revit windows on one PC '
+                             u'share the same local copy.' % n)
+    elif n:
         raise ApplyError(u'%d other Revit window(s) are running. Close them first - two Revit windows on one PC '
-                         u'share the same local copy, which causes sync problems.' % n)
+                         u'share the same local copy, which causes sync problems. (With the background Revit '
+                         u'running, choose "Apply in the background Revit".)' % n)
     errors = []
     for reg in core._regions(rec.get('Region') or settings.get('region')):
         try:
@@ -929,15 +936,15 @@ def _verify(doc, changes, created):
 
 
 def _sync(doc, comment):
-    """Sync + give back everything borrowed. The local file is NOT saved before syncing, so a failed sync
-    (e.g. network) leaves no unsynced changes in your local copy - closing then discards them."""
+    """Sync + give back everything borrowed. ACC cloud models REQUIRE the local copy to be saved before and
+    after the sync (Revit refuses otherwise), so both are on."""
     if doc.IsWorkshared:
         twc = DB.TransactWithCentralOptions()
         swc = DB.SynchronizeWithCentralOptions()
         swc.SetRelinquishOptions(DB.RelinquishOptions(True))
         swc.Comment = comment
         try:
-            swc.SaveLocalBefore = False
+            swc.SaveLocalBefore = True         # mandatory for cloud (server-based) models
             swc.SaveLocalAfter = True          # local matches central again after a good sync
         except Exception:
             pass
@@ -981,7 +988,19 @@ def apply_changes(app, rec, changes, settings, comment, after=None):
             bad = _verify(doc, changes, created)
             if bad:
                 raise ApplyError(u'Check after the change failed - NOT synced, nothing saved: ' + u'; '.join(bad))
-            _sync(doc, comment)
+            try:
+                _sync(doc, comment)
+            except Exception as e:
+                # the local copy may already be saved WITH the change: keep the undo record and say so plainly
+                undo = {'model': rec, 'when': core.now(), 'before': snap, 'created': created, 'changes': changes,
+                        'sync_failed': True}
+                try:
+                    uf = save_undo(undo)
+                except Exception:
+                    uf = u'(undo record could not be saved)'
+                raise ApplyError(u'SYNC FAILED: %s\n\nThe change is NOT in the ACC model. Your LOCAL copy may hold it '
+                                 u'(saved before the sync). Open the model in Revit and Synchronize with Central to send '
+                                 u'it, or use Revert last apply (undo record: %s).' % (core.text(e), uf))
             log.append(u'Synced with central (all borrowed elements given back)')
         undo = {'model': rec, 'when': core.now(), 'before': snap, 'created': created, 'changes': changes}
         fresh = None

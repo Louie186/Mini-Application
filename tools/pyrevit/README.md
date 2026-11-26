@@ -103,7 +103,7 @@ For formal issues: **what changed → fix revisions / title block switches → i
 6. **Changes tab → Apply to the models** (only if you changed revisions or Yes/No):
    - Local copy (not detached) → nobody else owns the items → **one change step** → read back → **sync + give back everything borrowed** → close
    - Any problem: **nothing is saved**. Every Apply keeps an undo log: **Revert last apply...**
-   - Apply only runs when this is the **only Revit window** (two windows share one local copy). It opens your local copy with **your own last-used worksets**, never clicks Revit messages away, and doesn't save the local file before syncing (a failed sync leaves nothing behind)
+   - Apply only runs when this is the **only Revit window** (two windows share one local copy). It opens your local copy with **your own last-used worksets**, never clicks Revit messages away, and saves the local copy before and after the sync (ACC requires it). If the sync itself fails you get a clear message, and Revert still works
 7. **Issue:** with "Embed logos" ticked, a small **background helper** starts AutoCAD as soon as the first model's DWGs are ready and keeps feeding it while Revit exports the next models (one AutoCAD at a time; falls back to "AutoCAD at the end" if PowerShell is blocked). Then it exports the ticked drawings (detached, closed without saving) with the exact names, embeds logos if ticked, and writes **one row per print** in the **issue register** CSV (each drawing's prints grouped together, newest under the older ones)
 
 ### Speed (v7.8): each model opens ONCE
@@ -152,6 +152,8 @@ printing them later is only the export.
 **Control:** Pause / Resume / Stop / Start, **Reload a model fully now...** (goes to the front; or "here now" in this Revit), **What changed** (list per model). Status at the top of the Background window.
 
 **Stops never restart the whole check:** a sign-in that expires pauses it (*"Sign in to Autodesk to continue (3 left)"*) and it continues with the next model as soon as you are signed in; Pause / Stop / a closed PC continue where they stopped; a failed model is tried once more at the end.
+
+**Apply in the background:** with the background Revit running, Issue Sheets → Apply asks *"Apply in the background Revit (keep working)"*. It opens your local copy, applies, checks, **syncs to the ACC model**, then reloads that model fresh. **Every print of that model waits** until this is done, so the exports always include your changes. A model open in your own Revit is refused (close / sync it first) - and fast printing never uses the background copy of a model you have open with unsynced edits: that one prints from your open copy.
 
 **Fast printing:** Issue Sheets and Quick Print offer *"Fast: print them from the background Revit"* for the models it keeps open: export only, no opening - the model **as of its last check** (choose "fresh" if you need syncs made after it). Models it does not hold are printed by your Revit at the same time.
 

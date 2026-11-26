@@ -35,7 +35,8 @@ CONFIG = os.path.join(BG, 'config.json')
 STATUS = os.path.join(BG, 'status.json')
 CONTROL = os.path.join(BG, 'control.json')
 TODO = os.path.join(BG, 'todo.json')
-HEART = os.path.join(BG, 'heartbeat.txt')
+HEART = os.path.join(BG, 'heartbeat.txt')      # 'this Revit is alive' - written every 10 s, even while busy
+TICK = os.path.join(BG, 'tick.txt')             # 'the engine took a step' - not written while a model opens
 CHECK_FLAG = os.path.join(BG, 'check_now.flag')
 CLAIM_FLAG = os.path.join(BG, 'claim.flag')
 STARTING = os.path.join(BG, 'starting.txt')      # a background Revit is being started (takes 1-2 minutes)
@@ -112,6 +113,14 @@ def control():
 
 def set_control(state):
     _wj(CONTROL, {'state': state, 'when': core.now()})
+
+
+def busy_minutes():
+    """Minutes since the engine last took a step (a model that is opening blocks it), or 0."""
+    try:
+        return (time.time() - os.path.getmtime(TICK)) / 60.0
+    except Exception:
+        return 0.0
 
 
 def stalled():
@@ -539,6 +548,20 @@ class Engine(object):
         self.kept = {}             # guid -> {'doc', 'as_of', 'used'}
         self.started_by_schedule = True
         log(u'This Revit (pid %s) is now the background Revit' % os.getpid())
+        try:                                       # alive signal on its own thread: keeps going while a model opens
+            import System
+            from System.Threading import Timer, TimerCallback
+            pid = core.text(os.getpid())
+
+            def beat(_):
+                try:
+                    with io.open(HEART, 'w') as f:
+                        f.write(pid)
+                except Exception:
+                    pass
+            self._beat = Timer(TimerCallback(beat), None, 0, 10000)
+        except Exception:
+            self._beat = None
 
     # ---- helpers
     def _keep(self, guid, doc, cfg):
@@ -560,6 +583,11 @@ class Engine(object):
         return dict((g, {'as_of': k['as_of']}) for g, k in self.kept.items())
 
     def shutdown(self):
+        try:
+            if getattr(self, '_beat', None) is not None:
+                self._beat.Dispose()
+        except Exception:
+            pass
         for g in list(self.kept.keys()):
             self._drop(g)
         set_status(state='stopped', message=u'Stopped', kept={})
@@ -571,11 +599,12 @@ class Engine(object):
     # ---- one step
     def tick(self):
         core.ensure_dir(BG)
-        try:
-            with io.open(HEART, 'w') as f:
-                f.write(core.text(os.getpid()))
-        except Exception:
-            pass
+        for p in (HEART, TICK):
+            try:
+                with io.open(p, 'w') as f:
+                    f.write(core.text(os.getpid()))
+            except Exception:
+                pass
         cfg = load_config()
         st = control()
         if st == 'stop':
@@ -628,7 +657,7 @@ class Engine(object):
         left = len([i for i in t['items'] if i['state'] == 'waiting'])
         done_n = len([i for i in t['items'] if i['state'] == 'done'])
         name = (rec or {}).get('Name') or guid
-        set_status(state='checking', current=name, message=u'%s %s (%d left)' % (
+        set_status(state='checking', current=name, current_since=core.now(), message=u'%s %s (%d left)' % (
             u'Reloading' if item['kind'] == 'reload' else u'Checking', name, left), done=done_n,
             total=len(t['items']), kept=self.kept_info(), free_gb=round(free_gb(), 1))
         if rec is None:

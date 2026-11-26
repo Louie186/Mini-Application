@@ -14,7 +14,7 @@ import re
 from pyrevit import forms, script      # loads pyRevit (and WPF) first
 
 import clr
-for _asm in ('PresentationFramework', 'PresentationCore', 'WindowsBase'):
+for _asm in ('PresentationFramework', 'PresentationCore', 'WindowsBase', 'System.Data'):
     try:
         clr.AddReference(_asm)
     except Exception:
@@ -22,6 +22,7 @@ for _asm in ('PresentationFramework', 'PresentationCore', 'WindowsBase'):
 import System
 from System.Windows.Controls import CheckBox, TextBlock
 from System.Windows.Media import BrushConverter
+from System.Data import DataTable
 
 import bimexport_core as core
 import bimexport_ui as ui
@@ -32,7 +33,7 @@ app = ui.app
 output = script.get_output()
 XAML = os.path.join(os.path.dirname(__file__), 'BackgroundWindow.xaml')
 _BC = BrushConverter()
-STATE_COLOURS = {'stalled': '#C0392B', 'checking': '#2E8B57', 'printing': '#2E8B57', 'applying': '#2E8B57', 'idle': '#1F5FA8',
+STATE_COLOURS = {'slow?': '#D98E04', 'stalled': '#C0392B', 'checking': '#2E8B57', 'printing': '#2E8B57', 'applying': '#2E8B57', 'idle': '#1F5FA8',
                  'paused': '#D98E04', 'needs sign-in': '#C0392B', 'stopped': '#6B7785'}
 
 
@@ -140,6 +141,19 @@ class BackgroundWindow(forms.WPFWindow):
         left = len([i for i in t.get('items', []) if i['state'] == 'waiting'])
         if alive:
             msg = st.get('message') or u''
+            busy = bg.busy_minutes()
+            if state in (u'checking', u'applying', u'printing') and busy > 1.5:
+                msg = u'%s - working on it for %d min (opening a big model takes a while)' % (
+                    st.get('current') or msg, int(busy))
+                if busy > 30:
+                    state = u'slow?'
+                    self.state_tb.Text = u'SLOW?'
+                    msg = (u'%s for %d min - look at the background Revit (a message may be waiting there)'
+                           % (st.get('current') or u'One model', int(busy)))
+                    try:
+                        self.state_bd.Background = _BC.ConvertFromString(STATE_COLOURS['slow?'])
+                    except Exception:
+                        pass
         elif state == u'stalled':
             msg = u'The background Revit is open but not working - look at it (a message may be waiting), or press Stop'
         elif bg.starting():
@@ -155,11 +169,54 @@ class BackgroundWindow(forms.WPFWindow):
             (u'Open for fast printing: ' + u', '.join(u'%s (%s)' % (self._line(g)[0], (v.get('as_of') or u'')[11:16])
                                                     for g, v in kept.items())) if (alive and kept) else u'No models open for fast printing')
         self.pause_btn.Content = u'Resume' if bg.control() == 'pause' else u'Pause'
+        self._fill_status(st, alive, t)
         if sender is not None:                    # timer: pick up new check results
             new = core.load_sheet_cache()
             if any((new.get(g) or {}).get('bg_checked') != (self.cache.get(g) or {}).get('bg_checked') for g in self.watch):
                 self.cache = new
                 self._fill_models()
+
+    def _fill_status(self, st, alive, t):
+        """Status tab: one row per ticked model."""
+        try:
+            cache = core.load_sheet_cache()
+        except Exception:
+            cache = self.cache
+        kept = (st.get('kept') or {}) if alive else {}
+        applied = st.get('applied') or {}
+        items = {}
+        for i in t.get('items', []):
+            items[i['guid']] = i
+        tb = DataTable()
+        for c in (u'Model', u'Last checked', u'How', u'Drawings', u'Need attention', u'Fast printing', u'This check'):
+            tb.Columns.Add(c, System.String)
+        cur = (st.get('current') or u'') if alive else u''
+        for g in sorted(self.watch, key=lambda x: core.natural_key(self._line(x)[0])):
+            e = cache.get(g) or {}
+            name = e.get('model') or (self.reg.get(g) or {}).get('Name') or g[:8]
+            ch = e.get('bg_changes') or {}
+            att = len([1 for c in ch.values() if c['since_issue'] is None or c['since_issue']])
+            k = kept.get(g)
+            it = items.get(g)
+            if it is None:
+                now = u'-'
+            elif it['state'] == 'waiting':
+                now = u'working on it now' if cur and cur == name else u'waiting (%s)' % it['kind']
+            elif it['state'] == 'done':
+                now = u'done %s' % (it.get('when') or u'')[11:16]
+            else:
+                now = u'FAILED: %s' % (it.get('note') or u'')[:80]
+            r = tb.NewRow()
+            r[u'Model'] = name
+            r[u'Last checked'] = (e.get('bg_checked') or u'never')[:16]
+            r[u'How'] = (u'reloaded by you' if e.get('bg_kind') == 'reload' else u'scheduled') if e.get('bg_checked') else u''
+            r[u'Drawings'] = core.text(len(ch)) if ch else u''
+            r[u'Need attention'] = core.text(att) if ch else u''
+            r[u'Fast printing'] = (u'ready (as of %s)' % (k.get('as_of') or u'')[11:16]) if k else (
+                u'after its refresh' if applied.get(g) else u'no (opens when printing)')
+            r[u'This check'] = now
+            tb.Rows.Add(r)
+        self.status_dg.ItemsSource = tb.DefaultView
 
     # --------------------------------------------------------------- actions
     def _read(self):

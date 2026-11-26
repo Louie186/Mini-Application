@@ -38,6 +38,7 @@ TODO = os.path.join(BG, 'todo.json')
 HEART = os.path.join(BG, 'heartbeat.txt')
 CHECK_FLAG = os.path.join(BG, 'check_now.flag')
 CLAIM_FLAG = os.path.join(BG, 'claim.flag')
+STARTING = os.path.join(BG, 'starting.txt')      # a background Revit is being started (takes 1-2 minutes)
 RELOAD_DIR = os.path.join(BG, 'reload')
 ISSUED_DIR = os.path.join(BG, 'issued')
 JOBS_DIR = os.path.join(BG, 'print_jobs')
@@ -211,7 +212,9 @@ def starter_ps1(cfg):
             u'$hb = "$bg\\heartbeat.txt"\r\n'
             u'$alive = $false\r\n'
             u'if (Test-Path -LiteralPath $hb) { if (((Get-Date) - (Get-Item -LiteralPath $hb).LastWriteTime).TotalSeconds -lt 60) { $alive = $true } }\r\n'
+            u'if (Test-Path -LiteralPath "$bg\\starting.txt") { if (((Get-Date) - (Get-Item -LiteralPath "$bg\\starting.txt").LastWriteTime).TotalSeconds -lt 240) { $alive = $true } }\r\n'
             u'if (-not $alive) {\r\n'
+            u'  Set-Content -LiteralPath "$bg\\starting.txt" -Value (Get-Date -Format s)\r\n'
             u'  Set-Content -LiteralPath "$bg\\claim.flag" -Value (Get-Date -Format s)\r\n'
             u'  Start-Process -FilePath "%s" -ArgumentList "/nosplash" -WindowStyle Minimized\r\n'
             u'}\r\n') % (BG, cfg.get('revit_exe') or u'Revit.exe')
@@ -239,7 +242,18 @@ def install_schedule(cfg):
         return False, core.text(e)
 
 
+def starting():
+    """A background Revit was started less than 4 minutes ago and is still loading."""
+    try:
+        return time.time() - os.path.getmtime(STARTING) < 240
+    except Exception:
+        return False
+
+
 def start_background_revit(cfg, check=False):
+    """Start ONE background Revit (never a second one while the first is still loading)."""
+    if alive() or starting():
+        return False
     import subprocess
     ps1 = os.path.join(BG, u'bg_start.ps1')
     if not os.path.exists(ps1):
@@ -248,7 +262,13 @@ def start_background_revit(cfg, check=False):
     args = ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', ps1]
     if not check:
         args.append('-NoCheck')
+    try:
+        with io.open(STARTING, 'w') as f:            # at once, so a second click cannot start another one
+            f.write(core.text(core.now()))
+    except Exception:
+        pass
     subprocess.Popen(args)
+    return True
 
 
 # -------------------------------------------------------- fingerprints ----

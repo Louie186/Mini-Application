@@ -141,15 +141,12 @@ For formal issues: **what changed → fix revisions / title block switches → i
 A separate **background Revit** checks your models at the times you choose and keeps a few of them open, so
 printing them later is only the export.
 
-**Set up once (BIMExport → Background):**
-1. **Models to watch...** - tick the models
-2. **Schedule (times and days)...** - as many times as you like, e.g. `07:00, 10:00, 12:30, 15:00, 18:00`, and the days. Saved in Windows Task Scheduler (wakes the PC from sleep)
-3. **Memory...** - how many models stay open for fast printing (3-4 with 64 GB), pause when free memory is below N GB (8), close the background Revit after each check or keep it running
-4. **Check now** to start straight away
+**Set up once (BIMExport → Background)** - one window, same look as Issue Sheets:
+1. **Models:** tick the models to keep checked (each line shows its last check and how many drawings need attention)
+2. **When:** times (as many as you like, e.g. `07:00, 10:00, 12:30, 15:00, 18:00`), days, *Schedule on*, and how many models stay open for fast printing → **Save** (Windows schedule; wakes the PC)
+3. **Check now** to start straight away. Also: **Reload selected now** (select model lines), **What changed**, **Pause / Resume**, **Stop**. The status at the top right refreshes by itself. It pauses on its own if memory runs low
 
 **Each check:** every model opens detached (ALL worksets, links), never saved. For every drawing it compares revisions, title block, sheet and **every element seen in each of its views** (place, size, type, note / tag / dimension text, linked model version) with the previous check and with its **last issue**. Issue Sheets then shows in **Change**: *"Changed since last issue: view "Level 3" (checked 12:30)"* or *"No change since last issue"* - **Tick changed** ticks only those.
-
-**Control:** Pause / Resume / Stop / Start, **Reload a model fully now...** (goes to the front; or "here now" in this Revit), **What changed** (list per model). Status at the top of the Background window.
 
 **Stops never restart the whole check:** a sign-in that expires pauses it (*"Sign in to Autodesk to continue (3 left)"*) and it continues with the next model as soon as you are signed in; Pause / Stop / a closed PC continue where they stopped; a failed model is tried once more at the end.
 

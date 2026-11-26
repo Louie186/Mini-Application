@@ -125,7 +125,7 @@
                     <Border x:Name="state_bd" CornerRadius="10" Padding="10,3" Background="#6B7785" HorizontalAlignment="Right">
                         <TextBlock x:Name="state_tb" Text="NOT RUNNING" Foreground="White" FontWeight="SemiBold"/>
                     </Border>
-                    <TextBlock x:Name="state_msg_tb" Foreground="#D3E2F4" TextAlignment="Right" Margin="0,4,0,0"/>
+                    <TextBlock x:Name="state_msg_tb" Foreground="#D3E2F4" TextAlignment="Right" Margin="0,4,0,0" FontStyle="Italic" FontSize="11.5"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -181,8 +181,8 @@
                     <TabItem Header="  Status  ">
                         <DockPanel Margin="6">
                             <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}"
-                                       Text="Every ticked model: when it was last checked, what this check is doing with it, and whether it is open for fast printing. Refreshes by itself."/>
-                            <DataGrid x:Name="status_dg" IsReadOnly="True" AutoGenerateColumns="True"/>
+                                       Text="Checked = its drawings and changes are known (printing opens it once). Fast print ready = it is still open in the background Revit, so printing takes seconds. Refreshes by itself."/>
+                            <DataGrid x:Name="status_dg" IsReadOnly="True" AutoGenerateColumns="True" FontStyle="Italic" FontSize="11.5"/>
                         </DockPanel>
                     </TabItem>
                 </TabControl>

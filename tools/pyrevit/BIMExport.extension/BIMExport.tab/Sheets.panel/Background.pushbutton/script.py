@@ -23,6 +23,11 @@ import System
 from System.Windows.Controls import CheckBox, TextBlock
 from System.Windows.Media import BrushConverter
 from System.Data import DataTable
+try:
+    from System.Windows.Documents import Run
+    from System.Windows import FontStyles
+except Exception:
+    Run = FontStyles = None
 
 import bimexport_core as core
 import bimexport_ui as ui
@@ -78,11 +83,14 @@ class BackgroundWindow(forms.WPFWindow):
             info = u'not checked yet'
         else:
             att = len([1 for c in ch.values() if c['since_issue'] is None or c['since_issue']])
-            info = u'checked %s  ·  %s' % (e['bg_checked'][5:16].replace(u'-', u'/'),
-                                               (u'%d need attention' % att) if att else u'nothing to do')
+            info = u'\u2714 checked %s  \u00B7  %s' % (e['bg_checked'][5:16].replace(u'-', u'/'),
+                                                     (u'%d to print' % att) if att else u'nothing new')
+            if g in self._kept:
+                info += u'  \u00B7  \u26A1 fast print ready'
         return name, info
 
     def _fill_models(self):
+        self._kept = (bg.status().get('kept') or {}) if bg.alive() else {}
         flt = (self.search_tb.Text or u'').strip().lower()
         show = self.show_cb.SelectedItem or u'All'
         self.models_lb.Items.Clear()
@@ -98,7 +106,16 @@ class BackgroundWindow(forms.WPFWindow):
         for _, g, name, info in sorted(rows):
             cb = CheckBox()
             tb = TextBlock()
-            tb.Text = u'%s     %s' % (name, info if g in self.watch else u'')
+            try:
+                tb.Inlines.Add(Run(name))
+                if g in self.watch:
+                    r = Run(u'     ' + info)
+                    r.FontStyle = FontStyles.Italic
+                    r.FontSize = 11
+                    r.Foreground = _BC.ConvertFromString('#6B7785')
+                    tb.Inlines.Add(r)
+            except Exception:
+                tb.Text = u'%s     %s' % (name, info if g in self.watch else u'')
             cb.Content = tb
             cb.Tag = g
             cb.IsChecked = g in self.watch
@@ -188,33 +205,25 @@ class BackgroundWindow(forms.WPFWindow):
         for i in t.get('items', []):
             items[i['guid']] = i
         tb = DataTable()
-        for c in (u'Model', u'Last checked', u'How', u'Drawings', u'Need attention', u'Fast printing', u'This check'):
+        for c in (u'Model', u'Checked', u'Fast print'):
             tb.Columns.Add(c, System.String)
         cur = (st.get('current') or u'') if alive else u''
         for g in sorted(self.watch, key=lambda x: core.natural_key(self._line(x)[0])):
             e = cache.get(g) or {}
             name = e.get('model') or (self.reg.get(g) or {}).get('Name') or g[:8]
-            ch = e.get('bg_changes') or {}
-            att = len([1 for c in ch.values() if c['since_issue'] is None or c['since_issue']])
-            k = kept.get(g)
             it = items.get(g)
-            if it is None:
-                now = u'-'
-            elif it['state'] == 'waiting':
-                now = u'working on it now' if cur and cur == name else u'waiting (%s)' % it['kind']
-            elif it['state'] == 'done':
-                now = u'done %s' % (it.get('when') or u'')[11:16]
+            if cur and cur == name and it is not None and it['state'] == 'waiting':
+                checked = u'checking now...'
+            elif e.get('bg_checked'):
+                checked = u'\u2714 %s' % e['bg_checked'][5:16].replace(u'-', u'/')
+            elif it is not None and it['state'] == 'failed':
+                checked = u'\u2716 could not open (see background.log)'
             else:
-                now = u'FAILED: %s' % (it.get('note') or u'')[:80]
+                checked = u'not yet'
             r = tb.NewRow()
             r[u'Model'] = name
-            r[u'Last checked'] = (e.get('bg_checked') or u'never')[:16]
-            r[u'How'] = (u'reloaded by you' if e.get('bg_kind') == 'reload' else u'scheduled') if e.get('bg_checked') else u''
-            r[u'Drawings'] = core.text(len(ch)) if ch else u''
-            r[u'Need attention'] = core.text(att) if ch else u''
-            r[u'Fast printing'] = (u'ready (as of %s)' % (k.get('as_of') or u'')[11:16]) if k else (
-                u'after its refresh' if applied.get(g) else u'no (opens when printing)')
-            r[u'This check'] = now
+            r[u'Checked'] = checked
+            r[u'Fast print'] = u'\u26A1 ready' if kept.get(g) else u'\u2014'
             tb.Rows.Add(r)
         self.status_dg.ItemsSource = tb.DefaultView
 

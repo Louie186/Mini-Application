@@ -348,6 +348,22 @@ def refresh_register(revit_version):
     return reg
 
 
+def natural_key(text_):
+    """Sort like a person: 21002 before 21010, 'Model 2' before 'Model 10', case ignored."""
+    return [(0, int(t), u'') if t.isdigit() else (1, 0, t) for t in re.split(r'(\d+)', (text_ or u'').lower()) if t != u'']
+
+
+def model_sort_key(r):
+    """Models: real project models in number order first, then copies such as *_detached / test models."""
+    name = (r.get('Name') or u'').strip()
+    side = 1 if re.search(r'(detached|test|copy|backup|old)', name, re.I) else 0
+    return (side, natural_key(name or core_label(r)))
+
+
+def core_label(r):
+    return register_label(r)
+
+
 def register_label(r):
     name = r.get('Name') or (u'(unnamed model %s)' % r['ModelGUID'][:8])
     proj = r.get('Project') or r['ProjectGUID'][:8]

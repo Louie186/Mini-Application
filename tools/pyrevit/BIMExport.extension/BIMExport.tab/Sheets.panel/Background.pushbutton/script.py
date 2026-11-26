@@ -85,8 +85,8 @@ class BackgroundWindow(forms.WPFWindow):
             name, info = self._line(g)
             if flt and flt not in name.lower():
                 continue
-            rows.append((g not in self.watch, name.lower(), g, name, info))
-        for _, _, g, name, info in sorted(rows):
+            rows.append((core.model_sort_key({'Name': name}), g, name, info))
+        for _, g, name, info in sorted(rows):
             cb = CheckBox()
             tb = TextBlock()
             tb.Text = u'%s     %s' % (name, info if g in self.watch else u'')

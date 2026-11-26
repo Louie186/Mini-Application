@@ -435,7 +435,7 @@ class ExportWindow(forms.WPFWindow):
     def _fill_models(self):
         flt = (self.model_search.Text or '').strip().lower()
         self.models_lb.Items.Clear()
-        recs = sorted(self.reg.values(), key=lambda r: core.register_label(r).lower())
+        recs = sorted(self.reg.values(), key=core.model_sort_key)
         for r in recs:
             label = core.register_label(r)
             if flt and flt not in label.lower():

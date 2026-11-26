@@ -288,7 +288,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
     def _fill_models(self):
         flt = (self.model_search.Text or '').strip().lower()
         self.models_lb.Items.Clear()
-        for r in sorted(self.reg.values(), key=lambda r: core.register_label(r).lower()):
+        for r in sorted(self.reg.values(), key=core.model_sort_key):
             label = core.register_label(r)
             if flt and flt not in label.lower():
                 continue

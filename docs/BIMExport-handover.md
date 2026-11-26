@@ -263,7 +263,7 @@
 | v6–6.2 | Threaded animated progress window + logo tracking, IMG2OLE bundled, AutoCAD setup check (+ fallback), quick open for drawing lists, optional skip of link worksets |
 | v7.0 | **Issue Sheets** button (sets, change check, revisions, title block Yes/No, Apply/Revert, exact MIDP names, issue register); log header bug fixed |
 | v7.1–7.3 | Safer Apply, logo pipeline, optional MIDP, full PDF/CAD tabs in Issue Sheets, per-sheet numbering, title block type change, AutoCAD auto-close, logs in `_Logs` |
-| v8.4 | Apply sync fix for ACC (save local before sync), Apply in the background with prints waiting for it |
+| v8.4 | Apply sync fix for ACC (save local before sync), Apply in the background with prints waiting for it, Issue offers Apply-first |
 | v8.3 | Background checks (schedules, change per drawing, reload, pause/stop, resume after sign-in), fast print from kept models |
 | v8.2 | Quick Print button, one-go DWG export, clock = working time, same number in two models fixed |
 | v8.1 | Kill switch for shared/left-over runs (Continue / Stop), orphaned models reclaimed |

@@ -1160,10 +1160,18 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         if len(names) != len(set(names)):
             forms.alert('Two ticked drawings would get the same file name. Check the MIDP.')
             return False
+        self.state.pop('apply_then_issue', None)
         if any(self._count_changes(g) for g in self.state['pending']):
-            if not forms.alert('Some changes are not applied yet - the drawings would be issued WITHOUT them.\n\n'
-                               'Issue anyway?', yes=True, no=True):
+            n = sum(self._count_changes(g) for g in self.state['pending'])
+            c = forms.CommandSwitchWindow.show(
+                [u'Apply the changes first, then issue (recommended)', u'Issue WITHOUT the changes'],
+                message=u'%d change(s) are waiting for Apply (Changes tab). Printing opens the ACC model, so they would '
+                        u'NOT be on the drawings unless they are applied and synced first.\n\nRecommended: apply + sync '
+                        u'(in the background Revit when it runs), then print - the print waits for the sync automatically.' % n)
+            if not c:
                 return False
+            if c.startswith(u'Apply'):
+                self.state['apply_then_issue'] = True
         if not s.get('issue_register'):
             s['issue_register'] = os.path.join(s['last_output'], 'IssueRegister.csv')
             self.register_tb.Text = s['issue_register']
@@ -1793,6 +1801,21 @@ def main():
             rows = [win._rowinfo[u'%s|%s' % k] for k in state['ticked'] if u'%s|%s' % k in win._rowinfo]
             do_issue([r for r in rows if r['ok']], state, settings, reg, cache, True)
         elif act[0] == 'issue':
+            if state.pop('apply_then_issue', False):
+                todo = [g for g in state['pending'] if any(state['pending'][g].get(k) for k in
+                        ('new_revisions', 'edit_revisions', 'sheet_revisions', 'params', 'tb_types', 'delete_clouds',
+                         'numbering'))]
+                t_w = time.time()
+                if bg is not None and bg.alive():
+                    apply_in_background(todo, state, settings, reg, cache)       # the print waits for it below
+                else:
+                    do_apply(todo, state, settings, reg, cache)
+                ui.add_work(time.time() - t_w)
+                still = [g for g in todo if g in state['pending']]
+                if still:
+                    forms.alert(u'The changes of %d model(s) were NOT applied, so nothing was issued.\n\n'
+                                u'Fix the problem shown, then press Issue again.' % len(still))
+                    continue
             do_issue(act[1], state, settings, reg, cache, False)
             settings.pop('_names', None)
             core.save_settings(settings)

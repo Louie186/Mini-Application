@@ -33,7 +33,7 @@ app = ui.app
 output = script.get_output()
 XAML = os.path.join(os.path.dirname(__file__), 'BackgroundWindow.xaml')
 _BC = BrushConverter()
-STATE_COLOURS = {'slow?': '#D98E04', 'stalled': '#C0392B', 'checking': '#2E8B57', 'printing': '#2E8B57', 'applying': '#2E8B57', 'idle': '#1F5FA8',
+STATE_COLOURS = {'taking long': '#D98E04', 'busy': '#5B7DB1', 'checking': '#2E8B57', 'printing': '#2E8B57', 'applying': '#2E8B57', 'idle': '#1F5FA8',
                  'paused': '#D98E04', 'needs sign-in': '#C0392B', 'stopped': '#6B7785'}
 
 
@@ -131,7 +131,7 @@ class BackgroundWindow(forms.WPFWindow):
     # ---------------------------------------------------------------- status
     def _refresh(self, sender, args):
         st, alive = bg.status(), bg.alive()
-        state = (st.get('state') or u'') if alive else (u'stalled' if bg.stalled() else u'not running')
+        state = (st.get('state') or u'') if alive else (u'busy' if bg.stalled() else u'not running')
         self.state_tb.Text = state.upper()
         try:
             self.state_bd.Background = _BC.ConvertFromString(STATE_COLOURS.get(state, '#6B7785'))
@@ -146,16 +146,16 @@ class BackgroundWindow(forms.WPFWindow):
                 msg = u'%s - working on it for %d min (opening a big model takes a while)' % (
                     st.get('current') or msg, int(busy))
                 if busy > 30:
-                    state = u'slow?'
-                    self.state_tb.Text = u'SLOW?'
-                    msg = (u'%s for %d min - look at the background Revit (a message may be waiting there)'
+                    state = u'taking long'
+                    self.state_tb.Text = u'TAKING LONG'
+                    msg = (u'%s for %d min - if it does not move on, have a look at the background Revit'
                            % (st.get('current') or u'One model', int(busy)))
                     try:
-                        self.state_bd.Background = _BC.ConvertFromString(STATE_COLOURS['slow?'])
+                        self.state_bd.Background = _BC.ConvertFromString(STATE_COLOURS['taking long'])
                     except Exception:
                         pass
-        elif state == u'stalled':
-            msg = u'The background Revit is open but not working - look at it (a message may be waiting), or press Stop'
+        elif state == u'busy':
+            msg = u'The background Revit is busy (usually a big model opening) - it continues by itself'
         elif bg.starting():
             msg = u'Starting the background Revit (1-2 minutes)...'
         else:

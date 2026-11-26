@@ -156,8 +156,11 @@
                     <TextBlock DockPanel.Dock="Top" Text="1  Models" Style="{StaticResource StepTitle}"/>
                     <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}"
                                Text="Tick the models to keep checked. Each line shows its last check and how many drawings need attention."/>
-                    <TextBox DockPanel.Dock="Top" x:Name="search_tb" Margin="0,0,0,6" TextChanged="on_search"
-                             ToolTip="Filter the list"/>
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                        <ComboBox DockPanel.Dock="Right" x:Name="show_cb" Width="120" Margin="6,0,0,0" SelectionChanged="on_show"
+                                  ToolTip="Show all models, only the ticked ones, or only the ones not ticked"/>
+                        <TextBox x:Name="search_tb" TextChanged="on_search" ToolTip="Filter the list by name"/>
+                    </DockPanel>
                     <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="What changed" Style="{StaticResource Small}" Click="on_changes"
                                 ToolTip="Per model: the drawings that changed since their last issue, and why."/>

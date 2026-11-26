@@ -51,6 +51,11 @@ class BackgroundWindow(forms.WPFWindow):
         for n in range(0, 7):
             self.keep_cb.Items.Add(core.text(n))
         self.keep_cb.SelectedItem = core.text(min(6, int(self.cfg.get('keep_open') or 0)))
+        self._busy = True
+        for o in (u'All', u'Ticked only', u'Not ticked'):
+            self.show_cb.Items.Add(o)
+        self.show_cb.SelectedItem = u'All'
+        self._busy = False
         self._fill_models()
         self._refresh(None, None)
         try:                                       # live status
@@ -78,12 +83,15 @@ class BackgroundWindow(forms.WPFWindow):
 
     def _fill_models(self):
         flt = (self.search_tb.Text or u'').strip().lower()
+        show = self.show_cb.SelectedItem or u'All'
         self.models_lb.Items.Clear()
         rows = []
         for g, r in self.reg.items():
             g = g.lower()
             name, info = self._line(g)
             if flt and flt not in name.lower():
+                continue
+            if (show == u'Ticked only' and g not in self.watch) or (show == u'Not ticked' and g in self.watch):
                 continue
             rows.append((core.model_sort_key({'Name': name}), g, name, info))
         for _, g, name, info in sorted(rows):
@@ -102,6 +110,10 @@ class BackgroundWindow(forms.WPFWindow):
 
     def on_search(self, sender, args):
         self._fill_models()
+
+    def on_show(self, sender, args):
+        if not getattr(self, '_busy', False):
+            self._fill_models()
 
     # ---------------------------------------------------------------- status
     def _refresh(self, sender, args):

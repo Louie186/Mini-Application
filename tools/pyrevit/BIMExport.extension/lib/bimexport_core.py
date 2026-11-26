@@ -1211,6 +1211,8 @@ def resolve_fixed(fixed, sheet, rev):
     if fixed.get('mode') == 'number':
         return clean(sheet.SheetNumber), u'', None
     base, note = fixed.get('base') or u'', u''
+    if fixed.get('conflict'):
+        return base, u'', fixed['conflict']
     shown, exp = (fixed.get('shown') or u'').strip(), (fixed.get('expected') or u'').strip()
     if exp and (rev or u'').strip().lower() != exp.lower():
         return base, u'', u'the list expects %s, the sheet shows %s' % (exp, rev or u'no revision')

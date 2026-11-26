@@ -185,6 +185,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self.embed_cb.IsChecked = bool(s.get('embed', True))
         self.skip_links_cb.IsChecked = bool(s.get('skip_links', False))
         self.share_cb.IsChecked = bool(s.get('issue_share', False))
+        self.fresh_cb.IsChecked = bool(s.get('always_fresh', False))
         self.allow_nonws_cb.IsChecked = bool(s.get('allow_non_workshared', False))
         self.midp_tb.Text = self.state.get('midp') or ''
         self._names_info()
@@ -206,6 +207,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         s['embed'] = bool(self.embed_cb.IsChecked)
         s['skip_links'] = bool(self.skip_links_cb.IsChecked)
         s['issue_share'] = bool(self.share_cb.IsChecked)
+        s['always_fresh'] = bool(self.fresh_cb.IsChecked)
         s['allow_non_workshared'] = bool(self.allow_nonws_cb.IsChecked)
         self._read_export_settings()
         try:
@@ -286,6 +288,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
 
     # ================================================================= models
     def _fill_models(self):
+        self._bg_kept = (bg.kept_models() if bg is not None else {}) or {}
         flt = (self.model_search.Text or '').strip().lower()
         self.models_lb.Items.Clear()
         for r in sorted(self.reg.values(), key=core.model_sort_key):
@@ -294,12 +297,43 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
                 continue
             g = r['ModelGUID'].lower()
             cb = CheckBox()
-            cb.Content = ui.plain_text(label)
+            cb.Content = self._model_label(label, g)
             cb.Tag = g
             cb.IsChecked = g in self.state['checked_models']
             cb.Click += self._on_model_click
             self.models_lb.Items.Add(cb)
         self._model_info()
+
+    def _bg_line(self, g):
+        """'checked 11/26 10:41 · ⚡ ready' from the background Revit (or '')."""
+        e = self.cache.get(g) or {}
+        bits = []
+        if e.get('bg_checked'):
+            bits.append(u'\u2714 checked %s' % e['bg_checked'][5:16].replace(u'-', u'/'))
+        elif e.get('issue'):
+            bits.append(u'read %s' % (e.get('updated') or u'')[5:16].replace(u'-', u'/'))
+        if g in getattr(self, '_bg_kept', {}):
+            bits.append(u'\u26A1 ready')
+        return u'  \u00B7  '.join(bits)
+
+    def _model_label(self, label, g):
+        tb = ui.plain_text(label)
+        info = self._bg_line(g)
+        if info:
+            try:
+                from System.Windows.Documents import Run
+                from System.Windows import FontStyles
+                from System.Windows.Media import BrushConverter
+                tb.Text = u''
+                tb.Inlines.Add(Run(label))
+                r = Run(u'    ' + info)
+                r.FontStyle = FontStyles.Italic
+                r.FontSize = 11
+                r.Foreground = BrushConverter().ConvertFromString('#6B7785')
+                tb.Inlines.Add(r)
+            except Exception:
+                tb.Text = u'%s    %s' % (label, info)
+        return tb
 
     def _on_model_click(self, sender, args):
         g = sender.Tag
@@ -335,8 +369,65 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         if not self.state['checked_models']:
             forms.alert('Tick at least one model.')
             return
-        self.action = ('check', sorted(self.state['checked_models']))
+        never = [g for g in self.state['checked_models'] if needs_check(self.cache.get(g))]
+        known = [g for g in self.state['checked_models'] if g not in never]
+        todo = never
+        if known:
+            names = u'\n'.join(u'  \u2022 %s  (%s)' % ((self.cache.get(g) or {}).get('model', g), self._bg_line(g) or u'saved')
+                               for g in sorted(known)[:15])
+            c = forms.CommandSwitchWindow.show(
+                ([u'Only read the %d new model(s)' % len(never)] if never else []) +
+                [u'Use the saved lists (instant)', u'Read ALL %d again (opens each model)' % len(self.state['checked_models'])],
+                message=u'%d ticked model(s) already have their drawings, revisions and title blocks saved:\n%s\n\n'
+                        u'No need to open them again - every background check and every print refreshes these lists.'
+                        % (len(known), names))
+            if not c:
+                return
+            if c.startswith(u'Read ALL'):
+                todo = sorted(self.state['checked_models'])
+            elif c.startswith(u'Use the saved'):
+                todo = []
+        for g in known:
+            if g not in self.state['loaded']:
+                self.state['loaded'].append(g)
+        if not todo:
+            self._tick_request()
+            self._build_sheets()
+            self._fill_rev_models()
+            self._fill_tb_sheets()
+            self._model_info()
+            return
+        if bg is not None and bg.alive() and forms.alert(
+                u'The background Revit is running. Let it read these %d model(s) (your Revit stays free; they appear '
+                u'here when you press Check models again), instead of opening them here now?' % len(todo), yes=True, no=True):
+            for g in todo:
+                bg.request_reload(g)
+            forms.alert(u'Sent to the background Revit. Watch BIMExport \u2192 Background (Status tab).')
+            return
+        self.action = ('check', sorted(todo))
         self.Close()
+
+    def on_prepare(self, sender, args):
+        """Get the models of the ticked drawings ready for fast printing in the background Revit."""
+        if bg is None:
+            return
+        gs = sorted(set(g for (g, n) in self.state['ticked'] if g in self.state['loaded']))
+        if not gs:
+            forms.alert('Tick the drawings you want to issue first.')
+            return
+        bg.prepare(gs)
+        cfg = bg.load_config()
+        if not cfg.get('revit_exe'):
+            try:
+                cfg['revit_exe'] = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName
+                bg.save_config(cfg)
+            except Exception:
+                pass
+        started = bg.start_background_revit(cfg, check=False) if not bg.alive() else False
+        forms.alert(u'The background Revit %s opens %d model(s) fresh and keeps them open:\n\n%s\n\nWhen they show '
+                    u'\u26A1 ready (Models list / Background window), Issue prints them in seconds.' % (
+                        u'starts (1-2 minutes) and' if started else u'', len(gs),
+                        u'\n'.join(u'  \u2022 ' + ((self.cache.get(g) or {}).get('model') or g) for g in gs)))
 
     # =============================================================== drawings
     def _rows(self):
@@ -1322,7 +1413,7 @@ def do_issue(rows, state, settings, reg, cache, dry):
         # model changed since Check / since the saved list was read)
         names[u'%s|%s' % (r['guid'], r['num'].strip().lower())] = {
             'base': r.get('base') or r['file'], 'mode': r.get('mode', 'code'), 'shown': r['rev'],
-            'expected': r.get('expected', u''), 'norev': bool(r.get('norev'))}
+            'expected': r.get('expected', u''), 'norev': bool(r.get('norev')), 'conflict': r.get('conflict')}
         picked.setdefault(r['guid'], set()).add(r['num'].strip().lower())
     settings['_names'] = names
     if dry:
@@ -1713,6 +1804,14 @@ def print_request_now(state, settings, reg, cache):
             base, mode = (codes[0], 'code') if len(codes) == 1 else (core.clean(q['seq']), 'number')
         e = cache.get(g) or {}
         num = next((s['number'] for s in e.get('sheets', []) if s['number'].strip().lower() == k), q['seq'])
+        dup = [x for x in rows if x['guid'] == g and x['num'].strip().lower() == num.strip().lower()]
+        if dup:                                   # listed twice: print once, keep the stricter revision check
+            x, exp = dup[0], (q.get('expected') or u'').strip()
+            if exp and x['expected'] and exp.lower() != x['expected'].lower():
+                x['conflict'] = u'listed twice with different Expected Rev (%s / %s)' % (x['expected'], exp)
+            elif exp and not x['expected']:
+                x['expected'] = x['rev'] = exp
+            continue
         rows.append({'guid': g, 'num': num, 'model': e.get('model') or reg[g].get('Name', u''), 'name': q.get('title', u''),
                      'rev': q.get('expected', u''), 'date': u'', 'file': base, 'base': base, 'mode': mode,
                      'expected': q.get('expected', u''), 'norev': bool(settings.get('allow_no_rev')),

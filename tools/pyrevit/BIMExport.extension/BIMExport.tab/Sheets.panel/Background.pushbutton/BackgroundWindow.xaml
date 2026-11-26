@@ -169,6 +169,10 @@
                                 ToolTip="Tick every model shown (respects the search and the Show filter)"/>
                         <Button Content="Untick all" Style="{StaticResource Small}" Click="on_untick_all"
                                 ToolTip="Untick every model shown (respects the search and the Show filter)"/>
+                        <Button Content="&#x26A1; Keep ready" Style="{StaticResource Small}" Click="on_pin"
+                                ToolTip="Selected lines: keep these models open in the background Revit (opened now, refreshed at every check) - they print in seconds. Click again to stop."/>
+                        <Button Content="Open for work" Style="{StaticResource Small}" Click="on_open_work"
+                                ToolTip="Open the selected model in THIS Revit the normal way (your local copy, your worksets)."/>
                         <Button Content="What changed" Style="{StaticResource Small}" Click="on_changes"
                                 ToolTip="Per model: the drawings that changed since their last issue, and why."/>
                         <Button Content="Reload selected now" Style="{StaticResource Small}" Click="on_reload"

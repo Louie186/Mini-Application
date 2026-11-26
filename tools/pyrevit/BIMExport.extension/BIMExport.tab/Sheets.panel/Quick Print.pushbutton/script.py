@@ -55,6 +55,9 @@ def plan(rows, settings, reg, cache):
     return by_model, unknown
 
 
+DUPES = []
+
+
 def names_for(by_model, settings, cache):
     """File names, finished at print time with the revision the sheet shows (same rule as Issue Sheets)."""
     midp = {}
@@ -74,7 +77,16 @@ def names_for(by_model, settings, cache):
                 base, mode = (codes[0], 'code') if len(codes) == 1 else (core.clean(q['seq']), 'number')
             num = sheets.get(k, q['seq'])
             key = u'%s|%s' % (g, num.strip().lower())
-            names[key] = {'base': base, 'mode': mode, 'shown': u'', 'expected': q.get('expected', u''), 'norev': True}
+            exp = (q.get('expected') or u'').strip()
+            if key in names:                      # listed twice: print once, keep the stricter revision check
+                old = names[key]
+                if exp and old['expected'] and exp.lower() != old['expected'].lower():
+                    old['conflict'] = u'listed twice with different Expected Rev (%s / %s)' % (old['expected'], exp)
+                elif exp and not old['expected']:
+                    old['expected'] = exp
+                DUPES.append(q['code'])
+                continue
+            names[key] = {'base': base, 'mode': mode, 'shown': u'', 'expected': exp, 'norev': True}
             picked.setdefault(g, set()).add(num.strip().lower())
             if q.get('fmt'):
                 row_fmt[key] = q['fmt']
@@ -185,6 +197,8 @@ def main():
                 missing.append(u'%s (not found in %s)' % (q['code'], (cache.get(g) or {}).get('model') or g))
     if unknown:
         lines_out.append(u'NOT placed in a model: %d - %s' % (len(unknown), u'; '.join(u'%s: %s' % u for u in unknown[:10])))
+    if DUPES:
+        lines_out.append(u'Listed twice (printed once): %s' % u', '.join(DUPES[:15]))
     cad_msg, logo_count, logo_since = '', 0, core.now()
     if run_cad and (job.get('_logo_runner') or (jid and os.path.exists(os.path.join(core.logs_dir(out), 'IMG2OLE_runner.lock')))):
         core.logo_queue_done(out)

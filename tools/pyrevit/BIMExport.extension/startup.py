@@ -173,6 +173,27 @@ def _maybe_become_background():
         bg.log(u'ERROR starting the background engine:\n' + traceback.format_exc())
 
 
+def _open_requests(uiapp):
+    """Your Revit (not the background one) opens models the Toolbox asked for, the normal way (local copy)."""
+    try:
+        import bimbackground as bg
+        import bimexport_core as core
+        g = bg.take_open_request()
+        if not g:
+            return
+        rec = core.load_register().get(g)
+        if rec is None:
+            TaskDialog.Show("Lew's Toolbox", u'Open for work: this model is not in the model list of this PC.')
+            return
+        if core.find_open_doc(uiapp.Application, g) is not None:
+            return                                       # already open here
+        ok, err = bg.open_for_work(uiapp, rec)
+        if not ok:
+            TaskDialog.Show("Lew's Toolbox", u'Could not open %s:\n%s' % (rec.get('Name', g), err))
+    except Exception:
+        pass
+
+
 def _exit_revit():
     try:
         from Autodesk.Revit.UI import RevitCommandId, PostableCommand
@@ -296,6 +317,8 @@ def _install():
                     on_idling(None, None)
                 except Exception:
                     pass
+                if BGSTATE.get('engine') is None:
+                    _open_requests(uiapp)          # 'Open for work' sent from the Toolbox
                 if BGSTATE.get('engine') is not None:
                     try:                         # proof the 3-second pulse works (see background.log folder)
                         import bimbackground as bg

@@ -43,22 +43,31 @@ STARTING = os.path.join(BG, 'starting.txt')      # a background Revit is being s
 RELOAD_DIR = os.path.join(BG, 'reload')
 ISSUED_DIR = os.path.join(BG, 'issued')
 JOBS_DIR = os.path.join(BG, 'print_jobs')
+OPEN_DIR = os.path.join(BG, 'open_for_work')     # 'open this model in my Revit' (Toolbox -> your Revit)
+SUMMARY = os.path.join(BG, 'models.json')        # one line per model, for the Toolbox and Issue Sheets
 APPLY_DIR = os.path.join(BG, 'apply_jobs')
 TASK_NAME = u'BIMExport Background'
 LOG = os.path.join(BG, 'background.log')
 
 DEFAULTS = {'enabled': True, 'models': [], 'times': ['07:00', '12:30', '18:00'], 'days': [1, 2, 3, 4, 5],
-            'keep_open': 3, 'min_free_gb': 8, 'close_when_done': False, 'revit_exe': u''}
+            'keep_open': 3, 'min_free_gb': 8, 'close_when_done': False, 'revit_exe': u'', 'pinned': []}
 DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 
 # ------------------------------------------------------------------ files --
 def _rj(path, dflt):
+    """Read JSON written by Revit (UTF-8) or by the Toolbox (UTF-8 with/without BOM, or UTF-16)."""
     try:
-        with io.open(path, 'r', encoding='utf-8') as f:
-            return json.loads(f.read())
+        with io.open(path, 'rb') as f:
+            raw = f.read()
     except Exception:
         return dflt
+    for enc in ('utf-8-sig', 'utf-16'):
+        try:
+            return json.loads(raw.decode(enc))
+        except Exception:
+            continue
+    return dflt
 
 
 def _wj(path, obj):
@@ -546,6 +555,7 @@ class Engine(object):
         self.uiapp = uiapp
         self.app = uiapp.Application
         self.kept = {}             # guid -> {'doc', 'as_of', 'used'}
+        self._prep_tried = set()   # Keep-ready models opened once this session (a failure is not retried forever)
         self.started_by_schedule = True
         log(u'This Revit (pid %s) is now the background Revit' % os.getpid())
         try:                                       # alive signal on its own thread: keeps going while a model opens
@@ -565,13 +575,15 @@ class Engine(object):
 
     # ---- helpers
     def _keep(self, guid, doc, cfg):
-        n = int(cfg.get('keep_open') or 0)
-        if n <= 0:
+        pinned = set(g.lower() for g in cfg.get('pinned') or []) | prepared()
+        n = int(cfg.get('keep_open') or 0) + len(pinned)      # 'keep N open' comes ON TOP of the kept-ready ones
+        if n <= 0 and guid not in pinned:
             core_close(doc)
             return
         self.kept[guid] = {'doc': doc, 'as_of': core.now(), 'used': time.time()}
         while len(self.kept) > n:
-            old = sorted(self.kept.items(), key=lambda kv: kv[1]['used'])[0][0]
+            free_ones = [kv for kv in self.kept.items() if kv[0] not in pinned] or list(self.kept.items())
+            old = sorted(free_ones, key=lambda kv: kv[1]['used'])[0][0]
             core_close(self.kept.pop(old)['doc'])
 
     def _drop(self, guid):
@@ -636,6 +648,13 @@ class Engine(object):
             return 'work'
         item = next_item(t)
         if item is None:
+            want = [g.lower() for g in cfg.get('pinned') or []]
+            missing = [g for g in want if g not in self.kept and g not in self._prep_tried]
+            if missing:                            # \u26A1 Keep ready: open it now, not only at the next check
+                self._prep_tried.add(missing[0])
+                request_reload(missing[0])
+                return 'work'
+            write_summary(self)
             done = [i for i in t.get('items', []) if i['state'] == 'done']
             set_status(state='idle', message=u'Waiting for the next check', current=u'', kept=self.kept_info(),
                        free_gb=round(free, 1), total=len(t.get('items', [])), done=len(done))
@@ -714,6 +733,7 @@ class Engine(object):
         item['state'], item['note'], item['when'] = state, note, core.now()
         if getattr(self, '_persist', True):
             save_todo(t)
+            write_summary(self)
         if not any(i['state'] == 'waiting' for i in t['items']):
             set_status(last_check=core.now(), last_summary=summary(t))
 
@@ -731,6 +751,95 @@ def read_here_now(uiapp, guids, progress=None):
         eng.read(item, t, cfg, persist=False)
         out.append(item)
     return out
+
+
+def prepare(guids):
+    """'Get these ready for fast printing': opened (fresh) in the background Revit and kept open."""
+    for g in guids:
+        request_reload(g)
+    old = prepared()
+    _wj(os.path.join(BG, 'prepare.json'), {'models': sorted(old | set(g.lower() for g in guids)), 'when': core.now()})
+
+
+def prepared(hours=3.0):
+    """Models asked for with Prepare in the last 3 hours: protected from being closed to make room."""
+    p = _rj(os.path.join(BG, 'prepare.json'), {})
+    try:
+        t = time.mktime(time.strptime(p.get('when', u'')[:19], '%Y-%m-%d %H:%M:%S'))
+        if time.time() - t < hours * 3600:
+            return set(g.lower() for g in p.get('models') or [])
+    except Exception:
+        pass
+    return set()
+
+
+def write_summary(engine=None):
+    """models.json: every watched / kept-ready model with Checked and Fast-print state (read by the Toolbox)."""
+    try:
+        cfg = load_config()
+        cache = core.load_sheet_cache()
+        reg = core.load_register()
+        kept = engine.kept_info() if engine is not None else (status().get('kept') or {})
+        pinned = set(g.lower() for g in cfg.get('pinned') or [])
+        rows = []
+        for g in sorted(set(cfg.get('models') or []) | pinned | set(kept.keys())):
+            e = cache.get(g) or {}
+            ch = e.get('bg_changes') or {}
+            att = [n for n, c in sorted(ch.items()) if c['since_issue'] is None or c['since_issue']]
+            rows.append({'guid': g, 'name': e.get('model') or (reg.get(g) or {}).get('Name') or g,
+                         'watched': g in (cfg.get('models') or []), 'pinned': g in pinned,
+                         'checked': e.get('bg_checked') or u'', 'drawings': len(ch), 'to_print': len(att),
+                         'changed': [{'sheet': n, 'why': u'never issued' if ch[n]['since_issue'] is None
+                                      else u'; '.join(ch[n]['since_issue'])} for n in att[:100]],
+                         'fast': g in kept, 'as_of': (kept.get(g) or {}).get('as_of', u'')})
+        _wj(SUMMARY, {'updated': core.now(), 'models': rows})
+    except Exception:
+        pass
+
+
+# ------------------------------------------------------- open for work ----
+def request_open_for_work(guid):
+    core.ensure_dir(OPEN_DIR)
+    _wj(os.path.join(OPEN_DIR, guid.lower() + u'.json'), {'guid': guid.lower(), 'when': core.now()})
+
+
+def take_open_request():
+    """Your Revit (never the background one) takes one 'open for work' request. Returns the guid or None."""
+    if not os.path.isdir(OPEN_DIR):
+        return None
+    for fn in sorted(os.listdir(OPEN_DIR)):
+        if fn.endswith('.json'):
+            src = os.path.join(OPEN_DIR, fn)
+            dst = src + u'.taken_%s' % os.getpid()
+            try:
+                os.rename(src, dst)                    # only one Revit gets it
+            except Exception:
+                continue
+            try:
+                os.remove(dst)
+            except Exception:
+                pass
+            return fn[:-5]
+    return None
+
+
+def open_for_work(uiapp, rec, settings=None):
+    """Open the model in THIS Revit for normal work: your local copy, your last-used worksets (like double-click)."""
+    import Autodesk.Revit.DB as DB
+    from System import Guid
+    settings = settings or core.load_settings()
+    err = []
+    for reg_ in core._regions(rec.get('Region') or settings.get('region')):
+        try:
+            path = DB.ModelPathUtils.ConvertCloudGUIDsToCloudPath(reg_, Guid(rec['ProjectGUID']), Guid(rec['ModelGUID']))
+            opts = DB.OpenOptions()
+            opts.DetachFromCentralOption = DB.DetachFromCentralOption.DoNotDetach
+            opts.SetOpenWorksetsConfiguration(DB.WorksetConfiguration(DB.WorksetConfigurationOption.OpenLastViewed))
+            uiapp.OpenAndActivateDocument(path, opts, False)
+            return True, u''
+        except Exception as e:
+            err.append(u'%s: %s' % (reg_, core.text(e)))
+    return False, u' | '.join(err)
 
 
 def core_close(doc):

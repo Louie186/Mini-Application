@@ -87,6 +87,8 @@ class BackgroundWindow(forms.WPFWindow):
                                                      (u'%d to print' % att) if att else u'nothing new')
             if g in self._kept:
                 info += u'  \u00B7  \u26A1 fast print ready'
+        if g in set(self.cfg.get('pinned') or []):
+            info += u'  \u00B7  kept ready' if g in self._kept else u'  \u00B7  \u26A1 keep ready (opening...)'
         return name, info
 
     def _fill_models(self):
@@ -287,6 +289,42 @@ class BackgroundWindow(forms.WPFWindow):
             self.saved_tb.Text = u'%d model(s) go to the front and reload fully.' % len(gs)
         self._refresh(None, None)
 
+    def on_pin(self, sender, args):
+        gs = [it.Tag for it in self.models_lb.SelectedItems]
+        if not gs:
+            forms.alert('Select the model line(s) first (click a line, Ctrl+click for more).')
+            return
+        pinned = set(self.cfg.get('pinned') or [])
+        if all(g in pinned for g in gs):
+            pinned -= set(gs)                         # click again = stop keeping them ready
+            msg = u'%d model(s) no longer kept ready.' % len(gs)
+        else:
+            if len(pinned | set(gs)) > 6 and not forms.alert(u'%d models kept ready uses a lot of memory (each big model '
+                                                             u'several GB). Continue?' % len(pinned | set(gs)), yes=True, no=True):
+                return
+            pinned |= set(gs)
+            for g in gs:
+                self.watch.add(g)                     # kept-ready models are also checked
+            msg = u'%d model(s) kept ready: the background Revit opens them now and keeps them open.' % len(gs)
+        self._read()
+        self.cfg['pinned'] = sorted(pinned)
+        self.cfg['models'] = sorted(self.watch)
+        bg.save_config(self.cfg)
+        bg.set_control('run')
+        if pinned and not bg.alive():
+            bg.start_background_revit(self.cfg, check=False)
+            msg += u' Starting the background Revit (1-2 minutes).'
+        self.saved_tb.Text = msg
+        self._fill_models()
+
+    def on_open_work(self, sender, args):
+        gs = [it.Tag for it in self.models_lb.SelectedItems]
+        if len(gs) != 1:
+            forms.alert('Select ONE model line to open.')
+            return
+        self.action = ('open', gs[0])
+        self.Close()
+
     def on_changes(self, sender, args):
         self.action = 'changes'
         self.Close()
@@ -337,6 +375,12 @@ def main():
         pass
     if w.action == 'changes':
         show_changes(bg.load_config(), reg, core.load_sheet_cache())
+    elif isinstance(w.action, tuple) and w.action[0] == 'open':
+        rec = dict((g.lower(), r) for g, r in reg.items()).get(w.action[1])
+        if rec is not None:
+            ok, err = bg.open_for_work(ui.uiapp, rec)
+            if not ok:
+                forms.alert(u'Could not open:\n' + err)
 
 
 main()

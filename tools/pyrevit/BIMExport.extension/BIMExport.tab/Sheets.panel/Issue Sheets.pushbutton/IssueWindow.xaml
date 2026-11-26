@@ -130,6 +130,8 @@
             <DockPanel>
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                     <Button Content="Close" Style="{StaticResource Secondary}" Click="on_close"/>
+                    <Button Content="&#x26A1; Prepare" Style="{StaticResource Secondary}" Click="on_prepare"
+                            ToolTip="The background Revit opens the models of the ticked drawings now and keeps them open, so Issue prints them in seconds."/>
                     <Button Content="Dry run" Style="{StaticResource Secondary}" Click="on_dryrun"
                             ToolTip="Instant: shows the file names and writes nothing to the issue register."/>
                     <Button Content="Issue" Style="{StaticResource Primary}" Click="on_issue"/>
@@ -379,6 +381,9 @@
                                     <CheckBox x:Name="share_cb" Content="Share with other Revit windows"/>
                                     <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0" TextWrapping="Wrap"
                                                Text="Open another Revit, click Issue Sheets there and choose Join. Each window prints the next model (2-3 windows = 2-3x faster)."/>
+                                    <CheckBox x:Name="fresh_cb" Content="Always open models fresh when printing"/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0" TextWrapping="Wrap"
+                                               Text="Off (normal): models open in the background Revit print from there in seconds (the model as of its last check). On: always open the latest version."/>
                                     <CheckBox x:Name="skip_links_cb" Content="Faster: don't load linked models"/>
                                     <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
                                                Text="Only for drawings that do NOT show linked content."/>

@@ -152,6 +152,13 @@ printing them later is only the export.
 
 **Issue with changes not applied yet:** Issue asks *"Apply the changes first, then issue (recommended)"* or *"Issue WITHOUT the changes"*. Apply first = apply + sync (in the background Revit when it runs, else here), then the print starts - it waits for the sync, so every change is on the drawings.
 
+**How the background speeds up Issue Sheets (v8.6):**
+- Models the background checked load **instantly** in Issue Sheets (the model list shows *"✔ checked 11/26 10:41 · ⚡ ready"*). **Check models** only opens models never read; for the others it offers *"Use the saved lists (instant)"*
+- **⚡ Prepare** (Issue Sheets footer): the background Revit opens the models of your ticked drawings now and keeps them open while you review - Issue then prints them in seconds
+- **⚡ Keep ready** (Background window, or the Toolbox): chosen models stay open in the background Revit all the time, refreshed at every check
+- Printing uses today's background copies **automatically** (no question); it only asks when a copy is from an earlier day. *Run tab → Always open models fresh when printing* turns this off
+- **Open for work** (Background window, or the Toolbox): opens a model in your own Revit the normal way (local copy, your worksets)
+
 **Apply in the background:** with the background Revit running, Issue Sheets → Apply asks *"Apply in the background Revit (keep working)"*. It opens your local copy, applies, checks, **syncs to the ACC model**, then reloads that model fresh. **Every print of that model waits** until this is done, so the exports always include your changes. A model open in your own Revit is refused (close / sync it first) - and fast printing never uses the background copy of a model you have open with unsynced edits: that one prints from your open copy.
 
 **Fast printing:** Issue Sheets and Quick Print offer *"Fast: print them from the background Revit"* for the models it keeps open: export only, no opening - the model **as of its last check** (choose "fresh" if you need syncs made after it). Models it does not hold are printed by your Revit at the same time.

@@ -889,16 +889,22 @@ def fast_print_offer(picked, names, settings, out_root, run_cad, kind, keys, row
         if mine is not None and getattr(mine, 'IsModified', False):
             continue                                # your unsynced edits: print from your own open copy
         fast.append(g)
-    if not fast:
+    if not fast or settings.get('always_fresh'):
         return picked, None, u''
-    names_txt = u'\n'.join(u'  • %s (as of %s)' % (((cache or {}).get(g) or {}).get('model') or g[:8],
-                                                       (kept[g] or u'')[11:16]) for g in fast)
-    c = forms.CommandSwitchWindow.show(
-        [u'Fast: print them from the background Revit', u'Open them fresh here'],
-        message=u'%d model(s) are open in the background Revit:\n%s\n\nFast = export only (no opening), the model as of '
-                u'that time. Syncs made after it are NOT included - choose "fresh" if you need them.' % (len(fast), names_txt))
-    if not c or not c.startswith(u'Fast'):
-        return picked, None, u''
+    old = [g for g in fast if (kept[g] or u'')[:10] != core.now()[:10]]
+    if old:                                     # only ask when the background copy is from an earlier day
+        names_txt = u'\n'.join(u'  \u2022 %s (as of %s)' % (((cache or {}).get(g) or {}).get('model') or g[:8],
+                                                           (kept[g] or u'')[:16]) for g in old)
+        c = forms.CommandSwitchWindow.show(
+            [u'Fast: print them from the background Revit', u'Open them fresh here'],
+            message=u'These background copies are from an EARLIER DAY:\n%s\n\nFast = export only, the model as of '
+                    u'that time. Fresh = open the latest version.' % names_txt)
+        if not c:
+            return picked, None, u''
+        if not c.startswith(u'Fast'):
+            fast = [g for g in fast if g not in old]
+            if not fast:
+                return picked, None, u''
     job = {'kind': kind, 'out_root': out_root, 'run_cad': bool(run_cad),
            'picked': dict((g, sorted(picked[g])) for g in fast), 'names': names, 'row_formats': row_formats or {},
            'formats': settings.get('_formats'), 'settings': dict((k, settings.get(k)) for k in keys)}

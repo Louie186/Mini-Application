@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<meta charset="utf-8">
+<title>Revit Background</title>
+<meta name="lt-order" content="5.6">
+<meta name="lt-icon" content="&#9889;">
+<meta name="lt-desc" content="The background Revit (BIMExport): which models are checked, which are ready to print in seconds, what changed - and Check now / Reload / Keep ready / Open for work.">
+<!--
+  Lew's Toolbox - Revit Background: a window on the BIMExport background Revit.
+  Reads   %APPDATA%\BIMExport\Background\models.json, status.json, heartbeat.txt, config.json
+  Writes  check_now.flag, reload\<guid>.flag, control.json, config.json (pinned), open_for_work\<guid>.json
+  Nothing here opens or changes a model itself: the background Revit (or your Revit, for Open for work) does.
+-->
+<style>
+#app{display:flex;flex-direction:column;height:100%}
+.step{flex:none;padding:10px 14px 4px}
+.lbl{display:inline-block;margin:0 8px 6px 0;vertical-align:middle}
+.badge{display:inline-block;padding:2px 10px;border-radius:10px;color:#fff;font-weight:bold;font-size:.9em;vertical-align:middle}
+#list{flex:1 1 auto;overflow:auto;min-height:0;padding:0 14px 10px}
+.st{font-style:italic;font-size:.88em}
+.chg{font-size:.88em;margin:4px 0 6px 18px}
+.chg div{padding:1px 0}
+td .btn{margin:0 4px 0 0}
+</style>
+<script src="../core/lt-core.js"></script>
+</head>
+<body>
+<div id="app">
+  <div class="step bar">
+    <span class="badge" id="badge">...</span>
+    <span class="lbl st" id="msg"></span>
+    <span style="float:right">
+      <button class="btn primary" id="bCheck" title="Check the ticked models now (starts the background Revit if needed)">Check now</button>
+      <button class="btn" id="bPause">Pause</button>
+      <button class="btn" id="bStop" title="Close the background Revit after the current model">Stop</button>
+    </span>
+  </div>
+  <div class="step"><span class="lbl muted st" id="sub"></span></div>
+  <div id="list"></div>
+</div>
+<script>
+var $ = LT.$, esc = LT.esc, fso = LT.fso, open = {};
+function BG() { return LT.env("%APPDATA%") + "\\BIMExport\\Background"; }
+function rj(name, d) { return LT.readJson(BG() + "\\" + name, d); }
+function wj(path, o) { LT.writeUtf8(path, JSON.stringify(o), false); }
+function age(name) { try { return (new Date().getTime() - new Date(fso.GetFile(BG() + "\\" + name).DateLastModified).getTime()) / 1000; } catch (e) { return 1e9; } }
+function alive() { return age("heartbeat.txt") < 45; }
+var COL = { checking: "#2E8B57", printing: "#2E8B57", applying: "#2E8B57", idle: "#1F5FA8", paused: "#D98E04", "needs sign-in": "#C0392B" };
+
+function draw() {
+  var st = rj("status.json", {}), sum = rj("models.json", { models: [] }), cfg = rj("config.json", {}), on = alive(), ctl = rj("control.json", {}).state;
+  var state = on ? (st.state || "running") : "not running";
+  $("badge").innerHTML = esc(state.toUpperCase()); $("badge").style.background = COL[state] || "#6B7785";
+  $("msg").innerHTML = esc(on ? (st.message || "") : "Starts at the next check time - or Check now");
+  $("bPause").innerHTML = ctl == "pause" ? "Resume" : "Pause";
+  $("sub").innerHTML = "Last check: " + esc((st.last_check || "never").substring(0, 16)) + " &middot; " +
+    esc((cfg.times || []).join(", ")) + " &middot; " + (cfg.models || []).length + " model(s) checked &middot; &#9889; = prints in seconds";
+  var rows = sum.models || [];
+  rows.sort(function (a, b) { return a.name < b.name ? -1 : 1; });
+  if (!rows.length) { $("list").innerHTML = '<div class="muted" style="padding:20px">No models yet. In Revit: BIMExport &gt; Background - tick models, Save, Check now.</div>'; return; }
+  var h = '<table class="grid"><tr><th>Model</th><th>Checked</th><th>To print</th><th>Fast print</th><th></th></tr>';
+  for (var i = 0; i < rows.length; i++) { var m = rows[i];
+    var fast = m.fast ? '<b>&#9889; ready</b> <span class="st muted">as of ' + esc((m.as_of || "").substring(11, 16)) + "</span>" : (m.pinned ? '<span class="st">&#9889; opening...</span>' : '<span class="muted">&mdash;</span>');
+    h += '<tr><td>' + esc(m.name) + '</td><td class="st">' + (m.checked ? "&#10004; " + esc(m.checked.substring(5, 16)) : "not yet") + '</td>' +
+      '<td class="st">' + (m.checked ? (m.to_print ? '<a href="#" class="tg" data-g="' + m.guid + '">' + m.to_print + " drawing(s) &#9662;</a>" : "nothing new") : "") + '</td>' +
+      '<td>' + fast + '</td><td style="white-space:nowrap">' +
+      '<button class="btn small pin" data-g="' + m.guid + '" title="Keep this model open in the background Revit (prints in seconds). Click again to stop.">' + (m.pinned ? "&#9889; Stop keeping" : "&#9889; Keep ready") + '</button>' +
+      '<button class="btn small rl" data-g="' + m.guid + '" title="Reload it fully now (front of the queue)">Reload</button>' +
+      '<button class="btn small ow" data-g="' + m.guid + '" title="Open it in your Revit the normal way (your local copy)">Open for work</button></td></tr>';
+    if (open[m.guid] && (m.changed || []).length) {
+      h += '<tr><td colspan="5"><div class="chg">';
+      for (var k = 0; k < m.changed.length; k++) h += "<div><b>" + esc(m.changed[k].sheet) + "</b> &middot; " + esc(m.changed[k].why) + "</div>";
+      h += '<button class="btn small sp" data-g="' + m.guid + '">Send these to Pull from Revit</button></div></td></tr>';
+    } }
+  $("list").innerHTML = h + "</table>";
+}
+function startBg() {          // same starter the BIMExport schedule uses
+  var ps1 = BG() + "\\bg_start.ps1";
+  if (!fso.FileExists(ps1)) { alert("Set it up once in Revit: BIMExport > Background > Save."); return false; }
+  try { LT.wsh.Run('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + ps1 + '" -NoCheck', 0, false); return true; } catch (e) { alert("Could not start it: " + (e.message || e)); return false; }
+}
+$("bCheck").onclick = function () { wj(BG() + "\\check_now.flag", { models: null, when: LT.today() }); if (!alive()) { if (startBg()) LT.toast("Starting the background Revit (1-2 minutes)"); } else LT.toast("Check requested"); draw(); };
+$("bPause").onclick = function () { var c = rj("control.json", {}); wj(BG() + "\\control.json", { state: c.state == "pause" ? "run" : "pause" }); draw(); };
+$("bStop").onclick = function () { if (alive() && confirm("Stop the background Revit? It finishes the current model, then closes.")) wj(BG() + "\\control.json", { state: "stop" }); draw(); };
+$("list").onclick = function (e) {
+  e = e || window.event; var t = e.target || e.srcElement, g = t.getAttribute && t.getAttribute("data-g"); if (!g) return;
+  if (/\btg\b/.test(t.className)) { open[g] = !open[g]; draw(); return false; }
+  if (/\bpin\b/.test(t.className)) {
+    var cfg = rj("config.json", {}), p = cfg.pinned || [], i = p.indexOf(g);
+    if (i >= 0) p.splice(i, 1); else { p.push(g); if ((cfg.models || []).indexOf(g) < 0) (cfg.models = cfg.models || []).push(g); }
+    cfg.pinned = p; wj(BG() + "\\config.json", cfg); wj(BG() + "\\control.json", { state: "run" });
+    if (i < 0 && !alive()) startBg();
+    LT.toast(i >= 0 ? "No longer kept ready" : "Kept ready: the background Revit opens it now"); draw(); return false; }
+  if (/\brl\b/.test(t.className)) { wj(BG() + "\\reload\\" + g + ".flag", { when: LT.today() }); if (!alive()) startBg(); LT.toast("Reload requested"); return false; }
+  if (/\bow\b/.test(t.className)) { wj(BG() + "\\open_for_work\\" + g + ".json", { guid: g }); LT.toast("Your Revit opens it (Revit must be running)"); return false; }
+  if (/\bsp\b/.test(t.className)) { var sum = rj("models.json", { models: [] }), m = null;
+    for (var j = 0; j < sum.models.length; j++) if (sum.models[j].guid == g) m = sum.models[j];
+    if (m && LT.main()) { var a = []; for (var k = 0; k < m.changed.length; k++) a.push({ code: m.changed[k].sheet, model: m.name }); LT.main().send("revitpull", "add-drawings", JSON.stringify(a)); }
+    return false; }
+};
+var timer = null;
+function loop() { try { draw(); } catch (e) { } timer = window.setTimeout(loop, 5000); }
+function look() { LT.applyLook([".grid td{vertical-align:middle}"]); }
+window.ltTheme = look; window.ltShown = draw; window.ltReload = draw;
+look(); loop(); LT.tabKeys();
+</script>
+</body>
+</html>

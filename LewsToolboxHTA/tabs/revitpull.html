@@ -70,7 +70,7 @@ function split(s) {
   if (p.length >= 8 && REV.test(p[p.length - 1])) rev = p.pop();
   return { code: p.join("-"), rev: rev };
 }
-function addOne(text, revGiven, titleGiven) {
+function addOne(text, revGiven, titleGiven, modelGiven) {
   var x = split(text); if (!x.code) return false;
   var rev = LT.trim(revGiven) || x.rev, reg = null;
   try { var R = LT.register(); if (R) reg = R.find(x.code); } catch (e) { }
@@ -78,7 +78,7 @@ function addOne(text, revGiven, titleGiven) {
   if (reg && reg.number && x.code.split("-").length < 7) { var r2 = split(reg.number); code = r2.code; if (!rev) rev = r2.rev; }
   var seq = code.split("-").length >= 7 ? code.split("-")[6] : code;
   for (var i = 0; i < cfg.rows.length; i++) if (cfg.rows[i].seq.toUpperCase() == seq.toUpperCase()) { cfg.rows[i].rev = rev || cfg.rows[i].rev; return false; }
-  cfg.rows.push({ on: true, code: code, seq: seq, rev: rev, title: titleGiven || (reg ? reg.title : ""), model: reg ? reg.model || "" : "",
+  cfg.rows.push({ on: true, code: code, seq: seq, rev: rev, title: titleGiven || (reg ? reg.title : ""), model: modelGiven || (reg ? reg.model || "" : ""),
                   note: code.split("-").length < 7 ? "no full code - Revit needs your MIDP to name it" : "" });
   return true;
 }
@@ -207,7 +207,7 @@ $("res").onclick = function (e) { e = e || window.event; var t = e.target || e.s
   if (/\bcnl\b/.test(t.className)) cancelReq(t.getAttribute("data-n")); };
 /* other tabs: LT.main().send("revitpull", "add-drawings", JSON.stringify(["5013-...-10200-T2", ...])) */
 window.ltReceive = function (what, value) { if (what != "add-drawings") return; var a = []; try { a = JSON.parse(value); } catch (e) { a = ("" + value).split(/[\r\n]+/); }
-  var n = 0; for (var i = 0; i < a.length; i++) if (addOne(a[i])) n++; save(); draw(); LT.toast(n + " drawing(s) added"); };
+  var n = 0; for (var i = 0; i < a.length; i++) if (typeof a[i] == "object" ? addOne(a[i].code, "", "", a[i].model) : addOne(a[i])) n++; save(); draw(); LT.toast(n + " drawing(s) added"); };
 function look() { LT.applyLook([".num{background:{accent};color:{accText};border-radius:{rc}px}", "#res{border-top:1px solid {line};background:{panel}}", ".pill.ok{background:{ok};color:#fff}.pill.bad{background:{bad};color:#fff}.pill.warn{background:{warn};color:#fff}"]); }
 window.ltTheme = look; window.ltShown = results; window.ltReload = function () { load(); draw(); results(); };
 look(); load(); draw(); results(); LT.tabKeys();

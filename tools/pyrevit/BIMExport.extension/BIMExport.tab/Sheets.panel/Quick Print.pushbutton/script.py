@@ -143,11 +143,29 @@ def main():
         core.logo_pipeline_reset(out)
         job['_logo_pipeline'] = True
     log_path = core.usable_log_path(os.path.join(core.logs_dir(out), 'SheetExport_log.csv'))
+    left, jid, fast_txt = ui.fast_print_offer(picked, names, settings, out, run_cad, 'quick',
+                                              ('pdf', 'dwg', 'per_model_folder', 'batch_pdf', 'batch_dwg', 'embed',
+                                               'acad_exe', 'img2ole_lsp'), row_formats=row_fmt, cache=cache)
+    if jid:                                       # models open in the background Revit print there, at the same time
+        models = [m for m in models if m['ModelGUID'].lower() in left]
+        job['picked'] = dict((g, sorted(v)) for g, v in left.items())
     started, since = time.time(), core.now()      # the clock starts now: your choosing is not counted
     queue = list(models)
+    pw, matched = None, set()
     try:
-        lines_out, totals, matched, pw = ui.export_models(lambda: queue.pop(0) if queue else None, list(models), job,
-                                                          settings, reg, cache, log_path, u'Quick Print')
+        if models:
+            lines_out, totals, matched, pw = ui.export_models(lambda: queue.pop(0) if queue else None, list(models),
+                                                              job, settings, reg, cache, log_path, u'Quick Print')
+        else:
+            lines_out, totals = [], {'ok': 0, 'failed': 0, 'would': 0}
+        if jid:
+            res = ui.fast_print_wait(jid) or {}
+            totals['ok'] += res.get('ok', 0)
+            totals['failed'] += res.get('failed', 0)
+            lines_out.append(u'%s: %d file(s), %d failed%s' % (fast_txt, res.get('ok', 0), res.get('failed', 0),
+                                                               u'' if res else u' - NO ANSWER from the background Revit'))
+            for g in (res.get('models') or {}):
+                matched = set(matched) | set(left.get(g, [])) | set(picked.get(g, []))
     finally:
         settings['skip_links'] = skip_links_before
         for k in ('_names', '_row_formats'):
@@ -163,7 +181,7 @@ def main():
     if unknown:
         lines_out.append(u'NOT placed in a model: %d - %s' % (len(unknown), u'; '.join(u'%s: %s' % u for u in unknown[:10])))
     cad_msg, logo_count, logo_since = '', 0, core.now()
-    if run_cad and job.get('_logo_runner'):
+    if run_cad and (job.get('_logo_runner') or (jid and os.path.exists(os.path.join(core.logs_dir(out), 'IMG2OLE_runner.lock')))):
         core.logo_queue_done(out)
         logo_count = job.get('_logo_jobs', 0)
         cad_msg = u'AutoCAD started earlier by the logo helper (%d DWG(s)); it finishes in the background.' % logo_count
@@ -172,7 +190,8 @@ def main():
         cad_msg = core.start_img2ole(jobs, out, settings) if jobs else 'No DWG files to process.'
         logo_count = len(jobs) if cad_msg.startswith('AutoCAD started') else 0
     ui.report('Quick Print', started, lines_out, totals, True, missing, cad_msg, log_path)
-    pw.finish(ui.finish_title(totals, cad_msg), out, logo_count=logo_count, logo_since=logo_since)
+    if pw is not None:
+        pw.finish(ui.finish_title(totals, cad_msg), out, logo_count=logo_count, logo_since=logo_since)
 
 
 try:

@@ -131,7 +131,74 @@ def _open_issue_sheets(name, mode='open'):
     return False
 
 
+BGSTATE = {'engine': None, 'next': 0.0, 'checked_claim': False}
+
+
+def _process_start_epoch():
+    try:
+        st = System.Diagnostics.Process.GetCurrentProcess().StartTime.ToUniversalTime()
+        return (st - System.DateTime(1970, 1, 1)).TotalSeconds
+    except Exception:
+        return 0.0
+
+
+def _maybe_become_background():
+    """A Revit started by the BIMExport schedule (claim.flag newer than this Revit) becomes the background Revit."""
+    if BGSTATE['checked_claim']:
+        return
+    try:
+        import bimbackground as bg
+    except Exception:
+        BGSTATE['checked_claim'] = True
+        return
+    if not os.path.exists(bg.CLAIM_FLAG):
+        if time.time() - _process_start_epoch() > 300:
+            BGSTATE['checked_claim'] = True             # started long before any claim: a normal Revit
+        return
+    flag_t = os.path.getmtime(bg.CLAIM_FLAG)
+    if _process_start_epoch() < flag_t - 30 or bg.alive():
+        BGSTATE['checked_claim'] = True
+        return
+    try:
+        os.remove(bg.CLAIM_FLAG)                         # only ONE Revit takes it
+    except Exception:
+        BGSTATE['checked_claim'] = True
+        return
+    BGSTATE['checked_claim'] = True
+    bg.set_control('run')
+    BGSTATE['engine'] = bg.Engine(UIAPP)
+
+
+def _exit_revit():
+    try:
+        from Autodesk.Revit.UI import RevitCommandId, PostableCommand
+        UIAPP.PostCommand(RevitCommandId.LookupPostableCommandId(PostableCommand.ExitRevit))
+    except Exception:
+        pass
+
+
+def _background_tick():
+    """The background Revit: one step of work per idle moment (pause / stop are checked every time)."""
+    now = time.time()
+    if now < BGSTATE['next']:
+        return
+    try:
+        r = BGSTATE['engine'].tick()
+    except Exception:
+        r = 'wait'
+    BGSTATE['next'] = time.time() + (0.5 if r == 'work' else 5.0)
+    if r == 'exit':
+        BGSTATE['engine'] = None
+        _exit_revit()
+
+
 def on_idling(sender, args):
+    if BGSTATE['engine'] is not None:
+        _background_tick()
+        return                                           # the background Revit never shows pop-ups
+    _maybe_become_background()
+    if BGSTATE['engine'] is not None:
+        return
     now = time.time()
     if state['busy'] or now < state['next']:
         return
@@ -191,9 +258,41 @@ def _install():
             UIAPP.Idling -= old
         except Exception:
             pass
+    old_t = dom.GetData(KEY + '.timer')
+    if old_t is not None:
+        try:
+            old_t.Stop()
+        except Exception:
+            pass
     handler = System.EventHandler[IdlingEventArgs](on_idling)
     UIAPP.Idling += handler
     dom.SetData(KEY, handler)
+    # Revit stops sending 'idle' when nobody touches it (the background Revit): a timer asks Revit every
+    # 3 seconds to run us in a safe moment (ExternalEvent), so checks continue unattended.
+    try:
+        from Autodesk.Revit.UI import IExternalEventHandler, ExternalEvent
+        from System.Windows.Threading import DispatcherTimer
+        from System import TimeSpan
+
+        class _Pulse(IExternalEventHandler):
+            def Execute(self, uiapp):
+                try:
+                    on_idling(None, None)
+                except Exception:
+                    pass
+
+            def GetName(self):
+                return 'BIMExport background'
+
+        ev = ExternalEvent.Create(_Pulse())
+        timer = DispatcherTimer()
+        timer.Interval = TimeSpan.FromSeconds(3)
+        timer.Tick += lambda s_, e_: ev.Raise()
+        timer.Start()
+        dom.SetData(KEY + '.timer', timer)
+        dom.SetData(KEY + '.event', ev)
+    except Exception:
+        pass
 
 
 try:

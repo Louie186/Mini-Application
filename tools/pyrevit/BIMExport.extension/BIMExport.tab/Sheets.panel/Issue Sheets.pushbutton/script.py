@@ -32,6 +32,10 @@ from System.Windows.Data import Binding, BindingMode, UpdateSourceTrigger
 import bimexport_core as core
 import bimissue_core as issue
 import bimexport_ui as ui
+try:
+    import bimbackground as bg
+except Exception:
+    bg = None
 
 ui.setup(__revit__)                     # noqa: F821
 app = ui.app
@@ -46,6 +50,19 @@ def needs_check(entry):
 
 def read_issue_extra(doc, guid, entry):
     entry['issue'] = issue.read_issue_data(doc)
+
+
+def read_for_print(picked):
+    """While printing (all worksets open): also take the fingerprints of the drawings being printed, so the
+    background checks can later say exactly what changed since THIS issue."""
+    def fn(doc, guid, entry):
+        read_issue_extra(doc, guid, entry)
+        if bg is not None and (bg.load_config().get('models') or entry.get('fp')):
+            try:
+                entry['print_fp'] = bg.sheet_fingerprints(doc, picked.get(guid) or [])
+            except Exception:
+                pass
+    return fn
 
 
 def _table(cols):
@@ -359,7 +376,8 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
                             'midp_title': issue.midp_title(num, self.midp), 'file': name or u'',
                             'rev': rev, 'date': si.get('current_date', u''),
                             'last': (last.get('Revision', u'') + u'  ' + last.get('PrintedOn', u'')[:10]) if last else u'-',
-                            'change': issue.change_status(model, num, rev, iss.get('version', u''), self.by_sheet, self.by_model),
+                            'change': (bg.change_text(e, num) if bg else None) or
+                                      issue.change_status(model, num, rev, iss.get('version', u''), self.by_sheet, self.by_model),
                             'check': (u'✔ OK' if status == 'OK' else u'✖ BLOCKED: ' + note) + (
                                 u'  (%s)' % note if status == 'OK' and note else u'') + (
                                 u'  ⚠ title differs from MIDP' if issue.midp_title(num, self.midp) and
@@ -1275,7 +1293,7 @@ def do_issue(rows, state, settings, reg, cache, dry):
     run_cad = settings.get('embed') and settings['_formats'].get('dwg') == 'Y'
     job = {'out_root': out_root, 'do_export': True, 'run_cad': bool(run_cad), 'models': models,
            'picked': dict((g, sorted(v)) for g, v in picked.items()), 'lod_rows': None,
-           '_formats': settings['_formats'], '_extra_read': read_issue_extra}
+           '_formats': settings['_formats'], '_extra_read': read_for_print(picked)}
     req = state.get('request')
     if req:
         n_files = len(rows) * len([1 for v in settings['_formats'].values() if v == 'Y'])
@@ -1314,14 +1332,35 @@ def do_issue(rows, state, settings, reg, cache, dry):
         run_issue_queue(qd, qjob, settings, reg, cache, u'Main window', job)
         return
     log_path = core.usable_log_path(os.path.join(core.logs_dir(out_root), 'SheetExport_log.csv'))
+    left, jid, fast_txt = ui.fast_print_offer(dict((g, set(v)) for g, v in job['picked'].items()), names, settings,
+                                              out_root, run_cad, 'issue', SHARE_KEYS, cache=cache)
+    if jid:                                       # the background Revit prints its open models at the same time
+        models = [m for m in models if m['ModelGUID'].lower() in left]
+        job['picked'] = dict((g, sorted(v)) for g, v in left.items())
     started = time.time()
     queue = list(models)
-    lines, totals, _, pw = ui.export_models(lambda: queue.pop(0) if queue else None, list(models), job, settings,
-                                            reg, cache, log_path, u'Issuing')
-    more, cad_msg, logo_count, logo_since = finish_issue(rows, state, settings, cache, bool(run_cad), out_root, since, job)
+    pw = None
+    if models:
+        lines, totals, _, pw = ui.export_models(lambda: queue.pop(0) if queue else None, list(models), job, settings,
+                                                reg, cache, log_path, u'Issuing')
+    else:
+        lines, totals = [], {'ok': 0, 'failed': 0, 'would': 0}
+    if jid:
+        res = ui.fast_print_wait(jid) or {}
+        totals['ok'] += res.get('ok', 0)
+        totals['failed'] += res.get('failed', 0)
+        lines.append(u'%s: %d file(s), %d failed%s' % (fast_txt, res.get('ok', 0), res.get('failed', 0),
+                                                       u'' if res else u' - NO ANSWER from the background Revit'))
+        for g, m in (res.get('models') or {}).items():
+            for n in (m.get('notes') or [])[:10]:
+                lines.append(u'   %s: %s' % ((cache.get(g) or {}).get('model', g[:8]), n))
+        cache.update(core.load_sheet_cache())
+    more, cad_msg, logo_count, logo_since = finish_issue(rows, state, settings, cache, bool(run_cad), out_root, since,
+                                                         job, shared=bool(jid))
     lines.extend(more)
     ui.report('Issue Sheets', started, lines, totals, True, [], cad_msg, log_path)
-    pw.finish(ui.finish_title(totals, cad_msg), out_root, logo_count=logo_count, logo_since=logo_since)
+    if pw is not None:
+        pw.finish(ui.finish_title(totals, cad_msg), out_root, logo_count=logo_count, logo_since=logo_since)
 
 
 SHARE_KEYS = ('pdf', 'dwg', 'per_model_folder', 'allow_non_workshared', 'skip_links', 'link_pattern', 'region',
@@ -1379,6 +1418,17 @@ def finish_issue(rows, state, settings, cache, run_cad, out_root, since, job, sh
                          'ModelVersion': iss.get('version', u''),
                          'Note': (u'revision changed since Check (%s -> %s)' % (r['rev'], rev)) if r['rev'] and rev != r['rev'] else u''})
     reg_path = issue.write_register(settings['issue_register'], new_rows) if new_rows else settings['issue_register']
+    if bg is not None:                            # these drawings are now 'as issued' for the background checks
+        by_guid = {}
+        for r in rows:
+            pf = ((cache.get(r['guid']) or {}).get('print_fp') or {}).get(r['num'])
+            if pf and files.get(((cache.get(r['guid']) or {}).get('model', r['model']).lower(), r['num'].lower())):
+                by_guid.setdefault(r['guid'], {})[r['num']] = pf
+        for g, fps in by_guid.items():
+            try:
+                bg.remember_issued(g, fps)
+            except Exception:
+                pass
     cad_msg, logo_count, logo_since = '', 0, core.now()
     helper_running = shared and os.path.exists(os.path.join(core.logs_dir(out_root), 'IMG2OLE_runner.lock'))
     if run_cad and ((job.get('_logo_pipeline') and job.get('_logo_runner')) or helper_running):

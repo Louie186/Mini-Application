@@ -869,3 +869,51 @@ class ExportSettingsMixin(object):
         self._show_pdf(core.pdf_settings(self.settings))
         self._show_dwg(core.dwg_settings(self.settings))
         self._fill_setup_combos()
+
+
+# ------------------------------------------------- background fast printing --
+def fast_print_offer(picked, names, settings, out_root, run_cad, kind, keys, row_formats=None, cache=None):
+    """Models the background Revit keeps open can be printed THERE (no opening). Returns (picked left for this
+    Revit, job id or None, text). Asks first and always says 'as of' (the open copy is the model at its last check)."""
+    try:
+        import bimbackground as bg
+    except Exception:
+        return picked, None, u''
+    kept = bg.kept_models()
+    fast = [g for g in picked if g in kept]
+    if not fast:
+        return picked, None, u''
+    names_txt = u'\n'.join(u'  • %s (as of %s)' % (((cache or {}).get(g) or {}).get('model') or g[:8],
+                                                       (kept[g] or u'')[11:16]) for g in fast)
+    c = forms.CommandSwitchWindow.show(
+        [u'Fast: print them from the background Revit', u'Open them fresh here'],
+        message=u'%d model(s) are open in the background Revit:\n%s\n\nFast = export only (no opening), the model as of '
+                u'that time. Syncs made after it are NOT included - choose "fresh" if you need them.' % (len(fast), names_txt))
+    if not c or not c.startswith(u'Fast'):
+        return picked, None, u''
+    job = {'kind': kind, 'out_root': out_root, 'run_cad': bool(run_cad),
+           'picked': dict((g, sorted(picked[g])) for g in fast), 'names': names, 'row_formats': row_formats or {},
+           'formats': settings.get('_formats'), 'settings': dict((k, settings.get(k)) for k in keys)}
+    jid = bg.send_print_job(job)
+    left = dict((g, v) for g, v in picked.items() if g not in fast)
+    return left, jid, u'%d model(s) printed by the background Revit (as of %s)' % (
+        len(fast), u', '.join(sorted(set((kept[g] or u'')[11:16] for g in fast))))
+
+
+def fast_print_wait(jid, timeout=3600):
+    """Wait for the background Revit to finish a fast print job. Returns its result (or None)."""
+    import bimbackground as bg
+    t0 = time.time()
+    res = None
+    with forms.ProgressBar(title='Background Revit is printing (export only)... {value} s', indeterminate=True,
+                           cancellable=True) as pb:
+        while time.time() - t0 < timeout:
+            res = bg.print_job_result(jid)
+            if res is not None or pb.cancelled:
+                break
+            try:
+                pb.update_progress(int(time.time() - t0), int(timeout))
+            except Exception:
+                pass
+            time.sleep(1.0)
+    return res

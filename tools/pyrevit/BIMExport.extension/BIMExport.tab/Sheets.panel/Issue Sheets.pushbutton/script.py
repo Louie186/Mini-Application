@@ -196,6 +196,10 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self.embed_cb.IsChecked = bool(s.get('embed', True))
         self.skip_links_cb.IsChecked = bool(s.get('skip_links', False))
         self.share_cb.IsChecked = bool(s.get('issue_share', False))
+        self.extra_cb.Items.Clear()
+        for n in (u'0', u'1', u'2', u'3'):
+            self.extra_cb.Items.Add(n)
+        self.extra_cb.SelectedItem = core.text(min(3, int(s.get('extra_windows') or 0)))
         self.fresh_cb.IsChecked = bool(s.get('always_fresh', False))
         self.allow_nonws_cb.IsChecked = bool(s.get('allow_non_workshared', False))
         self.midp_tb.Text = self.state.get('midp') or ''
@@ -218,6 +222,10 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         s['embed'] = bool(self.embed_cb.IsChecked)
         s['skip_links'] = bool(self.skip_links_cb.IsChecked)
         s['issue_share'] = bool(self.share_cb.IsChecked)
+        try:
+            s['extra_windows'] = int(self.extra_cb.SelectedItem or 0)
+        except Exception:
+            s['extra_windows'] = 0
         s['always_fresh'] = bool(self.fresh_cb.IsChecked)
         s['allow_non_workshared'] = bool(self.allow_nonws_cb.IsChecked)
         self._read_export_settings()
@@ -1677,7 +1685,8 @@ def do_issue(rows, state, settings, reg, cache, dry):
     if run_cad:                                   # logos start while Revit is still exporting
         core.logo_pipeline_reset(out_root)
         job['_logo_pipeline'] = True
-    if settings.get('issue_share') and len(models) > 1:
+    extra = min(int(settings.get('extra_windows') or 0), max(0, len(models) - 1))
+    if (settings.get('issue_share') or extra) and len(models) > 1:
         # several Revit windows: each takes the next model nobody has started
         qjob = {'kind': 'issue', 'out_root': out_root, 'run_cad': bool(run_cad), 'models': models,
                 'picked': job['picked'], '_formats': settings['_formats'], '_names': names, 'rows': rows,
@@ -1686,6 +1695,15 @@ def do_issue(rows, state, settings, reg, cache, dry):
                 'settings': dict((k, settings.get(k)) for k in SHARE_KEYS)}
         qd = core.queue_create(out_root, qjob, [m['ModelGUID'].lower() for m in models])
         open(os.path.join(qd, 'issue.finish'), 'w').close()      # taken by the LAST window to finish
+        if extra:                                  # extra Revit windows join by themselves and close when done
+            exe = u''
+            try:
+                exe = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName
+            except Exception:
+                pass
+            n = core.launch_helpers(qd, 'issue', extra, exe)
+            output.print_md(u'Started **%d extra Revit window(s)**: each joins by itself (1-2 minutes), takes the next '
+                            u'model and closes when none is left.' % n)
         run_issue_queue(qd, qjob, settings, reg, cache, u'Main window', job)
         return
     log_path = core.usable_log_path(os.path.join(core.logs_dir(out_root), 'SheetExport_log.csv'))
@@ -2082,6 +2100,16 @@ def main():
     reg = core.refresh_register(app.VersionNumber)
     cache = core.load_sheet_cache()
     active = core.queue_active()
+    auto = None
+    try:
+        auto = System.AppDomain.CurrentDomain.GetData('BIMExport.AutoJoin')
+    except Exception:
+        pass
+    if auto and active and active[0] == auto and (active[1] or {}).get('kind') == 'issue':
+        run_issue_queue(active[0], active[1], settings, reg, cache, u'Helper window (opened automatically)')
+        return                                           # helper Revit: join without questions
+    if auto:
+        return
     if active and (active[1] or {}).get('kind') == 'issue':
         qd, qjob, left = active
         choice = ask_running(qd, left, u'issue')

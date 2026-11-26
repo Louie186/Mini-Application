@@ -173,6 +173,37 @@ def _maybe_become_background():
         bg.log(u'ERROR starting the background engine:\n' + traceback.format_exc())
 
 
+def _helper_join():
+    """This Revit was started by Issue Sheets to help: join the shared run, then close when it is done."""
+    if BGSTATE.get('helper_checked'):
+        return
+    started = _process_start_epoch()
+    if time.time() - started > 1500:
+        BGSTATE['helper_checked'] = True                  # an ordinary Revit
+        return
+    try:
+        import bimexport_core as core
+        slot = core.take_helper_slot(started)
+    except Exception:
+        slot = None
+    if not slot:
+        return
+    BGSTATE['helper_checked'] = True
+    qd, kind = slot
+    System.AppDomain.CurrentDomain.SetData('BIMExport.AutoJoin', qd)
+    try:
+        from pyrevit.loader import sessionmgr
+        for c in sessionmgr.find_all_commands():
+            flat = ''.join(ch for ch in c.typename.lower() if ch.isalnum())
+            if 'bimexport' in flat and flat.endswith('issuesheets'):
+                sessionmgr.execute_command_cls(c.extcmd_type)
+                break
+    except Exception:
+        pass
+    System.AppDomain.CurrentDomain.SetData('BIMExport.AutoJoin', None)
+    _exit_revit()                                        # nothing of yours is open in this helper Revit
+
+
 def _open_requests(uiapp):
     """Your Revit (not the background one) opens models the Toolbox asked for, the normal way (local copy)."""
     try:
@@ -318,6 +349,7 @@ def _install():
                 except Exception:
                     pass
                 if BGSTATE.get('engine') is None:
+                    _helper_join()                 # a Revit started to help a shared Issue
                     _open_requests(uiapp)          # 'Open for work' sent from the Toolbox
                 if BGSTATE.get('engine') is not None:
                     try:                         # proof the 3-second pulse works (see background.log folder)

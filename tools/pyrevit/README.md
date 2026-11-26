@@ -111,6 +111,7 @@ For formal issues: **what changed → fix revisions / title block switches → i
 - **No Check needed for models read before.** Ticking a model loads its saved list straight away ("from saved lists, oldest 25/11 14:20"). Every print refreshes the saved list for free, so press **Check models** only for a model never read, or to see the very latest changes before printing
 - **Names are finished at print time** with the revision the sheet shows then (MIDP code + live revision), so a saved list never gives a wrong name. If the revision changed since the list was read, the report and register say so ("revision changed since Check: T1 -> T2")
 - **All PDFs (and all DWGs) of a model in one Revit export each** (same settings and quality), then each gets its exact name. Falls back to one by one if Revit can't
+- **Extra Revit windows** (Run tab: *Open [0-3] extra Revit windows to print in parallel*): Issue starts them itself; each joins by itself, prints the next model at the same time and closes when none is left (3 models + 2 extra ≈ 3x faster)
 - **Share with other Revit windows** (Run tab): open a 2nd/3rd Revit, click Issue Sheets → **Join**. Each window prints the next model; the last one writes the issue register and finishes the logos. 2–3 windows ≈ 2–3x faster (64 GB is fine for 3)
 - **Elapsed time counts working time only**: reading lists, Apply and printing. Your time choosing in the window is not counted
 

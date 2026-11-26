@@ -1355,6 +1355,53 @@ def _alive(pid):
         return False
 
 
+HELPERS_FILE = os.path.join(SETTINGS_DIR, 'helpers.json')
+
+
+def launch_helpers(qd, kind, n, revit_exe):
+    """Start n extra Revit windows; each joins the shared run 'qd' by itself (one helper slot each) and closes
+    when no model is left. Returns how many were started."""
+    n = max(0, int(n or 0))
+    if not n:
+        return 0
+    for k in range(1, n + 1):
+        io.open(os.path.join(qd, 'helper_%d.slot' % k), 'w').close()      # NOT a model ticket (no .todo / .taken_)
+    with io.open(HELPERS_FILE, 'w', encoding='utf-8') as f:
+        f.write(text(json.dumps({'queue': qd, 'kind': kind, 't': time.time(), 'n': n})))
+    started = 0
+    import subprocess
+    for k in range(n):
+        try:
+            subprocess.Popen([revit_exe or 'Revit.exe', '/nosplash'])
+            started += 1
+        except Exception:
+            pass
+    return started
+
+
+def take_helper_slot(process_started):
+    """A Revit started for a shared run takes one helper slot. Returns (queue folder, kind) or None."""
+    try:
+        with io.open(HELPERS_FILE, 'r', encoding='utf-8') as f:
+            h = json.loads(f.read())
+    except Exception:
+        return None
+    t = float(h.get('t') or 0)
+    if time.time() - t > 1200 or (process_started and process_started < t - 30):
+        return None                                   # old request, or a Revit that was already running
+    qd = h.get('queue') or u''
+    if not os.path.isdir(qd) or queue_stopped(qd) or queue_finished(qd):
+        return None
+    for fn in sorted(os.listdir(qd)):
+        if fn.startswith('helper_') and fn.endswith('.slot'):
+            try:
+                os.rename(os.path.join(qd, fn), os.path.join(qd, '%s_used_%s' % (fn, _pid())))
+                return qd, h.get('kind') or u'issue'
+            except Exception:
+                continue
+    return None
+
+
 def queue_info(qd):
     """{'left': models nobody started, 'working': Revit windows printing now, 'orphans': models a closed
     window had started (e.g. Revit closed during sleep), 'started': when the run began}"""

@@ -434,6 +434,13 @@
                                     <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0"
                                                Text="AutoCAD starts while Revit is still exporting."/>
                                     <TextBlock Text="Speed" Style="{StaticResource Label}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                                        <TextBlock Text="Open" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="extra_cb" Width="48" Margin="6,0"/>
+                                        <TextBlock Text="extra Revit windows to print in parallel" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="0,0,0,6" TextWrapping="Wrap"
+                                               Text="Each prints its own model at the same time (3 models + 2 extra = about 3x faster). They join by themselves and close when done. 2 extra is safe with 64 GB."/>
                                     <CheckBox x:Name="share_cb" Content="Share with other Revit windows"/>
                                     <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0" TextWrapping="Wrap"
                                                Text="Open another Revit, click Issue Sheets there and choose Join. Each window prints the next model (2-3 windows = 2-3x faster)."/>

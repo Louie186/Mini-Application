@@ -476,6 +476,11 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         for n in range(0, 7):
             self.bg_keep_cb.Items.Add(core.text(n))
         self.bg_keep_cb.SelectedItem = core.text(min(6, int(cfg.get('keep_open') or 0)))
+        self.bg_pre_cb.IsChecked = bool(cfg.get('preprint'))
+        self.bg_pre_days_cb.Items.Clear()
+        for n in (u'1', u'2', u'3', u'5', u'7', u'14', u'30'):
+            self.bg_pre_days_cb.Items.Add(n)
+        self.bg_pre_days_cb.SelectedItem = core.text(cfg.get('preprint_days') or 7)
         self._bg_watch_text(cfg)
 
     def _bg_watch_text(self, cfg):
@@ -503,6 +508,11 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
             cfg['keep_open'] = int(self.bg_keep_cb.SelectedItem)
         except Exception:
             pass
+        cfg['preprint'] = bool(self.bg_pre_cb.IsChecked)
+        try:
+            cfg['preprint_days'] = int(self.bg_pre_days_cb.SelectedItem or 7)
+        except Exception:
+            cfg['preprint_days'] = 7
         bg.save_config(cfg)
         ok, msg = bg.install_schedule(cfg)
         self.bg_times_tb.Text = u', '.join(cfg['times'])
@@ -1685,6 +1695,31 @@ def do_issue(rows, state, settings, reg, cache, dry):
     if run_cad:                                   # logos start while Revit is still exporting
         core.logo_pipeline_reset(out_root)
         job['_logo_pipeline'] = True
+    # drawings printed ahead by the background Revit and not changed since: copy them (seconds)
+    ahead_txt = u''
+    if bg is not None:
+        try:
+            used, alog, ajobs, aissued = bg.use_print_ahead(rows, out_root, settings, cache, bool(run_cad))
+        except Exception as e:
+            used, alog, ajobs, aissued = [], [], [], {}
+            output.print_md(u'Printed-ahead files not used: %s' % core.text(e))
+        if used:
+            core.append_csv(os.path.join(core.logs_dir(out_root), u'SheetExport_log_ahead.csv'), core.LOG_HEADER, alog)
+            for g, fps_ in aissued.items():
+                bg.remember_issued(g, fps_)
+            if ajobs:
+                core.logo_queue_add(out_root, ajobs)
+                ok_, msg_ = core.logo_runner_start(out_root, settings)
+                job['_logo_runner'] = job.get('_logo_runner') or ok_
+                job['_logo_jobs'] = job.get('_logo_jobs', 0) + len(ajobs)
+            done_keys = set((r['guid'], r['num'].strip().lower()) for r in used)
+            for g in list(job['picked'].keys()):
+                job['picked'][g] = [n for n in job['picked'][g] if (g, n) not in done_keys]
+                if not job['picked'][g]:
+                    job['picked'].pop(g)
+            models = [m for m in models if m['ModelGUID'].lower() in job['picked']]
+            ahead_txt = u'%d drawing(s) copied from the printed-ahead files (no change since they were printed)' % len(used)
+            output.print_md(u'**' + ahead_txt + u'**')
     extra = min(int(settings.get('extra_windows') or 0), max(0, len(models) - 1))
     if (settings.get('issue_share') or extra) and len(models) > 1:
         # several Revit windows: each takes the next model nobody has started
@@ -1720,6 +1755,8 @@ def do_issue(rows, state, settings, reg, cache, dry):
     started = time.time()
     queue = list(models)
     pw = None
+    if ahead_txt:
+        pass
     if models:
         lines, totals, _, pw = ui.export_models(lambda: queue.pop(0) if queue else None, list(models), job, settings,
                                                 reg, cache, log_path, u'Issuing')
@@ -1737,6 +1774,8 @@ def do_issue(rows, state, settings, reg, cache, dry):
         cache.update(core.load_sheet_cache())
     more, cad_msg, logo_count, logo_since = finish_issue(rows, state, settings, cache, bool(run_cad), out_root, since,
                                                          job, shared=bool(jid))
+    if ahead_txt:
+        lines.insert(0, ahead_txt)
     lines.extend(more)
     ui.report('Issue Sheets', started, lines, totals, True, [], cad_msg, log_path)
     if pw is not None:

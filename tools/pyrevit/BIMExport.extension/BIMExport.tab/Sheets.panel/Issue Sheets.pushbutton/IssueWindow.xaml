@@ -410,6 +410,15 @@
                                         <ComboBox x:Name="bg_keep_cb" Width="52" Margin="6,0"/>
                                         <TextBlock Text="more models open (besides Keep ready)" VerticalAlignment="Center"/>
                                     </StackPanel>
+                                    <TextBlock Text="Print ahead" Style="{StaticResource Label}"/>
+                                    <CheckBox x:Name="bg_pre_cb" Content="Print changed drawings in advance"/>
+                                    <TextBlock Style="{StaticResource Hint}" Margin="20,0,0,0" TextWrapping="Wrap"
+                                               Text="During each check, with your PDF / CAD settings. Issue then copies them in seconds if the drawing has not changed since."/>
+                                    <StackPanel Orientation="Horizontal" Margin="20,2,0,0">
+                                        <TextBlock Text="Delete printouts not used for" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="bg_pre_days_cb" Width="52" Margin="6,0"/>
+                                        <TextBlock Text="days" VerticalAlignment="Center"/>
+                                    </StackPanel>
                                     <Button Content="Save schedule" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,10,0,0" Click="on_bg_save"/>
                                     <TextBlock x:Name="bg_saved_tb" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                     <TextBlock Text="Control" Style="{StaticResource Label}"/>

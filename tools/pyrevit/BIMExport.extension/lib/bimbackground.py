@@ -44,13 +44,15 @@ RELOAD_DIR = os.path.join(BG, 'reload')
 ISSUED_DIR = os.path.join(BG, 'issued')
 JOBS_DIR = os.path.join(BG, 'print_jobs')
 OPEN_DIR = os.path.join(BG, 'open_for_work')     # 'open this model in my Revit' (Toolbox -> your Revit)
-SUMMARY = os.path.join(BG, 'models.json')        # one line per model, for the Toolbox and Issue Sheets
+SUMMARY = os.path.join(BG, 'models.json')
+PRE_DIR = os.path.join(BG, 'printed_ahead')       # <guid>\\index.json + one folder per drawing        # one line per model, for the Toolbox and Issue Sheets
 APPLY_DIR = os.path.join(BG, 'apply_jobs')
 TASK_NAME = u'BIMExport Background'
 LOG = os.path.join(BG, 'background.log')
 
 DEFAULTS = {'enabled': True, 'models': [], 'times': ['07:00', '12:30', '18:00'], 'days': [1, 2, 3, 4, 5],
-            'keep_open': 3, 'min_free_gb': 8, 'close_when_done': False, 'revit_exe': u'', 'pinned': []}
+            'keep_open': 3, 'min_free_gb': 8, 'close_when_done': False, 'revit_exe': u'', 'pinned': [],
+            'preprint': False, 'preprint_days': 7}
 DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 
 
@@ -655,6 +657,9 @@ class Engine(object):
                 request_reload(missing[0])
                 return 'work'
             write_summary(self)
+            if time.time() - getattr(self, '_last_clean', 0) > 3600:     # once an hour
+                self._last_clean = time.time()
+                clean_print_ahead(int(cfg.get('preprint_days') or 7))
             done = [i for i in t.get('items', []) if i['state'] == 'done']
             set_status(state='idle', message=u'Waiting for the next check', current=u'', kept=self.kept_info(),
                        free_gb=round(free, 1), total=len(t.get('items', [])), done=len(done))
@@ -729,6 +734,14 @@ class Engine(object):
             entry['bg_changes'] = changes_for(guid, fps, old)
             core.save_sheet_entry(guid, entry)
             n_att = len([1 for c in entry['bg_changes'].values() if c['since_issue'] is None or c['since_issue']])
+            if cfg.get('preprint'):
+                try:
+                    t_pp = time.time()
+                    set_status(message=u'%s: printing changed drawings in advance...' % name)
+                    n_pp = print_ahead(doc, guid, entry, fps)
+                    log(u'  printed ahead: %d drawing(s) in %d s' % (n_pp, time.time() - t_pp))
+                except Exception as e:
+                    log(u'  print ahead failed: %s' % core.text(e))
             self._keep(guid, doc, cfg)
             self._finish(item, t, 'done', u'%d drawing(s), %d need attention' % (len(fps), n_att))
             log(u'  done: %d drawing(s), %d need attention' % (len(fps), n_att))
@@ -871,6 +884,192 @@ def open_for_work(uiapp, rec, settings=None):
         except Exception as e:
             err.append(u'%s: %s' % (reg_, core.text(e)))
     return False, u' | '.join(err)
+
+
+# ---------------------------------------------------------- print ahead ----
+def _export_hash(settings):
+    """Anything that changes how a file looks: if it differs, a printed-ahead file is not used."""
+    keep = dict((k, settings.get(k)) for k in ('pdf', 'dwg', 'pdf_setup', 'dwg_setup'))
+    return _h([json.dumps(keep, sort_keys=True, default=core.text)])
+
+
+def _fp_hash(fp):
+    return _h([json.dumps(fp, sort_keys=True, default=core.text)])
+
+
+def _pre_index(guid):
+    return _rj(os.path.join(PRE_DIR, guid.lower(), u'index.json'), {})
+
+
+def _pre_save(guid, idx):
+    _wj(os.path.join(PRE_DIR, guid.lower(), u'index.json'), idx)
+
+
+def _rm_files(files):
+    for f in files or []:
+        try:
+            if os.path.exists(f):
+                os.remove(f)
+        except Exception:
+            pass
+
+
+def print_ahead(doc, guid, entry, fps):
+    """While the model is open anyway: print the drawings that need attention (changed / never issued) into the
+    cache with YOUR current PDF / CAD settings. Same Revit export, so the files are identical. Returns how many."""
+    import Autodesk.Revit.DB as DB
+    from System.Collections.Generic import List
+    settings = core.load_settings()
+    fm = settings.get('_formats') or {'pdf': 'Y', 'dwg': 'Y'}
+    want_pdf, want_dwg = core.yes(fm.get('pdf')), core.yes(fm.get('dwg'))
+    ex = _export_hash(settings)
+    idx = _pre_index(guid)
+    ch = entry.get('bg_changes') or {}
+    targets = [n for n, c in ch.items() if c['since_issue'] is None or c['since_issue']]
+    sheets = dict((s.SheetNumber, s) for s in DB.FilteredElementCollector(doc).OfClass(DB.ViewSheet) if not s.IsPlaceholder)
+    notes = []
+    pdf_opts = core.pdf_options(doc, settings, notes) if want_pdf else None
+    dwg_opts = core.dwg_options(doc, settings, notes) if want_dwg else None
+    made = 0
+    for n in targets:
+        s = sheets.get(n)
+        if s is None or n not in fps:
+            continue
+        fk = _fp_hash(fps[n])
+        cur = idx.get(n)
+        if cur and cur.get('fp') == fk and cur.get('export') == ex and all(os.path.exists(f) for f in cur.get('files', [])):
+            continue                                   # already printed ahead and nothing changed
+        if cur:
+            _rm_files(cur.get('files'))
+        folder = core.ensure_dir(os.path.join(PRE_DIR, guid.lower(), core.clean(n)))
+        stem = u'%s_%s' % (core.clean(n), fk[:8])     # unique names: logo images of different drawings never clash
+        before = set(os.listdir(folder))
+        rec = {'fp': fk, 'export': ex, 'made': core.now(), 'last_used': u'', 'rev': u'', 'files': []}
+        try:
+            p = s.get_Parameter(DB.BuiltInParameter.SHEET_CURRENT_REVISION)
+            rec['rev'] = (p.AsString() or u'') if p else u''
+        except Exception:
+            pass
+        ids = List[DB.ElementId]([s.Id])
+        try:
+            if want_pdf:
+                pdf_opts.FileName = stem
+                doc.Export(folder, ids, pdf_opts)
+                if os.path.exists(os.path.join(folder, stem + u'.pdf')):
+                    rec['pdf'] = os.path.join(folder, stem + u'.pdf')
+            if want_dwg:
+                doc.Export(folder, stem, ids, dwg_opts)
+                if os.path.exists(os.path.join(folder, stem + u'.dwg')):
+                    rec['dwg'] = os.path.join(folder, stem + u'.dwg')
+        except Exception as e:
+            log(u'    print ahead %s: %s' % (n, core.text(e)))
+        rec['files'] = [os.path.join(folder, f) for f in os.listdir(folder) if f not in before]
+        if (want_pdf and not rec.get('pdf')) or (want_dwg and not rec.get('dwg')):
+            _rm_files(rec['files'])                     # incomplete: not used
+            idx.pop(n, None)
+            continue
+        idx[n] = rec
+        made += 1
+    _pre_save(guid, idx)
+    return made
+
+
+def use_print_ahead(rows, out_root, settings, cache, run_cad):
+    """Issue Sheets: for each row, copy the printed-ahead files when the drawing is EXACTLY as it was printed
+    (same fingerprint at the last check, same export settings, no Apply waiting). Returns (rows used, log rows,
+    DWG logo jobs, issued fingerprints {guid: {sheet: fp}})."""
+    import shutil
+    if settings.get('always_fresh'):
+        return [], [], [], {}
+    fm = settings.get('_formats') or {}
+    want_pdf, want_dwg = core.yes(fm.get('pdf')), core.yes(fm.get('dwg'))
+    ex = _export_hash(settings)
+    busy = pending_applies()
+    used, log_rows, logo_jobs, issued = [], [], [], {}
+    idxs = {}
+    for r in rows:
+        g, num = r['guid'], r['num']
+        e = cache.get(g) or {}
+        fp = (e.get('fp') or {}).get(num)
+        if g in busy or not fp:
+            continue
+        idx = idxs.setdefault(g, _pre_index(g))
+        rec = idx.get(num)
+        if not rec or rec.get('fp') != _fp_hash(fp) or rec.get('export') != ex:
+            continue
+        if (want_pdf and not os.path.exists(rec.get('pdf') or u'')) or (want_dwg and not os.path.exists(rec.get('dwg') or u'')):
+            continue
+        rev = rec.get('rev') or u''
+        exp = (r.get('expected') or u'').strip()
+        if exp and exp.lower() != rev.lower():
+            continue                                   # the real print will block it with the reason
+        if r.get('conflict'):
+            continue
+        if r.get('mode') == 'number':
+            name = core.clean(num)
+        elif rev:
+            name = u'%s-%s' % (r.get('base') or r['file'], rev)
+        elif r.get('norev'):
+            name = r.get('base') or r['file']
+        else:
+            continue
+        model = e.get('model') or r['model']
+        mdir = core.model_folder(out_root, model, settings)
+        note = u'printed ahead %s (no change since)' % (rec.get('made') or u'')[5:16]
+        if want_pdf:
+            tgt = os.path.join(core.ensure_dir(os.path.join(mdir, 'PDF')), name + u'.pdf')
+            shutil.copyfile(rec['pdf'], tgt)
+            log_rows.append([core.now(), u'EXPORT', model, num, r.get('name', u''), rev, u'PDF', tgt, u'OK', u'0', note])
+        if want_dwg:
+            raw = core.ensure_dir(os.path.join(mdir, '_DWG_raw'))
+            for f in rec.get('files', []):            # logo images etc. keep their (unique) names
+                if f != rec.get('dwg') and not f.lower().endswith(u'.pdf') and os.path.exists(f):
+                    shutil.copyfile(f, os.path.join(raw, os.path.basename(f)))
+            tgt = os.path.join(raw, name + u'.dwg')
+            shutil.copyfile(rec['dwg'], tgt)
+            log_rows.append([core.now(), u'EXPORT', model, num, r.get('name', u''), rev, u'DWG', tgt, u'OK', u'0', note])
+            if run_cad:
+                logo_jobs.append((tgt, os.path.join(mdir, 'DWG')))
+        rec['last_used'] = core.now()
+        used.append(r)
+        issued.setdefault(g, {})[num] = fp
+    for g, idx in idxs.items():
+        _pre_save(g, idx)
+    return used, log_rows, logo_jobs, issued
+
+
+def clean_print_ahead(days=7):
+    """Delete printed-ahead files not used (or made) for N days, and empty folders."""
+    if not os.path.isdir(PRE_DIR):
+        return 0
+    limit = time.time() - days * 86400
+    gone = 0
+    for g in os.listdir(PRE_DIR):
+        idx = _pre_index(g)
+        if not idx:
+            continue
+        for n in list(idx.keys()):
+            rec = idx[n]
+            stamp = rec.get('last_used') or rec.get('made') or u''
+            try:
+                t = time.mktime(time.strptime(stamp[:19], '%Y-%m-%d %H:%M:%S'))
+            except Exception:
+                t = 0
+            if t < limit:
+                _rm_files(rec.get('files'))
+                idx.pop(n, None)
+                gone += 1
+        _pre_save(g, idx)
+        for d in os.listdir(os.path.join(PRE_DIR, g)):
+            p = os.path.join(PRE_DIR, g, d)
+            try:
+                if os.path.isdir(p) and not os.listdir(p):
+                    os.rmdir(p)
+            except Exception:
+                pass
+    if gone:
+        log(u'Clean-up: %d printed-ahead drawing(s) not used for %d days deleted' % (gone, days))
+    return gone
 
 
 def core_close(doc):

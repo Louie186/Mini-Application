@@ -136,15 +136,15 @@ For formal issues: **what changed → fix revisions / title block switches → i
 
 **Change check, honestly:** the sync stamp changes with every sync, so "Model synced since last issue" means something in the model changed, not necessarily on that drawing. "No change" = same revision and no sync since that drawing was last printed.
 
-## Background checks (new button: Background)
+## Background checks (inside Issue Sheets)
 
-A separate **background Revit** checks your models at the times you choose and keeps a few of them open, so
-printing them later is only the export.
+A separate **background Revit** checks your models at the times you choose and keeps some open, so printing them only has to export. Everything is in **Issue Sheets** (one window):
 
-**Set up once (BIMExport → Background)** - one window, same look as Issue Sheets:
-1. **Models:** tick the models to keep checked (each line shows its last check and how many drawings need attention)
-2. **When:** times (as many as you like, e.g. `07:00, 10:00, 12:30, 15:00, 18:00`), days, *Schedule on*, and how many models stay open for fast printing → **Save** (Windows schedule; wakes the PC)
-3. **Check now** to start straight away. Also: **Reload selected now** (select model lines), **What changed**, **Pause / Resume**, **Stop**. The status at the top right refreshes by itself. It pauses on its own if memory runs low
+- **Header:** the background badge (IDLE / CHECKING / PAUSED / NEEDS SIGN-IN ...) and what it is doing
+- **Models list:** every line shows its state in small italics: *✔ checked 11/26 10:41 · ⚡ ready*, *⟳ reloading - opening...*, *⟳ waiting to reload*, *✖ could not reload*
+- **⟳ Reload ticked:** the background Revit reloads the ticked models fully NOW, before you print (your Revit stays free). When each is done, its drawings, revisions and the Change column refresh in the window by themselves
+- **⚡ Keep ready:** the ticked models stay open in the background all the time (refreshed at every check) - always print in seconds. Click again to stop
+- **Settings → Background tab:** *Use the ticked models* (checked on schedule), times (as many as you like), days, Schedule on, keep N more open → **Save schedule**; Check now, Pause / Resume, Stop, What changed, Open for work (this Revit or a new Revit window)
 
 **Each check:** every model opens detached (ALL worksets, links), never saved. For every drawing it compares revisions, title block, sheet and **every element seen in each of its views** (place, size, type, note / tag / dimension text, linked model version) with the previous check and with its **last issue**. Issue Sheets then shows in **Change**: *"Changed since last issue: view "Level 3" (checked 12:30)"* or *"No change since last issue"* - **Tick changed** ticks only those.
 

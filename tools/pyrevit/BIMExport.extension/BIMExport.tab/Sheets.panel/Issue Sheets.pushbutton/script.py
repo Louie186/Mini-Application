@@ -110,6 +110,17 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         self._fill_rev_models()
         self._fill_tb_sheets()
         self._refresh_changes()
+        self._bg_fill_settings()
+        self._bg_tick(None, None)
+        try:                                       # live background status (every 3 s)
+            from System.Windows.Threading import DispatcherTimer
+            from System import TimeSpan
+            self._bg_timer = DispatcherTimer()
+            self._bg_timer.Interval = TimeSpan.FromSeconds(3)
+            self._bg_timer.Tick += self._bg_tick
+            self._bg_timer.Start()
+        except Exception:
+            self._bg_timer = None
         req = state.get('request')
         if req and state['loaded']:
             self._request_ready()
@@ -288,7 +299,7 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
 
     # ================================================================= models
     def _fill_models(self):
-        self._bg_kept = (bg.kept_models() if bg is not None else {}) or {}
+        self._bg_read_state()
         flt = (self.model_search.Text or '').strip().lower()
         self.models_lb.Items.Clear()
         for r in sorted(self.reg.values(), key=core.model_sort_key):
@@ -308,13 +319,227 @@ class IssueWindow(ui.ExportSettingsMixin, forms.WPFWindow):
         """'checked 11/26 10:41 · ⚡ ready' from the background Revit (or '')."""
         e = self.cache.get(g) or {}
         bits = []
+        it = getattr(self, '_bg_todo', {}).get(g)
+        name = e.get('model') or (self.reg.get(g) or {}).get('Name') or u''
+        if it is not None and it['state'] == 'waiting':
+            st = getattr(self, '_bg_st', {})
+            if st.get('current') == name and getattr(self, '_bg_alive', False):
+                msg = st.get('message') or u''
+                return u'\u27F3 reloading - %s' % (msg.split(u': ', 1)[-1] if u': ' in msg else u'working...')
+            return u'\u27F3 waiting to reload'
+        if it is not None and it['state'] == 'failed' and it.get('when', u'') > e.get('bg_checked', u''):
+            bits.append(u'\u2716 could not reload')
         if e.get('bg_checked'):
             bits.append(u'\u2714 checked %s' % e['bg_checked'][5:16].replace(u'-', u'/'))
         elif e.get('issue'):
             bits.append(u'read %s' % (e.get('updated') or u'')[5:16].replace(u'-', u'/'))
         if g in getattr(self, '_bg_kept', {}):
             bits.append(u'\u26A1 ready')
+        elif g in getattr(self, '_bg_pinned', set()):
+            bits.append(u'\u26A1 keep ready (opening...)')
         return u'  \u00B7  '.join(bits)
+
+    # ============================================================ background
+    BG_COLOURS = {'checking': '#2E8B57', 'printing': '#2E8B57', 'applying': '#2E8B57', 'idle': '#1F5FA8',
+                  'paused': '#D98E04', 'needs sign-in': '#C0392B', 'busy': '#5B7DB1', 'taking long': '#D98E04'}
+
+    def _bg_read_state(self):
+        self._bg_alive = bool(bg is not None and bg.alive())
+        self._bg_st = (bg.status() if bg is not None else {}) or {}
+        self._bg_kept = (self._bg_st.get('kept') or {}) if self._bg_alive else {}
+        self._bg_todo = dict((i['guid'], i) for i in (bg.load_todo().get('items', []) if bg is not None else []))
+        try:                                       # reloads asked for but not picked up yet
+            for fn in os.listdir(bg.RELOAD_DIR):
+                if fn.endswith('.flag'):
+                    self._bg_todo.setdefault(fn[:-5].lower(), {'guid': fn[:-5].lower(), 'kind': 'reload', 'state': 'waiting'})
+        except Exception:
+            pass
+        self._bg_pinned = set((bg.load_config().get('pinned') or []) if bg is not None else [])
+
+    def _bg_tick(self, sender, args):
+        """Badge + model lines; when the background finished reloading a model, its drawings refresh here."""
+        if bg is None:
+            return
+        self._bg_read_state()
+        st, alive = self._bg_st, self._bg_alive
+        state = (st.get('state') or u'running') if alive else (u'busy' if bg.stalled() else u'not running')
+        msg = (st.get('message') or u'') if alive else (u'starting...' if bg.starting() else u'starts at the next check time')
+        if alive and state in (u'checking', u'applying', u'printing') and bg.busy_minutes() > 30:
+            state = u'taking long'
+        try:
+            from System.Windows.Media import BrushConverter
+            self.bg_badge_tb.Text = state.upper()
+            self.bg_badge_bd.Background = BrushConverter().ConvertFromString(self.BG_COLOURS.get(state, '#6B7785'))
+        except Exception:
+            pass
+        self.bg_msg_tb.Text = msg
+        self.bg_pause_btn.Content = u'Resume' if bg.control() == 'pause' else u'Pause'
+        self.bg_last_tb.Text = u'Last check: %s  %s' % ((st.get('last_check') or u'never')[:16], st.get('last_summary') or u'')
+        if sender is None:
+            return
+        new = core.load_sheet_cache()
+        fresh = [g for g in self.reg if (new.get(g) or {}).get('bg_checked') != (self.cache.get(g) or {}).get('bg_checked')]
+        if fresh:
+            for g in fresh:
+                self.cache[g] = new.get(g) or {}
+            if any(g in self.state['loaded'] or g in self.state['checked_models'] for g in fresh):
+                for g in fresh:
+                    if g in self.state['checked_models'] and g not in self.state['loaded'] and not needs_check(self.cache.get(g)):
+                        self.state['loaded'].append(g)
+                self._build_sheets()               # the reloaded model's drawings, revisions and changes
+                self._fill_rev_models()
+                self._fill_tb_sheets()
+        key = (tuple(sorted(self._bg_kept)), tuple(sorted((g, i['state']) for g, i in self._bg_todo.items())),
+               st.get('message') if alive else u'', tuple(sorted(self._bg_pinned)))
+        if fresh or key != getattr(self, '_bg_key', None):
+            self._bg_key = key
+            sel = self.models_lb.SelectedItem.Tag if self.models_lb.SelectedItem is not None else None
+            self._fill_models()
+            if sel:
+                for it in self.models_lb.Items:
+                    if it.Tag == sel:
+                        self.models_lb.SelectedItem = it
+
+    def _bg_cfg_exe(self, cfg):
+        if not cfg.get('revit_exe'):
+            try:
+                cfg['revit_exe'] = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName
+            except Exception:
+                pass
+        return cfg
+
+    def _bg_start(self, cfg):
+        bg.save_config(self._bg_cfg_exe(cfg))
+        bg.set_control('run')
+        if not bg.alive():
+            return bg.start_background_revit(cfg, check=False)
+        return False
+
+    def on_reload_ticked(self, sender, args):
+        if bg is None:
+            return
+        gs = sorted(self.state['checked_models'])
+        if not gs:
+            forms.alert('Tick the models to reload first.')
+            return
+        for g in gs:
+            bg.request_reload(g)
+        started = self._bg_start(bg.load_config())
+        self._bg_tick(None, None)
+        self._fill_models()
+        self.model_info_tb.Text = (u'%d model(s) sent to the background Revit%s. The lines show the progress; the drawings '
+                                   u'refresh here when each is done.' % (len(gs), u' (starting it, 1-2 min)' if started else u''))
+
+    def on_keep_ready(self, sender, args):
+        if bg is None:
+            return
+        gs = set(self.state['checked_models'])
+        if not gs:
+            forms.alert('Tick the models to keep ready first.')
+            return
+        cfg = bg.load_config()
+        pinned = set(cfg.get('pinned') or [])
+        if gs <= pinned:
+            pinned -= gs
+            msg = u'%d model(s) no longer kept ready.' % len(gs)
+        else:
+            if len(pinned | gs) > 6 and not forms.alert(u'%d models kept ready uses a lot of memory (each big model several '
+                                                        u'GB). Continue?' % len(pinned | gs), yes=True, no=True):
+                return
+            pinned |= gs
+            cfg['models'] = sorted(set(cfg.get('models') or []) | gs)
+            msg = u'%d model(s) kept ready: the background Revit opens them now and keeps them open.' % len(gs)
+        cfg['pinned'] = sorted(pinned)
+        if self._bg_start(cfg) and pinned:
+            msg += u' Starting the background Revit (1-2 minutes).'
+        self._bg_tick(None, None)
+        self._fill_models()
+        self.model_info_tb.Text = msg
+
+    def _bg_fill_settings(self):
+        if bg is None:
+            return
+        cfg = bg.load_config()
+        self.bg_times_tb.Text = u', '.join(cfg.get('times') or [])
+        for d in range(1, 8):
+            getattr(self, 'bgd%d' % d).IsChecked = d in (cfg.get('days') or [])
+        self.bg_on_cb.IsChecked = bool(cfg.get('enabled', True))
+        self.bg_keep_cb.Items.Clear()
+        for n in range(0, 7):
+            self.bg_keep_cb.Items.Add(core.text(n))
+        self.bg_keep_cb.SelectedItem = core.text(min(6, int(cfg.get('keep_open') or 0)))
+        self._bg_watch_text(cfg)
+
+    def _bg_watch_text(self, cfg):
+        names = [((self.cache.get(g) or {}).get('model') or (self.reg.get(g) or {}).get('Name') or g[:8])
+                 for g in cfg.get('models') or []]
+        self.bg_watch_tb.Text = (u'%d model(s): %s' % (len(names), u', '.join(sorted(names, key=core.natural_key)[:8]) +
+                                                      (u' ...' if len(names) > 8 else u''))) if names else u'No models yet.'
+
+    def on_bg_watch(self, sender, args):
+        cfg = bg.load_config()
+        cfg['models'] = sorted(self.state['checked_models'])
+        bg.save_config(self._bg_cfg_exe(cfg))
+        bg.prune_todo(cfg)
+        self._bg_watch_text(cfg)
+        self.bg_saved_tb.Text = u'Saved: the ticked models are checked on schedule.'
+
+    def on_bg_save(self, sender, args):
+        import re as _re
+        cfg = self._bg_cfg_exe(bg.load_config())
+        cfg['times'] = sorted(set(u'%02d:%02d' % (int(a), int(b)) for a, b in
+                                  _re.findall(r'(\d{1,2})[:.](\d{2})', self.bg_times_tb.Text or u'') if int(a) < 24 and int(b) < 60))
+        cfg['days'] = [d for d in range(1, 8) if getattr(self, 'bgd%d' % d).IsChecked] or [1, 2, 3, 4, 5]
+        cfg['enabled'] = bool(self.bg_on_cb.IsChecked)
+        try:
+            cfg['keep_open'] = int(self.bg_keep_cb.SelectedItem)
+        except Exception:
+            pass
+        bg.save_config(cfg)
+        ok, msg = bg.install_schedule(cfg)
+        self.bg_times_tb.Text = u', '.join(cfg['times'])
+        self.bg_saved_tb.Text = (u'Saved. ' + msg) if ok else (u'Saved, but: ' + msg)
+
+    def on_bg_check_now(self, sender, args):
+        cfg = bg.load_config()
+        if not cfg.get('models'):
+            forms.alert('Choose the models first: tick them on the left, then "Use the ticked models".')
+            return
+        bg.request_check()
+        started = self._bg_start(cfg)
+        self.bg_saved_tb.Text = u'Check requested%s.' % (u' - starting the background Revit (1-2 min)' if started else u'')
+        self._bg_tick(None, None)
+
+    def on_bg_pause(self, sender, args):
+        bg.set_control('run' if bg.control() == 'pause' else 'pause')
+        self._bg_tick(None, None)
+
+    def on_bg_stop(self, sender, args):
+        if bg.alive() and forms.alert(u'Stop the background Revit?\n\nIt finishes the current model, then closes. An '
+                                      u'unfinished check continues where it stopped next time.', yes=True, no=True):
+            bg.set_control('stop')
+        self._bg_tick(None, None)
+
+    def on_bg_changes(self, sender, args):
+        self.action = ('bg_changes', None)
+        self.Close()
+
+    def on_bg_open_work(self, sender, args):
+        it = self.models_lb.SelectedItem
+        if it is None:
+            forms.alert('Click ONE model line on the left first (the line, not the tick box).')
+            return
+        g = it.Tag
+        name = (self.reg.get(g) or {}).get('Name') or g
+        c = forms.CommandSwitchWindow.show([u'In this Revit', u'In a new Revit window'],
+                                           message=u'Open %s for work - where?' % name)
+        if c == u'In a new Revit window':
+            bg.save_config(self._bg_cfg_exe(bg.load_config()))
+            bg.request_open_for_work(g, new_window=True)
+            forms.alert(u'A new Revit window starts (1-2 minutes) and opens %s by itself.' % name)
+        elif c:
+            self.action = ('open_work', g)         # opened after this window closes
+            self.Close()
 
     def _model_label(self, label, g):
         tb = ui.plain_text(label)
@@ -1779,6 +2004,23 @@ def load_request(state, settings, reg):
         settings['_formats'] = {'pdf': 'Y' if 'PDF' in f else 'N', 'dwg': 'Y' if 'DWG' in f else 'N'}
 
 
+def show_bg_changes(reg, cache):
+    cfg = bg.load_config()
+    output.print_md(u'## What changed (background checks)')
+    for g in sorted(cfg.get('models') or [], key=lambda x: core.natural_key((cache.get(x) or {}).get('model') or x)):
+        e = cache.get(g) or {}
+        name = e.get('model') or (reg.get(g) or {}).get('Name') or g[:8]
+        ch = e.get('bg_changes') or {}
+        if not ch:
+            output.print_md(u'### %s\nNot checked yet' % name)
+            continue
+        att = [(n, c) for n, c in sorted(ch.items()) if c['since_issue'] is None or c['since_issue']]
+        output.print_md(u'### %s  -  checked %s  -  %d of %d drawing(s) to print' % (
+            name, (e.get('bg_checked') or u'')[:16], len(att), len(ch)))
+        for n, c in att[:300]:
+            output.print_md(u'- **%s**: %s' % (n, u'never issued' if c['since_issue'] is None else u'; '.join(c['since_issue'])))
+
+
 def print_request_now(state, settings, reg, cache):
     """'Print now' from the Toolbox pop-up: no window, no Check - each model opens ONCE, to print.
     Names = MIDP code from the request + the revision the sheet shows at print time; wrong revision = BLOCKED."""
@@ -1877,11 +2119,24 @@ def main():
         register_rows = issue.read_register(settings.get('issue_register'))
         win = IssueWindow(state, settings, reg, cache, register_rows)
         win.ShowDialog()
+        try:
+            if getattr(win, '_bg_timer', None) is not None:
+                win._bg_timer.Stop()
+        except Exception:
+            pass
         settings['issue_midp'] = state.get('midp', '')
         settings.pop('_names', None)
         core.save_settings(settings)
         act = win.action
         if act is None:
+            return
+        if act[0] == 'bg_changes':
+            show_bg_changes(reg, core.load_sheet_cache())
+            return
+        if act[0] == 'open_work':
+            ok, err = bg.open_for_work(ui.uiapp, reg[act[1]])
+            if not ok:
+                forms.alert(u'Could not open:\n' + err)
             return
         if act[0] == 'check':
             if state.get('request'):

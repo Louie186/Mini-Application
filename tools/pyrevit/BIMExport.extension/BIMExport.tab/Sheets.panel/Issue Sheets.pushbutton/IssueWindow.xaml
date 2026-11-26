@@ -121,8 +121,16 @@
                     <TextBlock Text="Check what changed, fix revisions and title block switches, then issue with exact MIDP file names."
                                Foreground="#D3E2F4" Margin="0,2,0,0"/>
                 </StackPanel>
-                <TextBlock x:Name="header_info" HorizontalAlignment="Right" VerticalAlignment="Center"
-                           Foreground="#D3E2F4" TextAlignment="Right"/>
+                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBlock Text="Background  " Foreground="#D3E2F4" VerticalAlignment="Center"/>
+                        <Border x:Name="bg_badge_bd" CornerRadius="10" Padding="10,2" Background="#6B7785">
+                            <TextBlock x:Name="bg_badge_tb" Text="NOT RUNNING" Foreground="White" FontWeight="SemiBold" FontSize="11.5"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock x:Name="bg_msg_tb" Foreground="#D3E2F4" TextAlignment="Right" FontStyle="Italic" FontSize="11.5" Margin="0,3,0,0"/>
+                    <TextBlock x:Name="header_info" Foreground="#D3E2F4" TextAlignment="Right" Margin="0,3,0,0"/>
+                </StackPanel>
             </DockPanel>
         </Border>
 
@@ -170,8 +178,14 @@
                             <Button Content="Browse..." Style="{StaticResource Small}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="on_midp_browse"/>
                             <TextBox x:Name="midp_tb" IsReadOnly="True"/>
                         </DockPanel>
-                        <Button Content="Check models  &#x25B6;" Style="{StaticResource Primary}" Margin="0,10,0,0" Click="on_check"
-                                ToolTip="Quick open of each ticked model (no worksets, no links): drawings, revisions, title blocks, last sync."/>
+                        <UniformGrid Columns="2" Margin="0,10,0,0">
+                            <Button Content="&#x27F3; Reload ticked" Style="{StaticResource Secondary}" Margin="0,0,3,0" Click="on_reload_ticked"
+                                    ToolTip="The background Revit reloads the ticked models fully NOW (your Revit stays free). Lines show the progress; the drawings refresh here when each is done. Then Issue prints them in seconds."/>
+                            <Button Content="&#x26A1; Keep ready" Style="{StaticResource Secondary}" Margin="3,0,0,0" Click="on_keep_ready"
+                                    ToolTip="Keep the ticked models open in the background Revit all the time (refreshed at every check) - they always print in seconds. Click again to stop."/>
+                        </UniformGrid>
+                        <Button Content="Check models  &#x25B6;" Style="{StaticResource Primary}" Margin="0,6,0,0" Click="on_check"
+                                ToolTip="Models already checked load instantly. This reads only models never read (quick open here)."/>
                         <TextBlock x:Name="model_info_tb" Style="{StaticResource Hint}" Margin="0,8,0,0"/>
                     </StackPanel>
                     <ListBox x:Name="models_lb" Margin="0,8,0,0" BorderBrush="{StaticResource Line}"
@@ -366,6 +380,48 @@
                                     <CheckBox x:Name="dwg_shared_cb" Content="Shared coordinates"/>
                                     <TextBlock Style="{StaticResource Hint}" Margin="0,8,0,0"
                                                Text="With a setup chosen, each model uses its own copy of that setup. The values shown come from the first model that has it."/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+
+                        <TabItem Header="  Background  ">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="10">
+                                    <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap"
+                                               Text="A separate Revit checks models at set times and keeps some open, so printing them takes seconds."/>
+                                    <TextBlock Text="Check on schedule" Style="{StaticResource Label}"/>
+                                    <TextBlock x:Name="bg_watch_tb" Style="{StaticResource Hint}" TextWrapping="Wrap"/>
+                                    <Button Content="Use the ticked models" Style="{StaticResource Small}" HorizontalAlignment="Left" Click="on_bg_watch"
+                                            ToolTip="The models ticked on the left become the ones checked at the times below."/>
+                                    <TextBlock Text="Times" Style="{StaticResource Label}"/>
+                                    <TextBox x:Name="bg_times_tb" ToolTip="As many as you like, e.g. 07:00, 10:00, 12:30, 15:00, 18:00"/>
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <CheckBox x:Name="bgd1" Content="Mon" Margin="0,4,8,4"/>
+                                        <CheckBox x:Name="bgd2" Content="Tue" Margin="0,4,8,4"/>
+                                        <CheckBox x:Name="bgd3" Content="Wed" Margin="0,4,8,4"/>
+                                        <CheckBox x:Name="bgd4" Content="Thu" Margin="0,4,8,4"/>
+                                        <CheckBox x:Name="bgd5" Content="Fri" Margin="0,4,8,4"/>
+                                        <CheckBox x:Name="bgd6" Content="Sat" Margin="0,4,8,4"/>
+                                        <CheckBox x:Name="bgd7" Content="Sun" Margin="0,4,8,4"/>
+                                    </WrapPanel>
+                                    <CheckBox x:Name="bg_on_cb" Content="Schedule on"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <TextBlock Text="Keep" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="bg_keep_cb" Width="52" Margin="6,0"/>
+                                        <TextBlock Text="more models open (besides Keep ready)" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                    <Button Content="Save schedule" Style="{StaticResource Primary}" HorizontalAlignment="Left" Margin="0,10,0,0" Click="on_bg_save"/>
+                                    <TextBlock x:Name="bg_saved_tb" Style="{StaticResource Hint}" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                    <TextBlock Text="Control" Style="{StaticResource Label}"/>
+                                    <WrapPanel>
+                                        <Button Content="Check now" Style="{StaticResource Small}" Margin="0,0,6,6" Click="on_bg_check_now"/>
+                                        <Button x:Name="bg_pause_btn" Content="Pause" Style="{StaticResource Small}" Margin="0,0,6,6" Click="on_bg_pause"/>
+                                        <Button Content="Stop" Style="{StaticResource Small}" Margin="0,0,6,6" Click="on_bg_stop"/>
+                                        <Button Content="What changed" Style="{StaticResource Small}" Margin="0,0,6,6" Click="on_bg_changes"/>
+                                        <Button Content="Open for work..." Style="{StaticResource Small}" Margin="0,0,6,6" Click="on_bg_open_work"
+                                                ToolTip="Open the SELECTED model line for work: in this Revit or in a new Revit window."/>
+                                    </WrapPanel>
+                                    <TextBlock x:Name="bg_last_tb" Style="{StaticResource Hint}" TextWrapping="Wrap" FontStyle="Italic"/>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>

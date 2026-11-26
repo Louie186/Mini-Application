@@ -6,7 +6,7 @@ module.exports = async ({ page, out }) => {
     add(B + 'heartbeat.txt', '123');
     add(B + 'bg_start.ps1', 'x');
     add(B + 'status.json', JSON.stringify({ state: 'checking', message: 'Checking 5013-KEO-ZZ-ZZ-BIM-INT-21001 (1 left)', last_check: '2026-11-26 10:41:00' }));
-    add(B + 'config.json', JSON.stringify({ models: ['g1', 'g2'], times: ['08:00', '12:30'], pinned: [] }));
+    add(B + 'config.json', JSON.stringify({ models: ['g1', 'g2'], times: ['08:00', '12:30'], pinned: [], revit_exe: 'C:\\Program Files\\Autodesk\\Revit 2025\\Revit.exe' }));
     add(B + 'models.json', JSON.stringify({ models: [
       { guid: 'g1', name: '5013-KEO-ZZ-ZZ-BIM-INT-21000', checked: '2026-11-26 10:41:00', to_print: 2, changed: [{ sheet: '10100', why: 'view "Level 1"' }, { sheet: '10101', why: 'never issued' }], fast: true, as_of: '2026-11-26 10:41:00', pinned: false },
       { guid: 'g2', name: '5013-KEO-ZZ-ZZ-BIM-INT-21001', checked: '', to_print: 0, changed: [], fast: false, pinned: false }] }));
@@ -22,8 +22,14 @@ module.exports = async ({ page, out }) => {
   ok(cfg.pinned.indexOf('g2') >= 0, 'Keep ready writes config.json pinned');
   await f.evaluate(() => document.querySelectorAll('.rl')[0].click()); await page.waitForTimeout(100);
   ok(await page.evaluate((B) => !!window.__mockFs.files[(B + 'reload\\g1.flag').toLowerCase()], B), 'Reload writes reload\\g1.flag');
-  await f.evaluate(() => document.querySelectorAll('.ow')[0].click()); await page.waitForTimeout(100);
-  ok(await page.evaluate((B) => !!window.__mockFs.files[(B + 'open_for_work\\g1.json').toLowerCase()], B), 'Open for work writes the request');
+  await f.evaluate(() => document.querySelectorAll('.ow')[0].click()); await page.waitForTimeout(150);
+  const items = await f.evaluate(() => [...document.querySelectorAll('#menu div, #menu a, #menu button, #menu li')].map(x => x.innerText.trim()).filter(Boolean));
+  console.log('   menu: ' + items.join(' | '));
+  await f.evaluate(() => { const m = [...document.querySelectorAll('#menu *')].find(x => x.children.length == 0 && /new Revit window/.test(x.innerText)); m.click(); });
+  await page.waitForTimeout(150);
+  const req = await page.evaluate((B) => { const f = window.__mockFs.files[(B + 'open_for_work\\g1.json').toLowerCase()]; return f ? JSON.parse(f.text.replace(/^\uFEFF/, '')) : null; }, B);
+  ok(req && req.target == 'new', 'Open for work: new Revit window request written');
+  ok(await page.evaluate(() => window.__mockFs.log.some(l => /Revit.exe" \/nosplash/.test(l))), 'a new Revit is started');
   await f.evaluate(() => document.querySelector('.tg').click()); await page.waitForTimeout(100);
   ok(await f.evaluate(() => /view "Level 1"/.test(document.body.innerText)), 'changed drawings listed');
   await f.evaluate(() => document.querySelector('.sp').click()); await page.waitForTimeout(900);

@@ -178,7 +178,7 @@ def _open_requests(uiapp):
     try:
         import bimbackground as bg
         import bimexport_core as core
-        g = bg.take_open_request()
+        g = bg.take_open_request(_process_start_epoch())
         if not g:
             return
         rec = core.load_register().get(g)

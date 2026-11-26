@@ -685,6 +685,8 @@ class Engine(object):
         self._drop(guid)                                   # always read a FRESH copy
         log(u'%s %s' % (u'Reload' if item['kind'] == 'reload' else u'Check', name))
         settings = core.load_settings()
+        t_open = time.time()
+        set_status(message=u'%s: opening (all worksets, links)...' % name)
         try:
             with core.QuietRevit(self.uiapp):
                 doc, region, err = core.open_cloud_model(self.app, rec, settings.get('region'),
@@ -710,10 +712,17 @@ class Engine(object):
             import bimissue_core as issue
             cache = core.load_sheet_cache()
             old = (cache.get(guid) or {}).get('fp') or {}
+            log(u'  opened in %d s' % (time.time() - t_open))
+            t_read = time.time()
+            set_status(message=u'%s: reading drawings, revisions, title blocks...' % name)
             entry = core.read_sheet_list(doc, settings.get('naming_rule') or u'{DrawingNumber}')
             entry['guid'] = guid
             entry['issue'] = issue.read_issue_data(doc)
+            log(u'  drawings read in %d s' % (time.time() - t_read))
+            t_fp = time.time()
+            set_status(message=u'%s: comparing every drawing with its last issue...' % name)
             fps = sheet_fingerprints(doc)
+            log(u'  compared %d drawing(s) in %d s' % (len(fps), time.time() - t_fp))
             entry['fp'] = fps
             entry['bg_checked'] = core.now()
             entry['bg_kind'] = item['kind']
@@ -798,18 +807,40 @@ def write_summary(engine=None):
 
 
 # ------------------------------------------------------- open for work ----
-def request_open_for_work(guid):
+def request_open_for_work(guid, new_window=False):
+    """new_window: a NEW Revit is started and only that one opens it; otherwise your running Revit does."""
     core.ensure_dir(OPEN_DIR)
-    _wj(os.path.join(OPEN_DIR, guid.lower() + u'.json'), {'guid': guid.lower(), 'when': core.now()})
+    _wj(os.path.join(OPEN_DIR, guid.lower() + u'.json'),
+        {'guid': guid.lower(), 'when': core.now(), 'target': 'new' if new_window else 'running', 't': time.time()})
+    if new_window:
+        exe = load_config().get('revit_exe') or u''
+        try:
+            import subprocess
+            subprocess.Popen([exe or 'Revit.exe', '/nosplash'])
+        except Exception as e:
+            log(u'Open for work: could not start a new Revit: %s' % core.text(e))
 
 
-def take_open_request():
-    """Your Revit (never the background one) takes one 'open for work' request. Returns the guid or None."""
+def take_open_request(process_started=0.0):
+    """Your Revit (never the background one) takes one 'open for work' request. Returns the guid or None.
+    A 'new window' request is only taken by a Revit started AFTER it; a 'running' one only by a Revit started before."""
     if not os.path.isdir(OPEN_DIR):
         return None
     for fn in sorted(os.listdir(OPEN_DIR)):
         if fn.endswith('.json'):
             src = os.path.join(OPEN_DIR, fn)
+            req = _rj(src, {})
+            t = float(req.get('t') or 0)
+            if time.time() - t > 900:                  # 15 minutes old: nobody took it - drop it
+                try:
+                    os.remove(src)
+                except Exception:
+                    pass
+                continue
+            if req.get('target') == 'new' and process_started and process_started < t - 30:
+                continue                               # meant for the NEW Revit window
+            if req.get('target') == 'running' and process_started and process_started > t:
+                continue                               # meant for the Revit that was already running
             dst = src + u'.taken_%s' % os.getpid()
             try:
                 os.rename(src, dst)                    # only one Revit gets it

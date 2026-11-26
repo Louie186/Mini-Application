@@ -94,7 +94,14 @@ $("list").onclick = function (e) {
     if (i < 0 && !alive()) startBg();
     LT.toast(i >= 0 ? "No longer kept ready" : "Kept ready: the background Revit opens it now"); draw(); return false; }
   if (/\brl\b/.test(t.className)) { wj(BG() + "\\reload\\" + g + ".flag", { when: LT.today() }); if (!alive()) startBg(); LT.toast("Reload requested"); return false; }
-  if (/\bow\b/.test(t.className)) { wj(BG() + "\\open_for_work\\" + g + ".json", { guid: g }); LT.toast("Your Revit opens it (Revit must be running)"); return false; }
+  if (/\bow\b/.test(t.className)) { var r = t.getBoundingClientRect();
+    LT.menu(r.left, r.bottom + 2, [
+      { label: "In my running Revit", fn: function () { wj(BG() + "\\open_for_work\\" + g + ".json", { guid: g, target: "running", t: new Date().getTime() / 1000 }); LT.toast("Your Revit opens it (Revit must be running)"); } },
+      { label: "In a new Revit window", fn: function () { var cfg = rj("config.json", {});
+        if (!cfg.revit_exe) { alert("Set it up once in Revit: BIMExport > Background > Save."); return; }
+        wj(BG() + "\\open_for_work\\" + g + ".json", { guid: g, target: "new", t: new Date().getTime() / 1000 });
+        try { LT.wsh.Run('"' + cfg.revit_exe + '" /nosplash', 1, false); LT.toast("A new Revit starts and opens it (1-2 minutes)"); } catch (e) { alert("Could not start Revit: " + (e.message || e)); } } }]);
+    (e || window.event).cancelBubble = true; return false; }
   if (/\bsp\b/.test(t.className)) { var sum = rj("models.json", { models: [] }), m = null;
     for (var j = 0; j < sum.models.length; j++) if (sum.models[j].guid == g) m = sum.models[j];
     if (m && LT.main()) { var a = []; for (var k = 0; k < m.changed.length; k++) a.push({ code: m.changed[k].sheet, model: m.name }); LT.main().send("revitpull", "add-drawings", JSON.stringify(a)); }

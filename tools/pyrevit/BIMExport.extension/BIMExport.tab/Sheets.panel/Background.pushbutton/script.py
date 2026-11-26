@@ -79,7 +79,14 @@ class BackgroundWindow(forms.WPFWindow):
         e = self.cache.get(g) or {}
         name = e.get('model') or (self.reg.get(g) or {}).get('Name') or g[:8]
         ch = e.get('bg_changes') or {}
-        if not e.get('bg_checked'):
+        it = (self._todo or {}).get(g)
+        if it is not None and it['state'] == 'waiting' and self._current == name:
+            info = u'checking now - %s' % (self._msg.split(u': ', 1)[-1] if u': ' in self._msg else u'working...')
+        elif it is not None and it['state'] == 'failed' and not e.get('bg_checked'):
+            info = u'\u2716 could not open - see background.log'
+        elif it is not None and it['state'] == 'waiting' and not e.get('bg_checked'):
+            info = u'waiting in this check'
+        elif not e.get('bg_checked'):
             info = u'not checked yet'
         else:
             att = len([1 for c in ch.values() if c['since_issue'] is None or c['since_issue']])
@@ -92,7 +99,10 @@ class BackgroundWindow(forms.WPFWindow):
         return name, info
 
     def _fill_models(self):
-        self._kept = (bg.status().get('kept') or {}) if bg.alive() else {}
+        st = bg.status() if bg.alive() else {}
+        self._kept = st.get('kept') or {}
+        self._current, self._msg = st.get('current') or u'', st.get('message') or u''
+        self._todo = dict((i['guid'], i) for i in bg.load_todo().get('items', []))
         flt = (self.search_tb.Text or u'').strip().lower()
         show = self.show_cb.SelectedItem or u'All'
         self.models_lb.Items.Clear()
@@ -189,9 +199,10 @@ class BackgroundWindow(forms.WPFWindow):
                                                     for g, v in kept.items())) if (alive and kept) else u'No models open for fast printing')
         self.pause_btn.Content = u'Resume' if bg.control() == 'pause' else u'Pause'
         self._fill_status(st, alive, t)
-        if sender is not None:                    # timer: pick up new check results
+        if sender is not None:                    # timer: pick up new check results and the current step
             new = core.load_sheet_cache()
-            if any((new.get(g) or {}).get('bg_checked') != (self.cache.get(g) or {}).get('bg_checked') for g in self.watch):
+            if any((new.get(g) or {}).get('bg_checked') != (self.cache.get(g) or {}).get('bg_checked') for g in self.watch) \
+                    or (alive and st.get('message') != getattr(self, '_msg', None)):
                 self.cache = new
                 self._fill_models()
 
@@ -378,9 +389,22 @@ def main():
     elif isinstance(w.action, tuple) and w.action[0] == 'open':
         rec = dict((g.lower(), r) for g, r in reg.items()).get(w.action[1])
         if rec is not None:
-            ok, err = bg.open_for_work(ui.uiapp, rec)
-            if not ok:
-                forms.alert(u'Could not open:\n' + err)
+            c = forms.CommandSwitchWindow.show([u'In this Revit', u'In a new Revit window'],
+                                               message=u'Open %s for work - where?' % rec.get('Name', u''))
+            if c == u'In this Revit':
+                ok, err = bg.open_for_work(ui.uiapp, rec)
+                if not ok:
+                    forms.alert(u'Could not open:\n' + err)
+            elif c:
+                cfg = bg.load_config()
+                if not cfg.get('revit_exe'):
+                    try:
+                        cfg['revit_exe'] = System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName
+                        bg.save_config(cfg)
+                    except Exception:
+                        pass
+                bg.request_open_for_work(w.action[1], new_window=True)
+                forms.alert(u'A new Revit window starts (1-2 minutes) and opens %s by itself.' % rec.get('Name', u''))
 
 
 main()
